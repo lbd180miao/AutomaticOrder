@@ -285,7 +285,11 @@ class VisionService:
                 has_lifted_edge=data['has_lifted_edge'],
                 score=data['score'],
                 is_passed=data['is_passed'],
-                result_data=data['result_data'],
+                offset_x_px=data.get('offset_x_px', 0),
+                offset_y_px=data.get('offset_y_px', 0),
+                coverage_ratio=data.get('coverage_ratio', 0),
+                defect_type=data.get('defect_type', 'NONE'),
+                result_data=data.get('result_data', {}),
             )
             self._save_images(task, data)
             task.status = ResultStatus.SUCCESS if result.is_passed else ResultStatus.FAILED

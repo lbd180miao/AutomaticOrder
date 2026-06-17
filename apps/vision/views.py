@@ -210,7 +210,7 @@ def api_foam_capture_inspect(request):
         position_index = body.get('position_index', 0)
         
         vision_service = VisionService()
-        task_result = vision_service.inspect_foam(
+        foam_result = vision_service.inspect_foam(
             product=None,
             rack=None,
             position_index=position_index,
@@ -218,15 +218,16 @@ def api_foam_capture_inspect(request):
             use_camera=True,
         )
         
-        # 获取检测结果
-        foam_result = task_result.foam_results.first()
-        result_image = task_result.images.filter(image_type='RESULT').first()
-        original_image = task_result.images.filter(image_type='ORIGINAL').first()
+        # foam_result 是 FoamInspectionResult 对象
+        # 通过 vision_task 获取关联的任务
+        task = foam_result.vision_task
+        result_image = task.images.filter(image_type='RESULT').first()
+        original_image = task.images.filter(image_type='ORIGINAL').first()
         
         return JsonResponse({
             'success': True,
             'result': {
-                'task_id': task_result.id,
+                'task_id': task.id,
                 'position_index': foam_result.position_index,
                 'is_present': foam_result.is_present,
                 'is_aligned': foam_result.is_aligned,

@@ -43,6 +43,13 @@ class FoamInspectionResult(TimeStampedModel):
     has_lifted_edge = models.BooleanField(default=False)
     score = models.DecimalField(max_digits=6, decimal_places=3, default=0)
     is_passed = models.BooleanField(default=False)
+    
+    # 新增详细检测数据字段
+    offset_x_px = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text='X轴偏移（像素）')
+    offset_y_px = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text='Y轴偏移（像素）')
+    coverage_ratio = models.DecimalField(max_digits=5, decimal_places=4, default=0, help_text='泡棉覆盖率')
+    defect_type = models.CharField(max_length=32, default='NONE', help_text='缺陷类型')
+    
     result_data = models.JSONField(default=dict, blank=True)
 
 
