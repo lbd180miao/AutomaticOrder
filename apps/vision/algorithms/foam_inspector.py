@@ -117,27 +117,19 @@ class FoamInspector:
             scene = image
             height, width = scene.shape[:2]
             
-            # 根据实际相机视野和产品位置定义ROI
-            # TODO: 实际部署时需要根据现场标定结果调整
-            roi_w = min(220, max(width - 40, 40))
-            roi_h = min(160, max(height - 40, 40))
-            roi = (
-                width // 2 - roi_w // 2,
-                height // 2 - roi_h // 2,
-                width // 2 + roi_w // 2,
-                height // 2 + roi_h // 2,
-            )
+            # ROI设置为整张图片，留出小边距
+            margin = 10
+            roi = (margin, margin, width - margin, height - margin)
             
-            # 在ROI内检测泡棉位置
+            # 泡棉检测区域设置为整张图片的95%
             # TODO: 这里需要实现真实的图像处理算法
             # 可能的方法：颜色阈值分割、轮廓检测、模板匹配等
-            shrink_x = max((roi[2] - roi[0]) // 6, 1)
-            shrink_y = max((roi[3] - roi[1]) // 6, 1)
+            shrink = 30
             foam = (
-                roi[0] + shrink_x,
-                roi[1] + shrink_y,
-                roi[2] - shrink_x,
-                roi[3] - shrink_y,
+                shrink,
+                shrink,
+                width - shrink,
+                height - shrink,
             )
         else:
             # 模拟模式：生成测试图像

@@ -10,6 +10,7 @@ import os
 
 import cv2
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 from django.conf import settings
 from django.utils import timezone
 
@@ -44,12 +45,37 @@ def save_image(image, prefix, rel_dir='vision/captures'):
 
 
 def _put_label(img, text, org, color, scale=0.5, thickness=1):
-    """带背景底的文字标注，避免在杂色背景上看不清。"""
-    (tw, th), base = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thickness)
+    """带背景底的文字标注，支持中文显示。"""
+    # 转换为PIL图像以支持中文
+    pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(pil_img)
+    
+    # 尝试使用系统中文字体，如果失败则使用默认字体
+    try:
+        # Windows系统中文字体
+        font_size = int(20 * scale)
+        font = ImageFont.truetype("msyh.ttc", font_size)  # 微软雅黑
+    except:
+        try:
+            font = ImageFont.truetype("simsun.ttc", font_size)  # 宋体
+        except:
+            font = ImageFont.load_default()
+    
     x, y = org
-    cv2.rectangle(img, (x, y - th - base - 2), (x + tw + 6, y + 2), (30, 30, 30), -1)
-    cv2.putText(img, text, (x + 3, y - base), cv2.FONT_HERSHEY_SIMPLEX,
-                scale, color, thickness, cv2.LINE_AA)
+    # 获取文本尺寸
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw = bbox[2] - bbox[0]
+    th = bbox[3] - bbox[1]
+    
+    # 绘制背景矩形
+    draw.rectangle([x, y - th - 4, x + tw + 6, y + 2], fill=(30, 30, 30))
+    
+    # 绘制文字（PIL使用RGB颜色顺序，需要转换）
+    rgb_color = (color[2], color[1], color[0])
+    draw.text((x + 3, y - th - 2), text, font=font, fill=rgb_color)
+    
+    # 转换回OpenCV格式
+    img[:] = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
 
 def draw_roi(img, box, color=COLOR_ROI, label=None, thickness=2):
