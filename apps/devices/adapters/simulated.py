@@ -73,9 +73,38 @@ class SimulatedDeviceAdapter(BaseDeviceAdapter):
         }
 
     # --- PLC 控制信号 ---
+
+    def send_rack_offsets(self, payload: dict) -> dict:
+        """模拟将料架补偿数据下发给 PLC。
+
+        校验必填字段，缺失时返回 success=False。
+        真实接入时替换为 Modbus/OPC UA 写寄存器逻辑。
+        """
+        from django.utils import timezone
+
+        required = ('side', 'offset_x', 'offset_y', 'offset_z',
+                    'layer_heights', 'confidence', 'recipe_matched')
+        missing = [k for k in required if k not in payload]
+        if missing:
+            return {
+                'success': False,
+                'error': f'plc_payload 缺少必填字段: {missing}',
+                'payload': payload,
+            }
+        return {
+            'success': True,
+            'sent_at': timezone.now().isoformat(),
+            'signal_name': 'rack_offsets_sent',
+            'echo': payload,
+        }
+
     def send_offsets(self, product_code, side, x, y, z):
-        return {'success': True, 'product_code': product_code, 'side': side,
-                'x': x, 'y': y, 'z': z}
+        """已废弃，请改用 send_rack_offsets()。"""
+        return self.send_rack_offsets({
+            'side': side, 'offset_x': x, 'offset_y': y, 'offset_z': z,
+            'layer_heights': [], 'layer_spacings': [], 'confidence': 1.0,
+            'recipe_matched': True, 'product_code': product_code,
+        })
 
     def send_workstation_lock(self, reason):
         return {'success': True, 'locked': True, 'reason': reason}

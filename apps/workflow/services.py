@@ -10,7 +10,7 @@ from django.utils import timezone
 from apps.alarms.services import AlarmService
 from apps.core.constants import (
     AlarmLevel, AlarmSource, EventSource, MarkStatus, MesUploadStatus,
-    STATE_STAGE_MAP, Stage, TERMINAL_STATES, WorkflowState as W,
+    SignalDirection, STATE_STAGE_MAP, Stage, TERMINAL_STATES, WorkflowState as W,
 )
 from apps.core.exceptions import (
     AutomaticOrderError, WorkflowLockedError, WorkflowTransitionError,
@@ -222,24 +222,49 @@ class WorkflowService:
 
     # ----- 阶段三：视觉定位与校验 -----
     def _on_rack_located(self, workflow):
-        """RECIPE_LOADED -> RACK_LOCATING -> RACK_LOCATED：左右料架定位。"""
+        """单次拍摄全部料架 RECIPE_LOADED -> RACK_LOCATING -> RACK_LOCATED。"""
         product = workflow.product
         rack = product.rack
         recipe = rack.current_recipe if rack else None
-        # 先进入定位中。
         self._transition(workflow, W.RACK_LOCATING, EventSource.VISION,
                          event_type='VISION', message='料架定位中')
+
+        # 单次拍摄：一张宽幅深度图同时解析左右两侧
         left, right = self.vision.locate_both_racks(product, rack, recipe)
-        # 把补偿值通过 PLC 下发（模拟）。
+
+        # 向 PLC 下发各侧结构化补偿数据
         for res in (left, right):
-            self.devices.adapter.send_offsets(
-                product.product_code, res.side,
-                float(res.offset_x), float(res.offset_y), float(res.offset_z),
+            payload = res.result_data.get('plc_payload') or {
+                'side': res.side,
+                'offset_x': float(res.offset_x),
+                'offset_y': float(res.offset_y),
+                'offset_z': float(res.offset_z),
+                'layer_heights': [],
+                'layer_spacings': [],
+                'confidence': 1.0,
+                'recipe_matched': res.is_recipe_matched,
+                'product_code': product.product_code,
+            }
+            send_resp = self.devices.adapter.send_rack_offsets(payload)
+            if not send_resp.get('success'):
+                return self._fail(
+                    workflow,
+                    f'PLC 数据下发失败（{res.side}）: {send_resp.get("error", "unknown")}',
+                    source=AlarmSource.DEVICE,
+                )
+            # 记录 PLC OUT 信号
+            self.devices.record_signal(
+                device_code='PLC-01',
+                signal_name='rack_offsets_sent',
+                signal_value=str(res.side),
+                direction=SignalDirection.OUT,
             )
+
         if not (left.is_success and right.is_success):
             return self._fail(workflow, '料架视觉定位失败', source=AlarmSource.VISION)
         return self._transition(workflow, W.RACK_LOCATED, EventSource.VISION,
-                                event_type='VISION', message='左右料架定位完成')
+                                event_type='VISION', message='左右料架定位完成，PLC 数据已下发')
+
 
     def _on_recipe_verified(self, workflow):
         """RACK_LOCATED -> RECIPE_VERIFIED：层高/层距配方校验。"""
