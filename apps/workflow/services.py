@@ -149,7 +149,7 @@ class WorkflowService:
         product = workflow.product
         self.devices.adapter.trigger_mark(product.product_code)
         result = self.devices.adapter.get_mark_result()
-        self.devices.record_signal('LASER-01', 'mark_result', result.get('result', 'NG'))
+        self.devices.record_signal('PLC-01', 'mark_result', result.get('result', 'NG'))
         if not result.get('success'):
             product.mark_status = MarkStatus.FAILED
             product.save(update_fields=['mark_status', 'updated_at'])
@@ -162,7 +162,7 @@ class WorkflowService:
     def _on_barcode_read(self, workflow):
         """MARKED -> BARCODE_READ：扫码枪读取产品条码。"""
         scan = self.devices.adapter.read_product_code()
-        self.devices.record_signal('SCAN-01', 'product_code', scan.get('code', ''))
+        self.devices.record_signal('PLC-01', 'product_code', scan.get('code', ''))
         if not scan.get('success'):
             return self._fail(workflow, '产品条码读取失败', source=AlarmSource.SCANNER)
         return self._transition(workflow, W.BARCODE_READ, EventSource.PLC,
@@ -189,7 +189,7 @@ class WorkflowService:
     def _on_rack_scanned(self, workflow):
         """INJECTION_RELEASED -> RACK_SCANNED：读料框码并绑定。"""
         scan = self.devices.adapter.read_rack_code()
-        self.devices.record_signal('SCAN-01', 'rack_code', scan.get('code', ''))
+        self.devices.record_signal('PLC-01', 'rack_code', scan.get('code', ''))
         if not scan.get('success'):
             return self._fail(workflow, '料框码读取失败', source=AlarmSource.SCANNER)
         rack = self.production.get_or_create_rack(scan['code'])

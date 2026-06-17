@@ -11,13 +11,9 @@ from apps.production.models import ProductionBatch, RackRecipe
 
 DEVICES = [
     ('PLC-01', '主控PLC', DeviceType.PLC, 'Modbus TCP', '192.168.1.10'),
-    ('ROBOT-INJ-01', '注塑取件机器人', DeviceType.INJECTION_ROBOT, 'PLC中转', ''),
-    ('ROBOT-BOX-01', '装箱机器人', DeviceType.BOXING_ROBOT, 'PLC中转', ''),
-    ('SCAN-01', '产品扫码枪', DeviceType.SCANNER, 'TCP', '192.168.1.21'),
     ('CAM-DEPTH-01', '机器人深度相机', DeviceType.DEPTH_CAMERA, 'GigE Vision', '192.168.1.31'),
-    ('CAM-INSPECT-01', '固定检测相机', DeviceType.INSPECT_CAMERA, 'GigE Vision', '192.168.1.32'),
-    ('LASER-01', '激光打标机', DeviceType.LASER_MARKER, 'PLC触发', ''),
-    ('SENSOR-FOAM-01', '泡棉距离传感器', DeviceType.FOAM_SENSOR, 'PLC中转', ''),
+    ('CAM-INSPECT-LEFT-01', '左侧固定检测相机', DeviceType.INSPECT_CAMERA, 'GigE Vision', '192.168.1.32'),
+    ('CAM-INSPECT-RIGHT-01', '右侧固定检测相机', DeviceType.INSPECT_CAMERA, 'GigE Vision', '192.168.1.33'),
 ]
 
 
@@ -37,7 +33,8 @@ class Command(BaseCommand):
                     'status': DeviceStatus.ONLINE,
                 },
             )
-        self.stdout.write(self.style.SUCCESS(f'已写入 {len(DEVICES)} 台设备'))
+        Device.objects.exclude(code__in=[d[0] for d in DEVICES]).delete()
+        self.stdout.write(self.style.SUCCESS(f'已写入 {len(DEVICES)} 台设备并清除了其他无用设备'))
 
         RackRecipe.objects.update_or_create(
             recipe_code='RCP-RK-DEMO-01',

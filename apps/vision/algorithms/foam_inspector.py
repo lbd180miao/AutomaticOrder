@@ -34,7 +34,7 @@ class FoamInspector:
         self.simulate = simulate
 
     def inspect(self, *, position_index=0, inspection_config=None, image=None,
-                simulated_pass=True):
+                camera_image_path='', simulated_pass=True):
         """检测泡棉并生成可视化图片。
 
         参数：
@@ -54,7 +54,7 @@ class FoamInspector:
             - original_image / result_image（media 相对路径）
             - roi / foam_box（检测框坐标）
         """
-        if not self.simulate:
+        if not self.simulate and image is None:
             raise NotImplementedError('真实泡棉检测算法尚未接入')
 
         # 解析 inspection_config
@@ -75,12 +75,33 @@ class FoamInspector:
             ]
             defect_type = defect_cycle[position_index % len(defect_cycle)]
 
-        # 2) 取得 2D 相机画面（模拟）。
-        scene, roi, foam = image_io.generate_foam_scene(
-            position_index=position_index,
-            passed=(defect_type == FoamDefectType.NONE),
-            defect_type=defect_type,
-        )
+        # 2) 取得 2D 相机画面。有真实图时直接在真实图上画 ROI，否则生成模拟图。
+        using_camera_image = image is not None
+        if using_camera_image:
+            scene = image
+            height, width = scene.shape[:2]
+            roi_w = min(220, max(width - 40, 40))
+            roi_h = min(160, max(height - 40, 40))
+            roi = (
+                width // 2 - roi_w // 2,
+                height // 2 - roi_h // 2,
+                width // 2 + roi_w // 2,
+                height // 2 + roi_h // 2,
+            )
+            shrink_x = max((roi[2] - roi[0]) // 6, 1)
+            shrink_y = max((roi[3] - roi[1]) // 6, 1)
+            foam = (
+                roi[0] + shrink_x,
+                roi[1] + shrink_y,
+                roi[2] - shrink_x,
+                roi[3] - shrink_y,
+            )
+        else:
+            scene, roi, foam = image_io.generate_foam_scene(
+                position_index=position_index,
+                passed=(defect_type == FoamDefectType.NONE),
+                defect_type=defect_type,
+            )
 
         # 3) 计算量化指标
         roi_cx = (roi[0] + roi[2]) / 2
@@ -133,7 +154,8 @@ class FoamInspector:
             'roi': roi,
             'foam_box': foam,
             'result_data': {
-                'algorithm': 'simulated_foam_inspector',
+                'algorithm': 'camera_foam_inspector' if using_camera_image else 'simulated_foam_inspector',
+                'camera_image_path': camera_image_path,
                 'defect_type': defect_type,
                 'roi': roi,
                 'foam_box': foam,

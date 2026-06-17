@@ -2,17 +2,21 @@
 from django.conf import settings
 from django.utils import timezone
 
-from apps.core.constants import DeviceStatus, SignalDirection
+from apps.core.constants import DeviceStatus, DeviceType, SignalDirection
+from .adapters.camera import CameraAdapter
 from .adapters.simulated import SimulatedDeviceAdapter
 from .models import Device, DeviceSignalRecord
 
 
 def get_device_adapter(**kwargs):
-    """按配置返回设备适配器。前期固定返回模拟适配器。"""
+    """按配置返回设备适配器。"""
     conf = getattr(settings, 'AUTOMATIC_ORDER', {})
+    device_type = kwargs.pop('device_type', None)
     if conf.get('USE_SIMULATED_DEVICES', True):
         return SimulatedDeviceAdapter(**kwargs)
-    # 真实设备适配器（PLC/Scanner/Camera...）在此按设备类型接入。
+    if device_type in (DeviceType.DEPTH_CAMERA, DeviceType.INSPECT_CAMERA):
+        return CameraAdapter()
+    # 其他真实设备适配器（PLC/Scanner...）后续按设备类型接入。
     return SimulatedDeviceAdapter(**kwargs)
 
 

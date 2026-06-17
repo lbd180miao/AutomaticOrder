@@ -1,14 +1,18 @@
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+import cv2
+import numpy as np
 from django.conf import settings
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import reverse
 
+from apps.core.constants import ResultStatus, VisionTaskType
 from apps.production.models import Product, Rack, RackRecipe
 from apps.vision.algorithms.foam_inspector import FoamDefectType
 from apps.vision.models import FoamInspectionResult, RackLocationResult, VisionTask
 from apps.vision.services import VisionService
-from apps.core.constants import ResultStatus
 
 
 class VisionServiceTests(TestCase):
@@ -127,6 +131,36 @@ class VisionServiceTests(TestCase):
         self.assertEqual(result.result_data.get('max_offset_px'), 20)
 
 
+    def test_inspect_foam_can_use_real_camera_capture_image(self):
+        class FakeCameraAdapter:
+            def __init__(self, image_path):
+                self.image_path = image_path
+
+            def capture(self, camera_code, task_type):
+                return {
+                    'success': True,
+                    'camera_code': camera_code,
+                    'task_type': task_type,
+                    'image_path': self.image_path,
+                }
+
+        with TemporaryDirectory() as tmpdir:
+            image_path = str(Path(tmpdir) / 'camera.png')
+            cv2.imwrite(image_path, np.full((120, 160, 3), 110, dtype=np.uint8))
+            service = VisionService(camera_adapter=FakeCameraAdapter(image_path))
+
+            result = service.inspect_foam(
+                self.product,
+                self.rack,
+                position_index=2,
+                use_camera=True,
+            )
+
+        self.assertEqual(result.result_data.get('algorithm'), 'camera_foam_inspector')
+        self.assertEqual(result.result_data.get('camera_image_path'), image_path)
+        self.assertEqual(result.vision_task.images.count(), 2)
+
+
 class VisionTaskListLayoutTests(SimpleTestCase):
     def test_task_table_header_does_not_overlap_first_row(self):
         template = (
@@ -139,3 +173,87 @@ class VisionTaskListLayoutTests(SimpleTestCase):
         self.assertIn('vision-task-table', template)
         self.assertIn('.vision-task-table thead th', css)
         self.assertIn('position: static', css)
+
+
+class FoamRoiCaptureViewTests(TestCase):
+    def test_capture_foam_roi_get_redirects_to_task_list(self):
+        response = self.client.get(reverse('vision:capture_foam_roi'))
+
+        self.assertRedirects(response, reverse('vision:task_list'))
+
+    def test_task_list_shows_result_links_and_camera_buttons_in_requested_order(self):
+        response = self.client.get(reverse('vision:task_list'))
+        content = response.content.decode('utf-8')
+
+        expected_order = [
+            'PLC序号',
+            '泡棉检测结果',
+            '料架定位结果',
+            '2D相机拍照检测ROI',
+            '深度相机拍照检测ROI',
+        ]
+        positions = [content.index(label) for label in expected_order]
+        self.assertEqual(positions, sorted(positions))
+        self.assertContains(response, reverse('vision:foam_results'))
+        self.assertContains(response, reverse('vision:rack_results'))
+        self.assertContains(response, reverse('vision:capture_foam_roi'))
+        self.assertContains(response, reverse('vision:capture_depth_roi'))
+        self.assertContains(response, 'name="plc_sequence"')
+        self.assertContains(response, 'PLC序号')
+        self.assertContains(response, '用于模拟PLC触发的拍照序号')
+        self.assertContains(response, 'form="foam-capture-form"')
+        self.assertContains(response, '2D相机拍照检测ROI')
+
+    @override_settings(AUTOMATIC_ORDER={'USE_SIMULATED_DEVICES': True})
+    def test_capture_foam_roi_creates_task_from_plc_sequence_and_redirects(self):
+        response = self.client.post(
+            reverse('vision:capture_foam_roi'),
+            {'plc_sequence': '3'},
+        )
+
+        result = FoamInspectionResult.objects.get()
+        task = result.vision_task
+        self.assertEqual(result.position_index, 3)
+        self.assertEqual(task.task_type, VisionTaskType.FOAM_INSPECTION)
+        self.assertIn(task.status, {ResultStatus.SUCCESS, ResultStatus.FAILED})
+        self.assertRedirects(response, reverse('vision:task_detail', args=[task.pk]))
+
+    def test_capture_foam_roi_camera_error_redirects_to_task_list(self):
+        with patch('apps.vision.views.VisionService') as service_cls:
+            service_cls.return_value.inspect_foam.side_effect = RuntimeError(
+                'Unable to import chg_hik.'
+            )
+
+            response = self.client.post(
+                reverse('vision:capture_foam_roi'),
+                {'plc_sequence': '3'},
+            )
+
+        self.assertRedirects(response, reverse('vision:task_list'))
+        messages = list(response.wsgi_request._messages)
+        self.assertTrue(any('2D相机拍照失败' in str(message) for message in messages))
+
+
+class DepthRoiDebugViewTests(TestCase):
+    def setUp(self):
+        self.source_task = VisionTask.objects.create(
+            task_type=VisionTaskType.FOAM_INSPECTION,
+            status=ResultStatus.SUCCESS,
+        )
+
+    def test_task_detail_does_not_show_manual_depth_roi_capture_form(self):
+        response = self.client.get(
+            reverse('vision:task_detail', args=[self.source_task.pk])
+        )
+
+        self.assertNotContains(response, '深度相机拍照检测ROI')
+
+    def test_capture_depth_roi_creates_debug_rack_task_and_redirects(self):
+        response = self.client.post(reverse('vision:capture_depth_roi'))
+
+        task = VisionTask.objects.exclude(pk=self.source_task.pk).get()
+        self.assertEqual(task.task_type, VisionTaskType.RACK_LOCATING)
+        self.assertEqual(task.rack.rack_code, 'DEBUG-RACK')
+        self.assertEqual(task.rack_results.count(), 2)
+        self.assertGreaterEqual(task.images.count(), 1)
+        self.assertRedirects(response, reverse('vision:task_detail', args=[task.pk]))

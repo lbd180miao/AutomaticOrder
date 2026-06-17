@@ -1,0 +1,24 @@
+[package]
+name = "hik"
+version = "0.4.1"
+edition = "2021"
+
+[lib]
+name = "chg_hik"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
+
+[[bin]]
+name = "hik"
+path = "src/main.rs"
+
+[dependencies]
+hik-rs = { version = "0.2", path = "../hik-rs", features = ["mvs"] }
+lazy_static = "1.4.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+e-utils = "0.3"
+pyo3 = { version = "0.21", features = ["extension-module", "abi3-py311"] }

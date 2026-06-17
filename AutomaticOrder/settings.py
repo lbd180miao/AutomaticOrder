@@ -136,7 +136,16 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTOMATIC_ORDER = {
-    'USE_SIMULATED_DEVICES': True,
+    'USE_SIMULATED_DEVICES': False,
     'MES_BASE_URL': '',
     'DEVICE_TIMEOUT_SECONDS': 5,
+    'HIK_CAMERA': {
+        'OUTPUT_DIR': BASE_DIR / 'media' / 'hik_captures',
+        'SDK_LIB_DIR': 'C:/Program Files (x86)/Common Files/MVS/Runtime/Win64_x64',
+        'CAMERA_IP': '169.254.160.253',
+        'PC_IP': '169.254.160.95',
+        'FORMAT': 'BMP',  # 使用 BMP 格式避免编码问题
+        'QUALITY': 5,
+        'RUN_IN_SUBPROCESS': True,
+    },
 }

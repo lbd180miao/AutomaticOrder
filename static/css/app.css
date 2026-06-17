@@ -279,8 +279,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.3px;
   white-space: nowrap;
-  position: sticky;
-  top: 60px;
+  position: static;
 }
 
 .data-table tbody tr {
@@ -376,13 +375,28 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+.toolbar-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .inline-form {
   display: inline-flex;
   gap: 8px;
   align-items: center;
 }
 
+.field-label {
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
 input[type="text"],
+input[type="number"],
 select {
   padding: 9px 12px;
   border: 1px solid var(--border-strong);
@@ -394,6 +408,7 @@ select {
 }
 
 input[type="text"]:focus,
+input[type="number"]:focus,
 select:focus {
   outline: none;
   border-color: var(--primary);
@@ -402,6 +417,23 @@ select:focus {
 
 input[type="text"] {
   min-width: 220px;
+}
+
+.input-sm {
+  width: 96px;
+  min-width: 96px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ---------------- 阶段进度 ---------------- */

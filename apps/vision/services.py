@@ -3,10 +3,13 @@
 流程是否继续由 workflow 根据视觉结果和配方校验共同判断，本服务只产出结果。
 """
 from decimal import Decimal
+from pathlib import Path
 
+import cv2
 from django.utils import timezone
 
-from apps.core.constants import RackSide, ResultStatus, VisionImageType, VisionTaskType
+from apps.core.constants import DeviceType, RackSide, ResultStatus, VisionImageType, VisionTaskType
+from apps.devices.services import get_device_adapter
 from .algorithms.foam_inspector import FoamInspector
 from .algorithms.rack_locator import RackLocator
 from .models import FoamInspectionResult, RackLocationResult, VisionImage, VisionTask
@@ -19,9 +22,10 @@ def _within_tolerance(measured, expected, tolerance):
 class VisionService:
     """Coordinates camera capture, OpenCV algorithms, and result persistence."""
 
-    def __init__(self, rack_locator=None, foam_inspector=None):
+    def __init__(self, rack_locator=None, foam_inspector=None, camera_adapter=None):
         self.rack_locator = rack_locator or RackLocator()
         self.foam_inspector = foam_inspector or FoamInspector()
+        self.camera_adapter = camera_adapter
 
     # ------------------------------------------------------------------
     # 内部辅助
@@ -240,7 +244,8 @@ class VisionService:
     # ------------------------------------------------------------------
 
     def inspect_foam(self, product, rack, position_index=0, simulated_pass=True,
-                     inspection_config=None):
+                     inspection_config=None, use_camera=False,
+                     camera_code='CAM-INSPECT-FOAM-01'):
         """泡棉贴附检测，保存 FoamInspectionResult。
 
         参数：
@@ -249,10 +254,26 @@ class VisionService:
         """
         task = self._new_task(VisionTaskType.FOAM_INSPECTION, product=product, rack=rack)
         try:
+            image = None
+            camera_image_path = ''
+            if use_camera:
+                adapter = self.camera_adapter or get_device_adapter(
+                    device_type=DeviceType.INSPECT_CAMERA
+                )
+                capture = adapter.capture(camera_code, VisionTaskType.FOAM_INSPECTION)
+                camera_image_path = capture.get('image_path') or ''
+                if camera_image_path:
+                    image_path = Path(camera_image_path)
+                    image = cv2.imread(str(image_path))
+                    if image is None:
+                        raise RuntimeError(f'相机图片读取失败: {image_path}')
+
             data = self.foam_inspector.inspect(
                 position_index=position_index,
                 simulated_pass=simulated_pass,
                 inspection_config=inspection_config,
+                image=image,
+                camera_image_path=camera_image_path,
             )
             result = FoamInspectionResult.objects.create(
                 vision_task=task,

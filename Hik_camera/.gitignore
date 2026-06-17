@@ -1,0 +1,19 @@
+.claude
+/target
+images
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.whl
+
+hik-rs/
+images*/
+CLAUDE.md

@@ -3,8 +3,19 @@
 {% block content %}
 <section class="page-header"><h1>视觉任务</h1></section>
 <div class="toolbar">
-  <a href="{% url 'vision:rack_results' %}" class="btn btn-secondary">料架定位结果</a>
+  <form id="foam-capture-form" method="post" action="{% url 'vision:capture_foam_roi' %}" class="inline-form">
+    {% csrf_token %}
+    <label class="field-label" for="plc-sequence" title="用于模拟PLC触发的拍照序号">PLC序号</label>
+    <input id="plc-sequence" class="input-sm" type="number" name="plc_sequence" value="0" min="0" step="1" title="用于模拟PLC触发的拍照序号">
+  </form>
+  <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-primary">交互式泡棉检测</a>
   <a href="{% url 'vision:foam_results' %}" class="btn btn-secondary">泡棉检测结果</a>
+  <a href="{% url 'vision:rack_results' %}" class="btn btn-secondary">料架定位结果</a>
+  <button type="submit" form="foam-capture-form" class="btn" title="用于模拟PLC触发的拍照序号">2D相机拍照检测ROI</button>
+  <form method="post" action="{% url 'vision:capture_depth_roi' %}" class="inline-form">
+    {% csrf_token %}
+    <button type="submit" class="btn">深度相机拍照检测ROI</button>
+  </form>
 </div>
 <div class="table-wrap vision-task-table-wrap">
   <table class="data-table vision-task-table">
