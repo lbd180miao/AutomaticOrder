@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}当前流程 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header"><h1>当前流程</h1></section>
+
+<div class="toolbar">
+  <form method="post" action="{% url 'workflow:start' %}" class="inline-form">
+    {% csrf_token %}
+    <input type="text" name="product_code" placeholder="产品条码（留空自动生成）">
+    <button type="submit" class="btn">新建流程</button>
+  </form>
+  <a href="{% url 'workflow:history' %}" class="btn btn-secondary">查看历史</a>
+</div>
+
+{% if not workflow %}
+<section class="panel"><p>当前没有进行中的流程，点击“新建流程”开始一个演示流程。</p></section>
+{% else %}
+
+{% if workflow.is_locked %}
+<div class="lock-banner">
+  流程已锁定：{{ workflow.last_error }}
+  <form method="post" action="{% url 'workflow:unlock' workflow.pk %}" class="inline-form" style="margin-top:10px;">
+    {% csrf_token %}
+    <input type="text" name="operator_note" placeholder="处理备注">
+    <button type="submit" name="action" value="resume" class="btn">解除并继续</button>
+    <button type="submit" name="action" value="fail" class="btn btn-danger"
+            data-confirm="确认将该流程判定为失败？">判定失败</button>
+  </form>
+</div>
+{% endif %}
+
+<section class="grid">
+  <div class="panel text-panel">
+    <h2>产品条码</h2>
+    <p>{{ workflow.product.product_code }}</p>
+  </div>
+  <div class="panel text-panel">
+    <h2>料框码</h2>
+    <p>{{ workflow.product.rack.rack_code|default:"未绑定" }}</p>
+  </div>
+  <div class="panel text-panel stat-info">
+    <h2>当前状态</h2>
+    <p><span class="badge badge-running">{{ state_label }}</span></p>
+  </div>
+  <div class="panel text-panel">
+    <h2>操作</h2>
+    {% if not is_terminal and not workflow.is_locked %}
+    <form method="post" action="{% url 'workflow:advance' workflow.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn">模拟 PLC 信号 · 推进下一步</button>
+    </form>
+    {% else %}
+    <p>{% if is_terminal %}流程已结束{% else %}已锁定{% endif %}</p>
+    {% endif %}
+  </div>
+</section>
+
+<h2 class="section-title">阶段进度</h2>
+{% for stage_name, steps in stage_order %}
+<div class="stage-group">
+  <h3>{{ stage_name }}</h3>
+  <div class="stage-track">
+    {% for step in steps %}
+    <span class="stage-step {% if step.active %}active{% elif step.done %}done{% endif %}">{{ step.label }}</span>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+
+<h2 class="section-title">最近流程事件</h2>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>时间</th><th>事件</th><th>来源</th><th>原状态</th><th>目标状态</th><th>结果</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      {% for ev in recent_events %}
+      <tr>
+        <td>{{ ev.occurred_at|date:"m-d H:i:s" }}</td>
+        <td>{{ ev.event_type }}</td>
+        <td>{{ ev.source }}</td>
+        <td>{{ ev.from_state }}</td>
+        <td>{{ ev.to_state }}</td>
+        <td>
+          {% if ev.success %}<span class="badge badge-ok">成功</span>
+          {% else %}<span class="badge badge-fail">失败</span>{% endif %}
+        </td>
+        <td>{{ ev.message }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="empty">暂无事件</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

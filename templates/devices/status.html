@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}设备状态 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header"><h1>设备状态</h1></section>
+<div class="toolbar">
+  <a href="{% url 'devices:signals' %}" class="btn btn-secondary">查看信号记录</a>
+</div>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>编号</th><th>名称</th><th>类型</th><th>协议</th><th>地址</th><th>状态</th><th>最近通讯</th></tr>
+    </thead>
+    <tbody>
+      {% for d in devices %}
+      <tr>
+        <td>{{ d.code }}</td>
+        <td>{{ d.name }}</td>
+        <td>{{ d.get_device_type_display }}</td>
+        <td>{{ d.protocol|default:"-" }}</td>
+        <td>{{ d.address|default:"-" }}</td>
+        <td>
+          {% if d.status == 'ONLINE' %}<span class="badge badge-ok">{{ d.get_status_display }}</span>
+          {% elif d.status == 'OFFLINE' %}<span class="badge badge-muted">{{ d.get_status_display }}</span>
+          {% elif d.status == 'ALARM' %}<span class="badge badge-fail">{{ d.get_status_display }}</span>
+          {% else %}<span class="badge badge-warn">{{ d.get_status_display }}</span>{% endif %}
+        </td>
+        <td>{{ d.last_seen_at|date:"m-d H:i:s"|default:"-" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="empty">暂无设备，请运行 seed_demo 初始化</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

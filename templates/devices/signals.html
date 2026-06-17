@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}设备信号 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header"><h1>设备信号</h1></section>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>时间</th><th>设备</th><th>信号名</th><th>信号值</th><th>方向</th></tr>
+    </thead>
+    <tbody>
+      {% for s in records %}
+      <tr>
+        <td>{{ s.recorded_at|date:"m-d H:i:s" }}</td>
+        <td>{{ s.device.code }}</td>
+        <td>{{ s.signal_name }}</td>
+        <td>{{ s.signal_value }}</td>
+        <td>{{ s.get_direction_display }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="empty">暂无信号记录</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

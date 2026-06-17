@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}流程历史 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header"><h1>流程历史</h1></section>
+
+<h2 class="section-title">流程实例</h2>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>产品条码</th><th>阶段</th><th>当前状态</th><th>锁定</th><th>开始</th><th>结束</th></tr>
+    </thead>
+    <tbody>
+      {% for wf in instances %}
+      <tr>
+        <td>{{ wf.product.product_code }}</td>
+        <td>{{ wf.get_current_stage_display|default:wf.current_stage }}</td>
+        <td>{{ wf.get_current_state_display }}</td>
+        <td>{% if wf.is_locked %}<span class="badge badge-fail">是</span>{% else %}<span class="badge badge-muted">否</span>{% endif %}</td>
+        <td>{{ wf.started_at|date:"m-d H:i"|default:"-" }}</td>
+        <td>{{ wf.finished_at|date:"m-d H:i"|default:"-" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="empty">暂无流程实例</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="section-title">状态转换历史</h2>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>时间</th><th>产品</th><th>事件</th><th>来源</th><th>原状态</th><th>目标状态</th><th>结果</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      {% for ev in events %}
+      <tr>
+        <td>{{ ev.occurred_at|date:"m-d H:i:s" }}</td>
+        <td>{{ ev.workflow.product.product_code }}</td>
+        <td>{{ ev.event_type }}</td>
+        <td>{{ ev.source }}</td>
+        <td>{{ ev.from_state }}</td>
+        <td>{{ ev.to_state }}</td>
+        <td>{% if ev.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td>
+        <td>{{ ev.message }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="empty">暂无事件</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

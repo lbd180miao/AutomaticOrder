@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}总览 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>产线总览</h1>
+</section>
+
+{% if is_locked %}
+<div class="lock-banner">当前流程处于锁定状态，请前往报警页面处理。</div>
+{% endif %}
+
+<section class="grid">
+  <div class="panel text-panel">
+    <h2>当前产品</h2>
+    <p>{{ current_product|default:"暂无" }}</p>
+  </div>
+  <div class="panel text-panel">
+    <h2>当前料框</h2>
+    <p>{{ current_rack|default:"暂无" }}</p>
+  </div>
+  <div class="panel text-panel stat-info">
+    <h2>流程状态</h2>
+    <p>{{ workflow_state }}</p>
+  </div>
+  <div class="panel text-panel">
+    <h2>设备状态</h2>
+    <p>{{ device_status }}</p>
+  </div>
+  <div class="panel">
+    <h2>今日产量</h2>
+    <p>{{ today_total }}</p>
+  </div>
+  <div class="panel stat-ok">
+    <h2>今日合格</h2>
+    <p>{{ today_completed }}</p>
+  </div>
+  <div class="panel stat-warn">
+    <h2>今日不合格 / 锁定</h2>
+    <p>{{ today_failed }}</p>
+  </div>
+  <div class="panel stat-danger">
+    <h2>未处理报警</h2>
+    <p>{{ open_alarm_count }}</p>
+  </div>
+</section>
+
+<h2 class="section-title">最近报警</h2>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>报警编号</th><th>等级</th><th>来源</th><th>内容</th><th>状态</th><th>时间</th></tr>
+    </thead>
+    <tbody>
+      {% for alarm in recent_alarms %}
+      <tr>
+        <td>{{ alarm.alarm_code }}</td>
+        <td>{{ alarm.get_level_display }}</td>
+        <td>{{ alarm.get_source_display }}</td>
+        <td>{{ alarm.message }}</td>
+        <td><span class="badge badge-warn">{{ alarm.get_status_display }}</span></td>
+        <td>{{ alarm.created_at|date:"m-d H:i" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="empty">暂无未处理报警</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

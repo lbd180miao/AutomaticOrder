@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}MES记录 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header"><h1>MES 记录</h1></section>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>时间</th><th>动作</th><th>产品</th><th>料框</th><th>结果</th><th>错误</th></tr>
+    </thead>
+    <tbody>
+      {% for m in records %}
+      <tr>
+        <td>{{ m.created_at|date:"m-d H:i:s" }}</td>
+        <td>{{ m.get_action_display }}</td>
+        <td>{{ m.product.product_code|default:"-" }}</td>
+        <td>{{ m.rack.rack_code|default:"-" }}</td>
+        <td>{% if m.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td>
+        <td>{{ m.error_message|default:"-" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="empty">暂无 MES 记录</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

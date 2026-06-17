@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}追溯查询 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header"><h1>追溯查询</h1></section>
+
+<form method="get" class="toolbar">
+  <select name="mode">
+    <option value="product" {% if mode == 'product' %}selected{% endif %}>按产品条码</option>
+    <option value="rack" {% if mode == 'rack' %}selected{% endif %}>按料框码</option>
+  </select>
+  <input type="text" name="q" value="{{ query }}" placeholder="输入条码并查询">
+  <button type="submit" class="btn">查询</button>
+</form>
+
+{% if not_found %}
+<section class="panel"><p>未找到匹配记录：{{ query }}</p></section>
+{% endif %}
+
+{% if result %}
+<h2 class="section-title">产品信息</h2>
+<section class="grid">
+  <div class="panel"><h2>产品条码</h2><p>{{ result.product.product_code }}</p></div>
+  <div class="panel"><h2>批次</h2><p>{{ result.batch.batch_no|default:"-" }}</p></div>
+  <div class="panel"><h2>料框</h2><p>{{ result.rack.rack_code|default:"-" }}</p></div>
+  <div class="panel"><h2>当前状态</h2><p>{{ result.product.get_current_state_display }}</p></div>
+  <div class="panel"><h2>打标状态</h2><p>{{ result.product.get_mark_status_display }}</p></div>
+  <div class="panel"><h2>MES上传</h2><p>{{ result.product.get_mes_upload_status_display }}</p></div>
+</section>
+
+<h2 class="section-title">流程事件</h2>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>时间</th><th>事件</th><th>来源</th><th>原→目标</th><th>结果</th><th>说明</th></tr></thead>
+    <tbody>
+      {% for ev in result.events %}
+      <tr>
+        <td>{{ ev.occurred_at|date:"m-d H:i:s" }}</td>
+        <td>{{ ev.event_type }}</td>
+        <td>{{ ev.source }}</td>
+        <td>{{ ev.from_state }} → {{ ev.to_state }}</td>
+        <td>{% if ev.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td>
+        <td>{{ ev.message }}</td>
+      </tr>
+      {% empty %}<tr><td colspan="6" class="empty">无流程事件</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="section-title">料架定位结果</h2>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>侧</th><th>X</th><th>Y</th><th>Z</th><th>配方匹配</th><th>结果</th></tr></thead>
+    <tbody>
+      {% for r in result.rack_results %}
+      <tr>
+        <td>{{ r.get_side_display }}</td>
+        <td>{{ r.offset_x }}</td><td>{{ r.offset_y }}</td><td>{{ r.offset_z }}</td>
+        <td>{% if r.is_recipe_matched %}匹配{% else %}超差{% endif %}</td>
+        <td>{% if r.is_success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td>
+      </tr>
+      {% empty %}<tr><td colspan="6" class="empty">无定位结果</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="section-title">泡棉检测结果</h2>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>位置</th><th>存在</th><th>对齐</th><th>起翘</th><th>分数</th><th>判定</th></tr></thead>
+    <tbody>
+      {% for r in result.foam_results %}
+      <tr>
+        <td>{{ r.position_index }}</td>
+        <td>{% if r.is_present %}是{% else %}否{% endif %}</td>
+        <td>{% if r.is_aligned %}是{% else %}否{% endif %}</td>
+        <td>{% if r.has_lifted_edge %}是{% else %}否{% endif %}</td>
+        <td>{{ r.score }}</td>
+        <td>{% if r.is_passed %}<span class="badge badge-ok">合格</span>{% else %}<span class="badge badge-fail">不合格</span>{% endif %}</td>
+      </tr>
+      {% empty %}<tr><td colspan="6" class="empty">无检测结果</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="section-title">MES 记录</h2>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>时间</th><th>动作</th><th>结果</th><th>错误</th></tr></thead>
+    <tbody>
+      {% for m in result.mes_records %}
+      <tr>
+        <td>{{ m.created_at|date:"m-d H:i:s" }}</td>
+        <td>{{ m.get_action_display }}</td>
+        <td>{% if m.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td>
+        <td>{{ m.error_message|default:"-" }}</td>
+      </tr>
+      {% empty %}<tr><td colspan="4" class="empty">无 MES 记录</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="section-title">报警记录</h2>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>编号</th><th>等级</th><th>来源</th><th>内容</th><th>状态</th></tr></thead>
+    <tbody>
+      {% for a in result.alarms %}
+      <tr>
+        <td>{{ a.alarm_code }}</td>
+        <td>{{ a.get_level_display }}</td>
+        <td>{{ a.get_source_display }}</td>
+        <td>{{ a.message }}</td>
+        <td>{{ a.get_status_display }}</td>
+      </tr>
+      {% empty %}<tr><td colspan="5" class="empty">无报警记录</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if rack_result %}
+<h2 class="section-title">料框信息</h2>
+<section class="grid">
+  <div class="panel"><h2>料框码</h2><p>{{ rack_result.rack.rack_code }}</p></div>
+  <div class="panel"><h2>当前配方</h2><p>{{ rack_result.recipe.recipe_code|default:"-" }}</p></div>
+  <div class="panel"><h2>装箱产品数</h2><p>{{ rack_result.product_count }}</p></div>
+</section>
+<h2 class="section-title">装箱产品</h2>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>产品条码</th><th>批次</th><th>当前状态</th><th>创建时间</th></tr></thead>
+    <tbody>
+      {% for p in rack_result.products %}
+      <tr>
+        <td>{{ p.product_code }}</td>
+        <td>{{ p.batch.batch_no|default:"-" }}</td>
+        <td>{{ p.get_current_state_display }}</td>
+        <td>{{ p.created_at|date:"Y-m-d H:i" }}</td>
+      </tr>
+      {% empty %}<tr><td colspan="4" class="empty">该料框暂无产品</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

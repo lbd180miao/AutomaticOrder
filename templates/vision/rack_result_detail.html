@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}料架定位结果 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header"><h1>料架定位结果</h1></section>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>画面</th><th>时间</th><th>产品</th><th>料框</th><th>侧</th><th>补偿X</th><th>补偿Y</th><th>补偿Z</th><th>实测层高</th><th>实测层距</th><th>配方匹配</th><th>结果</th></tr>
+    </thead>
+    <tbody>
+      {% for r in results %}
+      <tr>
+        <td>
+          {% with img=r.vision_task.images.all|first %}
+          {% if img %}<a class="thumb-link" href="{% url 'vision:task_detail' r.vision_task.pk %}"><img class="thumb" src="{{ img.file.url }}" alt="画面"></a>{% else %}-{% endif %}
+          {% endwith %}
+        </td>
+        <td>{{ r.created_at|date:"m-d H:i:s" }}</td>
+        <td>{{ r.vision_task.product.product_code|default:"-" }}</td>
+        <td>{{ r.rack.rack_code|default:"-" }}</td>
+        <td>{{ r.get_side_display }}</td>
+        <td>{{ r.offset_x }}</td>
+        <td>{{ r.offset_y }}</td>
+        <td>{{ r.offset_z }}</td>
+        <td>{{ r.measured_layer_height }}</td>
+        <td>{{ r.measured_layer_spacing }}</td>
+        <td>{% if r.is_recipe_matched %}<span class="badge badge-ok">匹配</span>{% else %}<span class="badge badge-fail">超差</span>{% endif %}</td>
+        <td>{% if r.is_success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="12" class="empty">暂无定位结果</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

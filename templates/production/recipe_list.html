@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}配方管理 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header"><h1>配方管理</h1></section>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>配方编号</th><th>名称</th><th>料架类型</th><th>层数</th><th>每层数量</th><th>总数</th><th>层高</th><th>层距</th><th>容差X/Y/Z</th><th>启用</th></tr>
+    </thead>
+    <tbody>
+      {% for r in recipes %}
+      <tr>
+        <td>{{ r.recipe_code }}</td>
+        <td>{{ r.name }}</td>
+        <td>{{ r.rack_type }}</td>
+        <td>{{ r.layer_count }}</td>
+        <td>{{ r.quantity_per_layer }}</td>
+        <td>{{ r.total_quantity }}</td>
+        <td>{{ r.layer_height }}</td>
+        <td>{{ r.layer_spacing }}</td>
+        <td>{{ r.tolerance_x }}/{{ r.tolerance_y }}/{{ r.tolerance_z }}</td>
+        <td>{% if r.is_active %}<span class="badge badge-ok">是</span>{% else %}<span class="badge badge-muted">否</span>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="10" class="empty">暂无配方</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

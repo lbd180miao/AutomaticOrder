@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}料框记录 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header"><h1>料框记录</h1></section>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>料框码</th><th>类型</th><th>当前配方</th><th>状态</th><th>位置</th><th>更新时间</th></tr>
+    </thead>
+    <tbody>
+      {% for r in racks %}
+      <tr>
+        <td>{{ r.rack_code }}</td>
+        <td>{{ r.rack_type|default:"-" }}</td>
+        <td>{{ r.current_recipe.recipe_code|default:"-" }}</td>
+        <td>{{ r.status }}</td>
+        <td>{{ r.position_side|default:"-" }}</td>
+        <td>{{ r.updated_at|date:"Y-m-d H:i" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="empty">暂无料框记录</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

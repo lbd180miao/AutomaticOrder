@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}产品记录 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header"><h1>产品记录</h1></section>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>产品条码</th><th>批次</th><th>料框码</th><th>当前状态</th><th>打标</th><th>MES上传</th><th>创建时间</th></tr>
+    </thead>
+    <tbody>
+      {% for p in products %}
+      <tr>
+        <td>{{ p.product_code }}</td>
+        <td>{{ p.batch.batch_no|default:"-" }}</td>
+        <td>{{ p.rack.rack_code|default:"-" }}</td>
+        <td>{{ p.get_current_state_display }}</td>
+        <td>{{ p.get_mark_status_display }}</td>
+        <td>{{ p.get_mes_upload_status_display }}</td>
+        <td>{{ p.created_at|date:"Y-m-d H:i" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="empty">暂无产品记录</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

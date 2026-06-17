@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}报警管理 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header"><h1>报警管理</h1></section>
+
+<h2 class="section-title">未处理报警</h2>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>编号</th><th>等级</th><th>来源</th><th>内容</th><th>产品</th><th>锁定</th><th>状态</th><th>时间</th><th>操作</th></tr>
+    </thead>
+    <tbody>
+      {% for a in open_alarms %}
+      <tr>
+        <td>{{ a.alarm_code }}</td>
+        <td>{{ a.get_level_display }}</td>
+        <td>{{ a.get_source_display }}</td>
+        <td>{{ a.message }}</td>
+        <td>{{ a.product.product_code|default:"-" }}</td>
+        <td>{% if a.locked_workstation %}<span class="badge badge-fail">锁定</span>{% else %}-{% endif %}</td>
+        <td><span class="badge badge-warn">{{ a.get_status_display }}</span></td>
+        <td>{{ a.created_at|date:"m-d H:i" }}</td>
+        <td>
+          <div class="inline-form">
+            {% if a.status == 'OPEN' %}
+            <form method="post" action="{% url 'alarms:acknowledge' a.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-secondary">确认</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{% url 'alarms:close' a.pk %}"
+                  data-confirm="确认关闭该报警并解除工位锁定？">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-danger">关闭</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="9" class="empty">暂无未处理报警</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="section-title">历史报警</h2>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>编号</th><th>等级</th><th>来源</th><th>内容</th><th>处理备注</th><th>关闭时间</th></tr>
+    </thead>
+    <tbody>
+      {% for a in closed_alarms %}
+      <tr>
+        <td>{{ a.alarm_code }}</td>
+        <td>{{ a.get_level_display }}</td>
+        <td>{{ a.get_source_display }}</td>
+        <td>{{ a.message }}</td>
+        <td>{{ a.operator_note|default:"-" }}</td>
+        <td>{{ a.closed_at|date:"m-d H:i"|default:"-" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="empty">暂无历史报警</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

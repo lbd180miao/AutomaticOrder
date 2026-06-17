@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}视觉任务 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header"><h1>视觉任务</h1></section>
+<div class="toolbar">
+  <a href="{% url 'vision:rack_results' %}" class="btn btn-secondary">料架定位结果</a>
+  <a href="{% url 'vision:foam_results' %}" class="btn btn-secondary">泡棉检测结果</a>
+</div>
+<div class="table-wrap vision-task-table-wrap">
+  <table class="data-table vision-task-table">
+    <thead>
+      <tr><th>画面</th><th>类型</th><th>产品</th><th>料框</th><th>状态</th><th>开始</th><th>结束</th><th>操作</th></tr>
+    </thead>
+    <tbody>
+      {% for t in tasks %}
+      <tr>
+        <td>
+          {% with img=t.images.all|first %}
+          {% if img %}<a class="thumb-link" href="{% url 'vision:task_detail' t.pk %}"><img class="thumb" src="{{ img.file.url }}" alt="画面"></a>
+          {% else %}-{% endif %}
+          {% endwith %}
+        </td>
+        <td>{{ t.get_task_type_display }}</td>
+        <td>{{ t.product.product_code|default:"-" }}</td>
+        <td>{{ t.rack.rack_code|default:"-" }}</td>
+        <td>
+          {% if t.status == 'SUCCESS' %}<span class="badge badge-ok">{{ t.get_status_display }}</span>
+          {% elif t.status == 'FAILED' %}<span class="badge badge-fail">{{ t.get_status_display }}</span>
+          {% else %}<span class="badge badge-running">{{ t.get_status_display }}</span>{% endif %}
+        </td>
+        <td>{{ t.started_at|date:"m-d H:i:s"|default:"-" }}</td>
+        <td>{{ t.finished_at|date:"m-d H:i:s"|default:"-" }}</td>
+        <td><a href="{% url 'vision:task_detail' t.pk %}" class="btn btn-sm">查看画面</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="empty">暂无视觉任务</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
