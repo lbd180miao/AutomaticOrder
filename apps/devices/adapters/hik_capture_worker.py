@@ -9,13 +9,21 @@ def _prepare_runtime(sdk_lib_dir):
     if not sdk_lib_dir:
         return
 
+    # Windows add_dll_directory 接受正斜杠或反斜杠，无需规范化
     os.environ['HCMVS_LIB'] = sdk_lib_dir
     path_parts = os.environ.get('PATH', '').split(os.pathsep)
     if sdk_lib_dir not in path_parts:
         os.environ['PATH'] = os.pathsep.join([sdk_lib_dir, *path_parts])
 
     if hasattr(os, 'add_dll_directory'):
-        os.add_dll_directory(sdk_lib_dir)
+        try:
+            os.add_dll_directory(sdk_lib_dir)
+        except (OSError, FileNotFoundError) as exc:
+            raise RuntimeError(
+                f'SDK目录无效: {sdk_lib_dir}\n'
+                f'错误: {exc}\n'
+                '请检查 SDK_LIB_DIR 配置是否正确'
+            ) from exc
 
 
 def _add_project_venv_site_packages(base_dir):
@@ -83,12 +91,29 @@ def capture(payload):
         test_file = output_dir / '.write_test'
         test_file.touch()
         test_file.unlink()
+    except PermissionError as exc:
+        raise RuntimeError(
+            f'输出目录权限不足 {output_dir}: 请检查目录权限'
+        ) from exc
+    except OSError as exc:
+        raise RuntimeError(
+            f'输出目录错误 {output_dir}: {exc}'
+        ) from exc
     except Exception as exc:
         raise RuntimeError(
             f'输出目录不可写 {output_dir}: {exc}'
         ) from exc
 
-    chg_hik = importlib.import_module('chg_hik')
+    try:
+        chg_hik = importlib.import_module('chg_hik')
+    except ImportError as exc:
+        raise RuntimeError(
+            '无法导入 chg_hik 模块。请确保：\n'
+            '1. 已安装海康威视 MVS SDK\n'
+            '2. 已编译安装 chg_hik Python 绑定 (maturin develop --release)\n'
+            '3. SDK 的 Env.json 路径配置正确'
+        ) from exc
+
     legacy_image_path = _capture_with_legacy_api(chg_hik, payload)
     if legacy_image_path:
         return legacy_image_path
@@ -102,28 +127,45 @@ def capture(payload):
         quality=payload.get('quality', 5),
     )
     image_path = None
-    capture_error = None
+    camera_opened = False
 
     try:
         if camera_ip and pc_ip:
             camera.open(camera_ip=camera_ip, pc_ip=pc_ip)
         else:
             camera.open()
+        camera_opened = True
         image_path = camera.capture()
-    except BaseException as exc:  # noqa: BLE001
-        capture_error = exc
+        return image_path
+    except Exception as exc:
+        error_msg = str(exc)
+        if 'timeout' in error_msg.lower():
+            raise RuntimeError(
+                f'相机连接超时: {exc}\n'
+                '请检查：\n'
+                '1. 相机是否通电\n'
+                '2. 网络连接是否正常\n'
+                '3. IP地址配置是否正确'
+            ) from exc
+        elif 'not found' in error_msg.lower() or 'no device' in error_msg.lower():
+            raise RuntimeError(
+                f'未找到相机设备: {exc}\n'
+                '请检查：\n'
+                '1. 相机是否已连接\n'
+                '2. 相机驱动是否正确安装\n'
+                '3. MVS SDK 是否正常工作'
+            ) from exc
+        else:
+            raise RuntimeError(f'相机捕获失败: {exc}') from exc
     finally:
-        close_camera = getattr(camera, 'close_camera', None)
-        if close_camera and image_path is None:
+        # 只在捕获失败时关闭相机
+        if camera_opened and image_path is None:
             try:
-                close_camera()
-            except BaseException as close_exc:  # noqa: BLE001
-                if capture_error is None and image_path is None:
-                    capture_error = close_exc
-
-    if capture_error is not None:
-        raise capture_error
-    return image_path
+                close_camera = getattr(camera, 'close_camera', None)
+                if close_camera:
+                    close_camera()
+            except Exception:
+                pass
 
 
 def write_result(result_path, result):
