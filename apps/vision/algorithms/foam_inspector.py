@@ -14,9 +14,87 @@
   - 镜头：MVL-MF1618M-5MPE 16MM（定焦，5MP，工作距离3m）
   - 安装：固定在装箱工位，俯视拍摄保险杠泡棉贴附区域
 """
+import cv2
+import numpy as np
 from django.db import models
 
 from . import image_io
+
+
+def _detect_foam_in_image(image, roi):
+    """在真实图像中检测泡棉位置。
+    
+    使用颜色阈值分割和轮廓检测来识别泡棉区域。
+    泡棉通常是白色或浅色，与深色的保险杠形成对比。
+    
+    参数：
+        image: BGR格式的图像 (numpy array)
+        roi: 检测区域 (x1, y1, x2, y2)
+    
+    返回：
+        泡棉边界框 (x1, y1, x2, y2) 或 None（未检测到）
+    """
+    # 提取ROI区域
+    x1, y1, x2, y2 = roi
+    roi_img = image[y1:y2, x1:x2]
+    
+    # 转换到灰度图
+    gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+    
+    # 计算图像亮度统计信息
+    mean_brightness = np.mean(gray)
+    
+    # 使用自适应阈值来分离泡棉（浅色）和背景（深色）
+    # 阈值设置为平均亮度 + 标准差，确保只检测明显较亮的区域
+    std_brightness = np.std(gray)
+    threshold_value = min(mean_brightness + std_brightness * 1.5, 200)
+    
+    # 只有当阈值足够高时才进行检测（说明图像中有明显的亮色区域）
+    if threshold_value < 80:
+        # 图像整体太暗，可能没有泡棉
+        return None
+    
+    _, binary = cv2.threshold(gray, threshold_value, 255, cv2.THRESH_BINARY)
+    
+    # 形态学操作：去除噪点，连接断裂区域
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+    binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+    
+    # 查找轮廓
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if not contours:
+        return None
+    
+    # 找到最大的轮廓（假设泡棉是最大的白色区域）
+    max_contour = max(contours, key=cv2.contourArea)
+    area = cv2.contourArea(max_contour)
+    
+    # 计算最小面积阈值（ROI面积的8%）
+    roi_area = (x2 - x1) * (y2 - y1)
+    min_area = roi_area * 0.08
+    
+    if area < min_area:
+        # 检测到的区域太小，认为没有泡棉
+        return None
+    
+    # 获取轮廓的边界框
+    bx, by, bw, bh = cv2.boundingRect(max_contour)
+    
+    # 检查边界框的宽高比，泡棉不太可能是极端的长条或宽条
+    aspect_ratio = bw / max(bh, 1)
+    if aspect_ratio > 10 or aspect_ratio < 0.1:
+        # 宽高比异常，可能是噪声或其他物体
+        return None
+    
+    # 转换回原图坐标系
+    foam_x1 = x1 + bx
+    foam_y1 = y1 + by
+    foam_x2 = foam_x1 + bw
+    foam_y2 = foam_y1 + bh
+    
+    return (foam_x1, foam_y1, foam_x2, foam_y2)
 
 
 class FoamDefectType(models.TextChoices):
@@ -121,16 +199,14 @@ class FoamInspector:
             margin = 10
             roi = (margin, margin, width - margin, height - margin)
             
-            # 泡棉检测区域设置为整张图片的95%
-            # TODO: 这里需要实现真实的图像处理算法
-            # 可能的方法：颜色阈值分割、轮廓检测、模板匹配等
-            shrink = 30
-            foam = (
-                shrink,
-                shrink,
-                width - shrink,
-                height - shrink,
-            )
+            # 真实检测泡棉：基于颜色阈值和轮廓检测
+            foam = _detect_foam_in_image(scene, roi)
+            
+            # 如果没有检测到泡棉，设置为缺失状态
+            if foam is None or (foam[2] - foam[0]) < 10 or (foam[3] - foam[1]) < 10:
+                # 泡棉未检测到或区域太小
+                defect_type = FoamDefectType.MISSING
+                foam = (roi[0], roi[1], roi[0], roi[1])  # 空区域
         else:
             # 模拟模式：生成测试图像
             scene, roi, foam = image_io.generate_foam_scene(

@@ -10,7 +10,7 @@ from django.urls import reverse
 
 from apps.core.constants import ResultStatus, VisionTaskType
 from apps.production.models import Product, Rack, RackRecipe
-from apps.vision.algorithms.foam_inspector import FoamDefectType
+from apps.vision.algorithms.foam_inspector import FoamDefectType, FoamInspector
 from apps.vision.models import FoamInspectionResult, RackLocationResult, VisionTask
 from apps.vision.services import VisionService
 
@@ -159,6 +159,22 @@ class VisionServiceTests(TestCase):
         self.assertEqual(result.result_data.get('algorithm'), 'camera_foam_inspector')
         self.assertEqual(result.result_data.get('camera_image_path'), image_path)
         self.assertEqual(result.vision_task.images.count(), 2)
+
+    def test_real_camera_foam_inspection_uses_configured_roi_instead_of_full_frame(self):
+        image = np.zeros((100, 200, 3), dtype=np.uint8)
+        image[5:35, 150:195] = 240
+        image[60:90, 40:90] = 230
+
+        result = FoamInspector().inspect(
+            image=image,
+            inspection_config={'roi_ratio': (0.1, 0.5, 0.6, 0.95)},
+            simulated_pass=True,
+        )
+
+        self.assertEqual(result['roi'], (20, 50, 120, 95))
+        foam_box = result['foam_box']
+        self.assertLess(foam_box[0], 120)
+        self.assertGreaterEqual(foam_box[1], 50)
 
 
 class VisionTaskListLayoutTests(SimpleTestCase):
