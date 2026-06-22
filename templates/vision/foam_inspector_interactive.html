@@ -512,7 +512,7 @@
         <div class="pos-selector">
           <label for="pos-index">当前 POS</label>
           <input id="pos-index" type="number" min="0" value="0" title="与 PLC 位置号保持一致">
-          <span class="pos-hint">0代表第1层，1代表第2层</span>
+          <span class="pos-hint">0代表第1层，1代表第2层 · 每次检测后自动递增</span>
         </div>
 
         <!-- ROI 标定工具 -->
@@ -645,7 +645,7 @@ document.getElementById('btn-refresh-preview').addEventListener('click', async (
     });
     const data = await res.json();
     if (data.success) {
-      clearPendingFile();
+      clearPendingFile();  // 清除导入的图片，切换到相机模式
       setPreviewImage(data.image_url);
     } else {
       alert('获取预览失败：' + (data.error || '未知错误'));
@@ -663,10 +663,12 @@ function setPreviewImage(url) {
   img.style.display = 'block';
   document.getElementById('camera-placeholder').style.display = 'none';
   refreshPreviewRecipeRoi();
+  updateCaptureButtonText();  // 更新按钮文本
 }
 
 // 暂存左侧导入的图片（等待「拍照检测」使用）
 let pendingFile = null;
+let pendingFileDataUrl = null;  // 保存图片的DataURL用于重复检测
 
 // ── 视觉配方状态 ───────────────────────────────────────
 let foam2DRecipes = [];
@@ -686,6 +688,78 @@ function currentDetectionPos() {
   const recipe = currentDetectionRecipe();
   return Number(recipe?.pos ?? currentPOS());
 }
+
+// ── 配方自动递增：检测完成后自动切换到下一个配方 ──────────────────────
+function autoIncrementRecipe() {
+  // 如果有手动选择的临时配方，不自动递增
+  if (manualSelectedRecipe) {
+    console.log('使用了临时配方，不自动递增');
+    return;
+  }
+  
+  const currentPos = currentPOS();
+  console.log('当前 POS:', currentPos);
+  
+  // 查找所有配方的POS，按顺序排列
+  const allPos = foam2DRecipes
+    .map(r => Number(r.pos))
+    .filter(pos => !isNaN(pos))
+    .sort((a, b) => a - b);
+  
+  console.log('所有配方 POS:', allPos);
+  
+  if (allPos.length === 0) {
+    console.log('没有可用配方，保持当前 POS');
+    return;
+  }
+  
+  // 找到下一个POS
+  let nextPos = null;
+  for (let i = 0; i < allPos.length; i++) {
+    if (allPos[i] > currentPos) {
+      nextPos = allPos[i];
+      break;
+    }
+  }
+  
+  // 如果没有更大的POS，循环回到第一个
+  if (nextPos === null) {
+    nextPos = allPos[0];
+  }
+  
+  console.log('下一个 POS:', nextPos);
+  
+  // 更新POS输入框
+  const posInput = document.getElementById('pos-index');
+  if (posInput) {
+    posInput.value = nextPos;
+    // 触发change事件以更新UI
+    posInput.dispatchEvent(new Event('change'));
+    
+    // 显示提示信息
+    showRecipeChangeNotification(currentPos, nextPos);
+  }
+}
+
+// ── 显示配方切换提示 ─────────────────────────────────────────
+function showRecipeChangeNotification(fromPos, toPos) {
+  const status = document.getElementById('calibration-status');
+  if (!status) return;
+  
+  const originalText = status.textContent;
+  const originalColor = status.style.color;
+  
+  status.textContent = `✅ 检测完成，已自动切换：POS ${fromPos} → POS ${toPos}`;
+  status.style.color = '#059669';
+  status.style.fontWeight = '700';
+  
+  // 3秒后恢复原样
+  setTimeout(() => {
+    status.textContent = originalText;
+    status.style.color = originalColor;
+    status.style.fontWeight = '';
+  }, 3000);
+}
 function roiToRatio(roi, recipe) {
   const w = Number(recipe.image_width || 1);
   const h = Number(recipe.image_height || 1);
@@ -703,6 +777,7 @@ function applyRecipeRoiToOverlay(recipe) {
   if (left) cal.rois.left = roiToRatio(left, recipe);
   if (right) cal.rois.right = roiToRatio(right, recipe);
   renderRoiBoxes();
+  console.log('已应用配方 ROI:', recipe.name, 'POS:', recipe.pos);
 }
 function refreshPreviewRecipeRoi() {
   const redraw = () => {
@@ -725,11 +800,10 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
   const detectionPos = currentDetectionPos();
 
   if (pendingFile) {
-    // 有导入图片 → 走上传检测接口
-    const file = pendingFile;
+    // 有导入图片 → 走上传检测接口（可以重复使用同一张图片）
     showLoading('检测导入图片...');
     const fd = new FormData();
-    fd.append('image', file);
+    fd.append('image', pendingFile);
     fd.append('position_index', detectionPos);
     const recipe = currentDetectionRecipe();
     if (recipe?.id) fd.append('recipe_id', recipe.id);
@@ -743,6 +817,14 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
       const data = await res.json();
       if (data.success) {
         renderResult(data.result);
+        // 自动递增配方到下一个POS
+        autoIncrementRecipe();
+        
+        // 保持图片在预览区，允许继续检测
+        if (pendingFileDataUrl) {
+          const img = document.getElementById('preview-image');
+          img.src = pendingFileDataUrl;
+        }
       } else {
         alert('检测失败：' + (data.error || '未知错误'));
       }
@@ -769,6 +851,8 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
     const data = await res.json();
     if (data.success) {
       renderResult(data.result);
+      // 自动递增配方到下一个POS
+      autoIncrementRecipe();
     } else {
       alert('检测失败：' + (data.error || '未知错误'));
     }
@@ -794,9 +878,11 @@ document.getElementById('file-upload-preview').addEventListener('change', (e) =>
     img.style.display = 'block';
     document.getElementById('camera-placeholder').style.display = 'none';
     refreshPreviewRecipeRoi();
-    // 暂存文件，等待「拍照检测」调用
+    // 暂存文件和DataURL，等待「拍照检测」调用
     pendingFile = file;
+    pendingFileDataUrl = ev.target.result;
     setPendingBadge(file.name);
+    updateCaptureButtonText();
   };
   reader.readAsDataURL(file);
   e.target.value = '';
@@ -816,7 +902,7 @@ function setPendingBadge(name) {
     document.querySelector('.cam-controls').insertAdjacentElement('afterend', badge);
   }
   badge.innerHTML =
-    `⏳ <strong>已导入：${name}</strong>，可标定 ROI 后点「拍照检测」` +
+    `⏳ <strong>已导入：${name}</strong>，可标定 ROI 后点「拍照检测」（不调用相机）` +
     `<button onclick="clearPendingFile()" style="margin-left:auto;padding:2px 6px;` +
     `font-size:11px;border:1px solid #d97706;border-radius:4px;` +
     `background:#fff;color:#b45309;cursor:pointer;">✕ 清除</button>`;
@@ -825,8 +911,21 @@ function setPendingBadge(name) {
 
 function clearPendingFile() {
   pendingFile = null;
+  pendingFileDataUrl = null;
   const badge = document.getElementById('pending-file-badge');
   if (badge) badge.style.display = 'none';
+  updateCaptureButtonText();
+}
+
+function updateCaptureButtonText() {
+  const btn = document.getElementById('btn-capture-inspect');
+  if (btn) {
+    if (pendingFile) {
+      btn.innerHTML = '🔍 检测图片';
+    } else {
+      btn.innerHTML = '📸 拍照检测';
+    }
+  }
 }
 
 // ── 右侧「导入图片检测」：直接上传并检测，不显示在左侧预览 ───────────
@@ -917,6 +1016,25 @@ function renderResult(r) {
   } else {
     document.getElementById('d-defect-chip').style.display = 'none';
   }
+  
+  // 同步更新左侧预览的ROI框：确保左右两侧使用相同的配方ROI
+  syncResultRecipeToPreview(r);
+}
+
+// ── 同步结果配方到左侧预览 ─────────────────────────────────────
+function syncResultRecipeToPreview(result) {
+  // 如果结果中包含使用的配方信息，同步到左侧预览
+  if (result.recipe) {
+    console.log('同步检测结果使用的配方到左侧预览:', result.recipe);
+    
+    // 更新左侧预览的ROI框，使其与检测时使用的配方完全一致
+    if (result.recipe.roi_config) {
+      applyRecipeRoiToOverlay(result.recipe);
+    }
+    
+    // 如果当前POS与结果POS不同，可以选择是否更新（这里保持不变，只更新ROI显示）
+    console.log('左侧预览ROI已同步到检测时使用的配方 POS', result.recipe.pos);
+  }
 }
 
 function setMetricCard(cardId, valId, isOk, label, icon) {
@@ -984,6 +1102,16 @@ function renderRecipeCard() {
   const thresh = recipe.threshold_config || {};
   document.getElementById('recipe-thresholds').textContent = 
     `覆盖率≥${thresh.minCoverage || 0.75}, 得分≥${thresh.minScore || 0.8}`;
+  
+  // 更新配方标题，提示当前配方
+  const titleEl = card.querySelector('.recipe-info-title');
+  if (titleEl) {
+    if (manualSelectedRecipe) {
+      titleEl.textContent = '临时配方（本次检测）';
+    } else {
+      titleEl.textContent = '当前配方（检测后自动递增）';
+    }
+  }
 }
 
 function upsertSavedRecipe(savedRecipe) {
@@ -1273,6 +1401,9 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedRecipeForEdit = activeFoam2DRecipe();
     renderRecipeCard();  // 更新配方卡片
     refreshPreviewRecipeRoi();
+    
+    // 注意：不清除待检测图片，允许用户用同一张图片测试不同POS的配方
+    // 如果需要重新拍照，用户可以点击「刷新预览」或「清除」按钮
   });
   document.getElementById('preview-image').addEventListener('load', () => {
     refreshPreviewRecipeRoi();
