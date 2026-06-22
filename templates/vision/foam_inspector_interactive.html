@@ -35,72 +35,6 @@
   vertical-align: -3px;
 }
 
-/* --- 4 步骤进度条 --- */
-.step-wizard {
-  display: flex;
-  align-items: stretch;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 20px;
-  overflow: hidden;
-}
-.step-item {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 18px;
-  border-right: 1px solid var(--border);
-  cursor: pointer;
-  transition: background 0.15s;
-  position: relative;
-}
-.step-item:last-child { border-right: none; }
-.step-item:hover { background: var(--primary-soft); }
-.step-num {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #e5e7eb;
-  color: #6b7280;
-  font-weight: 700;
-  font-size: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: all 0.2s;
-}
-.step-text { flex: 1; }
-.step-text strong {
-  display: block;
-  font-size: 13px;
-  font-weight: 700;
-  color: #111827;
-  margin-bottom: 2px;
-}
-.step-text span {
-  font-size: 11.5px;
-  color: #6b7280;
-  line-height: 1.4;
-}
-.step-item.active .step-num {
-  background: var(--primary);
-  color: #fff;
-  box-shadow: 0 0 0 4px var(--primary-soft);
-}
-.step-item.active .step-text strong { color: var(--primary); }
-.step-item.done .step-num {
-  background: var(--success);
-  color: #fff;
-}
-.step-item.done .step-text strong { color: var(--success); }
-.step-item.done .step-num::after {
-  content: "✓";
-}
-
 /* --- 配方信息卡片 --- */
 .recipe-info-card {
   background: linear-gradient(135deg, #dbeafe 0%, #e0f2fe 100%);
@@ -456,56 +390,6 @@
 }
 .detail-chip strong { color: var(--text); }
 
-/* --- 历史记录 --- */
-.history-panel {
-  margin-top: 16px;
-  border-top: 1px solid var(--border);
-  padding-top: 14px;
-}
-.history-panel h3 {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  margin: 0 0 10px;
-}
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 220px;
-  overflow-y: auto;
-}
-.history-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  font-size: 12.5px;
-  transition: background 0.12s;
-}
-.history-item:hover { background: var(--primary-soft); }
-.history-item .h-badge {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  font-size: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-.h-badge.ok { background: var(--success-soft); color: var(--success); }
-.h-badge.ng { background: var(--danger-soft); color: var(--danger); }
-.history-item .h-pos { font-weight: 700; color: var(--text); }
-.history-item .h-time { color: var(--text-faint); margin-left: auto; }
-.history-empty { color: var(--text-faint); font-size: 12px; text-align: center; padding: 12px; }
-
 /* --- 加载遮罩 --- */
 #loading-overlay {
   position: fixed; inset: 0;
@@ -544,9 +428,6 @@
 /* 响应式 */
 @media (max-width: 1024px) {
   .foam-main { grid-template-columns: 1fr; }
-  .step-wizard { flex-direction: column; }
-  .step-item { border-right: none; border-bottom: 1px solid var(--border); }
-  .step-item:last-child { border-bottom: none; }
 }
 @media (max-width: 600px) {
   .metric-cards { grid-template-columns: 1fr; }
@@ -587,38 +468,6 @@
       </div>
       <div class="recipe-info-row">
         <strong>阈值:</strong> <span id="recipe-thresholds">-</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- 4 步骤向导 -->
-  <div class="step-wizard" id="step-wizard">
-    <div class="step-item active" data-step="1" id="step-1" onclick="highlightStep(1)">
-      <div class="step-num">1</div>
-      <div class="step-text">
-        <strong>确认画面</strong>
-        <span>刷新预览，确认白色泡棉在保险杆上清晰可见</span>
-      </div>
-    </div>
-    <div class="step-item" data-step="2" id="step-2" onclick="highlightStep(2)">
-      <div class="step-num">2</div>
-      <div class="step-text">
-        <strong>标定 ROI（首次/换型）</strong>
-        <span>在预览图上框选左、右泡棉检测区域并保存</span>
-      </div>
-    </div>
-    <div class="step-item" data-step="3" id="step-3" onclick="highlightStep(3)">
-      <div class="step-num">3</div>
-      <div class="step-text">
-        <strong>选择 POS 编号</strong>
-        <span>与 PLC 位置号保持一致</span>
-      </div>
-    </div>
-    <div class="step-item" data-step="4" id="step-4" onclick="highlightStep(4)">
-      <div class="step-num">4</div>
-      <div class="step-text">
-        <strong>拍照检测</strong>
-        <span>系统判定泡棉是否存在，输出 OK / NG</span>
       </div>
     </div>
   </div>
@@ -745,14 +594,6 @@
           <div class="detail-chip" id="d-defect-chip" style="display:none;">缺陷 <strong id="d-defect">—</strong></div>
         </div>
 
-        <!-- 历史记录 -->
-        <div class="history-panel">
-          <h3>📋 本次会话检测记录</h3>
-          <div class="history-list" id="history-list">
-            <div class="history-empty">暂无检测记录</div>
-          </div>
-        </div>
-
       </div>
     </div>
 
@@ -794,20 +635,8 @@ function hideLoading() {
   document.getElementById('loading-overlay')?.remove();
 }
 
-// ── 步骤高亮 ────────────────────────────────────────────
-let currentStep = 1;
-function highlightStep(n) {
-  currentStep = n;
-  document.querySelectorAll('.step-item').forEach((el, i) => {
-    el.classList.remove('active', 'done');
-    if (i + 1 < n) el.classList.add('done');
-    else if (i + 1 === n) el.classList.add('active');
-  });
-}
-
 // ── 预览图更新 ───────────────────────────────────────────
 document.getElementById('btn-refresh-preview').addEventListener('click', async () => {
-  highlightStep(1);
   showLoading('获取相机画面...');
   try {
     const res = await fetch(API.refreshPreview, {
@@ -818,7 +647,6 @@ document.getElementById('btn-refresh-preview').addEventListener('click', async (
     if (data.success) {
       clearPendingFile();
       setPreviewImage(data.image_url);
-      highlightStep(2);
     } else {
       alert('获取预览失败：' + (data.error || '未知错误'));
     }
@@ -917,7 +745,6 @@ function refreshPreviewRecipeRoi() {
 // ── 拍照检测：自动判断使用相机还是导入图片 ───────────────────────────
 document.getElementById('btn-capture-inspect').addEventListener('click', async () => {
   const detectionPos = currentDetectionPos();
-  highlightStep(4);
 
   if (pendingFile) {
     // 有导入图片 → 走上传检测接口
@@ -994,7 +821,6 @@ document.getElementById('file-upload-preview').addEventListener('change', (e) =>
     // 暂存文件，等待「拍照检测」调用
     pendingFile = file;
     setPendingBadge(file.name);
-    highlightStep(2);   // 提示用户去标定 ROI
   };
   reader.readAsDataURL(file);
   e.target.value = '';
@@ -1116,9 +942,6 @@ function renderResult(r) {
   } else {
     document.getElementById('d-defect-chip').style.display = 'none';
   }
-
-  // 历史记录
-  addHistory(r);
 }
 
 function setMetricCard(cardId, valId, isOk, label, icon) {
@@ -1133,30 +956,6 @@ function setMetricCard(cardId, valId, isOk, label, icon) {
 function formatDefect(dt) {
   const map = { NONE: '无缺陷', MISSING: '泡棉缺失/漏贴', MISALIGNED: '位置偏移', LIFTED_EDGE: '边缘起翘' };
   return map[dt] || dt;
-}
-
-// ── 历史记录 ─────────────────────────────────────────────
-const history = [];
-function addHistory(r) {
-  const now = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-  history.unshift({ pos: r.position_index, passed: r.is_passed, time: now });
-  if (history.length > 10) history.pop();
-  renderHistory();
-}
-function renderHistory() {
-  const list = document.getElementById('history-list');
-  if (history.length === 0) {
-    list.innerHTML = '<div class="history-empty">暂无检测记录</div>';
-    return;
-  }
-  list.innerHTML = history.map(h => `
-    <div class="history-item">
-      <div class="h-badge ${h.passed ? 'ok' : 'ng'}">${h.passed ? '✓' : '✗'}</div>
-      <span class="h-pos">POS #${h.pos}</span>
-      <span>${h.passed ? '<span style="color:var(--success);font-weight:600;">合格</span>' : '<span style="color:var(--danger);font-weight:600;">不合格</span>'}</span>
-      <span class="h-time">${h.time}</span>
-    </div>
-  `).join('');
 }
 
 // ── 配方加载（简化版，仅用于 ROI 显示） ───────────────────
@@ -1459,7 +1258,6 @@ document.getElementById('btn-save-roi').addEventListener('click', async () => {
     if (data.success) {
       document.getElementById('calibration-status').textContent = '✅ ROI 已保存，后续检测自动复用';
       document.getElementById('roi-overlay').classList.remove('calibrating');
-      highlightStep(3);
     } else {
       alert('保存失败：' + (data.error || '未知错误'));
     }

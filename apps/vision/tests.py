@@ -63,6 +63,27 @@ class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
         self.assertIn('position_index: detectionPos,', source)
         self.assertIn('advanceRecipeAfterDetection(data.result);', source)
 
+    def test_foam_inspector_omits_session_detection_history(self):
+        source = self._template_source()
+
+        self.assertNotIn('history-panel', source)
+        self.assertNotIn('history-list', source)
+        self.assertNotIn('history-item', source)
+        self.assertNotIn('addHistory(', source)
+        self.assertNotIn('renderHistory(', source)
+
+    def test_foam_inspector_omits_step_wizard_guidance(self):
+        source = self._template_source()
+
+        self.assertNotIn('step-wizard', source)
+        self.assertNotIn('step-item', source)
+        self.assertNotIn('step-num', source)
+        self.assertNotIn('step-text', source)
+        self.assertNotIn('function highlightStep(', source)
+        self.assertNotIn('highlightStep(', source)
+        self.assertNotIn('刷新预览，确认白色泡棉在保险杆上清晰可见', source)
+        self.assertNotIn('系统判定泡棉是否存在，输出 OK / NG', source)
+
 
 class VisionRecipeModelTests(TestCase):
     def test_default_foam_2d_recipes_are_created_for_three_positions(self):
