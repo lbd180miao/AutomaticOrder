@@ -11,7 +11,7 @@ class PageAccessTests(TestCase):
     def test_dashboard_links_to_vision_recipe_workbench(self):
         response = self.client.get(reverse('core:dashboard'))
 
-        self.assertContains(response, '视觉配方模块')
+        self.assertContains(response, '视觉配方管理')
         self.assertContains(response, reverse('vision:foam_inspector_interactive'))
         self.assertContains(response, '配方管理')
 

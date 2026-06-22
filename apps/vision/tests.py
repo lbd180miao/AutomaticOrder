@@ -54,14 +54,22 @@ class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
         self.assertIn('clearPendingFile();\n      setPreviewImage(data.image_url);', source)
         self.assertNotIn('clearPendingFile();   // 检测完成后清除暂存', source)
 
-    def test_successful_detection_advances_to_next_recipe_in_sequence(self):
+    def test_successful_detection_keeps_preview_on_result_recipe(self):
         source = self._template_source()
 
         self.assertIn('function currentDetectionPos()', source)
-        self.assertIn('function advanceRecipeAfterDetection(result)', source)
         self.assertIn('const detectionPos = currentDetectionPos();', source)
         self.assertIn('position_index: detectionPos,', source)
-        self.assertIn('advanceRecipeAfterDetection(data.result);', source)
+        self.assertNotIn('advanceRecipeAfterDetection', source)
+        self.assertNotIn('nextRecipeAfterPos', source)
+
+    def test_loaded_calibration_reapplies_current_recipe_roi(self):
+        source = self._template_source()
+
+        load_calibration_start = source.index('async function loadCalibration()')
+        dom_ready_start = source.index("document.addEventListener('DOMContentLoaded'")
+        load_calibration_source = source[load_calibration_start:dom_ready_start]
+        self.assertIn('refreshPreviewRecipeRoi();', load_calibration_source)
 
     def test_foam_inspector_omits_session_detection_history(self):
         source = self._template_source()
@@ -905,7 +913,7 @@ class FoamRoiCaptureViewTests(TestCase):
 
         self.assertContains(response, '泡棉检测工作台')
         self.assertContains(response, '白色泡棉')
-        self.assertContains(response, '系统判定泡棉是否存在')
+        self.assertContains(response, '泡棉存在')
         self.assertContains(response, 'btn-start-roi')
         self.assertContains(response, 'btn-save-roi')
         self.assertContains(response, 'pos-index')
@@ -967,9 +975,9 @@ class VisionRecipeWorkbenchTemplateTests(TestCase):
         response = self.client.get(reverse('vision:foam_inspector_interactive'))
 
         self.assertContains(response, '配方管理')
-        self.assertContains(response, 'recipe-drawer')
-        self.assertContains(response, '泡棉检测配方（2D）')
-        self.assertContains(response, '料架定位配方（3D）')
+        self.assertContains(response, 'recipe-info-card')
+        self.assertContains(response, 'btn-temp-recipe')
+        self.assertContains(response, 'temp-recipe-modal')
         self.assertContains(response, 'manualSelectedRecipe')
         self.assertContains(response, 'currentDetectionRecipe')
         self.assertContains(response, 'recipes:')

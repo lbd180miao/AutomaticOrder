@@ -185,18 +185,24 @@ def annotate_foam(img, roi, foam, result):
     if not sides:
         draw_roi(out, roi, color=COLOR_ROI, label='ROI 检测区')
     else:
-        side_colors = {'left': COLOR_ROI, 'right': COLOR_OK}
+        # 左右ROI区域标注的中文标签
+        side_labels = {'left': '泡棉左区', 'right': '泡棉右区'}
         for side, data in sides.items():
-            side_color = side_colors.get(side, COLOR_ROI)
             side_roi = data.get('roi')
             side_box = data.get('box')
+            side_label = side_labels.get(side, side)
+            
+            # 始终绘制配方定义的ROI区域框（蓝色）
+            if side_roi:
+                draw_roi(out, tuple(side_roi), color=COLOR_ROI, label=side_label, thickness=2)
+            
+            # 如果检测到泡棉，再绘制泡棉实际位置框（绿色/红色）
             if side_box:
-                if side_roi:
-                    draw_roi(out, tuple(side_roi), color=side_color, label=f'{side} ROI', thickness=2)
                 box_color = COLOR_OK if data.get('is_aligned') else COLOR_FAIL
-                draw_roi(out, tuple(side_box), color=box_color, label=side, thickness=2)
+                draw_roi(out, tuple(side_box), color=box_color, label=None, thickness=2)
             elif side_roi:
-                draw_roi(out, tuple(side_roi), color=COLOR_MISSING, label=f'{side} missing', thickness=2)
+                # 如果ROI内未检测到泡棉，标注缺失警告
+                draw_roi(out, tuple(side_roi), color=COLOR_MISSING, label=f'{side_label} 缺失!', thickness=2)
 
     # 泡棉框（左右独立 ROI 已在上方分别画出，非 side 模式才画总泡棉框）
     if not sides and not is_missing and foam and (foam[2] - foam[0]) > 0:

@@ -682,31 +682,9 @@ function activeFoam2DRecipe() {
 function currentDetectionRecipe() {
   return manualSelectedRecipe || activeFoam2DRecipe();
 }
-function sortedFoam2DRecipes() {
-  return [...foam2DRecipes].sort((a, b) => Number(a.pos) - Number(b.pos));
-}
 function currentDetectionPos() {
   const recipe = currentDetectionRecipe();
   return Number(recipe?.pos ?? currentPOS());
-}
-function nextRecipeAfterPos(pos) {
-  const recipes = sortedFoam2DRecipes();
-  if (recipes.length === 0) return null;
-  const current = Number(pos);
-  return recipes.find(recipe => Number(recipe.pos) > current) || recipes[0];
-}
-function advanceRecipeAfterDetection(result) {
-  const usedPos = Number(result?.recipe?.pos ?? result?.position_index ?? currentDetectionPos());
-  manualSelectedRecipe = null;
-  const nextRecipe = nextRecipeAfterPos(usedPos);
-  if (nextRecipe) {
-    document.getElementById('pos-index').value = Number(nextRecipe.pos);
-    selectedRecipeForEdit = nextRecipe;
-  } else {
-    selectedRecipeForEdit = activeFoam2DRecipe();
-  }
-  renderRecipeCard();
-  refreshPreviewRecipeRoi();
 }
 function roiToRatio(roi, recipe) {
   const w = Number(recipe.image_width || 1);
@@ -765,7 +743,6 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
       const data = await res.json();
       if (data.success) {
         renderResult(data.result);
-        advanceRecipeAfterDetection(data.result);
       } else {
         alert('检测失败：' + (data.error || '未知错误'));
       }
@@ -792,7 +769,6 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
     const data = await res.json();
     if (data.success) {
       renderResult(data.result);
-      advanceRecipeAfterDetection(data.result);
     } else {
       alert('检测失败：' + (data.error || '未知错误'));
     }
@@ -877,7 +853,6 @@ document.getElementById('file-upload').addEventListener('change', async (e) => {
     const data = await res.json();
     if (data.success) {
       renderResult(data.result);
-      advanceRecipeAfterDetection(data.result);
     }
     else alert('检测失败：' + (data.error || '未知错误'));
   } catch (e) {
@@ -1280,6 +1255,7 @@ async function loadCalibration() {
     if (cal.rois.left || cal.rois.right) {
       document.getElementById('calibration-status').textContent = '已加载上次 ROI 标定';
     }
+    refreshPreviewRecipeRoi();
   } catch (_) { /* 标定可选，不影响使用 */ }
 }
 
