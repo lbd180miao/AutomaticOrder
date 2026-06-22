@@ -44,6 +44,24 @@
   </div>
 </section>
 
+<h2 class="section-title">视觉快捷入口</h2>
+<section class="grid">
+  <div class="panel text-panel">
+    <h2>视觉配方模块</h2>
+    <p>进入泡棉检测工作台后，点击右上角「配方管理」维护 POS 0/1/2 的左右泡棉 ROI。</p>
+    <p>
+      <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-primary">进入配方管理</a>
+    </p>
+  </div>
+  <div class="panel text-panel">
+    <h2>视觉中心</h2>
+    <p>查看泡棉检测、料架定位、历史视觉任务与检测结果。</p>
+    <p>
+      <a href="{% url 'vision:task_list' %}" class="btn btn-secondary">进入视觉模块</a>
+    </p>
+  </div>
+</section>
+
 <h2 class="section-title">最近报警</h2>
 <div class="table-wrap">
   <table class="data-table">

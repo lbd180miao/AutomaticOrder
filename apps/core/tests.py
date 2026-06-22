@@ -8,6 +8,13 @@ class PageAccessTests(TestCase):
     def test_dashboard(self):
         self.assertEqual(self.client.get(reverse('core:dashboard')).status_code, 200)
 
+    def test_dashboard_links_to_vision_recipe_workbench(self):
+        response = self.client.get(reverse('core:dashboard'))
+
+        self.assertContains(response, '视觉配方模块')
+        self.assertContains(response, reverse('vision:foam_inspector_interactive'))
+        self.assertContains(response, '配方管理')
+
     def test_product_list(self):
         self.assertEqual(self.client.get(reverse('production:product_list')).status_code, 200)
 

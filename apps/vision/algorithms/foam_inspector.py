@@ -318,7 +318,7 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
     result = {
         'is_present': not missing,
         'is_aligned': not missing,
-        'has_lifted_edge': False,
+        'has_lifted_edge': bool(missing),
         'defect_type': defect_type,
         'score': round(min(scores) if scores else 0.0, 3),
         'offset_x_px': round(max(offsets_x, key=abs) if offsets_x else 0.0, 1),
@@ -587,7 +587,7 @@ def _build_result(*, defect_type, offset_x_px, offset_y_px, coverage_ratio,
         return {
             'is_present': False,
             'is_aligned': False,
-            'has_lifted_edge': False,
+            'has_lifted_edge': True,
             'defect_type': FoamDefectType.MISSING,
             'score': 0.0,
             'offset_x_px': 0.0,

@@ -17,7 +17,13 @@ from .models import (
     FoamInspectionResult,
     RackLocationResult,
     VisionImage,
+    VisionRecipe,
     VisionTask,
+)
+from .recipe_utils import (
+    build_foam_inspection_config,
+    get_active_foam_2d_recipe_by_pos,
+    serialize_recipe,
 )
 
 
@@ -269,7 +275,8 @@ class VisionService:
 
     def inspect_foam(self, product, rack, position_index=0, simulated_pass=True,
                      inspection_config=None, use_camera=False,
-                     camera_code='CAM-INSPECT-FOAM-01'):
+                     camera_code='CAM-INSPECT-FOAM-01',
+                     recipe_id=None, use_recipe=True):
         """泡棉贴附检测，保存 FoamInspectionResult。
 
         参数：
@@ -293,10 +300,24 @@ class VisionService:
                         raise RuntimeError(f'相机图片读取失败: {image_path}')
 
             profile, calibration_config = self._foam_calibration_config(camera_code)
+            recipe = None
+            recipe_config = {}
+            if use_recipe:
+                if recipe_id:
+                    recipe = (
+                        VisionRecipe.objects
+                        .filter(id=recipe_id, recipe_type='FOAM_2D', is_active=True)
+                        .first()
+                    )
+                else:
+                    recipe = get_active_foam_2d_recipe_by_pos(position_index)
+                if recipe:
+                    recipe_config = build_foam_inspection_config(recipe)
             merged_config = {}
             if inspection_config:
                 merged_config.update(inspection_config)
             merged_config.update(calibration_config)
+            merged_config.update(recipe_config)
 
             data = self.foam_inspector.inspect(
                 position_index=position_index,
@@ -308,6 +329,8 @@ class VisionService:
             if profile:
                 data.setdefault('result_data', {})['calibration_profile'] = profile.name
                 data['result_data']['calibration_profile_id'] = profile.id
+            if recipe:
+                data.setdefault('result_data', {})['recipe'] = serialize_recipe(recipe)
             result = FoamInspectionResult.objects.create(
                 vision_task=task,
                 product=product,

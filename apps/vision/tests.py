@@ -5,6 +5,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
@@ -15,9 +16,241 @@ from apps.vision.models import (
     CalibrationProfile,
     FoamInspectionResult,
     RackLocationResult,
+    VisionRecipe,
     VisionTask,
 )
+from apps.vision.recipe_utils import (
+    build_foam_inspection_config,
+    ensure_default_foam_2d_recipes,
+    serialize_recipe,
+)
 from apps.vision.services import VisionService
+
+
+class VisionRecipeModelTests(TestCase):
+    def test_default_foam_2d_recipes_are_created_for_three_positions(self):
+        recipes = ensure_default_foam_2d_recipes()
+
+        self.assertEqual(len(recipes), 3)
+        self.assertEqual(
+            list(VisionRecipe.objects.filter(recipe_type='FOAM_2D').order_by('pos').values_list('pos', flat=True)),
+            [0, 1, 2],
+        )
+        for recipe in recipes:
+            self.assertIn('leftFoamROI', recipe.roi_config)
+            self.assertIn('rightFoamROI', recipe.roi_config)
+
+    def test_recipe_serialization_exposes_layer_name_and_roi(self):
+        recipe = ensure_default_foam_2d_recipes()[1]
+
+        payload = serialize_recipe(recipe)
+
+        self.assertEqual(payload['recipe_type'], 'FOAM_2D')
+        self.assertEqual(payload['pos'], 1)
+        self.assertEqual(payload['layerName'], '第2层')
+        self.assertIn('leftFoamROI', payload['roi_config'])
+
+    def test_recipe_config_converts_pixel_roi_to_foam_inspector_ratio_config(self):
+        recipe = VisionRecipe.objects.create(
+            recipe_type='FOAM_2D',
+            name='测试配方',
+            pos=0,
+            image_width=1000,
+            image_height=500,
+            roi_config={
+                'leftFoamROI': {'x': 100, 'y': 50, 'width': 200, 'height': 100},
+                'rightFoamROI': {'x': 600, 'y': 50, 'width': 250, 'height': 100},
+            },
+            threshold_config={'minCoverage': 0.66, 'minScore': 0.88, 'maxOffsetX': 12, 'maxOffsetY': 18},
+        )
+
+        config = build_foam_inspection_config(recipe)
+
+        self.assertEqual(config['foam_rois']['0']['left'], [0.1, 0.1, 0.3, 0.3])
+        self.assertEqual(config['foam_rois']['0']['right'], [0.6, 0.1, 0.85, 0.3])
+        self.assertEqual(config['coverage_threshold'], 0.66)
+        self.assertEqual(config['score_threshold'], 0.88)
+        self.assertEqual(config['max_offset_px'], 18)
+
+
+class VisionRecipeServiceTests(TestCase):
+    def setUp(self):
+        self.product = Product.objects.create(product_code='P-RECIPE')
+        self.rack_recipe = RackRecipe.objects.create(
+            recipe_code='RCP-RECIPE',
+            name='配方测试料架',
+            rack_type='STD',
+            layer_count=3,
+            quantity_per_layer=6,
+            total_quantity=18,
+            layer_height=120,
+            layer_spacing=150,
+            tolerance_x=2,
+            tolerance_y=2,
+            tolerance_z=3,
+        )
+        self.rack = Rack.objects.create(
+            rack_code='RK-RECIPE',
+            current_recipe=self.rack_recipe,
+        )
+
+    def test_inspect_foam_uses_explicit_recipe_id_and_records_recipe_metadata(self):
+        recipe = VisionRecipe.objects.create(
+            recipe_type='FOAM_2D',
+            name='手动指定配方',
+            pos=2,
+            image_width=1000,
+            image_height=500,
+            roi_config={
+                'leftFoamROI': {'x': 100, 'y': 50, 'width': 200, 'height': 100},
+                'rightFoamROI': {'x': 600, 'y': 50, 'width': 250, 'height': 100},
+            },
+            threshold_config={'minCoverage': 0.61, 'minScore': 0.82, 'maxOffsetX': 11, 'maxOffsetY': 19},
+            is_active=True,
+        )
+
+        result = VisionService().inspect_foam(
+            self.product,
+            self.rack,
+            position_index=0,
+            recipe_id=recipe.id,
+            simulated_pass=True,
+        )
+
+        self.assertEqual(result.result_data['recipe']['id'], recipe.id)
+        self.assertEqual(result.result_data['recipe']['name'], '手动指定配方')
+        self.assertEqual(result.result_data['recipe']['pos'], 2)
+        self.assertEqual(result.result_data['coverage_threshold'], 0.61)
+        self.assertEqual(result.result_data['max_offset_px'], 19)
+
+    def test_inspect_foam_falls_back_to_active_recipe_for_position_index(self):
+        ensure_default_foam_2d_recipes()
+        recipe = VisionRecipe.objects.get(recipe_type='FOAM_2D', pos=1)
+        recipe.name = 'POS 1 自动配方'
+        recipe.threshold_config = {'minCoverage': 0.64, 'minScore': 0.8, 'maxOffsetX': 9, 'maxOffsetY': 13}
+        recipe.save()
+
+        result = VisionService().inspect_foam(
+            self.product,
+            self.rack,
+            position_index=1,
+            simulated_pass=True,
+        )
+
+        self.assertEqual(result.result_data['recipe']['id'], recipe.id)
+        self.assertEqual(result.result_data['recipe']['name'], 'POS 1 自动配方')
+        self.assertEqual(result.result_data['recipe']['pos'], 1)
+        self.assertEqual(result.result_data['max_offset_px'], 13)
+
+    def test_inspect_foam_can_disable_recipe_lookup_and_keep_existing_behavior(self):
+        ensure_default_foam_2d_recipes()
+
+        result = VisionService().inspect_foam(
+            self.product,
+            self.rack,
+            position_index=1,
+            simulated_pass=True,
+            use_recipe=False,
+        )
+
+        self.assertNotIn('recipe', result.result_data)
+        self.assertEqual(result.position_index, 1)
+
+
+class VisionRecipeApiTests(TestCase):
+    def test_recipe_list_api_initializes_and_returns_default_foam_recipes(self):
+        response = self.client.get(reverse('vision:api_vision_recipes'), {'recipe_type': 'FOAM_2D'})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertEqual([item['pos'] for item in payload['recipes']], [0, 1, 2])
+
+    def test_recipe_by_pos_api_returns_matching_recipe(self):
+        response = self.client.get(reverse('vision:api_foam_recipe_by_pos'), {'pos': 2})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['recipe']['pos'], 2)
+        self.assertIn('leftFoamROI', payload['recipe']['roi_config'])
+
+    def test_recipe_save_api_updates_only_requested_position(self):
+        ensure_default_foam_2d_recipes()
+
+        response = self.client.post(
+            reverse('vision:api_foam_recipe_save'),
+            data={
+                'name': 'POS 1 微调配方',
+                'pos': 1,
+                'image_width': 1000,
+                'image_height': 500,
+                'roi_config': {
+                    'leftFoamROI': {'x': 10, 'y': 20, 'width': 30, 'height': 40},
+                    'rightFoamROI': {'x': 500, 'y': 20, 'width': 30, 'height': 40},
+                },
+                'threshold_config': {'minCoverage': 0.7, 'minScore': 0.8, 'maxOffsetX': 20, 'maxOffsetY': 20},
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['recipe']['name'], 'POS 1 微调配方')
+        self.assertEqual(VisionRecipe.objects.get(pos=0, recipe_type='FOAM_2D').name, '第1层泡棉检测配方')
+        self.assertEqual(VisionRecipe.objects.get(pos=2, recipe_type='FOAM_2D').name, '第3层泡棉检测配方')
+
+    def test_capture_inspect_api_passes_recipe_id_and_returns_recipe_payload(self):
+        recipe = ensure_default_foam_2d_recipes()[0]
+        task = VisionTask.objects.create(task_type=VisionTaskType.FOAM_INSPECTION, status=ResultStatus.SUCCESS)
+        foam_result = FoamInspectionResult.objects.create(
+            vision_task=task,
+            position_index=0,
+            is_present=True,
+            is_aligned=True,
+            has_lifted_edge=False,
+            score=0.95,
+            is_passed=True,
+            result_data={'recipe': serialize_recipe(recipe)},
+        )
+
+        with patch('apps.vision.views.VisionService') as service_cls:
+            service_cls.return_value.inspect_foam.return_value = foam_result
+            response = self.client.post(
+                reverse('vision:api_foam_capture_inspect'),
+                data={'position_index': 0, 'recipe_id': recipe.id, 'use_recipe': True},
+                content_type='application/json',
+            )
+
+        self.assertEqual(response.status_code, 200)
+        service_cls.return_value.inspect_foam.assert_called_once()
+        kwargs = service_cls.return_value.inspect_foam.call_args.kwargs
+        self.assertEqual(kwargs['recipe_id'], recipe.id)
+        self.assertTrue(kwargs['use_recipe'])
+        self.assertEqual(response.json()['result']['recipe']['id'], recipe.id)
+
+    def test_upload_inspect_api_accepts_recipe_id_and_returns_recipe_payload(self):
+        recipe = ensure_default_foam_2d_recipes()[0]
+        image = np.full((80, 120, 3), 220, dtype=np.uint8)
+        ok, encoded = cv2.imencode('.png', image)
+        self.assertTrue(ok)
+        upload = SimpleUploadedFile('foam.png', encoded.tobytes(), content_type='image/png')
+
+        response = self.client.post(
+            reverse('vision:api_foam_upload_inspect'),
+            data={
+                'image': upload,
+                'position_index': 0,
+                'recipe_id': str(recipe.id),
+                'use_recipe': 'true',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['result']['recipe']['id'], recipe.id)
 
 
 class VisionServiceTests(TestCase):
@@ -56,6 +289,14 @@ class VisionServiceTests(TestCase):
         self.assertFalse(result.is_passed)
         # 不合格时至少有一种缺陷标记
         self.assertTrue(result.has_lifted_edge or not result.is_aligned or not result.is_present)
+
+    def test_missing_foam_marks_all_core_judgements_ng(self):
+        result = FoamInspector().inspect(simulated_pass=False)
+
+        self.assertFalse(result['is_present'])
+        self.assertFalse(result['is_aligned'])
+        self.assertTrue(result['has_lifted_edge'])
+        self.assertEqual(result['defect_type'], FoamDefectType.MISSING)
 
     # ------------------------------------------------------------------
     # 泡棉检测 — position_index 差异
@@ -352,6 +593,9 @@ class VisionServiceTests(TestCase):
 
         self.assertFalse(result['is_passed'])
         self.assertEqual(result['defect_type'], FoamDefectType.MISSING)
+        self.assertFalse(result['is_present'])
+        self.assertFalse(result['is_aligned'])
+        self.assertTrue(result['has_lifted_edge'])
         self.assertTrue(result['result_data']['sides']['left']['is_present'])
         self.assertFalse(result['result_data']['sides']['right']['is_present'])
 
@@ -604,6 +848,20 @@ class FoamRoiCaptureViewTests(TestCase):
             payload['profile']['foam_rois']['1']['left'],
             [0, 0, 0.2, 0.2],
         )
+
+
+class VisionRecipeWorkbenchTemplateTests(TestCase):
+    def test_foam_workbench_exposes_recipe_drawer_and_recipe_state(self):
+        response = self.client.get(reverse('vision:foam_inspector_interactive'))
+
+        self.assertContains(response, '配方管理')
+        self.assertContains(response, 'recipe-drawer')
+        self.assertContains(response, '泡棉检测配方（2D）')
+        self.assertContains(response, '料架定位配方（3D）')
+        self.assertContains(response, 'manualSelectedRecipe')
+        self.assertContains(response, 'currentDetectionRecipe')
+        self.assertContains(response, 'recipes:')
+        self.assertContains(response, 'recipe_id')
 
 
 class DepthRoiDebugViewTests(TestCase):

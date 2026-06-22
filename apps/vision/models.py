@@ -68,3 +68,30 @@ class CalibrationProfile(TimeStampedModel):
     version = models.CharField(max_length=32)
     transform_data = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
+
+
+class VisionRecipe(TimeStampedModel):
+    RECIPE_TYPE_CHOICES = (
+        ('FOAM_2D', '泡棉检测配方'),
+        ('RACK_3D', '料架定位配方'),
+    )
+
+    recipe_type = models.CharField(max_length=32, choices=RECIPE_TYPE_CHOICES)
+    name = models.CharField(max_length=100)
+    product_code = models.CharField(max_length=100, blank=True, null=True)
+    rack_type = models.CharField(max_length=100, blank=True, null=True)
+    camera_side = models.CharField(max_length=20, blank=True, null=True, default='both')
+    pos = models.IntegerField(default=0)
+    image_width = models.IntegerField(default=1280)
+    image_height = models.IntegerField(default=720)
+    roi_config = models.JSONField(default=dict, blank=True)
+    threshold_config = models.JSONField(default=dict, blank=True)
+    algorithm_config = models.JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(default=True)
+    remark = models.TextField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['recipe_type', 'pos', '-updated_at']
+
+    def __str__(self):
+        return f'{self.name}({self.recipe_type}, POS {self.pos})'

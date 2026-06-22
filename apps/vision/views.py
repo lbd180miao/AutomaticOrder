@@ -17,7 +17,14 @@ from .models import (
     FoamInspectionResult,
     RackLocationResult,
     VisionImage,
+    VisionRecipe,
     VisionTask,
+)
+from .recipe_utils import (
+    build_foam_inspection_config,
+    ensure_default_foam_2d_recipes,
+    get_active_foam_2d_recipe_by_pos,
+    serialize_recipe,
 )
 from .services import VisionService
 
@@ -116,6 +123,115 @@ def foam_results(request):
 def foam_inspector_interactive(request):
     """交互式泡棉检测页面"""
     return render(request, 'vision/foam_inspector_interactive.html')
+
+
+def _as_bool(value, default=True):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _result_payload(foam_result):
+    task = foam_result.vision_task
+    result_image = task.images.filter(image_type='RESULT').first()
+    original_image = task.images.filter(image_type='ORIGINAL').first()
+    payload = {
+        'task_id': task.id,
+        'position_index': foam_result.position_index,
+        'is_present': foam_result.is_present,
+        'is_aligned': foam_result.is_aligned,
+        'has_lifted_edge': foam_result.has_lifted_edge,
+        'score': float(foam_result.score),
+        'is_passed': foam_result.is_passed,
+        'offset_x_px': float(foam_result.offset_x_px),
+        'offset_y_px': float(foam_result.offset_y_px),
+        'coverage_ratio': float(foam_result.coverage_ratio),
+        'defect_type': foam_result.defect_type,
+        'result_image_url': result_image.file.url if result_image else '',
+        'original_image_url': original_image.file.url if original_image else '',
+    }
+    if foam_result.result_data.get('recipe'):
+        payload['recipe'] = foam_result.result_data['recipe']
+    return payload
+
+
+@require_http_methods(['GET'])
+def api_vision_recipes(request):
+    ensure_default_foam_2d_recipes()
+    qs = VisionRecipe.objects.all()
+    recipe_type = request.GET.get('recipe_type')
+    pos = request.GET.get('pos')
+    camera_side = request.GET.get('camera_side')
+    is_active = request.GET.get('is_active')
+    if recipe_type:
+        qs = qs.filter(recipe_type=recipe_type)
+    if pos not in (None, ''):
+        qs = qs.filter(pos=int(pos))
+    if camera_side:
+        qs = qs.filter(camera_side=camera_side)
+    if is_active not in (None, ''):
+        qs = qs.filter(is_active=_as_bool(is_active))
+    return JsonResponse({
+        'success': True,
+        'recipes': [serialize_recipe(recipe) for recipe in qs.order_by('recipe_type', 'pos', '-updated_at')],
+    })
+
+
+@require_http_methods(['GET'])
+def api_foam_recipe_by_pos(request):
+    pos = int(request.GET.get('pos', 0))
+    ensure_default_foam_2d_recipes()
+    recipe = get_active_foam_2d_recipe_by_pos(pos)
+    return JsonResponse({
+        'success': True,
+        'recipe': serialize_recipe(recipe) if recipe else None,
+    })
+
+
+@require_POST
+def api_foam_recipe_defaults(request):
+    recipes = ensure_default_foam_2d_recipes()
+    return JsonResponse({
+        'success': True,
+        'recipes': [serialize_recipe(recipe) for recipe in recipes],
+    })
+
+
+@require_POST
+def api_foam_recipe_save(request):
+    try:
+        body = json.loads(request.body or '{}')
+        pos = int(body.get('pos', 0))
+        if pos < 0:
+            raise ValueError('pos must be non-negative')
+        roi_config = body.get('roi_config') or {}
+        if not roi_config.get('leftFoamROI') or not roi_config.get('rightFoamROI'):
+            raise ValueError('leftFoamROI and rightFoamROI are required')
+        threshold_config = body.get('threshold_config') or {}
+        recipe_id = body.get('id')
+        if recipe_id:
+            recipe = get_object_or_404(
+                VisionRecipe, id=recipe_id, recipe_type='FOAM_2D'
+            )
+        else:
+            recipe = get_active_foam_2d_recipe_by_pos(pos)
+        if recipe is None:
+            recipe = VisionRecipe(recipe_type='FOAM_2D', pos=pos, camera_side='both')
+        recipe.name = body.get('name') or f'第{pos + 1}层泡棉检测配方'
+        recipe.pos = pos
+        recipe.camera_side = body.get('camera_side') or recipe.camera_side or 'both'
+        recipe.image_width = int(body.get('image_width') or recipe.image_width or 1280)
+        recipe.image_height = int(body.get('image_height') or recipe.image_height or 720)
+        recipe.roi_config = roi_config
+        recipe.threshold_config = threshold_config
+        recipe.is_active = _as_bool(body.get('is_active'), True)
+        recipe.remark = body.get('remark') or ''
+        recipe.save()
+        return JsonResponse({'success': True, 'recipe': serialize_recipe(recipe)})
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
 def _normalize_roi_ratio(values):
@@ -256,7 +372,9 @@ def api_foam_capture_inspect(request):
     """拍照并进行泡棉检测"""
     try:
         body = json.loads(request.body)
-        position_index = body.get('position_index', 0)
+        position_index = int(body.get('position_index', 0))
+        recipe_id = body.get('recipe_id') or None
+        use_recipe = _as_bool(body.get('use_recipe'), True)
         
         vision_service = VisionService()
         foam_result = vision_service.inspect_foam(
@@ -265,31 +383,13 @@ def api_foam_capture_inspect(request):
             position_index=position_index,
             simulated_pass=True,
             use_camera=True,
+            recipe_id=recipe_id,
+            use_recipe=use_recipe,
         )
-        
-        # foam_result 是 FoamInspectionResult 对象
-        # 通过 vision_task 获取关联的任务
-        task = foam_result.vision_task
-        result_image = task.images.filter(image_type='RESULT').first()
-        original_image = task.images.filter(image_type='ORIGINAL').first()
         
         return JsonResponse({
             'success': True,
-            'result': {
-                'task_id': task.id,
-                'position_index': foam_result.position_index,
-                'is_present': foam_result.is_present,
-                'is_aligned': foam_result.is_aligned,
-                'has_lifted_edge': foam_result.has_lifted_edge,
-                'score': float(foam_result.score),
-                'is_passed': foam_result.is_passed,
-                'offset_x_px': float(foam_result.offset_x_px),
-                'offset_y_px': float(foam_result.offset_y_px),
-                'coverage_ratio': float(foam_result.coverage_ratio),
-                'defect_type': foam_result.defect_type,
-                'result_image_url': result_image.file.url if result_image else '',
-                'original_image_url': original_image.file.url if original_image else '',
-            }
+            'result': _result_payload(foam_result),
         })
         
     except RuntimeError as e:
@@ -316,6 +416,8 @@ def api_foam_upload_inspect(request):
             })
         
         position_index = int(request.POST.get('position_index', 0))
+        recipe_id = request.POST.get('recipe_id') or None
+        use_recipe = _as_bool(request.POST.get('use_recipe'), True)
         
         # 读取上传的图片
         file_bytes = uploaded_file.read()
@@ -338,17 +440,34 @@ def api_foam_upload_inspect(request):
         from .algorithms.foam_inspector import FoamInspector
         
         inspector = FoamInspector(simulate=False)
+        recipe = None
+        recipe_config = {}
+        if use_recipe:
+            if recipe_id:
+                recipe = (
+                    VisionRecipe.objects
+                    .filter(id=recipe_id, recipe_type='FOAM_2D', is_active=True)
+                    .first()
+                )
+            else:
+                recipe = get_active_foam_2d_recipe_by_pos(position_index)
+            if recipe:
+                recipe_config = build_foam_inspection_config(recipe)
+        inspection_config = {
+            'score_threshold': 0.8,
+            'coverage_threshold': 0.75,
+            'max_offset_px': 30,
+        }
+        inspection_config.update(recipe_config)
         result = inspector.inspect(
             position_index=position_index,
-            inspection_config={
-                'score_threshold': 0.8,
-                'coverage_threshold': 0.75,
-                'max_offset_px': 30,
-            },
+            inspection_config=inspection_config,
             image=image,
             camera_image_path=str(temp_path),
             simulated_pass=True,
         )
+        if recipe:
+            result.setdefault('result_data', {})['recipe'] = serialize_recipe(recipe)
         
         # 创建视觉任务记录
         task = VisionTask.objects.create(
@@ -388,24 +507,7 @@ def api_foam_upload_inspect(request):
             file=result['result_image'],
         )
         
-        return JsonResponse({
-            'success': True,
-            'result': {
-                'task_id': task.id,
-                'position_index': foam_result.position_index,
-                'is_present': foam_result.is_present,
-                'is_aligned': foam_result.is_aligned,
-                'has_lifted_edge': foam_result.has_lifted_edge,
-                'score': float(foam_result.score),
-                'is_passed': foam_result.is_passed,
-                'offset_x_px': float(foam_result.offset_x_px),
-                'offset_y_px': float(foam_result.offset_y_px),
-                'coverage_ratio': float(foam_result.coverage_ratio),
-                'defect_type': foam_result.defect_type,
-                'result_image_url': result_img.file.url,
-                'original_image_url': original_img.file.url,
-            }
-        })
+        return JsonResponse({'success': True, 'result': _result_payload(foam_result)})
         
     except ValueError as e:
         return JsonResponse({
