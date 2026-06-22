@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}泡棉检测结果 - AutomaticOrder{% endblock %}
 {% block content %}
-<section class="page-header"><h1>泡棉检测结果</h1></section>
+<section class="page-header"><h1>保险杠泡棉检测结果</h1></section>
+<p class="page-hint">当前检测策略：泡棉贴在保险杠上，2D 相机只判定白色泡棉是否存在；存在则“对齐”和“起翘”均判 OK。</p>
 <div class="table-wrap">
   <table class="data-table">
     <thead>
@@ -19,9 +20,9 @@
         <td>{{ r.product.product_code|default:"-" }}</td>
         <td>{{ r.rack.rack_code|default:"-" }}</td>
         <td>{{ r.position_index }}</td>
-        <td>{% if r.is_present %}是{% else %}否{% endif %}</td>
-        <td>{% if r.is_aligned %}是{% else %}否{% endif %}</td>
-        <td>{% if r.has_lifted_edge %}<span class="badge badge-fail">是</span>{% else %}否{% endif %}</td>
+        <td>{% if r.is_present %}<span class="badge badge-ok">是</span>{% else %}<span class="badge badge-fail">否</span>{% endif %}</td>
+        <td>{% if r.is_aligned %}<span class="badge badge-ok">OK</span>{% else %}<span class="badge badge-fail">NG</span>{% endif %}</td>
+        <td>{% if r.has_lifted_edge %}<span class="badge badge-fail">NG</span>{% else %}<span class="badge badge-ok">OK</span>{% endif %}</td>
         <td>{{ r.score }}</td>
         <td>{% if r.is_passed %}<span class="badge badge-ok">合格</span>{% else %}<span class="badge badge-fail">不合格</span>{% endif %}</td>
       </tr>

@@ -1,18 +1,21 @@
 """泡棉贴附检测算法（2D 检测相机）。
 
-本模块用于装箱工位的固定式 2D 工业相机（海康 MV-CS050-10GC）检测泡棉贴附质量。
-在装箱机器人完成泡棉贴附后，PLC 触发工位固定式检测相机拍照，视觉系统对泡棉贴附状态
-进行实时校验，检测：
-  - 泡棉漏贴（缺失）
-  - 泡棉位置偏移（与预设位置的X/Y偏差）
-  - 泡棉边缘起翘
+检测场景
+--------
+- 检测对象：汽车保险杠表面贴附的**白色泡棉**
+- 相机类型：海康 MV-CS050-10GC（500万像素，10GigE），固定俯视安装
+- 触发方式：装箱机器人完成泡棉贴附动作后，由 PLC 触发拍照
 
-检测合格后向 PLC 发送"工序完成"信号；不合格则立即报警并锁定工位，提示人工核查处理。
+判定规则（简化策略）
+--------------------
+只要在 ROI 区域内检测到白色泡棉即判定合格：
+  - 泡棉存在  → is_present=True
+  - 位置对齐  → is_aligned=True（存在即 OK，不依赖偏移量二次判 NG）
+  - 边缘起翘  → has_lifted_edge=False（存在即无起翘，不额外计算边缘）
+  - 综合结论  → is_passed=True
+泡棉缺失（漏贴）→ 三项全 NG，is_passed=False，触发报警。
 
-硬件配置：
-  - 相机：海康 MV-CS050-10GC（500万像素，10GigE接口）
-  - 镜头：MVL-MF1618M-5MPE 16MM（定焦，5MP，工作距离3m）
-  - 安装：固定在装箱工位，俯视拍摄保险杠泡棉贴附区域
+前端展示三项指标卡：存在 / 对齐 / 起翘，数据来自算法返回字段，与 PLC 判定结论一致。
 """
 import cv2
 import numpy as np
@@ -124,6 +127,208 @@ def _detect_foam_in_image(image, roi):
     return (foam_x1, foam_y1, foam_x2, foam_y2)
 
 
+def _ratio_box_to_pixels(ratio_box, width, height):
+    x1_r, y1_r, x2_r, y2_r = [float(v) for v in ratio_box]
+    x1 = int(round(width * max(0.0, min(1.0, x1_r))))
+    y1 = int(round(height * max(0.0, min(1.0, y1_r))))
+    x2 = int(round(width * max(0.0, min(1.0, x2_r))))
+    y2 = int(round(height * max(0.0, min(1.0, y2_r))))
+    return (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+
+
+def _resolve_side_roi_config(cfg, position_index):
+    foam_rois = cfg.get('foam_rois') or {}
+    if not isinstance(foam_rois, dict):
+        return None
+    key = str(position_index)
+    rois = foam_rois.get(key) or foam_rois.get(position_index)
+    if not rois and {'left', 'right'} <= set(foam_rois.keys()):
+        rois = foam_rois
+    if not isinstance(rois, dict):
+        return None
+    if not rois.get('left') or not rois.get('right'):
+        return None
+    return {'left': rois['left'], 'right': rois['right']}
+
+
+def _detect_foam_side(image, roi, cfg):
+    x1, y1, x2, y2 = roi
+    roi_img = image[y1:y2, x1:x2].copy()
+    roi_height, roi_width = roi_img.shape[:2]
+    roi_area = max(roi_width * roi_height, 1)
+    if roi_width < 5 or roi_height < 5:
+        return {
+            'roi': roi,
+            'box': None,
+            'is_present': False,
+            'is_aligned': False,
+            'coverage_ratio': 0.0,
+            'offset_x_px': 0.0,
+            'offset_y_px': 0.0,
+            'score': 0.0,
+        }
+
+    hsv = cv2.cvtColor(roi_img, cv2.COLOR_BGR2HSV)
+    lab = cv2.cvtColor(roi_img, cv2.COLOR_BGR2LAB)
+    if cfg.get('require_dark_support'):
+        dark_mask = cv2.inRange(hsv[:, :, 2], 0, int(cfg.get('dark_max_v', 65)))
+        dark_ratio = cv2.countNonZero(dark_mask) / roi_area
+        if dark_ratio < float(cfg.get('min_dark_ratio', 0.002)):
+            return {
+                'roi': roi,
+                'box': None,
+                'is_present': False,
+                'is_aligned': False,
+                'coverage_ratio': 0.0,
+                'offset_x_px': 0.0,
+                'offset_y_px': 0.0,
+                'score': 0.0,
+                'reason': 'no_dark_support',
+                'dark_ratio': round(dark_ratio, 4),
+            }
+
+    min_v = int(cfg.get('white_min_v', 170))
+    max_s = int(cfg.get('white_max_s', 80))
+    min_l = int(cfg.get('white_min_l', 175))
+    white_hsv = cv2.inRange(hsv, (0, 0, min_v), (180, max_s, 255))
+    white_lab = cv2.inRange(lab[:, :, 0], min_l, 255)
+    mask = cv2.bitwise_or(white_hsv, white_lab)
+
+    green_mask = cv2.inRange(hsv, (35, 40, 40), (100, 255, 255))
+    mask = cv2.bitwise_and(mask, cv2.bitwise_not(green_mask))
+
+    border_ratio = float(cfg.get('ignore_border_ratio', 0.04))
+    border_x = int(round(roi_width * max(0.0, min(0.25, border_ratio))))
+    border_y = int(round(roi_height * max(0.0, min(0.25, border_ratio))))
+    if border_x > 0:
+        mask[:, :border_x] = 0
+        mask[:, roi_width - border_x:] = 0
+    if border_y > 0:
+        mask[:border_y, :] = 0
+        mask[roi_height - border_y:, :] = 0
+
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close, iterations=2)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_open)
+    if border_x > 0:
+        mask[:, :border_x] = 0
+        mask[:, roi_width - border_x:] = 0
+    if border_y > 0:
+        mask[:border_y, :] = 0
+        mask[roi_height - border_y:, :] = 0
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    min_area = roi_area * float(cfg.get('side_min_area_ratio', 0.08))
+    max_area = roi_area * float(cfg.get('side_max_area_ratio', 0.95))
+    best = None
+    best_area = 0
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area < min_area or area > max_area:
+            continue
+        bx, by, bw, bh = cv2.boundingRect(contour)
+        aspect = bw / max(bh, 1)
+        if aspect < 0.15 or aspect > 8:
+            continue
+        compactness = area / max(bw * bh, 1)
+        if compactness < float(cfg.get('side_min_compactness', 0.25)):
+            continue
+        if area > best_area:
+            best = (bx, by, bw, bh, area)
+            best_area = area
+
+    if not best:
+        return {
+            'roi': roi,
+            'box': None,
+            'is_present': False,
+            'is_aligned': False,
+            'coverage_ratio': 0.0,
+            'offset_x_px': 0.0,
+            'offset_y_px': 0.0,
+            'score': 0.0,
+        }
+
+    bx, by, bw, bh, area = best
+    box = (x1 + bx, y1 + by, x1 + bx + bw, y1 + by + bh)
+    roi_cx = (x1 + x2) / 2
+    roi_cy = (y1 + y2) / 2
+    foam_cx = (box[0] + box[2]) / 2
+    foam_cy = (box[1] + box[3]) / 2
+    offset_x = round(foam_cx - roi_cx, 1)
+    offset_y = round(foam_cy - roi_cy, 1)
+    coverage_ratio = round((bw * bh) / roi_area, 4)
+    # 当前现场策略：泡棉贴在保险杠上，2D 视觉只做“白色泡棉是否存在”
+    # 的强判定。只要在当前 ROI 内检测到泡棉，前端仍展示“存在 / 对齐 /
+    # 起翘”三项，但对齐与起翘直接随存在判 OK，避免复杂阈值导致误报。
+    coverage_threshold = float(cfg.get('coverage_threshold', 0.3))
+    is_aligned = True
+    score = round(max(0.85, min(1.0, coverage_ratio / max(coverage_threshold, 0.01))), 3)
+    return {
+        'roi': roi,
+        'box': box,
+        'is_present': True,
+        'is_aligned': is_aligned,
+        'coverage_ratio': coverage_ratio,
+        'offset_x_px': offset_x,
+        'offset_y_px': offset_y,
+        'score': score,
+    }
+
+
+def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
+    height, width = image.shape[:2]
+    sides = {}
+    for side, ratio_box in side_roi_config.items():
+        roi = _ratio_box_to_pixels(ratio_box, width, height)
+        sides[side] = _detect_foam_side(image, roi, cfg)
+
+    missing = [side for side, data in sides.items() if not data['is_present']]
+    present_sides = [data for data in sides.values() if data['box']]
+    if missing:
+        defect_type = FoamDefectType.MISSING
+        is_passed = False
+    else:
+        defect_type = FoamDefectType.NONE
+        is_passed = True
+
+    all_rois = [data['roi'] for data in sides.values()]
+    roi = (
+        min(box[0] for box in all_rois),
+        min(box[1] for box in all_rois),
+        max(box[2] for box in all_rois),
+        max(box[3] for box in all_rois),
+    )
+    if present_sides:
+        boxes = [data['box'] for data in present_sides]
+        foam = (
+            min(box[0] for box in boxes),
+            min(box[1] for box in boxes),
+            max(box[2] for box in boxes),
+            max(box[3] for box in boxes),
+        )
+    else:
+        foam = (roi[0], roi[1], roi[0], roi[1])
+
+    scores = [data['score'] for data in sides.values()]
+    coverage = [data['coverage_ratio'] for data in sides.values()]
+    offsets_x = [data['offset_x_px'] for data in sides.values()]
+    offsets_y = [data['offset_y_px'] for data in sides.values()]
+    result = {
+        'is_present': not missing,
+        'is_aligned': not missing,
+        'has_lifted_edge': False,
+        'defect_type': defect_type,
+        'score': round(min(scores) if scores else 0.0, 3),
+        'offset_x_px': round(max(offsets_x, key=abs) if offsets_x else 0.0, 1),
+        'offset_y_px': round(max(offsets_y, key=abs) if offsets_y else 0.0, 1),
+        'coverage_ratio': round(min(coverage) if coverage else 0.0, 4),
+        'is_passed': is_passed,
+    }
+    return result, roi, foam, sides
+
+
 class FoamDefectType(models.TextChoices):
     """泡棉缺陷分类。"""
     NONE = 'NONE', '无缺陷'
@@ -152,8 +357,8 @@ class FoamInspector:
 
         本方法由 PLC 触发相机拍照后调用，用于检测：
           1. 泡棉是否存在（is_present）- 检测漏贴
-          2. 泡棉位置是否对齐（is_aligned）- 检测偏移
-          3. 泡棉边缘是否起翘（has_lifted_edge）- 检测起翘
+          2. 泡棉位置是否对齐（is_aligned）- 当前策略：存在即 OK
+          3. 泡棉边缘是否起翘（has_lifted_edge）- 当前策略：存在即不起翘
 
         参数：
             position_index: 装箱位置编号（0-based），用于区分不同产品或不同装箱位
@@ -202,18 +407,14 @@ class FoamInspector:
         score_threshold = float(cfg.get('score_threshold', 0.8))
         coverage_threshold = float(cfg.get('coverage_threshold', 0.75))
         max_offset_px = int(cfg.get('max_offset_px', 30))
+        side_details = None
 
         # 1) 确定本次检测的缺陷类型（模拟模式）
         if simulated_pass:
             defect_type = FoamDefectType.NONE
         else:
-            # 根据 position_index 轮换不同缺陷，模拟真实场景
-            defect_cycle = [
-                FoamDefectType.MISALIGNED,   # 位置偏移
-                FoamDefectType.LIFTED_EDGE,  # 边缘起翘
-                FoamDefectType.MISSING,      # 漏贴/缺失
-            ]
-            defect_type = defect_cycle[position_index % len(defect_cycle)]
+            # 新版简化规则只区分“存在/缺失”。模拟失败统一表示漏贴。
+            defect_type = FoamDefectType.MISSING
 
         # 2) 获取图像（真实相机图像或模拟图像）
         using_camera_image = image is not None
@@ -221,6 +422,47 @@ class FoamInspector:
             # 使用真实相机图像
             scene = image
             height, width = scene.shape[:2]
+            side_roi_config = _resolve_side_roi_config(cfg, position_index)
+            if side_roi_config:
+                result, roi, foam, side_details = _inspect_calibrated_sides(
+                    scene, side_roi_config, position_index, cfg
+                )
+                result['sides'] = side_details
+                original_path, w, h = image_io.save_image(
+                    scene, f'foam_raw_p{position_index}'
+                )
+                annotated = image_io.annotate_foam(scene, roi, foam, result)
+                result_path, _, _ = image_io.save_image(
+                    annotated, f'foam_result_p{position_index}', rel_dir='vision/results',
+                )
+                result.update({
+                    'position_index': position_index,
+                    'original_image': original_path,
+                    'result_image': result_path,
+                    'image_width': w,
+                    'image_height': h,
+                    'roi': roi,
+                    'foam_box': foam,
+                    'result_data': {
+                        'algorithm': 'camera_foam_inspector',
+                        'foam_target': 'bumper',
+                        'decision_rule': 'present_means_aligned_and_not_lifted',
+                        'camera_image_path': camera_image_path,
+                        'defect_type': result['defect_type'],
+                        'roi': roi,
+                        'foam_box': foam,
+                        'offset_x_px': result['offset_x_px'],
+                        'offset_y_px': result['offset_y_px'],
+                        'coverage_ratio': result['coverage_ratio'],
+                        'score_threshold': score_threshold,
+                        'coverage_threshold': coverage_threshold,
+                        'max_offset_px': max_offset_px,
+                        'camera_model': 'MV-CS050-10GC',
+                        'lens_model': 'MVL-MF1618M-5MPE 16MM',
+                        'sides': side_details,
+                    },
+                })
+                return result
             
             # 支持配置ROI比例（用于调试和测试）
             # roi_ratio: (x1_ratio, y1_ratio, x2_ratio, y2_ratio)，每个值在 [0, 1] 范围
@@ -240,28 +482,12 @@ class FoamInspector:
             # 真实检测泡棉：基于颜色阈值和轮廓检测
             foam = _detect_foam_in_image(scene, roi)
             
-            # 如果没有检测到泡棉，设置为缺失状态
+            # 如果没有检测到泡棉，设置为缺失状态；检测到即合格。
             if foam is None or (foam[2] - foam[0]) < 10 or (foam[3] - foam[1]) < 10:
-                # 泡棉未检测到或区域太小
-                # 注意：如果 simulated_pass=True，即使检测失败也强制通过
-                # 这用于调试相机连接，不关心检测结果
-                if simulated_pass:
-                    # 调试模式：强制使用ROI中心作为泡棉位置
-                    foam_w = (roi[2] - roi[0]) * 0.4
-                    foam_h = (roi[3] - roi[1]) * 0.4
-                    foam_cx = (roi[0] + roi[2]) / 2
-                    foam_cy = (roi[1] + roi[3]) / 2
-                    foam = (
-                        int(foam_cx - foam_w/2),
-                        int(foam_cy - foam_h/2),
-                        int(foam_cx + foam_w/2),
-                        int(foam_cy + foam_h/2),
-                    )
-                    defect_type = FoamDefectType.NONE
-                else:
-                    # 真实检测：泡棉缺失
-                    defect_type = FoamDefectType.MISSING
-                    foam = (roi[0], roi[1], roi[0], roi[1])  # 空区域
+                defect_type = FoamDefectType.MISSING
+                foam = (roi[0], roi[1], roi[0], roi[1])  # 空区域
+            else:
+                defect_type = FoamDefectType.NONE
         else:
             # 模拟模式：生成测试图像
             scene, roi, foam = image_io.generate_foam_scene(
@@ -307,7 +533,6 @@ class FoamInspector:
             coverage_threshold=coverage_threshold,
             max_offset_px=max_offset_px,
         )
-
         # 5) 保存原图和标注结果图
         original_path, w, h = image_io.save_image(
             scene, f'foam_raw_p{position_index}'
@@ -328,6 +553,8 @@ class FoamInspector:
             'foam_box': foam,
             'result_data': {
                 'algorithm': 'camera_foam_inspector' if using_camera_image else 'simulated_foam_inspector',
+                'foam_target': 'bumper',
+                'decision_rule': 'present_means_aligned_and_not_lifted',
                 'camera_image_path': camera_image_path,
                 'defect_type': defect_type,
                 'roi': roi,
@@ -342,6 +569,8 @@ class FoamInspector:
                 'lens_model': 'MVL-MF1618M-5MPE 16MM',
             },
         })
+        if side_details is not None:
+            result['result_data']['sides'] = side_details
         return result
 
 
@@ -350,25 +579,10 @@ def _build_result(*, defect_type, offset_x_px, offset_y_px, coverage_ratio,
     """根据缺陷类型和量化指标构建判定结果。
     
     判定逻辑：
-        1. 泡棉缺失 -> 直接不合格
-        2. 边缘起翘 -> 直接不合格
-        3. 位置偏移 -> 根据偏移量和覆盖率判定
-        4. 无缺陷 -> 合格
+        1. 泡棉缺失 -> 不合格
+        2. 泡棉存在 -> 对齐 OK、起翘 OK、最终合格
     """
-    if defect_type == FoamDefectType.NONE:
-        # 无缺陷：合格
-        return {
-            'is_present': True,
-            'is_aligned': True,
-            'has_lifted_edge': False,
-            'defect_type': FoamDefectType.NONE,
-            'score': 0.96,
-            'offset_x_px': offset_x_px,
-            'offset_y_px': offset_y_px,
-            'coverage_ratio': coverage_ratio,
-            'is_passed': True,
-        }
-    elif defect_type == FoamDefectType.MISSING:
+    if defect_type == FoamDefectType.MISSING:
         # 泡棉缺失/漏贴：不合格
         return {
             'is_present': False,
@@ -381,43 +595,17 @@ def _build_result(*, defect_type, offset_x_px, offset_y_px, coverage_ratio,
             'coverage_ratio': 0.0,
             'is_passed': False,
         }
-    elif defect_type == FoamDefectType.LIFTED_EDGE:
-        # 边缘起翘：不合格
-        return {
-            'is_present': True,
-            'is_aligned': True,
-            'has_lifted_edge': True,
-            'defect_type': FoamDefectType.LIFTED_EDGE,
-            'score': 0.42,
-            'offset_x_px': offset_x_px,
-            'offset_y_px': offset_y_px,
-            'coverage_ratio': coverage_ratio,
-            'is_passed': False,
-        }
-    else:  # MISALIGNED
-        # 位置偏移：根据偏移量判定
-        offset_px = (offset_x_px ** 2 + offset_y_px ** 2) ** 0.5
-        score = round(max(0.0, 0.85 - offset_px / 200), 3)
-        
-        # 判定条件：
-        # 1. X/Y偏移均不超过最大允许偏移
-        # 2. 覆盖率满足要求
-        # 3. 综合分数达标
-        is_passed = (
-            abs(offset_x_px) <= max_offset_px
-            and abs(offset_y_px) <= max_offset_px
-            and coverage_ratio >= coverage_threshold
-            and score >= score_threshold
-        )
-        
-        return {
-            'is_present': True,
-            'is_aligned': not is_passed,  # 偏移超标则不对齐
-            'has_lifted_edge': False,
-            'defect_type': FoamDefectType.MISALIGNED,
-            'score': score,
-            'offset_x_px': offset_x_px,
-            'offset_y_px': offset_y_px,
-            'coverage_ratio': coverage_ratio,
-            'is_passed': is_passed,
-        }
+
+    # 当前生产算法简化为“存在即 OK”。保留对齐/起翘字段供前端和 PLC
+    # 使用，但不再用偏移、覆盖率、边缘状态二次判 NG。
+    return {
+        'is_present': True,
+        'is_aligned': True,
+        'has_lifted_edge': False,
+        'defect_type': FoamDefectType.NONE,
+        'score': 0.96,
+        'offset_x_px': offset_x_px,
+        'offset_y_px': offset_y_px,
+        'coverage_ratio': coverage_ratio,
+        'is_passed': True,
+    }

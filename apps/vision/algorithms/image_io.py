@@ -183,6 +183,21 @@ def annotate_foam(img, roi, foam, result):
     # ROI 框
     draw_roi(out, roi, color=COLOR_ROI, label='ROI 检测区')
 
+    sides = result.get('sides') or result.get('result_data', {}).get('sides') or {}
+    if sides:
+        side_colors = {'left': COLOR_ROI, 'right': COLOR_OK}
+        for side, data in sides.items():
+            side_color = side_colors.get(side, COLOR_ROI)
+            side_roi = data.get('roi')
+            side_box = data.get('box')
+            if side_roi:
+                draw_roi(out, tuple(side_roi), color=side_color, label=f'{side} ROI', thickness=2)
+            if side_box:
+                box_color = COLOR_OK if data.get('is_aligned') else COLOR_FAIL
+                draw_roi(out, tuple(side_box), color=box_color, label=side, thickness=2)
+            elif side_roi:
+                draw_roi(out, tuple(side_roi), color=COLOR_MISSING, label=f'{side} missing', thickness=2)
+
     # 泡棉框（缺失时跳过画框）
     if not is_missing and foam and (foam[2] - foam[0]) > 0:
         color = COLOR_OK if passed else COLOR_FAIL
@@ -217,8 +232,8 @@ def annotate_foam(img, roi, foam, result):
     _put_label(
         out,
         f"存在:{'是' if result.get('is_present') else '否'}  "
-        f"对齐:{'是' if result.get('is_aligned') else '否'}  "
-        f"起翘:{'是' if result.get('has_lifted_edge') else '否'}",
+        f"对齐:{'OK' if result.get('is_aligned') else 'NG'}  "
+        f"起翘:{'NG' if result.get('has_lifted_edge') else 'OK'}",
         (12, h - 32), COLOR_TEXT, scale=0.45,
     )
     _put_label(

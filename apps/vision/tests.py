@@ -5,13 +5,18 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 from django.conf import settings
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from apps.core.constants import ResultStatus, VisionTaskType
 from apps.production.models import Product, Rack, RackRecipe
 from apps.vision.algorithms.foam_inspector import FoamDefectType, FoamInspector
-from apps.vision.models import FoamInspectionResult, RackLocationResult, VisionTask
+from apps.vision.models import (
+    CalibrationProfile,
+    FoamInspectionResult,
+    RackLocationResult,
+    VisionTask,
+)
 from apps.vision.services import VisionService
 
 
@@ -176,6 +181,252 @@ class VisionServiceTests(TestCase):
         self.assertLess(foam_box[0], 120)
         self.assertGreaterEqual(foam_box[1], 50)
 
+    def test_real_camera_foam_inspection_uses_calibrated_left_right_rois(self):
+        image = np.zeros((120, 220, 3), dtype=np.uint8)
+        image[:, :] = (35, 90, 80)
+        image[5:35, 70:150] = 250
+        image[55:85, 12:50] = 245
+        image[55:85, 170:208] = 245
+
+        result = FoamInspector().inspect(
+            image=image,
+            inspection_config={
+                'foam_rois': {
+                    '0': {
+                        'left': (0.0, 0.45, 0.28, 0.78),
+                        'right': (0.72, 0.45, 1.0, 0.78),
+                    },
+                },
+                'coverage_threshold': 0.3,
+                'max_offset_px': 18,
+            },
+            simulated_pass=False,
+        )
+
+        self.assertTrue(result['is_passed'])
+        self.assertEqual(result['defect_type'], FoamDefectType.NONE)
+        self.assertEqual(result['result_data']['foam_target'], 'bumper')
+        self.assertEqual(
+            result['result_data']['decision_rule'],
+            'present_means_aligned_and_not_lifted',
+        )
+        self.assertIn('sides', result['result_data'])
+        self.assertTrue(result['result_data']['sides']['left']['is_present'])
+        self.assertTrue(result['result_data']['sides']['right']['is_present'])
+        self.assertLess(result['result_data']['sides']['left']['box'][2], 70)
+        self.assertGreater(result['result_data']['sides']['right']['box'][0], 150)
+
+    def test_calibrated_foam_annotation_receives_side_details(self):
+        image = np.zeros((120, 220, 3), dtype=np.uint8)
+        image[:, :] = (35, 90, 80)
+        image[55:85, 12:50] = 245
+        image[55:85, 170:208] = 245
+        observed = {}
+
+        def capture_annotation(img, roi, foam, result):
+            observed.update(result)
+            return img
+
+        with patch(
+            'apps.vision.algorithms.foam_inspector.image_io.annotate_foam',
+            side_effect=capture_annotation,
+        ):
+            FoamInspector().inspect(
+                image=image,
+                inspection_config={
+                    'foam_rois': {
+                        '0': {
+                            'left': (0.0, 0.45, 0.28, 0.78),
+                            'right': (0.72, 0.45, 1.0, 0.78),
+                        },
+                    },
+                    'coverage_threshold': 0.3,
+                    'max_offset_px': 18,
+                },
+                simulated_pass=False,
+            )
+
+        self.assertIn('sides', observed)
+        self.assertIn('left', observed['sides'])
+
+    def test_calibrated_foam_detection_ignores_roi_border_pixels(self):
+        image = np.zeros((100, 200, 3), dtype=np.uint8)
+        image[:, :] = (35, 90, 80)
+        image[20:80, 0:70] = 245
+        image[20:80, 130:200] = 245
+
+        result = FoamInspector().inspect(
+            image=image,
+            inspection_config={
+                'foam_rois': {
+                    '0': {
+                        'left': (0.0, 0.1, 0.4, 0.9),
+                        'right': (0.6, 0.1, 1.0, 0.9),
+                    },
+                },
+                'coverage_threshold': 0.2,
+                'max_offset_px': 30,
+                'ignore_border_ratio': 0.08,
+            },
+            simulated_pass=False,
+        )
+
+        left = result['result_data']['sides']['left']
+        right = result['result_data']['sides']['right']
+        self.assertGreater(left['box'][0], left['roi'][0])
+        self.assertGreater(left['box'][1], left['roi'][1])
+        self.assertLess(right['box'][2], right['roi'][2])
+        self.assertLess(right['box'][3], right['roi'][3])
+
+    def test_calibrated_foam_detection_can_require_dark_bumper_support(self):
+        image = np.zeros((100, 200, 3), dtype=np.uint8)
+        image[:, :] = (35, 90, 80)
+        image[20:80, 12:70] = 245
+        image[20:80, 130:188] = 245
+
+        result = FoamInspector().inspect(
+            image=image,
+            inspection_config={
+                'foam_rois': {
+                    '0': {
+                        'left': (0.0, 0.1, 0.4, 0.9),
+                        'right': (0.6, 0.1, 1.0, 0.9),
+                    },
+                },
+                'coverage_threshold': 0.2,
+                'max_offset_px': 30,
+                'require_dark_support': True,
+            },
+            simulated_pass=False,
+        )
+
+        self.assertFalse(result['is_passed'])
+        self.assertEqual(result['defect_type'], FoamDefectType.MISSING)
+        self.assertEqual(result['result_data']['sides']['left']['reason'], 'no_dark_support')
+
+    def test_calibrated_foam_detection_passes_with_dark_bumper_support(self):
+        image = np.zeros((100, 200, 3), dtype=np.uint8)
+        image[:, :] = (35, 90, 80)
+        image[20:80, 12:70] = 245
+        image[20:80, 130:188] = 245
+        image[44:58, 20:76] = 20
+        image[44:58, 124:180] = 20
+
+        result = FoamInspector().inspect(
+            image=image,
+            inspection_config={
+                'foam_rois': {
+                    '0': {
+                        'left': (0.0, 0.1, 0.4, 0.9),
+                        'right': (0.6, 0.1, 1.0, 0.9),
+                    },
+                },
+                'coverage_threshold': 0.2,
+                'max_offset_px': 30,
+                'require_dark_support': True,
+            },
+            simulated_pass=False,
+        )
+
+        self.assertTrue(result['is_passed'])
+        self.assertTrue(result['result_data']['sides']['left']['is_present'])
+
+    def test_calibrated_foam_inspection_fails_when_one_side_missing(self):
+        image = np.zeros((120, 220, 3), dtype=np.uint8)
+        image[:, :] = (35, 90, 80)
+        image[55:85, 12:50] = 245
+
+        result = FoamInspector().inspect(
+            image=image,
+            inspection_config={
+                'foam_rois': {
+                    '0': {
+                        'left': (0.0, 0.45, 0.28, 0.78),
+                        'right': (0.72, 0.45, 1.0, 0.78),
+                    },
+                },
+                'coverage_threshold': 0.3,
+            },
+            simulated_pass=False,
+        )
+
+        self.assertFalse(result['is_passed'])
+        self.assertEqual(result['defect_type'], FoamDefectType.MISSING)
+        self.assertTrue(result['result_data']['sides']['left']['is_present'])
+        self.assertFalse(result['result_data']['sides']['right']['is_present'])
+
+    def test_calibrated_foam_inspection_passes_when_foam_exists_even_if_offset(self):
+        image = np.zeros((120, 220, 3), dtype=np.uint8)
+        image[:, :] = (35, 90, 80)
+        image[55:85, 12:50] = 245
+        image[55:85, 158:196] = 245
+
+        result = FoamInspector().inspect(
+            image=image,
+            inspection_config={
+                'foam_rois': {
+                    '0': {
+                        'left': (0.0, 0.45, 0.28, 0.78),
+                        'right': (0.72, 0.45, 1.0, 0.78),
+                    },
+                },
+                'coverage_threshold': 0.2,
+                'max_offset_px': 6,
+            },
+            simulated_pass=False,
+        )
+
+        self.assertTrue(result['is_passed'])
+        self.assertEqual(result['defect_type'], FoamDefectType.NONE)
+        self.assertTrue(result['result_data']['sides']['right']['is_present'])
+        self.assertTrue(result['result_data']['sides']['right']['is_aligned'])
+        self.assertFalse(result['has_lifted_edge'])
+
+    def test_inspect_foam_uses_active_calibration_profile_for_camera_image(self):
+        image = np.zeros((120, 220, 3), dtype=np.uint8)
+        image[:, :] = (35, 90, 80)
+        image[55:85, 12:50] = 245
+        image[55:85, 170:208] = 245
+
+        class FakeCameraAdapter:
+            def __init__(self, image_path):
+                self.image_path = image_path
+
+            def capture(self, camera_code, task_type):
+                return {'success': True, 'image_path': self.image_path}
+
+        CalibrationProfile.objects.create(
+            name='foam roi',
+            device_code='CAM-INSPECT-FOAM-01',
+            version='foam-roi-v1',
+            is_active=True,
+            transform_data={
+                'foam_rois': {
+                    '0': {
+                        'left': [0.0, 0.45, 0.28, 0.78],
+                        'right': [0.72, 0.45, 1.0, 0.78],
+                    },
+                },
+                'thresholds': {'coverage_threshold': 0.3, 'max_offset_px': 18},
+            },
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            image_path = str(Path(tmpdir) / 'camera.png')
+            cv2.imwrite(image_path, image)
+            service = VisionService(camera_adapter=FakeCameraAdapter(image_path))
+            result = service.inspect_foam(
+                self.product,
+                self.rack,
+                position_index=0,
+                simulated_pass=False,
+                use_camera=True,
+            )
+
+        self.assertTrue(result.is_passed)
+        self.assertEqual(result.result_data.get('calibration_profile'), 'foam roi')
+        self.assertIn('sides', result.result_data)
+
 
 class VisionTaskListLayoutTests(SimpleTestCase):
     def test_task_table_header_does_not_overlap_first_row(self):
@@ -192,62 +443,122 @@ class VisionTaskListLayoutTests(SimpleTestCase):
 
 
 class FoamRoiCaptureViewTests(TestCase):
-    def test_capture_foam_roi_get_redirects_to_task_list(self):
-        response = self.client.get(reverse('vision:capture_foam_roi'))
-
-        self.assertRedirects(response, reverse('vision:task_list'))
-
-    def test_task_list_shows_result_links_and_camera_buttons_in_requested_order(self):
+    def test_task_list_shows_result_links_without_manual_roi_debug_buttons(self):
         response = self.client.get(reverse('vision:task_list'))
-        content = response.content.decode('utf-8')
 
-        expected_order = [
-            'PLC序号',
-            '泡棉检测结果',
-            '料架定位结果',
-            '2D相机拍照检测ROI',
-            '深度相机拍照检测ROI',
-        ]
-        positions = [content.index(label) for label in expected_order]
-        self.assertEqual(positions, sorted(positions))
         self.assertContains(response, reverse('vision:foam_results'))
         self.assertContains(response, reverse('vision:rack_results'))
-        self.assertContains(response, reverse('vision:capture_foam_roi'))
-        self.assertContains(response, reverse('vision:capture_depth_roi'))
-        self.assertContains(response, 'name="plc_sequence"')
-        self.assertContains(response, 'PLC序号')
-        self.assertContains(response, '用于模拟PLC触发的拍照序号')
-        self.assertContains(response, 'form="foam-capture-form"')
-        self.assertContains(response, '2D相机拍照检测ROI')
+        self.assertNotContains(response, 'name="plc_sequence"')
+        self.assertNotContains(response, 'PLC序号')
+        self.assertNotContains(response, '2D拍照ROI')
+        self.assertNotContains(response, '2D相机拍照检测ROI')
+        self.assertNotContains(response, '深度相机 ROI')
+        self.assertNotContains(response, '深度相机拍照检测ROI')
 
-    @override_settings(AUTOMATIC_ORDER={'USE_SIMULATED_DEVICES': True})
-    def test_capture_foam_roi_creates_task_from_plc_sequence_and_redirects(self):
-        response = self.client.post(
-            reverse('vision:capture_foam_roi'),
-            {'plc_sequence': '3'},
+    def test_task_list_exposes_delete_record_button(self):
+        task = VisionTask.objects.create(
+            task_type=VisionTaskType.FOAM_INSPECTION,
+            status=ResultStatus.SUCCESS,
         )
 
-        result = FoamInspectionResult.objects.get()
-        task = result.vision_task
-        self.assertEqual(result.position_index, 3)
-        self.assertEqual(task.task_type, VisionTaskType.FOAM_INSPECTION)
-        self.assertIn(task.status, {ResultStatus.SUCCESS, ResultStatus.FAILED})
-        self.assertRedirects(response, reverse('vision:task_detail', args=[task.pk]))
+        response = self.client.get(reverse('vision:task_list'))
 
-    def test_capture_foam_roi_camera_error_redirects_to_task_list(self):
-        with patch('apps.vision.views.VisionService') as service_cls:
-            service_cls.return_value.inspect_foam.side_effect = RuntimeError(
-                'Unable to import chg_hik.'
-            )
+        self.assertContains(response, reverse('vision:delete_task', args=[task.pk]))
+        self.assertContains(response, '删除记录')
+        self.assertContains(response, '确定删除这条视觉记录吗')
 
-            response = self.client.post(
-                reverse('vision:capture_foam_roi'),
-                {'plc_sequence': '3'},
-            )
+    def test_delete_task_requires_post(self):
+        task = VisionTask.objects.create(
+            task_type=VisionTaskType.FOAM_INSPECTION,
+            status=ResultStatus.SUCCESS,
+        )
+
+        response = self.client.get(reverse('vision:delete_task', args=[task.pk]))
+
+        self.assertEqual(response.status_code, 405)
+        self.assertTrue(VisionTask.objects.filter(pk=task.pk).exists())
+
+    def test_delete_task_removes_task_and_related_results(self):
+        task = VisionTask.objects.create(
+            task_type=VisionTaskType.FOAM_INSPECTION,
+            status=ResultStatus.SUCCESS,
+        )
+        FoamInspectionResult.objects.create(
+            vision_task=task,
+            position_index=1,
+            is_present=True,
+            is_aligned=True,
+            has_lifted_edge=False,
+            score=0.96,
+            is_passed=True,
+        )
+
+        response = self.client.post(reverse('vision:delete_task', args=[task.pk]))
 
         self.assertRedirects(response, reverse('vision:task_list'))
-        messages = list(response.wsgi_request._messages)
-        self.assertTrue(any('2D相机拍照失败' in str(message) for message in messages))
+        self.assertFalse(VisionTask.objects.filter(pk=task.pk).exists())
+        self.assertEqual(FoamInspectionResult.objects.count(), 0)
+
+    def test_foam_interactive_page_exposes_roi_calibration_controls(self):
+        response = self.client.get(reverse('vision:foam_inspector_interactive'))
+
+        self.assertContains(response, '泡棉检测工作台')
+        self.assertContains(response, '白色泡棉')
+        self.assertContains(response, '系统判定泡棉是否存在')
+        self.assertContains(response, 'btn-start-roi')
+        self.assertContains(response, 'btn-save-roi')
+        self.assertContains(response, 'pos-index')
+        self.assertContains(response, reverse('vision:api_foam_calibration'))
+        self.assertContains(response, reverse('vision:api_foam_calibration_save'))
+
+    def test_save_foam_roi_calibration_api_persists_active_profile(self):
+        response = self.client.post(
+            reverse('vision:api_foam_calibration_save'),
+            data={
+                'device_code': 'CAM-INSPECT-FOAM-01',
+                'position_index': 2,
+                'left': [0.1, 0.2, 0.3, 0.4],
+                'right': [0.7, 0.2, 0.9, 0.4],
+                'thresholds': {'coverage_threshold': 0.35},
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        profile = CalibrationProfile.objects.get(
+            device_code='CAM-INSPECT-FOAM-01',
+            version='foam-roi-v1',
+        )
+        self.assertTrue(profile.is_active)
+        self.assertEqual(
+            profile.transform_data['foam_rois']['2']['left'],
+            [0.1, 0.2, 0.3, 0.4],
+        )
+        self.assertEqual(profile.transform_data['thresholds']['coverage_threshold'], 0.35)
+
+    def test_get_foam_roi_calibration_api_returns_active_profile(self):
+        CalibrationProfile.objects.create(
+            name='foam roi',
+            device_code='CAM-INSPECT-FOAM-01',
+            version='foam-roi-v1',
+            is_active=True,
+            transform_data={'foam_rois': {'1': {'left': [0, 0, 0.2, 0.2]}}},
+        )
+
+        response = self.client.get(
+            reverse('vision:api_foam_calibration'),
+            {'device_code': 'CAM-INSPECT-FOAM-01'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertEqual(
+            payload['profile']['foam_rois']['1']['left'],
+            [0, 0, 0.2, 0.2],
+        )
 
 
 class DepthRoiDebugViewTests(TestCase):
@@ -263,13 +574,3 @@ class DepthRoiDebugViewTests(TestCase):
         )
 
         self.assertNotContains(response, '深度相机拍照检测ROI')
-
-    def test_capture_depth_roi_creates_debug_rack_task_and_redirects(self):
-        response = self.client.post(reverse('vision:capture_depth_roi'))
-
-        task = VisionTask.objects.exclude(pk=self.source_task.pk).get()
-        self.assertEqual(task.task_type, VisionTaskType.RACK_LOCATING)
-        self.assertEqual(task.rack.rack_code, 'DEBUG-RACK')
-        self.assertEqual(task.rack_results.count(), 2)
-        self.assertGreaterEqual(task.images.count(), 1)
-        self.assertRedirects(response, reverse('vision:task_detail', args=[task.pk]))

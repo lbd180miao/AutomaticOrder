@@ -12,7 +12,13 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_http_methods
 
 from apps.production.models import Rack, RackRecipe
-from .models import FoamInspectionResult, RackLocationResult, VisionImage, VisionTask
+from .models import (
+    CalibrationProfile,
+    FoamInspectionResult,
+    RackLocationResult,
+    VisionImage,
+    VisionTask,
+)
 from .services import VisionService
 
 
@@ -22,38 +28,6 @@ def task_list(request):
         .prefetch_related('images').order_by('-created_at')[:200]
     )
     return render(request, 'vision/task_list.html', {'tasks': tasks})
-
-
-def capture_foam_roi(request):
-    """Manual 2D foam ROI capture, mirroring a PLC sequence trigger."""
-    if request.method != 'POST':
-        messages.info(request, '请在视觉任务列表页点击“2D相机拍照检测ROI”按钮触发拍照。')
-        return redirect('vision:task_list')
-
-    raw_sequence = request.POST.get('plc_sequence', '0')
-    try:
-        position_index = int(raw_sequence)
-    except (TypeError, ValueError):
-        position_index = 0
-    position_index = max(position_index, 0)
-
-    try:
-        result = VisionService().inspect_foam(
-            product=None,
-            rack=None,
-            position_index=position_index,
-            simulated_pass=True,
-            use_camera=True,
-        )
-    except RuntimeError as exc:
-        messages.error(request, f'2D相机拍照失败：{exc}')
-        return redirect('vision:task_list')
-
-    messages.success(
-        request,
-        f'2D相机已按PLC序号 {position_index} 完成拍照和ROI检测。',
-    )
-    return redirect('vision:task_detail', pk=result.vision_task_id)
 
 
 def _get_depth_roi_debug_context():
@@ -88,19 +62,6 @@ def _get_depth_roi_debug_context():
     return rack, recipe
 
 
-@require_POST
-def capture_depth_roi(request):
-    """Manual depth-camera ROI capture for rack-location debugging."""
-    rack, recipe = _get_depth_roi_debug_context()
-    left, _right = VisionService().locate_both_racks(
-        product=None,
-        rack=rack,
-        recipe=recipe,
-    )
-    messages.success(request, '深度相机已完成拍照和ROI定位调试。')
-    return redirect('vision:task_detail', pk=left.vision_task_id)
-
-
 def task_detail(request, pk):
     """单个视觉任务详情：并排展示原图与带 ROI 的结果图。"""
     task = get_object_or_404(
@@ -118,6 +79,16 @@ def task_detail(request, pk):
         'rack_result': rack_result,
         'foam_result': foam_result,
     })
+
+
+@require_POST
+def delete_task(request, pk):
+    """Delete a vision task record and its related database results."""
+    task = get_object_or_404(VisionTask, pk=pk)
+    task_label = f'{task.get_task_type_display()} #{task.pk}'
+    task.delete()
+    messages.success(request, f'已删除视觉记录：{task_label}')
+    return redirect('vision:task_list')
 
 
 def rack_results(request):
@@ -144,6 +115,83 @@ def foam_results(request):
 def foam_inspector_interactive(request):
     """交互式泡棉检测页面"""
     return render(request, 'vision/foam_inspector_interactive.html')
+
+
+def _normalize_roi_ratio(values):
+    if not isinstance(values, (list, tuple)) or len(values) != 4:
+        raise ValueError('ROI must contain four ratio values')
+    ratios = [float(value) for value in values]
+    if any(value < 0 or value > 1 for value in ratios):
+        raise ValueError('ROI ratio values must be between 0 and 1')
+    if ratios[0] >= ratios[2] or ratios[1] >= ratios[3]:
+        raise ValueError('ROI x1/y1 must be less than x2/y2')
+    return ratios
+
+
+@require_http_methods(["GET"])
+def api_foam_calibration(request):
+    device_code = request.GET.get('device_code', 'CAM-INSPECT-FOAM-01')
+    profile = (
+        CalibrationProfile.objects
+        .filter(device_code=device_code, version='foam-roi-v1', is_active=True)
+        .order_by('-updated_at')
+        .first()
+    )
+    return JsonResponse({
+        'success': True,
+        'profile': profile.transform_data if profile else {},
+        'profile_name': profile.name if profile else '',
+    })
+
+
+@require_POST
+def api_foam_calibration_save(request):
+    try:
+        body = json.loads(request.body or '{}')
+        device_code = body.get('device_code') or 'CAM-INSPECT-FOAM-01'
+        position_index = int(body.get('position_index', 0))
+        if position_index < 0:
+            raise ValueError('position_index must be non-negative')
+        left = _normalize_roi_ratio(body.get('left'))
+        right = _normalize_roi_ratio(body.get('right'))
+        thresholds = body.get('thresholds') or {}
+        if not isinstance(thresholds, dict):
+            raise ValueError('thresholds must be an object')
+
+        CalibrationProfile.objects.filter(
+            device_code=device_code,
+            version='foam-roi-v1',
+            is_active=True,
+        ).update(is_active=False)
+
+        latest = (
+            CalibrationProfile.objects
+            .filter(device_code=device_code, version='foam-roi-v1')
+            .order_by('-updated_at')
+            .first()
+        )
+        transform_data = dict(latest.transform_data) if latest else {}
+        foam_rois = dict(transform_data.get('foam_rois') or {})
+        foam_rois[str(position_index)] = {'left': left, 'right': right}
+        transform_data['foam_rois'] = foam_rois
+        merged_thresholds = dict(transform_data.get('thresholds') or {})
+        merged_thresholds.update(thresholds)
+        transform_data['thresholds'] = merged_thresholds
+
+        profile = CalibrationProfile.objects.create(
+            name=f'{device_code} foam roi',
+            device_code=device_code,
+            version='foam-roi-v1',
+            is_active=True,
+            transform_data=transform_data,
+        )
+        return JsonResponse({
+            'success': True,
+            'profile_id': profile.id,
+            'profile': profile.transform_data,
+        })
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
 @require_POST
@@ -368,3 +416,82 @@ def api_foam_upload_inspect(request):
             'success': False,
             'error': f'检测失败: {str(e)}'
         })
+
+
+# ------------------------------------------------------------------
+# 料架定位工作台
+# ------------------------------------------------------------------
+
+def rack_locator_panel(request):
+    """料架定位工作台页面（操作员可手动触发定位、查看左右架偏差与层高）。"""
+    return render(request, 'vision/rack_locator_panel.html')
+
+
+@require_POST
+def api_rack_locate(request):
+    """手动触发双料架定位（单次拍摄同时覆盖左右两个料架）。"""
+    try:
+        rack, recipe = _get_depth_roi_debug_context()
+        left_result, right_result = VisionService().locate_both_racks(
+            product=None,
+            rack=rack,
+            recipe=recipe,
+        )
+
+        def _side_payload(res, task):
+            result_img = task.images.filter(image_type='RESULT').first()
+            return {
+                'is_success':             res.is_success,
+                'offset_x':              float(res.offset_x),
+                'offset_y':              float(res.offset_y),
+                'offset_z':              float(res.offset_z),
+                'confidence':            float(res.result_data.get('confidence', 0)),
+                'recipe_matched':        res.is_recipe_matched,
+                'measured_layer_height': float(res.measured_layer_height),
+                'measured_layer_spacing':float(res.measured_layer_spacing),
+                'recipe_layer_height':   float(res.recipe_layer_height),
+                'recipe_layer_spacing':  float(res.recipe_layer_spacing),
+                'layer_heights':         res.result_data.get('layer_heights', []),
+                'layer_spacings':        res.result_data.get('layer_spacings', []),
+                'result_image_url':      result_img.file.url if result_img else '',
+            }
+
+        left_task  = left_result.vision_task
+        right_task = right_result.vision_task
+
+        return JsonResponse({
+            'success': True,
+            'LEFT':  _side_payload(left_result,  left_task),
+            'RIGHT': _side_payload(right_result, right_task),
+        })
+    except Exception as exc:
+        return JsonResponse({'success': False, 'error': str(exc)})
+
+
+@require_http_methods(['GET'])
+def api_rack_results(request):
+    """返回最近 20 条料架定位结果（左右架分开记录）。"""
+    try:
+        qs = (
+            RackLocationResult.objects
+            .select_related('vision_task')
+            .order_by('-created_at')[:20]
+        )
+        results = []
+        for r in qs:
+            results.append({
+                'id':                    r.id,
+                'created_at':            r.created_at.strftime('%m-%d %H:%M:%S') if r.created_at else '',
+                'side':                  r.side,
+                'offset_x':             float(r.offset_x),
+                'offset_y':             float(r.offset_y),
+                'offset_z':             float(r.offset_z),
+                'confidence':           float(r.result_data.get('confidence', 0)),
+                'measured_layer_height': float(r.measured_layer_height),
+                'measured_layer_spacing':float(r.measured_layer_spacing),
+                'is_recipe_matched':    r.is_recipe_matched,
+                'is_success':           r.is_success,
+            })
+        return JsonResponse({'success': True, 'results': results})
+    except Exception as exc:
+        return JsonResponse({'success': False, 'error': str(exc)})

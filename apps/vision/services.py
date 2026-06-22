@@ -12,7 +12,13 @@ from apps.core.constants import DeviceType, RackSide, ResultStatus, VisionImageT
 from apps.devices.services import get_device_adapter
 from .algorithms.foam_inspector import FoamInspector
 from .algorithms.rack_locator import RackLocator
-from .models import FoamInspectionResult, RackLocationResult, VisionImage, VisionTask
+from .models import (
+    CalibrationProfile,
+    FoamInspectionResult,
+    RackLocationResult,
+    VisionImage,
+    VisionTask,
+)
 
 
 def _within_tolerance(measured, expected, tolerance):
@@ -63,6 +69,24 @@ class VisionService:
         task.finished_at = timezone.now()
         task.error_message = message
         task.save(update_fields=['status', 'finished_at', 'error_message', 'updated_at'])
+
+    def _foam_calibration_config(self, camera_code):
+        profile = (
+            CalibrationProfile.objects
+            .filter(device_code=camera_code, version='foam-roi-v1', is_active=True)
+            .order_by('-updated_at')
+            .first()
+        )
+        if not profile:
+            return None, {}
+        transform_data = profile.transform_data or {}
+        config = {}
+        thresholds = transform_data.get('thresholds') or {}
+        if isinstance(thresholds, dict):
+            config.update(thresholds)
+        if transform_data.get('foam_rois'):
+            config['foam_rois'] = transform_data['foam_rois']
+        return profile, config
 
     # ------------------------------------------------------------------
     # 料架定位
@@ -268,13 +292,22 @@ class VisionService:
                     if image is None:
                         raise RuntimeError(f'相机图片读取失败: {image_path}')
 
+            profile, calibration_config = self._foam_calibration_config(camera_code)
+            merged_config = {}
+            if inspection_config:
+                merged_config.update(inspection_config)
+            merged_config.update(calibration_config)
+
             data = self.foam_inspector.inspect(
                 position_index=position_index,
                 simulated_pass=simulated_pass,
-                inspection_config=inspection_config,
+                inspection_config=merged_config or None,
                 image=image,
                 camera_image_path=camera_image_path,
             )
+            if profile:
+                data.setdefault('result_data', {})['calibration_profile'] = profile.name
+                data['result_data']['calibration_profile_id'] = profile.id
             result = FoamInspectionResult.objects.create(
                 vision_task=task,
                 product=product,

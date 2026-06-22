@@ -58,8 +58,8 @@
     {% if task.task_type == 'FOAM_INSPECTION' %}
     <div class="cam-legend">
       <span><i class="legend-roi"></i>ROI 检测区</span>
-      <span><i class="legend-ok"></i>泡棉合格</span>
-      <span><i class="legend-fail"></i>泡棉异常</span>
+      <span><i class="legend-ok"></i>检测到白色泡棉</span>
+      <span><i class="legend-fail"></i>未检测到泡棉</span>
     </div>
     {% else %}
     <div class="cam-legend">
@@ -73,6 +73,7 @@
 
 {% if foam_result %}
 <h2 class="section-title">泡棉检测数据</h2>
+<p class="page-hint">当前策略：泡棉存在即合格；对齐和起翘字段保留给 PLC / 前端展示，存在时自动 OK。</p>
 <div class="table-wrap">
   <table class="data-table">
     <thead>
@@ -90,15 +91,15 @@
       <tr>
         <td>{{ foam_result.position_index }}</td>
         <td>{% if foam_result.is_present %}<span class="badge badge-ok">是</span>{% else %}<span class="badge badge-fail">否</span>{% endif %}</td>
-        <td>{% if foam_result.is_aligned %}<span class="badge badge-ok">是</span>{% else %}<span class="badge badge-fail">否</span>{% endif %}</td>
-        <td>{% if foam_result.has_lifted_edge %}<span class="badge badge-fail">是</span>{% else %}否{% endif %}</td>
+        <td>{% if foam_result.is_aligned %}<span class="badge badge-ok">OK</span>{% else %}<span class="badge badge-fail">NG</span>{% endif %}</td>
+        <td>{% if foam_result.has_lifted_edge %}<span class="badge badge-fail">NG</span>{% else %}<span class="badge badge-ok">OK</span>{% endif %}</td>
         <td>{{ foam_result.score }}</td>
         <td>{% if foam_result.is_passed %}<span class="badge badge-ok">合格</span>{% else %}<span class="badge badge-fail">不合格</span>{% endif %}</td>
         <td>
           {% if foam_result.defect_type == 'NONE' %}无缺陷
           {% elif foam_result.defect_type == 'MISSING' %}<span class="badge badge-fail">泡棉缺失/漏贴</span>
-          {% elif foam_result.defect_type == 'MISALIGNED' %}<span class="badge badge-fail">位置偏移</span>
-          {% elif foam_result.defect_type == 'LIFTED_EDGE' %}<span class="badge badge-fail">边缘起翘</span>
+          {% elif foam_result.defect_type == 'MISALIGNED' %}<span class="badge badge-muted">历史数据：位置偏移</span>
+          {% elif foam_result.defect_type == 'LIFTED_EDGE' %}<span class="badge badge-muted">历史数据：边缘起翘</span>
           {% else %}{{ foam_result.defect_type }}{% endif %}
         </td>
       </tr>
@@ -111,14 +112,14 @@
       <tr>
         <th>X方向偏移</th>
         <th>Y方向偏移</th>
-        <th>覆盖率</th>
+        <th>覆盖比例</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <td>{{ foam_result.offset_x_px }} px</td>
         <td>{{ foam_result.offset_y_px }} px</td>
-        <td>{{ foam_result.coverage_ratio|floatformat:2 }}%</td>
+        <td>{{ foam_result.coverage_ratio|floatformat:4 }}</td>
       </tr>
     </tbody>
   </table>

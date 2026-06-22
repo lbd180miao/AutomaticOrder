@@ -145,6 +145,16 @@ body {
   vertical-align: -3px;
 }
 
+.page-hint {
+  margin: -6px 0 16px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
 /* ---------------- 网格与卡片 ---------------- */
 .grid {
   display: grid;
