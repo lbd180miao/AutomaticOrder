@@ -179,38 +179,46 @@ def annotate_foam(img, roi, foam, result):
     passed = result.get('is_passed', False)
     defect_type = result.get('defect_type', '')
     is_missing = not result.get('is_present', True)
-
-    # ROI 框
-    draw_roi(out, roi, color=COLOR_ROI, label='ROI 检测区')
-
     sides = result.get('sides') or result.get('result_data', {}).get('sides') or {}
-    if sides:
+
+    # 有左右独立 ROI 时，只画左右 ROI，避免把两个框合成一个横跨中间的大框。
+    if not sides:
+        draw_roi(out, roi, color=COLOR_ROI, label='ROI 检测区')
+    else:
         side_colors = {'left': COLOR_ROI, 'right': COLOR_OK}
         for side, data in sides.items():
             side_color = side_colors.get(side, COLOR_ROI)
             side_roi = data.get('roi')
             side_box = data.get('box')
-            if side_roi:
-                draw_roi(out, tuple(side_roi), color=side_color, label=f'{side} ROI', thickness=2)
             if side_box:
+                if side_roi:
+                    draw_roi(out, tuple(side_roi), color=side_color, label=f'{side} ROI', thickness=2)
                 box_color = COLOR_OK if data.get('is_aligned') else COLOR_FAIL
                 draw_roi(out, tuple(side_box), color=box_color, label=side, thickness=2)
             elif side_roi:
                 draw_roi(out, tuple(side_roi), color=COLOR_MISSING, label=f'{side} missing', thickness=2)
 
-    # 泡棉框（缺失时跳过画框）
-    if not is_missing and foam and (foam[2] - foam[0]) > 0:
+    # 泡棉框（左右独立 ROI 已在上方分别画出，非 side 模式才画总泡棉框）
+    if not sides and not is_missing and foam and (foam[2] - foam[0]) > 0:
         color = COLOR_OK if passed else COLOR_FAIL
         draw_roi(out, foam, color=color, label='泡棉', thickness=2)
-    elif is_missing:
+    elif not sides and is_missing:
         # 缺失：在 ROI 区域画紫色虚线框提示
         draw_roi(out, roi, color=COLOR_MISSING, label='泡棉缺失!', thickness=2)
 
-    # 不合格时：在 ROI 区域内画红色 × 对角线
+    # 不合格时：无 side 详情才画总 ROI 的红叉；有 side 详情时分别画在问题 ROI 内。
     if not passed:
-        rx1, ry1, rx2, ry2 = roi
-        cv2.line(out, (rx1, ry1), (rx2, ry2), COLOR_FAIL, 2, cv2.LINE_AA)
-        cv2.line(out, (rx2, ry1), (rx1, ry2), COLOR_FAIL, 2, cv2.LINE_AA)
+        failed_rois = []
+        if sides:
+            for data in sides.values():
+                side_roi = data.get('roi')
+                if side_roi and (not data.get('is_present') or not data.get('is_aligned', True)):
+                    failed_rois.append(tuple(side_roi))
+        else:
+            failed_rois.append(roi)
+        for rx1, ry1, rx2, ry2 in failed_rois:
+            cv2.line(out, (rx1, ry1), (rx2, ry2), COLOR_FAIL, 2, cv2.LINE_AA)
+            cv2.line(out, (rx2, ry1), (rx1, ry2), COLOR_FAIL, 2, cv2.LINE_AA)
 
     # 左上角：判定标题行
     verdict = '合格 ✓' if passed else '不合格 ✗'

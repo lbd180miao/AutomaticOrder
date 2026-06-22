@@ -27,6 +27,43 @@ from apps.vision.recipe_utils import (
 from apps.vision.services import VisionService
 
 
+class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
+    def _template_source(self):
+        template_path = Path(settings.BASE_DIR) / 'templates' / 'vision' / 'foam_inspector_interactive.html'
+        return template_path.read_text(encoding='utf-8')
+
+    def test_preview_image_lifecycle_reapplies_current_recipe_roi(self):
+        source = self._template_source()
+
+        self.assertIn('function refreshPreviewRecipeRoi()', source)
+        self.assertIn("document.getElementById('preview-image').addEventListener('load'", source)
+        self.assertIn("window.addEventListener('resize'", source)
+        self.assertIn('refreshPreviewRecipeRoi();', source)
+
+    def test_save_recipe_success_path_is_non_blocking_and_updates_local_state(self):
+        source = self._template_source()
+
+        self.assertIn('function upsertSavedRecipe(savedRecipe)', source)
+        self.assertIn('showRecipeSaveSuccess(', source)
+        self.assertNotIn("alert(`✓ 配方已成功保存", source)
+        self.assertNotIn('await loadRecipes();  // 重新加载配方', source)
+
+    def test_imported_preview_image_remains_detection_source_until_refresh_preview(self):
+        source = self._template_source()
+
+        self.assertIn('clearPendingFile();\n      setPreviewImage(data.image_url);', source)
+        self.assertNotIn('clearPendingFile();   // 检测完成后清除暂存', source)
+
+    def test_successful_detection_advances_to_next_recipe_in_sequence(self):
+        source = self._template_source()
+
+        self.assertIn('function currentDetectionPos()', source)
+        self.assertIn('function advanceRecipeAfterDetection(result)', source)
+        self.assertIn('const detectionPos = currentDetectionPos();', source)
+        self.assertIn('position_index: detectionPos,', source)
+        self.assertIn('advanceRecipeAfterDetection(data.result);', source)
+
+
 class VisionRecipeModelTests(TestCase):
     def test_default_foam_2d_recipes_are_created_for_three_positions(self):
         recipes = ensure_default_foam_2d_recipes()
@@ -490,6 +527,35 @@ class VisionServiceTests(TestCase):
         self.assertIn('sides', observed)
         self.assertIn('left', observed['sides'])
 
+    def test_calibrated_foam_annotation_draws_side_rois_without_union_box(self):
+        from apps.vision.algorithms import image_io
+
+        image = np.zeros((100, 220, 3), dtype=np.uint8)
+        union_roi = (10, 20, 210, 80)
+        left_roi = (10, 20, 60, 80)
+        right_roi = (160, 20, 210, 80)
+        result = {
+            'is_passed': False,
+            'is_present': False,
+            'defect_type': FoamDefectType.MISSING,
+            'score': 0.0,
+            'offset_x_px': 0.0,
+            'offset_y_px': 0.0,
+            'coverage_ratio': 0.0,
+            'sides': {
+                'left': {'roi': left_roi, 'box': None, 'is_present': False},
+                'right': {'roi': right_roi, 'box': None, 'is_present': False},
+            },
+        }
+
+        annotated = image_io.annotate_foam(
+            image, union_roi, (10, 20, 10, 20), result
+        )
+
+        self.assertTrue(np.array_equal(annotated[50, 10], image_io.COLOR_MISSING))
+        self.assertTrue(np.array_equal(annotated[50, 160], image_io.COLOR_MISSING))
+        self.assertFalse(np.array_equal(annotated[20, 110], image_io.COLOR_MISSING))
+
     def test_calibrated_foam_detection_ignores_roi_border_pixels(self):
         image = np.zeros((100, 200, 3), dtype=np.uint8)
         image[:, :] = (35, 90, 80)
@@ -544,6 +610,31 @@ class VisionServiceTests(TestCase):
         self.assertFalse(result['is_passed'])
         self.assertEqual(result['defect_type'], FoamDefectType.MISSING)
         self.assertEqual(result['result_data']['sides']['left']['reason'], 'no_dark_support')
+
+    def test_calibrated_foam_detection_finds_low_light_gray_foam(self):
+        image = np.zeros((100, 220, 3), dtype=np.uint8)
+        image[:, :] = (35, 90, 80)
+        image[24:76, 14:78] = (86, 86, 86)
+        image[24:76, 142:206] = (88, 88, 88)
+
+        result = FoamInspector().inspect(
+            image=image,
+            inspection_config={
+                'foam_rois': {
+                    '0': {
+                        'left': (0.0, 0.1, 0.42, 0.9),
+                        'right': (0.58, 0.1, 1.0, 0.9),
+                    },
+                },
+                'coverage_threshold': 0.2,
+                'max_offset_px': 30,
+            },
+            simulated_pass=False,
+        )
+
+        self.assertTrue(result['is_passed'])
+        self.assertTrue(result['result_data']['sides']['left']['is_present'])
+        self.assertTrue(result['result_data']['sides']['right']['is_present'])
 
     def test_calibrated_foam_detection_passes_with_dark_bumper_support(self):
         image = np.zeros((100, 200, 3), dtype=np.uint8)

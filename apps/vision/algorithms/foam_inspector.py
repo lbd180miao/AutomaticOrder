@@ -169,6 +169,7 @@ def _detect_foam_side(image, roi, cfg):
         }
 
     hsv = cv2.cvtColor(roi_img, cv2.COLOR_BGR2HSV)
+    gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
     lab = cv2.cvtColor(roi_img, cv2.COLOR_BGR2LAB)
     if cfg.get('require_dark_support'):
         dark_mask = cv2.inRange(hsv[:, :, 2], 0, int(cfg.get('dark_max_v', 65)))
@@ -195,48 +196,74 @@ def _detect_foam_side(image, roi, cfg):
     mask = cv2.bitwise_or(white_hsv, white_lab)
 
     green_mask = cv2.inRange(hsv, (35, 40, 40), (100, 255, 255))
-    mask = cv2.bitwise_and(mask, cv2.bitwise_not(green_mask))
 
     border_ratio = float(cfg.get('ignore_border_ratio', 0.04))
     border_x = int(round(roi_width * max(0.0, min(0.25, border_ratio))))
     border_y = int(round(roi_height * max(0.0, min(0.25, border_ratio))))
-    if border_x > 0:
-        mask[:, :border_x] = 0
-        mask[:, roi_width - border_x:] = 0
-    if border_y > 0:
-        mask[:border_y, :] = 0
-        mask[roi_height - border_y:, :] = 0
 
     kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
     kernel_open = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close, iterations=2)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_open)
-    if border_x > 0:
-        mask[:, :border_x] = 0
-        mask[:, roi_width - border_x:] = 0
-    if border_y > 0:
-        mask[:border_y, :] = 0
-        mask[roi_height - border_y:, :] = 0
-
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     min_area = roi_area * float(cfg.get('side_min_area_ratio', 0.08))
     max_area = roi_area * float(cfg.get('side_max_area_ratio', 0.95))
-    best = None
-    best_area = 0
-    for contour in contours:
-        area = cv2.contourArea(contour)
-        if area < min_area or area > max_area:
-            continue
-        bx, by, bw, bh = cv2.boundingRect(contour)
-        aspect = bw / max(bh, 1)
-        if aspect < 0.15 or aspect > 8:
-            continue
-        compactness = area / max(bw * bh, 1)
-        if compactness < float(cfg.get('side_min_compactness', 0.25)):
-            continue
-        if area > best_area:
-            best = (bx, by, bw, bh, area)
-            best_area = area
+
+    def prepare_mask(raw_mask):
+        prepared = cv2.bitwise_and(raw_mask, cv2.bitwise_not(green_mask))
+        if border_x > 0:
+            prepared[:, :border_x] = 0
+            prepared[:, roi_width - border_x:] = 0
+        if border_y > 0:
+            prepared[:border_y, :] = 0
+            prepared[roi_height - border_y:, :] = 0
+        prepared = cv2.morphologyEx(prepared, cv2.MORPH_CLOSE, kernel_close, iterations=2)
+        prepared = cv2.morphologyEx(prepared, cv2.MORPH_OPEN, kernel_open)
+        if border_x > 0:
+            prepared[:, :border_x] = 0
+            prepared[:, roi_width - border_x:] = 0
+        if border_y > 0:
+            prepared[:border_y, :] = 0
+            prepared[roi_height - border_y:, :] = 0
+        return prepared
+
+    def find_best(mask_to_check):
+        contours, _ = cv2.findContours(mask_to_check, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        best_candidate = None
+        best_area = 0
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area < min_area or area > max_area:
+                continue
+            bx, by, bw, bh = cv2.boundingRect(contour)
+            aspect = bw / max(bh, 1)
+            if aspect < 0.15 or aspect > 8:
+                continue
+            compactness = area / max(bw * bh, 1)
+            if compactness < float(cfg.get('side_min_compactness', 0.25)):
+                continue
+            if area > best_area:
+                best_candidate = (bx, by, bw, bh, area)
+                best_area = area
+        return best_candidate
+
+    mask = prepare_mask(mask)
+    best = find_best(mask)
+
+    if not best and cfg.get('enable_low_light_gray_detection', True):
+        # 低光场景下泡棉可能不是高亮白色，而是低饱和灰白块。
+        # 用 CLAHE + OTSU/相对亮度找局部灰白区域，并继续排除绿色/彩色背景。
+        gray_blur = cv2.GaussianBlur(gray, (5, 5), 0)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(gray_blur)
+        _, otsu_mask = cv2.threshold(clahe, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        min_gray = int(cfg.get('low_light_min_gray', 45))
+        delta_gray = float(cfg.get('low_light_delta_gray', 8))
+        local_floor = int(max(min_gray, min(255, np.percentile(gray_blur, 25) + delta_gray)))
+        relative_mask = cv2.inRange(gray_blur, local_floor, 255)
+        neutral_mask = cv2.inRange(hsv[:, :, 1], 0, int(cfg.get('low_light_max_s', 115)))
+        brightness_mask = cv2.inRange(hsv[:, :, 2], min_gray, 255)
+        low_light_mask = cv2.bitwise_or(otsu_mask, relative_mask)
+        low_light_mask = cv2.bitwise_and(low_light_mask, neutral_mask)
+        low_light_mask = cv2.bitwise_and(low_light_mask, brightness_mask)
+        mask = prepare_mask(low_light_mask)
+        best = find_best(mask)
 
     if not best:
         return {
