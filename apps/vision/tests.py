@@ -467,6 +467,51 @@ class FoamRoiCaptureViewTests(TestCase):
         self.assertContains(response, '删除记录')
         self.assertContains(response, '确定删除这条视觉记录吗')
 
+    def test_task_list_shows_business_result_badges(self):
+        ok_task = VisionTask.objects.create(
+            task_type=VisionTaskType.FOAM_INSPECTION,
+            status=ResultStatus.SUCCESS,
+        )
+        FoamInspectionResult.objects.create(
+            vision_task=ok_task,
+            is_present=True,
+            is_aligned=True,
+            has_lifted_edge=False,
+            is_passed=True,
+        )
+        ng_task = VisionTask.objects.create(
+            task_type=VisionTaskType.FOAM_INSPECTION,
+            status=ResultStatus.FAILED,
+        )
+        FoamInspectionResult.objects.create(
+            vision_task=ng_task,
+            is_present=False,
+            is_aligned=False,
+            has_lifted_edge=True,
+            is_passed=False,
+        )
+
+        response = self.client.get(reverse('vision:task_list'))
+
+        self.assertContains(response, '<th>\u7ed3\u679c</th>', html=True)
+        self.assertContains(response, '<span class="badge badge-ok">OK</span>', html=True)
+        self.assertContains(response, '<span class="badge badge-fail">NG</span>', html=True)
+
+    def test_task_list_falls_back_to_task_status_when_result_record_is_missing(self):
+        VisionTask.objects.create(
+            task_type=VisionTaskType.FOAM_INSPECTION,
+            status=ResultStatus.SUCCESS,
+        )
+        VisionTask.objects.create(
+            task_type=VisionTaskType.FOAM_INSPECTION,
+            status=ResultStatus.FAILED,
+        )
+
+        response = self.client.get(reverse('vision:task_list'))
+
+        self.assertContains(response, '<span class="badge badge-ok">OK</span>', html=True)
+        self.assertContains(response, '<span class="badge badge-fail">NG</span>', html=True)
+
     def test_delete_task_requires_post(self):
         task = VisionTask.objects.create(
             task_type=VisionTaskType.FOAM_INSPECTION,

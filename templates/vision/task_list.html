@@ -100,7 +100,7 @@
 <div class="table-wrap vision-task-table-wrap">
   <table class="data-table vision-task-table">
     <thead>
-      <tr><th>画面</th><th>类型</th><th>产品</th><th>料框</th><th>状态</th><th>开始</th><th>结束</th><th>操作</th></tr>
+      <tr><th>画面</th><th>类型</th><th>产品</th><th>料框</th><th>状态</th><th>结果</th><th>开始</th><th>结束</th><th>操作</th></tr>
     </thead>
     <tbody>
       {% for t in tasks %}
@@ -119,6 +119,23 @@
           {% elif t.status == 'FAILED' %}<span class="badge badge-fail">{{ t.get_status_display }}</span>
           {% else %}<span class="badge badge-running">{{ t.get_status_display }}</span>{% endif %}
         </td>
+        <td>
+          {% with foam_result=t.foam_results.all|first rack_result=t.rack_results.all|first %}
+            {% if foam_result %}
+              {% if foam_result.is_passed %}<span class="badge badge-ok">OK</span>
+              {% else %}<span class="badge badge-fail">NG</span>{% endif %}
+            {% elif rack_result %}
+              {% if rack_result.is_success %}<span class="badge badge-ok">OK</span>
+              {% else %}<span class="badge badge-fail">NG</span>{% endif %}
+            {% elif t.status == 'SUCCESS' %}
+              <span class="badge badge-ok">OK</span>
+            {% elif t.status == 'FAILED' %}
+              <span class="badge badge-fail">NG</span>
+            {% else %}
+              -
+            {% endif %}
+          {% endwith %}
+        </td>
         <td>{{ t.started_at|date:"m-d H:i:s"|default:"-" }}</td>
         <td>{{ t.finished_at|date:"m-d H:i:s"|default:"-" }}</td>
         <td class="task-actions">
@@ -130,7 +147,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="8" class="empty">暂无视觉任务</td></tr>
+      <tr><td colspan="9" class="empty">暂无视觉任务</td></tr>
       {% endfor %}
     </tbody>
   </table>

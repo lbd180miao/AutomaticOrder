@@ -25,7 +25,8 @@ from .services import VisionService
 def task_list(request):
     tasks = (
         VisionTask.objects.select_related('product', 'rack')
-        .prefetch_related('images').order_by('-created_at')[:200]
+        .prefetch_related('images', 'foam_results', 'rack_results')
+        .order_by('-created_at')[:200]
     )
     return render(request, 'vision/task_list.html', {'tasks': tasks})
 
