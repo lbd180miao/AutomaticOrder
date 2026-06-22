@@ -16,7 +16,8 @@
       <a href="{% url 'production:product_list' %}" class="{% if '/production/' in path %}active{% endif %}">生产</a>
       <a href="{% url 'workflow:current' %}" class="{% if '/workflow/' in path %}active{% endif %}">流程</a>
       <a href="{% url 'devices:status' %}" class="{% if '/devices/' in path %}active{% endif %}">设备</a>
-      <a href="{% url 'vision:task_list' %}" class="{% if '/vision/' in path %}active{% endif %}">视觉</a>
+      <a href="{% url 'vision:task_list' %}" class="{% if '/vision/' in path and '/vision/recipes/' not in path %}active{% endif %}">视觉</a>
+      <a href="{% url 'vision:recipe_management' %}" class="{% if '/vision/recipes/' in path %}active{% endif %}">配方</a>
       <a href="{% url 'mes:record_list' %}" class="{% if '/mes/' in path %}active{% endif %}">MES</a>
       <a href="{% url 'alarms:alarm_list' %}" class="{% if '/alarms/' in path %}active{% endif %}">报警</a>
       <a href="{% url 'traceability:search' %}" class="{% if '/traceability/' in path %}active{% endif %}">追溯</a>

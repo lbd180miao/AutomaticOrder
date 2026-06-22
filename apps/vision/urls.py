@@ -14,6 +14,9 @@ urlpatterns = [
     # 泡棉检测工作台
     path('foam-inspector/', views.foam_inspector_interactive, name='foam_inspector_interactive'),
 
+    # 视觉配方管理（独立页面）
+    path('recipes/', views.recipe_management, name='recipe_management'),
+
     # 料架定位工作台（新增）
     path('rack-locator/', views.rack_locator_panel, name='rack_locator_panel'),
 

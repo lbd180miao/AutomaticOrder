@@ -125,6 +125,11 @@ def foam_inspector_interactive(request):
     return render(request, 'vision/foam_inspector_interactive.html')
 
 
+def recipe_management(request):
+    """视觉配方管理页面（独立页面）"""
+    return render(request, 'vision/recipe_management.html')
+
+
 def _as_bool(value, default=True):
     if value is None:
         return default

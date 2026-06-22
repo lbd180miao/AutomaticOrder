@@ -502,74 +502,16 @@
   .metric-cards { grid-template-columns: 1fr; }
 }
 
-/* --- 视觉配方抽屉 --- */
-.recipe-drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.35);
-  z-index: 9000;
-  display: none;
-}
-.recipe-drawer-backdrop.open { display: block; }
-.recipe-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: min(520px, 94vw);
-  height: 100vh;
-  background: #fff;
-  box-shadow: -12px 0 30px rgba(15,23,42,0.22);
-  z-index: 9001;
-  transform: translateX(105%);
-  transition: transform 0.2s ease;
-  display: flex;
-  flex-direction: column;
-}
-.recipe-drawer.open { transform: translateX(0); }
-.recipe-drawer-head {
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.recipe-drawer-head h2 { margin: 0; font-size: 18px; }
-.recipe-tabs { display: flex; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--border); }
-.recipe-tab {
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  border-radius: 999px;
-  padding: 7px 12px;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 13px;
-}
-.recipe-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-.recipe-drawer-body { padding: 16px 18px 24px; overflow-y: auto; }
-.recipe-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  margin-bottom: 10px;
-  background: var(--surface-2);
-}
-.recipe-card.active { border-color: var(--primary); background: var(--primary-soft); }
-.recipe-card.manual { border-color: #f59e0b; background: #fffbeb; }
-.recipe-card h3 { margin: 0 0 8px; font-size: 14px; }
-.recipe-card-row { font-size: 12px; color: var(--text-muted); margin: 3px 0; }
-.recipe-form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
-.recipe-form-grid label { font-size: 11px; color: var(--text-muted); font-weight: 700; }
-.recipe-form-grid input { width: 100%; min-width: 0; padding: 5px 7px; }
-.recipe-empty { padding: 28px; color: var(--text-muted); text-align: center; border: 1px dashed var(--border); border-radius: var(--radius-sm); }
+
 </style>
 
 <div class="foam-workbench">
 
   <!-- 标题栏 -->
   <div class="foam-title-bar">
-    <h1>泡棉检测工作台</h1>
+    <h1>泡棉检测工作台 - AutomaticOrder</h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button id="btn-open-recipe-drawer" class="btn btn-secondary btn-sm" type="button">🧩 配方管理</button>
+      <a href="{% url 'vision:recipe_management' %}" class="btn btn-secondary btn-sm">🧩 配方管理</a>
       <a href="{% url 'vision:foam_results' %}" class="btn btn-secondary btn-sm">历史记录</a>
       <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
     </div>
@@ -742,35 +684,7 @@
   </div>
 </div>
 
-<div id="recipe-drawer-backdrop" class="recipe-drawer-backdrop"></div>
-<aside id="recipe-drawer" class="recipe-drawer" aria-hidden="true">
-  <div class="recipe-drawer-head">
-    <h2>视觉配方模块</h2>
-    <button id="btn-close-recipe-drawer" class="btn btn-secondary btn-sm" type="button">关闭</button>
-  </div>
-  <div class="recipe-tabs">
-    <button class="recipe-tab active" data-recipe-tab="foam2d" type="button">泡棉检测配方（2D）</button>
-    <button class="recipe-tab" data-recipe-tab="rack3d" type="button">料架定位配方（3D）</button>
-  </div>
-  <div class="recipe-drawer-body">
-    <section id="recipe-tab-foam2d">
-      <div id="recipe-current-hint" class="detail-chip" style="margin-bottom:10px;">当前自动匹配 POS <strong id="recipe-current-pos">0</strong></div>
-      <div id="foam-recipe-list"></div>
-      <div class="recipe-card">
-        <h3>ROI / 阈值微调</h3>
-        <div class="recipe-card-row">保存只会更新当前选中的 POS 配方，不覆盖其他 POS。</div>
-        <div class="recipe-form-grid" id="recipe-roi-form"></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
-          <button id="btn-save-current-recipe" class="btn btn-sm" style="background:var(--success);" type="button">保存当前配方</button>
-          <button id="btn-reset-default-recipes" class="btn btn-secondary btn-sm" type="button">补齐默认配方</button>
-        </div>
-      </div>
-    </section>
-    <section id="recipe-tab-rack3d" style="display:none;">
-      <div class="recipe-empty">料架定位配方（3D）后续开发：当前仅预留数据结构和页面入口。</div>
-    </section>
-  </div>
-</aside>
+
 
 <script>
 // ============================================================
@@ -907,7 +821,6 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
       if (data.success) {
         renderResult(data.result);
         manualSelectedRecipe = null;
-        renderRecipeCards();
         clearPendingFile();   // 检测完成后清除暂存
       } else {
         alert('检测失败：' + (data.error || '未知错误'));
@@ -936,7 +849,6 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
     if (data.success) {
       renderResult(data.result);
       manualSelectedRecipe = null;
-      renderRecipeCards();
     } else {
       alert('检测失败：' + (data.error || '未知错误'));
     }
@@ -1022,7 +934,6 @@ document.getElementById('file-upload').addEventListener('change', async (e) => {
     if (data.success) {
       renderResult(data.result);
       manualSelectedRecipe = null;
-      renderRecipeCards();
     }
     else alert('检测失败：' + (data.error || '未知错误'));
   } catch (e) {
@@ -1130,17 +1041,7 @@ function renderHistory() {
   `).join('');
 }
 
-// ── 配方抽屉 ─────────────────────────────────────────────
-function openRecipeDrawer() {
-  document.getElementById('recipe-drawer').classList.add('open');
-  document.getElementById('recipe-drawer-backdrop').classList.add('open');
-  document.getElementById('recipe-drawer').setAttribute('aria-hidden', 'false');
-}
-function closeRecipeDrawer() {
-  document.getElementById('recipe-drawer').classList.remove('open');
-  document.getElementById('recipe-drawer-backdrop').classList.remove('open');
-  document.getElementById('recipe-drawer').setAttribute('aria-hidden', 'true');
-}
+// ── 配方加载（简化版，仅用于 ROI 显示） ───────────────────
 async function loadRecipes() {
   try {
     const res = await fetch(API.recipes + '?recipe_type=FOAM_2D&is_active=true');
@@ -1149,121 +1050,9 @@ async function loadRecipes() {
       foam2DRecipes = data.recipes || [];
       selectedRecipeForEdit = activeFoam2DRecipe() || foam2DRecipes[0] || null;
       applyRecipeRoiToOverlay(activeFoam2DRecipe());
-      renderRecipeCards();
     }
   } catch (_) {
     foam2DRecipes = [];
-  }
-}
-function renderRecipeCards() {
-  document.getElementById('recipe-current-pos').textContent = currentPOS();
-  const list = document.getElementById('foam-recipe-list');
-  if (!foam2DRecipes.length) {
-    list.innerHTML = '<div class="recipe-empty">暂无泡棉检测配方</div>';
-    renderRecipeForm(null);
-    return;
-  }
-  list.innerHTML = foam2DRecipes.map(recipe => {
-    const active = Number(recipe.pos) === currentPOS();
-    const manual = manualSelectedRecipe && Number(manualSelectedRecipe.id) === Number(recipe.id);
-    const left = recipe.roi_config?.leftFoamROI || {};
-    const right = recipe.roi_config?.rightFoamROI || {};
-    return `
-      <div class="recipe-card ${active ? 'active' : ''} ${manual ? 'manual' : ''}" data-recipe-id="${recipe.id}">
-        <h3>${recipe.name} ${active ? '· 当前自动使用' : ''} ${manual ? '· 本次手动使用' : ''}</h3>
-        <div class="recipe-card-row">POS ${recipe.pos} / ${recipe.layerName || ('第' + (Number(recipe.pos) + 1) + '层')}</div>
-        <div class="recipe-card-row">左泡棉 ROI: x=${left.x}, y=${left.y}, w=${left.width}, h=${left.height}</div>
-        <div class="recipe-card-row">右泡棉 ROI: x=${right.x}, y=${right.y}, w=${right.width}, h=${right.height}</div>
-        <div class="recipe-card-row">阈值: 覆盖率 ≥ ${recipe.threshold_config?.minCoverage ?? '-'}，得分 ≥ ${recipe.threshold_config?.minScore ?? '-'}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-          <button class="btn btn-secondary btn-sm" type="button" onclick="editRecipe(${recipe.id})">编辑</button>
-          <button class="btn btn-secondary btn-sm" type="button" onclick="useRecipeOnce(${recipe.id})">本次使用</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-  renderRecipeForm(selectedRecipeForEdit || activeFoam2DRecipe());
-}
-function editRecipe(recipeId) {
-  selectedRecipeForEdit = foam2DRecipes.find(item => Number(item.id) === Number(recipeId)) || null;
-  if (selectedRecipeForEdit) applyRecipeRoiToOverlay(selectedRecipeForEdit);
-  renderRecipeCards();
-}
-function useRecipeOnce(recipeId) {
-  manualSelectedRecipe = foam2DRecipes.find(item => Number(item.id) === Number(recipeId)) || null;
-  if (manualSelectedRecipe) applyRecipeRoiToOverlay(manualSelectedRecipe);
-  renderRecipeCards();
-}
-function renderRecipeForm(recipe) {
-  const form = document.getElementById('recipe-roi-form');
-  if (!recipe) {
-    form.innerHTML = '<div class="recipe-empty" style="grid-column:1/-1;">请选择一个配方</div>';
-    return;
-  }
-  const l = recipe.roi_config?.leftFoamROI || {};
-  const r = recipe.roi_config?.rightFoamROI || {};
-  const t = recipe.threshold_config || {};
-  form.innerHTML = `
-    ${recipeInput('left-x', '左X', l.x)} ${recipeInput('left-y', '左Y', l.y)}
-    ${recipeInput('left-w', '左宽', l.width)} ${recipeInput('left-h', '左高', l.height)}
-    ${recipeInput('right-x', '右X', r.x)} ${recipeInput('right-y', '右Y', r.y)}
-    ${recipeInput('right-w', '右宽', r.width)} ${recipeInput('right-h', '右高', r.height)}
-    ${recipeInput('min-coverage', '覆盖率', t.minCoverage ?? 0.75, 'step="0.01"')}
-    ${recipeInput('min-score', '得分', t.minScore ?? 0.8, 'step="0.01"')}
-    ${recipeInput('max-offset-x', 'X偏移', t.maxOffsetX ?? 30)}
-    ${recipeInput('max-offset-y', 'Y偏移', t.maxOffsetY ?? 30)}
-  `;
-}
-function recipeInput(id, label, value, extra = '') {
-  return `<div><label for="${id}">${label}</label><input id="${id}" type="number" value="${value ?? 0}" ${extra}></div>`;
-}
-function readRecipeForm(recipe) {
-  return {
-    id: recipe?.id,
-    name: recipe?.name || `第${currentPOS() + 1}层泡棉检测配方`,
-    pos: Number(recipe?.pos ?? currentPOS()),
-    image_width: Number(recipe?.image_width || 1280),
-    image_height: Number(recipe?.image_height || 720),
-    roi_config: {
-      leftFoamROI: {
-        x: Number(document.getElementById('left-x').value || 0),
-        y: Number(document.getElementById('left-y').value || 0),
-        width: Number(document.getElementById('left-w').value || 0),
-        height: Number(document.getElementById('left-h').value || 0),
-      },
-      rightFoamROI: {
-        x: Number(document.getElementById('right-x').value || 0),
-        y: Number(document.getElementById('right-y').value || 0),
-        width: Number(document.getElementById('right-w').value || 0),
-        height: Number(document.getElementById('right-h').value || 0),
-      },
-    },
-    threshold_config: {
-      minCoverage: Number(document.getElementById('min-coverage').value || 0.75),
-      minScore: Number(document.getElementById('min-score').value || 0.8),
-      maxOffsetX: Number(document.getElementById('max-offset-x').value || 30),
-      maxOffsetY: Number(document.getElementById('max-offset-y').value || 30),
-    },
-  };
-}
-async function saveSelectedRecipe() {
-  const recipe = selectedRecipeForEdit || activeFoam2DRecipe();
-  if (!recipe) return;
-  showLoading('保存配方...');
-  try {
-    const res = await fetch(API.saveRecipe, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(readRecipeForm(recipe)),
-    });
-    const data = await res.json();
-    if (!data.success) {
-      alert('保存配方失败：' + (data.error || '未知错误'));
-      return;
-    }
-    await loadRecipes();
-  } finally {
-    hideLoading();
   }
 }
 
@@ -1389,31 +1178,10 @@ document.addEventListener('DOMContentLoaded', () => {
     inp.type = 'hidden'; inp.name = 'csrfmiddlewaretoken'; inp.value = '{{ csrf_token }}';
     document.body.appendChild(inp);
   }
-  document.getElementById('btn-open-recipe-drawer')?.addEventListener('click', openRecipeDrawer);
-  document.getElementById('btn-close-recipe-drawer')?.addEventListener('click', closeRecipeDrawer);
-  document.getElementById('recipe-drawer-backdrop')?.addEventListener('click', closeRecipeDrawer);
-  document.getElementById('btn-save-current-recipe')?.addEventListener('click', saveSelectedRecipe);
-  document.getElementById('btn-reset-default-recipes')?.addEventListener('click', async () => {
-    await fetch(API.defaultRecipes, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-    });
-    await loadRecipes();
-  });
-  document.querySelectorAll('.recipe-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.recipe-tab').forEach(item => item.classList.remove('active'));
-      tab.classList.add('active');
-      const active = tab.dataset.recipeTab;
-      document.getElementById('recipe-tab-foam2d').style.display = active === 'foam2d' ? '' : 'none';
-      document.getElementById('recipe-tab-rack3d').style.display = active === 'rack3d' ? '' : 'none';
-    });
-  });
   document.getElementById('pos-index')?.addEventListener('change', () => {
     manualSelectedRecipe = null;
     selectedRecipeForEdit = activeFoam2DRecipe();
     applyRecipeRoiToOverlay(activeFoam2DRecipe());
-    renderRecipeCards();
   });
   loadCalibration();
   loadRecipes();
