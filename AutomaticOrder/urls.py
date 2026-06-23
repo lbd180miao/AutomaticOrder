@@ -29,6 +29,7 @@ urlpatterns = [
     path('mes/', include('apps.mes.urls')),
     path('alarms/', include('apps.alarms.urls')),
     path('traceability/', include('apps.traceability.urls')),
+    path('dm-camera/', include('apps.dm_camera.urls')),  # DM 3D深度相机
 ]
 
 if settings.DEBUG:

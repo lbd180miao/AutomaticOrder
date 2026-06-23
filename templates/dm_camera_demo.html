@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DM 3D深度相机控制台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .status-item {
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .status-connected {
+            background: #10b981;
+            color: white;
+        }
+        
+        .status-disconnected {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .status-streaming {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .status-idle {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .panel h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-info {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .preview-area {
+            background: #f3f4f6;
+            border-radius: 5px;
+            padding: 20px;
+            text-align: center;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .preview-image {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .log-area {
+            background: #1f2937;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            word-wrap: break-word;
+        }
+        
+        .log-success {
+            color: #10b981;
+        }
+        
+        .log-error {
+            color: #ef4444;
+        }
+        
+        .log-info {
+            color: #3b82f6;
+        }
+        
+        .capture-info {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        
+        .capture-info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .capture-info-label {
+            font-weight: bold;
+            color: #666;
+        }
+        
+        .capture-info-value {
+            color: #333;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 DM 3D深度相机控制台</h1>
+            <div class="status-bar">
+                <div id="statusConnected" class="status-item status-disconnected">未连接</div>
+                <div id="statusStreaming" class="status-item status-idle">未采集</div>
+                <div id="deviceInfo" class="status-item" style="background: #6b7280; color: white;">设备信息</div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="panel">
+                <h2>设备控制</h2>
+                <div class="button-group">
+                    <button id="btnFindDevices" class="btn btn-info">🔍 查找设备</button>
+                    <button id="btnConnect" class="btn btn-success">🔌 连接设备</button>
+                    <button id="btnDisconnect" class="btn btn-danger" disabled>🔌 断开设备</button>
+                    <button id="btnStartStream" class="btn btn-primary" disabled>▶️ 开启数据流</button>
+                    <button id="btnStopStream" class="btn btn-danger" disabled>⏸️ 停止数据流</button>
+                </div>
+                
+                <h2 style="margin-top: 20px;">数据采集</h2>
+                <div class="button-group">
+                    <button id="btnCaptureDepth" class="btn btn-primary" disabled>📸 捕获深度图</button>
+                    <button id="btnCaptureIR" class="btn btn-primary" disabled>📸 捕获IR图</button>
+                    <button id="btnBatchCapture" class="btn btn-info" disabled>🎬 批量采集(10帧)</button>
+                </div>
+                
+                <div class="log-area" id="logArea"></div>
+            </div>
+            
+            <div class="panel">
+                <h2>预览区域</h2>
+                <div class="preview-area" id="previewArea">
+                    <p style="color: #666;">暂无图像</p>
+                </div>
+                
+                <div class="capture-info" id="captureInfo" style="display: none;">
+                    <div class="capture-info-item">
+                        <span class="capture-info-label">帧序号:</span>
+                        <span class="capture-info-value" id="infoFrameIndex">-</span>
+                    </div>
+                    <div class="capture-info-item">
+                        <span class="capture-info-label">分辨率:</span>
+                        <span class="capture-info-value" id="infoResolution">-</span>
+                    </div>
+                    <div class="capture-info-item">
+                        <span class="capture-info-label">芯片温度:</span>
+                        <span class="capture-info-value" id="infoTemperature">-</span>
+                    </div>
+                    <div class="capture-info-item">
+                        <span class="capture-info-label">采集时间:</span>
+                        <span class="capture-info-value" id="infoCapturedAt">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API客户端
+        const API_BASE = '/dm-camera/api';
+        
+        // 状态
+        let isConnected = false;
+        let isStreaming = false;
+        
+        // DOM元素
+        const statusConnected = document.getElementById('statusConnected');
+        const statusStreaming = document.getElementById('statusStreaming');
+        const deviceInfo = document.getElementById('deviceInfo');
+        const logArea = document.getElementById('logArea');
+        const previewArea = document.getElementById('previewArea');
+        const captureInfo = document.getElementById('captureInfo');
+        
+        // 按钮
+        const btnFindDevices = document.getElementById('btnFindDevices');
+        const btnConnect = document.getElementById('btnConnect');
+        const btnDisconnect = document.getElementById('btnDisconnect');
+        const btnStartStream = document.getElementById('btnStartStream');
+        const btnStopStream = document.getElementById('btnStopStream');
+        const btnCaptureDepth = document.getElementById('btnCaptureDepth');
+        const btnCaptureIR = document.getElementById('btnCaptureIR');
+        const btnBatchCapture = document.getElementById('btnBatchCapture');
+        
+        // 日志函数
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            logArea.insertBefore(entry, logArea.firstChild);
+            
+            // 保持最多100条日志
+            while (logArea.children.length > 100) {
+                logArea.removeChild(logArea.lastChild);
+            }
+        }
+        
+        // API请求
+        async function apiRequest(endpoint, method = 'GET', data = null) {
+            try {
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                };
+                
+                if (data) {
+                    options.body = JSON.stringify(data);
+                }
+                
+                const response = await fetch(API_BASE + endpoint, options);
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+                
+                return result.data;
+            } catch (error) {
+                log(`错误: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        // 更新UI状态
+        function updateUI() {
+            statusConnected.textContent = isConnected ? '已连接' : '未连接';
+            statusConnected.className = isConnected ? 'status-item status-connected' : 'status-item status-disconnected';
+            
+            statusStreaming.textContent = isStreaming ? '采集中' : '未采集';
+            statusStreaming.className = isStreaming ? 'status-item status-streaming' : 'status-item status-idle';
+            
+            btnConnect.disabled = isConnected;
+            btnDisconnect.disabled = !isConnected;
+            btnStartStream.disabled = !isConnected || isStreaming;
+            btnStopStream.disabled = !isStreaming;
+            btnCaptureDepth.disabled = !isStreaming;
+            btnCaptureIR.disabled = !isStreaming;
+            btnBatchCapture.disabled = !isStreaming;
+        }
+        
+        // 查找设备
+        btnFindDevices.onclick = async () => {
+            log('正在查找设备...', 'info');
+            try {
+                const data = await apiRequest('/devices/find/');
+                const devices = data.devices;
+                log(`找到 ${devices.length} 个设备`, 'success');
+                devices.forEach((device, index) => {
+                    log(`设备${index + 1}: ${device.sn} (${device.ip})`, 'info');
+                });
+            } catch (error) {
+                log('查找设备失败', 'error');
+            }
+        };
+        
+        // 连接设备
+        btnConnect.onclick = async () => {
+            log('正在连接设备...', 'info');
+            try {
+                const data = await apiRequest('/connect/', 'POST');
+                log(`连接成功: ${data.device_sn}`, 'success');
+                deviceInfo.textContent = `${data.device_type} (${data.device_ip})`;
+                isConnected = true;
+                updateUI();
+            } catch (error) {
+                log('连接失败', 'error');
+            }
+        };
+        
+        // 断开设备
+        btnDisconnect.onclick = async () => {
+            log('正在断开设备...', 'info');
+            try {
+                await apiRequest('/disconnect/', 'POST');
+                log('设备已断开', 'success');
+                isConnected = false;
+                isStreaming = false;
+                deviceInfo.textContent = '设备信息';
+                updateUI();
+            } catch (error) {
+                log('断开失败', 'error');
+            }
+        };
+        
+        // 开启数据流
+        btnStartStream.onclick = async () => {
+            log('正在开启数据流...', 'info');
+            try {
+                await apiRequest('/stream/start/', 'POST');
+                log('数据流已开启', 'success');
+                isStreaming = true;
+                updateUI();
+            } catch (error) {
+                log('开启数据流失败', 'error');
+            }
+        };
+        
+        // 停止数据流
+        btnStopStream.onclick = async () => {
+            log('正在停止数据流...', 'info');
+            try {
+                await apiRequest('/stream/stop/', 'POST');
+                log('数据流已停止', 'success');
+                isStreaming = false;
+                updateUI();
+            } catch (error) {
+                log('停止数据流失败', 'error');
+            }
+        };
+        
+        // 显示捕获结果
+        function showCapture(data) {
+            // 显示预览图
+            previewArea.innerHTML = `
+                <img src="${data.preview_url}" class="preview-image" alt="预览图">
+            `;
+            
+            // 显示捕获信息
+            captureInfo.style.display = 'block';
+            document.getElementById('infoFrameIndex').textContent = data.frame_index;
+            document.getElementById('infoResolution').textContent = `${data.width}x${data.height}`;
+            
+            if (data.temperature) {
+                document.getElementById('infoTemperature').textContent = 
+                    `${data.temperature.chip.toFixed(1)}°C`;
+            }
+            
+            const now = new Date();
+            document.getElementById('infoCapturedAt').textContent = 
+                now.toLocaleString();
+        }
+        
+        // 捕获深度图
+        btnCaptureDepth.onclick = async () => {
+            log('正在捕获深度图...', 'info');
+            try {
+                const data = await apiRequest('/capture/', 'POST', {
+                    frame_type: 'DEPTH',
+                    save_record: true
+                });
+                log(`深度图捕获成功 (帧#${data.frame_index})`, 'success');
+                showCapture(data);
+            } catch (error) {
+                log('捕获深度图失败', 'error');
+            }
+        };
+        
+        // 捕获IR图
+        btnCaptureIR.onclick = async () => {
+            log('正在捕获IR图...', 'info');
+            try {
+                const data = await apiRequest('/capture/', 'POST', {
+                    frame_type: 'IR',
+                    save_record: true
+                });
+                log(`IR图捕获成功 (帧#${data.frame_index})`, 'success');
+                showCapture(data);
+            } catch (error) {
+                log('捕获IR图失败', 'error');
+            }
+        };
+        
+        // 批量采集
+        btnBatchCapture.onclick = async () => {
+            const count = 10;
+            log(`开始批量采集 ${count} 帧...`, 'info');
+            
+            btnBatchCapture.disabled = true;
+            
+            for (let i = 0; i < count; i++) {
+                try {
+                    const data = await apiRequest('/capture/', 'POST', {
+                        frame_type: 'DEPTH',
+                        save_record: true
+                    });
+                    log(`[${i + 1}/${count}] 帧#${data.frame_index} 已捕获`, 'success');
+                    
+                    if (i === count - 1) {
+                        showCapture(data);
+                    }
+                    
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                } catch (error) {
+                    log(`批量采集失败 (${i + 1}/${count})`, 'error');
+                    break;
+                }
+            }
+            
+            log(`批量采集完成`, 'success');
+            btnBatchCapture.disabled = false;
+        };
+        
+        // 初始化
+        log('DM 3D深度相机控制台已就绪', 'success');
+        updateUI();
+    </script>
+</body>
+</html>
