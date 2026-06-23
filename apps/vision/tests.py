@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -5,6 +6,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 from django.conf import settings
+from django.apps import apps
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
@@ -997,3 +999,324 @@ class DepthRoiDebugViewTests(TestCase):
         )
 
         self.assertNotContains(response, '深度相机拍照检测ROI')
+
+
+class RackLocationRecipe3DModelTests(TestCase):
+    def test_position_recipe_matches_enabled_position_and_layer_without_side_split(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+
+        recipe = Recipe.objects.create(
+            recipe_name='POS-05-L2',
+            rack_type='STD',
+            rack_side='BOTH',
+            position_no=5,
+            layer_no=2,
+            standard_x=100,
+            standard_y=200,
+            standard_z=300,
+            hand_eye_config={'matrix': 'identity'},
+        )
+
+        self.assertTrue(recipe.applies_to(position_no=5, layer_no=2))
+        self.assertFalse(recipe.applies_to(position_no=5, layer_no=1))
+        self.assertFalse(recipe.applies_to(position_no=6, layer_no=2))
+
+    def test_default_thresholds_are_safe_for_3d_compensation(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+
+        recipe = Recipe.objects.create(
+            recipe_name='DEFAULT-3D',
+            rack_side='BOTH',
+            position_no=1,
+            layer_no=1,
+            hand_eye_config={'matrix': 'identity'},
+        )
+
+        self.assertEqual(float(recipe.max_offset_x), 10.0)
+        self.assertEqual(float(recipe.max_offset_y), 10.0)
+        self.assertEqual(float(recipe.max_offset_z), 10.0)
+        self.assertEqual(float(recipe.confidence_threshold), 0.7)
+
+    def test_rack_location_result_has_actual_xyz_fields_for_traceability(self):
+        Result = apps.get_model('vision', 'RackLocationResult')
+
+        field_names = {field.name for field in Result._meta.fields}
+
+        self.assertIn('actual_x', field_names)
+        self.assertIn('actual_y', field_names)
+        self.assertIn('actual_z', field_names)
+
+
+class RackPoseEstimator3DTests(TestCase):
+    def setUp(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        self.recipe = Recipe.objects.create(
+            recipe_name='POSE-POS-07',
+            rack_side='BOTH',
+            position_no=7,
+            layer_no=3,
+            standard_x=100,
+            standard_y=200,
+            standard_z=300,
+            max_offset_x=5,
+            max_offset_y=5,
+            max_offset_z=5,
+            confidence_threshold=0.8,
+            hand_eye_config={'matrix': 'identity'},
+        )
+
+    def test_calculate_rack_offset_uses_position_standard_pose_in_mm(self):
+        from apps.vision.rack_location import RackPoseEstimator
+
+        output = RackPoseEstimator().calculate_rack_offset(
+            {
+                'actual_x': 101.5,
+                'actual_y': 198.0,
+                'actual_z': 300.5,
+                'offset_rz': 0.12,
+                'confidence': 0.93,
+                'raw_data_path': 'vision/sample/pos7.npy',
+            },
+            self.recipe,
+            rack_side='BOTH',
+            layer_no=3,
+        )
+
+        self.assertTrue(output.locate_ok)
+        self.assertEqual(output.rack_side, 'BOTH')
+        self.assertEqual(output.position_no, 7)
+        self.assertEqual(output.layer_no, 3)
+        self.assertEqual(output.offset_x, 1.5)
+        self.assertEqual(output.offset_y, -2.0)
+        self.assertEqual(output.offset_z, 0.5)
+        self.assertEqual(output.offset_rz, 0.12)
+        self.assertEqual(output.confidence, 0.93)
+        self.assertEqual(output.actual_x, 101.5)
+        self.assertEqual(output.actual_y, 198.0)
+        self.assertEqual(output.actual_z, 300.5)
+
+    def test_calculate_rack_offset_rejects_low_confidence(self):
+        from apps.vision.rack_location import RackPoseEstimator
+
+        output = RackPoseEstimator().calculate_rack_offset(
+            {'actual_x': 100, 'actual_y': 200, 'actual_z': 300, 'confidence': 0.2},
+            self.recipe,
+            rack_side='BOTH',
+            layer_no=3,
+        )
+
+        self.assertFalse(output.locate_ok)
+        self.assertEqual(output.error_code, 'LOW_CONFIDENCE')
+
+    def test_calculate_rack_offset_rejects_missing_hand_eye_config(self):
+        from apps.vision.rack_location import RackPoseEstimator
+
+        self.recipe.hand_eye_config = {}
+        self.recipe.save(update_fields=['hand_eye_config'])
+
+        output = RackPoseEstimator().calculate_rack_offset(
+            {'actual_x': 100, 'actual_y': 200, 'actual_z': 300, 'confidence': 0.95},
+            self.recipe,
+            rack_side='BOTH',
+            layer_no=3,
+        )
+
+        self.assertFalse(output.locate_ok)
+        self.assertEqual(output.error_code, 'MISSING_HAND_EYE')
+
+
+class RackLocationPointCloudProcessorTests(SimpleTestCase):
+    def test_crop_by_roi_filters_invalid_points_and_calculates_median_xyz(self):
+        from apps.vision.rack_location import PointCloudProcessor
+
+        pointcloud = np.zeros((4, 5, 3), dtype=float)
+        pointcloud[1, 1] = [1199.0, 348.0, 849.0]
+        pointcloud[1, 2] = [1201.0, 350.0, 851.0]
+        pointcloud[2, 1] = [1203.0, 352.0, 853.0]
+        pointcloud[2, 2] = [np.nan, 1.0, 2.0]
+        pointcloud[2, 3] = [1.0, 2.0, 0.0]
+
+        processor = PointCloudProcessor()
+        points = processor.crop_by_roi(pointcloud, {'x': 1, 'y': 1, 'w': 3, 'h': 2})
+        actual_x, actual_y, actual_z = processor.calculate_median_xyz(points)
+
+        self.assertEqual(points.shape, (3, 3))
+        self.assertEqual((actual_x, actual_y, actual_z), (1201.0, 350.0, 851.0))
+
+    def test_crop_by_roi_rejects_roi_outside_pointcloud_bounds(self):
+        from apps.vision.rack_location import PointCloudProcessor
+
+        processor = PointCloudProcessor()
+        pointcloud = np.zeros((4, 5, 3), dtype=float)
+
+        with self.assertRaisesMessage(ValueError, 'ROI 超出图像范围'):
+            processor.crop_by_roi(pointcloud, {'x': 4, 'y': 1, 'w': 3, 'h': 2})
+
+
+class RackLocationService3DTests(TestCase):
+    class StaticFrameProvider:
+        def capture(self, recipe, position_no, layer_no):
+            return {
+                'source': 'sample',
+                'actual_x': 102.0,
+                'actual_y': 198.5,
+                'actual_z': 299.0,
+                'confidence': 0.91,
+                'raw_data_path': 'vision/sample_depth/pos-05-layer-02.npy',
+                'result_image_path': 'vision/results/pos-05-layer-02.png',
+            }
+
+    def setUp(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        self.recipe = Recipe.objects.create(
+            recipe_name='SERVICE-POS-05-L2',
+            rack_side='BOTH',
+            position_no=5,
+            layer_no=2,
+            standard_x=100,
+            standard_y=200,
+            standard_z=300,
+            max_offset_x=5,
+            max_offset_y=5,
+            max_offset_z=5,
+            confidence_threshold=0.8,
+            hand_eye_config={'matrix': 'identity'},
+        )
+
+    def test_trigger_creates_single_position_layer_result_and_plc_payload(self):
+        from apps.vision.rack_location import RackLocationService
+
+        result = RackLocationService(frame_provider=self.StaticFrameProvider()).trigger(
+            position_no=5,
+            layer_no=2,
+            write_plc=False,
+        )
+
+        self.assertTrue(result.is_success)
+        self.assertEqual(result.side, 'BOTH')
+        self.assertEqual(result.layer_no, 2)
+        self.assertEqual(result.recipe, self.recipe)
+        self.assertEqual(float(result.offset_x), 2.0)
+        self.assertEqual(float(result.offset_y), -1.5)
+        self.assertEqual(float(result.offset_z), -1.0)
+        self.assertEqual(float(result.actual_x), 102.0)
+        self.assertEqual(float(result.actual_y), 198.5)
+        self.assertEqual(float(result.actual_z), 299.0)
+        self.assertEqual(float(result.confidence), 0.91)
+        self.assertEqual(result.raw_data_path, 'vision/sample_depth/pos-05-layer-02.npy')
+        self.assertEqual(result.result_data['position_no'], 5)
+        self.assertEqual(result.result_data['plc_payload']['position_no'], 5)
+        self.assertEqual(RackLocationResult.objects.count(), 1)
+
+
+class RackLocation3DViewTests(TestCase):
+    def setUp(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        self.recipe = Recipe.objects.create(
+            recipe_name='API-POS-03-L1',
+            rack_side='BOTH',
+            position_no=3,
+            layer_no=1,
+            standard_x=100,
+            standard_y=200,
+            standard_z=300,
+            hand_eye_config={'matrix': 'identity'},
+        )
+
+    def test_existing_rack_locator_panel_focuses_on_position_and_layer_not_left_right_side(self):
+        response = self.client.get(reverse('vision:rack_locator_panel'))
+
+        self.assertContains(response, '3D 料架定位')
+        self.assertContains(response, 'position-no')
+        self.assertContains(response, 'layer-no')
+        self.assertNotContains(response, 'rack-side')
+        self.assertNotContains(response, '左料架')
+        self.assertNotContains(response, '右料架')
+        self.assertNotContains(response, '旧3D')
+        self.assertNotContains(response, '旧料架')
+
+    def test_recipe_create_page_contains_depth_image_roi_teaching_ui(self):
+        response = self.client.get(reverse('vision:rack_location_recipe_create'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '3D 料架定位配方')
+        self.assertContains(response, '3D 深度图 / 伪彩图')
+        self.assertContains(response, 'rack-location-canvas')
+        self.assertContains(response, 'name="roi_config"')
+        self.assertContains(response, '预计算标准坐标')
+        self.assertContains(response, '保存为标准位置')
+
+    def test_preview_calculate_api_returns_actual_xyz_offsets_from_roi_pointcloud(self):
+        response = self.client.post(
+            reverse('vision:rack_location_preview_calculate'),
+            data=json.dumps({
+                'recipe_id': self.recipe.id,
+                'roi_config': {
+                    'target_roi': {'x': 300, 'y': 180, 'w': 220, 'h': 160, 'feature_type': 'rack_reference'},
+                },
+                'recipe_data': {
+                    'standard_x': 1200,
+                    'standard_y': 350,
+                    'standard_z': 850,
+                    'confidence_threshold': 0.8,
+                    'max_offset_x': 20,
+                    'max_offset_y': 20,
+                    'max_offset_z': 20,
+                },
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertTrue(payload['result']['locate_ok'])
+        self.assertIn('actual_x', payload['result'])
+        self.assertIn('actual_y', payload['result'])
+        self.assertIn('actual_z', payload['result'])
+        self.assertAlmostEqual(payload['result']['actual_x'], 1200.8, places=1)
+        self.assertAlmostEqual(payload['result']['offset_x'], 0.8, places=1)
+
+    def test_task_list_has_single_3d_entry_without_new_old_labels(self):
+        response = self.client.get(reverse('vision:task_list'))
+
+        self.assertContains(response, reverse('vision:rack_locator_panel'))
+        self.assertContains(response, '进入3D料架定位工作台')
+        self.assertNotContains(response, '旧3D调试面板')
+        self.assertNotContains(response, '旧料架定位结果')
+
+    def test_trigger_api_returns_current_compensation_data_for_frontend(self):
+        response = self.client.post(
+            reverse('vision:api_rack_location_trigger'),
+            data={
+                'position_no': 3,
+                'layer_no': 1,
+                'recipe_id': self.recipe.id,
+                'write_plc': 'false',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['result']['task_kind'], 'RACK_3D_LOCATION')
+        self.assertEqual(payload['result']['position_no'], 3)
+        self.assertEqual(payload['result']['layer_no'], 1)
+        self.assertIn('offset_x', payload['result'])
+        self.assertIn('plc_payload', payload['result'])
+
+    def test_results_api_filters_by_position_and_layer(self):
+        from apps.vision.rack_location import RackLocationService
+
+        RackLocationService().trigger(position_no=3, layer_no=1, recipe_id=self.recipe.id)
+
+        response = self.client.get(
+            reverse('vision:api_rack_location_results'),
+            {'position_no': 3, 'layer_no': 1},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['results'][0]['position_no'], 3)
+        self.assertEqual(payload['results'][0]['layer_no'], 1)

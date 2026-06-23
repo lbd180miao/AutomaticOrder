@@ -645,7 +645,7 @@ document.getElementById('btn-refresh-preview').addEventListener('click', async (
     });
     const data = await res.json();
     if (data.success) {
-      clearPendingFile();  // 清除导入的图片，切换到相机模式
+      clearPendingFile();
       setPreviewImage(data.image_url);
     } else {
       alert('获取预览失败：' + (data.error || '未知错误'));

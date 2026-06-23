@@ -20,21 +20,21 @@
   <div class="vision-module-card">
     <div>
       <h2>&#128225; 料架定位（3D 深度相机）</h2>
-      <p>3D 深度相机（手眼安装）单次拍摄同时覆盖左/右双料架，输出 X/Y/Z 补偿供 PLC 与机器人修正装筱轨迹。</p>
+      <p>3D 深度相机（手眼安装）按配方位置和料架层号循环拍照；每次拍一张照片，只计算当前点位的 X/Y/Z/Rz 补偿。</p>
       <ol>
-        <li>料架就位并锁紧，确认料框扫码和配方已完成</li>
-        <li>机器人携带 3D 相机到标准拍照位</li>
-        <li>点击「触发定位拍照」，确认左/右架置信度 ≥ 70%</li>
-        <li>补偿数据自动写入 PLC，机器人开始装筱</li>
+        <li>选择当前配方位置 POS 与当前层号</li>
+        <li>机器人携带 3D 相机到该配方拍照位</li>
+        <li>点击「拍照计算补偿」，确认置信度和补偿范围</li>
+        <li>页面保留本次补偿数据，可继续写入 PLC</li>
       </ol>
     </div>
-    <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-primary">进入料架定位工作台</a>
+    <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-primary">进入3D料架定位工作台</a>
   </div>
 </section>
 
 <div class="toolbar">
   <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-primary">📷 泡棉检测工作台</a>
-  <a href="{% url 'vision:rack_locator_panel' %}" class="btn" style="background:var(--info);">📡 料架定位工作台</a>
+  <a href="{% url 'vision:rack_locator_panel' %}" class="btn" style="background:var(--info);">📡 3D料架定位工作台</a>
   <a href="{% url 'vision:foam_results' %}" class="btn btn-secondary">泡棉检测结果</a>
   <a href="{% url 'vision:rack_results' %}" class="btn btn-secondary">料架定位结果</a>
 </div>
@@ -107,13 +107,24 @@
       <tr>
         <td>
           {% with img=t.images.all|first %}
-          {% if img %}<a class="thumb-link" href="{% url 'vision:task_detail' t.pk %}"><img class="thumb" src="{{ img.file.url }}" alt="画面"></a>
+          {% if img %}
+            <a class="thumb-link" href="{% url 'vision:task_detail' t.pk %}">
+              <img class="thumb" src="{{ img.file.url }}" alt="画面" loading="lazy">
+            </a>
           {% else %}-{% endif %}
           {% endwith %}
         </td>
-        <td>{{ t.get_task_type_display }}</td>
-        <td>{{ t.product.product_code|default:"-" }}</td>
-        <td>{{ t.rack.rack_code|default:"-" }}</td>
+        <td>{{ t.get_task_type_display|default:"未知" }}</td>
+        <td>
+          {% if t.product %}
+            {{ t.product.product_code }}
+          {% else %}-{% endif %}
+        </td>
+        <td>
+          {% if t.rack %}
+            {{ t.rack.rack_code }}
+          {% else %}-{% endif %}
+        </td>
         <td>
           {% if t.status == 'SUCCESS' %}<span class="badge badge-ok">{{ t.get_status_display }}</span>
           {% elif t.status == 'FAILED' %}<span class="badge badge-fail">{{ t.get_status_display }}</span>

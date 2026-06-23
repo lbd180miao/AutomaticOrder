@@ -130,19 +130,26 @@
 <h2 class="section-title">料架补偿数据</h2>
 <div class="table-wrap">
   <table class="data-table">
-    <thead><tr><th>侧</th><th>补偿X</th><th>补偿Y</th><th>补偿Z</th><th>实测层高</th><th>实测层距</th><th>配方匹配</th></tr></thead>
+    <thead><tr><th>位置</th><th>层号</th><th>补偿X</th><th>补偿Y</th><th>补偿Z</th><th>补偿Rz</th><th>置信度</th><th>PLC</th><th>状态</th></tr></thead>
     <tbody>
       <tr>
-        <td>{{ rack_result.get_side_display }}</td>
+        <td>POS {{ rack_result.position_no }}</td>
+        <td>L{{ rack_result.layer_no }}</td>
         <td>{{ rack_result.offset_x }} mm</td>
         <td>{{ rack_result.offset_y }} mm</td>
         <td>{{ rack_result.offset_z }} mm</td>
-        <td>{{ rack_result.measured_layer_height }}</td>
-        <td>{{ rack_result.measured_layer_spacing }}</td>
-        <td>{% if rack_result.is_recipe_matched %}<span class="badge badge-ok">匹配</span>{% else %}<span class="badge badge-fail">超差</span>{% endif %}</td>
+        <td>{{ rack_result.offset_rz }} °</td>
+        <td>{{ rack_result.confidence|floatformat:4 }}</td>
+        <td>{{ rack_result.plc_write_status }}</td>
+        <td>{% if rack_result.is_success %}<span class="badge badge-ok">OK</span>{% else %}<span class="badge badge-fail">NG</span>{% endif %}</td>
       </tr>
     </tbody>
   </table>
+  <p class="muted">原始数据：<code>{{ rack_result.raw_data_path|default:"-" }}</code></p>
+  <p class="muted">结果图：<code>{{ rack_result.result_image_path|default:"-" }}</code></p>
+  {% if rack_result.error_code or rack_result.error_message %}
+    <p class="badge badge-fail">{{ rack_result.error_code }} {{ rack_result.error_message }}</p>
+  {% endif %}
 </div>
 {% endif %}
 {% endblock %}

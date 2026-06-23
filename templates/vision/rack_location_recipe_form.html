@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}3D 料架定位配方{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>3D 料架定位配方</h1>
+  <p class="page-hint">左侧示教深度图 ROI，右侧维护标准坐标、允许偏差与预计算结果。</p>
+</section>
+
+<form method="post" id="rack-location-recipe-form" class="rack-location-recipe-form">
+  {% csrf_token %}
+  <input type="hidden" id="roi-config-input" name="roi_config" value='{{ roi_config_json|escape }}'>
+  <input type="hidden" id="reference-feature-config-input" name="reference_feature_config" value='{{ reference_feature_config_json|escape }}'>
+  <input type="hidden" id="hand-eye-config-input" name="hand_eye_config" value='{{ hand_eye_config_json|escape }}'>
+
+  <div class="rack-location-layout">
+    <section class="card rack-location-left">
+      <div class="card-header">
+        <h2>3D 深度图 / 伪彩图</h2>
+        <p class="muted">拖拽鼠标绘制 target ROI；保存到后端的是原始图像像素坐标。</p>
+      </div>
+      <div class="card-body">
+        <div class="rack-location-image-stage">
+          <img id="rack-location-depth-image"
+               src="{{ sample_preview.preview_image_url }}"
+               alt="3D 深度图 / 伪彩图"
+               data-natural-width="{{ sample_preview.image_width }}"
+               data-natural-height="{{ sample_preview.image_height }}">
+          <canvas id="rack-location-canvas"></canvas>
+        </div>
+        <div class="toolbar rack-location-actions">
+          <button type="button" id="btn-capture-standard" class="btn btn-secondary">采集标准图</button>
+          <button type="button" id="btn-redraw-roi" class="btn btn-secondary">重新画 ROI</button>
+          <button type="button" id="btn-preview-calculate" class="btn btn-primary">预计算标准坐标</button>
+        </div>
+        <p id="rack-location-ui-status" class="muted">可直接在图上拖拽绘制 ROI。</p>
+      </div>
+    </section>
+
+    <section class="card rack-location-right">
+      <div class="card-header">
+        <h2>{% if recipe %}编辑配方{% else %}新增配方{% endif %}</h2>
+      </div>
+      <div class="card-body rack-location-form-grid">
+        <label>配方名称
+          <input name="recipe_name" id="recipe-name" value="{{ recipe_defaults.recipe_name }}" required>
+        </label>
+        <label>料架类型
+          <input name="rack_type" value="{{ recipe_defaults.rack_type }}">
+        </label>
+        <label>料架侧别
+          <select name="rack_side">
+            <option value="LEFT" {% if recipe_defaults.rack_side == 'LEFT' %}selected{% endif %}>左料架</option>
+            <option value="RIGHT" {% if recipe_defaults.rack_side == 'RIGHT' %}selected{% endif %}>右料架</option>
+            <option value="BOTH" {% if recipe_defaults.rack_side == 'BOTH' %}selected{% endif %}>左右通用</option>
+          </select>
+        </label>
+        <label>适用层号
+          <input name="layer_no" id="layer-no" type="number" min="1" value="{{ recipe_defaults.layer_no }}">
+        </label>
+        <label>配方位置 POS
+          <input name="position_no" type="number" min="1" value="{{ recipe_defaults.position_no }}">
+        </label>
+        <label>层数
+          <input name="layer_count" type="number" min="1" value="{{ recipe_defaults.layer_count }}">
+        </label>
+        <label>3D 相机设备
+          <select name="camera_device">
+            <option value="">模拟模式 / 暂不绑定</option>
+            {% for device in devices %}
+              <option value="{{ device.id }}" {% if recipe and recipe.camera_device_id == device.id %}selected{% endif %}>{{ device.code }} - {{ device.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>机器人拍照位名称
+          <input name="capture_pose_name" value="{{ recipe_defaults.capture_pose_name }}">
+        </label>
+
+        <fieldset class="rack-location-fieldset">
+          <legend>ROI 参数</legend>
+          <label>ROI x <input id="roi-x" readonly></label>
+          <label>ROI y <input id="roi-y" readonly></label>
+          <label>ROI w <input id="roi-w" readonly></label>
+          <label>ROI h <input id="roi-h" readonly></label>
+          <label>feature_type <input id="roi-feature-type" value="rack_reference"></label>
+        </fieldset>
+
+        <fieldset class="rack-location-fieldset">
+          <legend>标准坐标</legend>
+          <label>standard_x <input name="standard_x" id="standard-x" type="number" step="0.001" value="{{ recipe_defaults.standard_x }}"></label>
+          <label>standard_y <input name="standard_y" id="standard-y" type="number" step="0.001" value="{{ recipe_defaults.standard_y }}"></label>
+          <label>standard_z <input name="standard_z" id="standard-z" type="number" step="0.001" value="{{ recipe_defaults.standard_z }}"></label>
+          <label>standard_rz <input name="standard_rz" id="standard-rz" type="number" step="0.001" value="{{ recipe_defaults.standard_rz }}"></label>
+        </fieldset>
+
+        <fieldset class="rack-location-fieldset">
+          <legend>允许偏差</legend>
+          <label>max_offset_x <input name="max_offset_x" id="max-offset-x" type="number" step="0.001" value="{{ recipe_defaults.max_offset_x }}"></label>
+          <label>max_offset_y <input name="max_offset_y" id="max-offset-y" type="number" step="0.001" value="{{ recipe_defaults.max_offset_y }}"></label>
+          <label>max_offset_z <input name="max_offset_z" id="max-offset-z" type="number" step="0.001" value="{{ recipe_defaults.max_offset_z }}"></label>
+          <label>confidence_threshold <input name="confidence_threshold" id="confidence-threshold" type="number" min="0" max="1" step="0.01" value="{{ recipe_defaults.confidence_threshold }}"></label>
+        </fieldset>
+
+        <fieldset class="rack-location-fieldset">
+          <legend>预计算结果</legend>
+          <label>actual_x <input id="actual-x" readonly></label>
+          <label>actual_y <input id="actual-y" readonly></label>
+          <label>actual_z <input id="actual-z" readonly></label>
+          <label>offset_x <input id="offset-x" readonly></label>
+          <label>offset_y <input id="offset-y" readonly></label>
+          <label>offset_z <input id="offset-z" readonly></label>
+          <label>confidence <input id="preview-confidence" readonly></label>
+          <label>locate_ok <input id="locate-ok" readonly></label>
+          <label class="rack-location-wide">error_message <input id="error-message" readonly></label>
+        </fieldset>
+
+        <div class="toolbar rack-location-wide">
+          <button type="button" id="btn-save-standard" class="btn btn-secondary">保存为标准位置</button>
+          <button type="submit" class="btn btn-primary">保存配方</button>
+          <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-secondary">返回列表</a>
+        </div>
+      </div>
+    </section>
+  </div>
+</form>
+
+<script>
+window.rackLocationRecipeConfig = {
+  captureUrl: '{% url "vision:rack_location_capture" %}',
+  previewUrl: '{% url "vision:rack_location_preview_calculate" %}',
+  recipeId: {% if recipe %}{{ recipe.id }}{% else %}null{% endif %},
+};
+</script>
+<script src="{% static 'vision/js/rack_location_roi.js' %}"></script>
+
+<style>
+.rack-location-layout {
+  display: grid;
+  grid-template-columns: minmax(420px, 1.15fr) minmax(380px, 0.85fr);
+  gap: 16px;
+  align-items: start;
+}
+.rack-location-image-stage {
+  position: relative;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0f172a;
+  min-height: 360px;
+}
+.rack-location-image-stage img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.rack-location-image-stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+.rack-location-actions {
+  margin-top: 12px;
+}
+.rack-location-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.rack-location-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rack-location-fieldset {
+  grid-column: 1 / -1;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.rack-location-fieldset legend {
+  padding: 0 6px;
+  color: #374151;
+  font-weight: 700;
+}
+.rack-location-wide {
+  grid-column: 1 / -1;
+}
+@media (max-width: 1100px) {
+  .rack-location-layout {
+    grid-template-columns: 1fr;
+  }
+  .rack-location-fieldset {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+</style>
+{% endblock %}

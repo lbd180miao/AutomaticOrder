@@ -19,6 +19,14 @@ urlpatterns = [
 
     # 料架定位工作台（新增）
     path('rack-locator/', views.rack_locator_panel, name='rack_locator_panel'),
+    path('rack-location/', views.rack_location_workbench, name='rack_location_workbench'),
+    path('rack-location/recipes/', views.rack_location_recipes, name='rack_location_recipes'),
+    path('rack-location/recipes/create/', views.rack_location_recipe_create, name='rack_location_recipe_create'),
+    path('rack-location/recipes/<int:recipe_id>/edit/', views.rack_location_recipe_edit, name='rack_location_recipe_edit'),
+    path('rack-location/recipes/capture/', views.rack_location_capture, name='rack_location_capture'),
+    path('rack-location/recipes/preview-calculate/', views.rack_location_preview_calculate, name='rack_location_preview_calculate'),
+    path('rack-location/results/', views.rack_location_history, name='rack_location_history'),
+    path('rack-location/trigger/', views.api_rack_location_trigger, name='rack_location_trigger'),
 
     # API — 泡棉检测
     path('api/camera/preview/', views.api_camera_preview, name='api_camera_preview'),
@@ -36,4 +44,9 @@ urlpatterns = [
     # API — 料架定位（新增）
     path('api/rack/locate/', views.api_rack_locate, name='api_rack_locate'),
     path('api/rack/results/', views.api_rack_results, name='api_rack_results'),
+    path('api/rack-location/trigger/', views.api_rack_location_trigger, name='api_rack_location_trigger'),
+    path('api/rack-location/write-plc/', views.api_rack_location_write_plc, name='api_rack_location_write_plc'),
+    path('api/rack-location/recipes/', views.api_rack_location_recipes, name='api_rack_location_recipes'),
+    path('api/rack-location/recipes/<int:recipe_id>/update/', views.api_rack_location_recipe_update, name='api_rack_location_recipe_update'),
+    path('api/rack-location/results/', views.api_rack_location_results, name='api_rack_location_results'),
 ]
