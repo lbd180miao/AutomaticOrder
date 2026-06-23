@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'apps.mes',
     'apps.alarms',
     'apps.traceability',
+    'apps.dm_camera',  # DM 3D深度相机
 ]
 
 MIDDLEWARE = [
@@ -147,5 +148,12 @@ AUTOMATIC_ORDER = {
         'FORMAT': 'BMP',  # 使用 BMP 格式避免编码问题
         'QUALITY': 5,
         'RUN_IN_SUBPROCESS': True,
+    },
+    'DM_CAMERA': {
+        'OUTPUT_DIR': BASE_DIR / 'media' / 'dm_captures',
+        'SDK_PATH': BASE_DIR.parent / 'DM-Host-Computer-SDK/DM上位机&SDK/SDK/1.2.3',
+        'AUTO_CONNECT': False,  # 是否自动连接第一个设备
+        'DEFAULT_FRAME_RATE': 10,
+        'DEFAULT_EXPOSURE_TIME': 1000,
     },
 }
