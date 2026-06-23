@@ -69,6 +69,13 @@ class RackLocationRecipe(TimeStampedModel):
         indexes = [
             models.Index(fields=['position_no', 'layer_no', 'enabled']),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['position_no', 'layer_no'],
+                condition=models.Q(enabled=True),
+                name='unique_enabled_recipe_per_position_layer',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.recipe_name}(POS {self.position_no}, L{self.layer_no})'

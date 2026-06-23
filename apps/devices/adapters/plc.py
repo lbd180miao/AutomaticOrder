@@ -11,9 +11,11 @@ class PLCAdapter(BaseDeviceAdapter):
         raise NotImplementedError
 
     def send_rack_offsets(self, payload: dict) -> dict:
-        """下发料架三轴补偿及分层数据到 PLC。
+        """下发料架三轴补偿数据到 PLC。
 
-        payload 结构（由 RackLocator.plc_payload 直接提供）：
+        兼容两种 payload 格式：
+
+        旧格式（双料架全扫描，由 RackLocator.plc_payload 提供）：
             side            : 'LEFT' | 'RIGHT'
             offset_x/y/z    : float (mm)
             layer_count     : int
@@ -22,6 +24,17 @@ class PLCAdapter(BaseDeviceAdapter):
             confidence      : float (0~1)
             recipe_matched  : bool
             product_code    : str
+
+        新格式（3D 单点位补偿，由 RackLocationOutput.to_payload 提供）：
+            task_kind       : 'RACK_3D_LOCATION'
+            side            : 'LEFT' | 'RIGHT' | 'BOTH'
+            position_no     : int
+            layer_no        : int
+            locate_ok       : bool
+            offset_x/y/z    : float (mm)
+            offset_rz       : float (deg)
+            confidence      : float (0~1)
+            compensation_valid : bool
 
         返回：
             {success: bool, sent_at: str, echo: payload}

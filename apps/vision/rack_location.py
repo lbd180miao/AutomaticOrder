@@ -75,11 +75,6 @@ class RackLocationOutput:
             'confidence': self.confidence,
             'compensation_valid': self.locate_ok,
             'error_code': self.error_code,
-            'raw_data_path': self.raw_data_path,
-            'result_image_path': self.result_image_path,
-            'recipe_matched': self.locate_ok,
-            'layer_heights': [],
-            'layer_spacings': [],
         }
         return payload
 
@@ -345,7 +340,12 @@ def build_sample_pointcloud(
 
 
 class DMCameraRackFrameProvider:
-    """Frame provider using the existing DM camera SDK service with sample fallback."""
+    """Frame provider using the existing DM camera SDK service with sample fallback.
+
+    DM SDK 的 capture_frame_data() 将原始帧数据放在 'data' 键下，但
+    PointCloudProcessor.extract_pose() 使用 'organized_pointcloud' 或
+    'pointcloud' 来查找点云数据。此处负责做 key 映射。
+    """
 
     def __init__(self, *, fallback_provider: Optional[SampleRackFrameProvider] = None):
         self.fallback_provider = fallback_provider or SampleRackFrameProvider()
@@ -360,12 +360,34 @@ class DMCameraRackFrameProvider:
             if not service.is_streaming:
                 service.start_stream()
             frame = service.capture_frame_data(frame_type='POINTCLOUD', save_record=True)
-            return {
+
+            # ── key 映射：SDK 'data' → 算法层 'organized_pointcloud' ──
+            result = {
                 **frame,
                 'source': 'dm_camera',
                 'position_no': position_no,
                 'layer_no': layer_no,
             }
+            raw_data = frame.get('data')
+            if raw_data is not None:
+                arr = np.asarray(raw_data)
+                width = int(frame.get('width') or frame.get('image_width') or 0)
+                height = int(frame.get('height') or frame.get('image_height') or 0)
+                # 点云帧：reshape 为 H×W×3 组织化点云
+                if frame.get('frame_type') == 'POINTCLOUD' and arr.ndim == 1 and width > 0 and height > 0:
+                    try:
+                        result['organized_pointcloud'] = arr.reshape(height, width, 3)
+                    except ValueError:
+                        # reshape 失败时保留原始 1D 数据，供 extract_pose fallback
+                        result['pointcloud'] = arr
+                elif arr.ndim == 3 and arr.shape[2] == 3:
+                    result['organized_pointcloud'] = arr
+                elif arr.ndim == 2:
+                    # 深度图帧
+                    result['depth_image'] = arr
+                else:
+                    result['pointcloud'] = arr
+            return result
         except Exception as exc:  # noqa: BLE001 - hardware fallback is intentional
             frame = self.fallback_provider.capture(recipe, position_no, layer_no)
             frame['source'] = 'sample_fallback'
@@ -374,11 +396,33 @@ class DMCameraRackFrameProvider:
 
 
 class PlcVisionResultWriter:
-    """Write 3D rack-location compensation through the existing device adapter."""
+    """Write 3D rack-location compensation through the existing device adapter.
+
+    写入前执行二次校验：即使 result.is_success 为 True，也会重新检查
+    当前配方的 max_offset 阈值，防止配方修改后过时的 OK 结果被写入。
+    """
 
     def __init__(self, adapter=None, device_service: Optional[DeviceService] = None):
         self.adapter = adapter or get_device_adapter()
         self.device_service = device_service or DeviceService(adapter=self.adapter)
+
+    def _revalidate_offsets(self, result: RackLocationResult) -> str:
+        """按当前配方阈值重新校验补偿值，返回空字符串表示通过。"""
+        recipe = result.recipe
+        if recipe is None:
+            return ''  # 无配方时跳过二次校验
+        checks = [
+            ('X', abs(float(result.offset_x)), float(recipe.max_offset_x)),
+            ('Y', abs(float(result.offset_y)), float(recipe.max_offset_y)),
+            ('Z', abs(float(result.offset_z)), float(recipe.max_offset_z)),
+            ('Rz', abs(float(result.offset_rz)), float(recipe.max_offset_rz)),
+        ]
+        violations = [f'{axis}={val:.3f}>{limit:.3f}' for axis, val, limit in checks if val > limit]
+        if violations:
+            return f'补偿超限: {", ".join(violations)}'
+        if float(result.confidence) < float(recipe.confidence_threshold):
+            return f'置信度不足: {float(result.confidence):.2%} < {float(recipe.confidence_threshold):.2%}'
+        return ''
 
     def write(self, result: RackLocationResult) -> dict:
         payload = result.result_data.get('plc_payload') or {}
@@ -387,6 +431,21 @@ class PlcVisionResultWriter:
             result.plc_error_message = '定位NG，未写入有效补偿'
             result.save(update_fields=['plc_write_status', 'plc_error_message', 'updated_at'])
             return {'success': False, 'skipped': True, 'error': result.plc_error_message}
+
+        # ── 二次校验：按当前配方阈值重新检查 ──
+        rejection = self._revalidate_offsets(result)
+        if rejection:
+            result.plc_write_status = 'REJECTED'
+            result.plc_error_message = rejection
+            result.save(update_fields=['plc_write_status', 'plc_error_message', 'updated_at'])
+            AlarmService().create(
+                source=AlarmSource.VISION,
+                level=AlarmLevel.ERROR,
+                message=f'VISION_3D PLC写入被拒绝(二次校验): {rejection}',
+                rack=result.rack,
+                lock_workstation=True,
+            )
+            return {'success': False, 'rejected': True, 'error': rejection}
 
         response = self.adapter.send_rack_offsets(payload)
         if response.get('success'):

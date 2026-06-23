@@ -1,32 +1,251 @@
 {% extends "base.html" %}
-{% block title %}3D 定位历史{% endblock %}
+{% block title %}3D 定位历史记录 - AutomaticOrder{% endblock %}
 {% block content %}
-<h1>3D 定位历史记录</h1>
-<table class="table">
-  <thead>
-    <tr><th>时间</th><th>位置</th><th>层号</th><th>OK</th><th>实际X</th><th>实际Y</th><th>实际Z</th><th>补偿X</th><th>补偿Y</th><th>补偿Z</th><th>Rz</th><th>置信度</th><th>PLC</th><th>错误</th></tr>
-  </thead>
-  <tbody>
-  {% for result in results %}
-    <tr>
-      <td>{{ result.created_at|date:"m-d H:i:s" }}</td>
-      <td>{{ result.position_no }}</td>
-      <td>{{ result.layer_no }}</td>
-      <td>{{ result.is_success|yesno:"OK,NG" }}</td>
-      <td>{{ result.actual_x }}</td>
-      <td>{{ result.actual_y }}</td>
-      <td>{{ result.actual_z }}</td>
-      <td>{{ result.offset_x }}</td>
-      <td>{{ result.offset_y }}</td>
-      <td>{{ result.offset_z }}</td>
-      <td>{{ result.offset_rz }}</td>
-      <td>{{ result.confidence }}</td>
-      <td>{{ result.plc_write_status }}</td>
-      <td>{{ result.error_code }} {{ result.error_message }}</td>
-    </tr>
-  {% empty %}
-    <tr><td colspan="14">暂无记录</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+
+<style>
+/* ========== 定位历史页面 ========== */
+.history-page { display: flex; flex-direction: column; gap: 18px; }
+
+.history-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.history-title-bar h1 {
+  margin: 0; font-size: 22px; font-weight: 700;
+}
+.history-title-bar h1::before {
+  content: "";
+  display: inline-block;
+  width: 4px; height: 20px;
+  background: var(--info);
+  border-radius: 3px;
+  margin-right: 10px;
+  vertical-align: -3px;
+}
+
+/* 筛选栏 */
+.history-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+}
+.history-filter-bar label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.history-filter-bar select,
+.history-filter-bar input[type="number"] {
+  width: auto; min-width: 80px; padding: 6px 10px;
+}
+.history-filter-bar select { min-width: 100px; }
+
+/* 汇总统计 */
+.history-stats {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+}
+.stat-chip .stat-label { color: var(--text-muted); }
+.stat-chip .stat-val { color: var(--text); font-variant-numeric: tabular-nums; }
+.stat-chip.ok .stat-val { color: var(--success); }
+.stat-chip.ng .stat-val { color: var(--danger); }
+
+/* 结果表 */
+.history-table-wrap {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.history-table-wrap .data-table { margin: 0; }
+.plc-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+.plc-badge.success { background: var(--success-soft); color: var(--success); }
+.plc-badge.failed  { background: var(--danger-soft);  color: var(--danger); }
+.plc-badge.skipped { background: var(--surface-2);    color: var(--text-muted); }
+.plc-badge.rejected { background: #fef3c7;            color: #92400e; }
+.plc-badge.pending  { background: var(--surface-2);    color: var(--text-faint); }
+
+.offset-positive { color: #d97706; }
+.offset-negative { color: var(--info); }
+.offset-zero     { color: var(--success); }
+</style>
+
+<div class="history-page">
+
+  <!-- 标题 -->
+  <div class="history-title-bar">
+    <h1>3D 定位历史记录</h1>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-secondary btn-sm">返回工作台</a>
+      <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-secondary btn-sm">配方管理</a>
+    </div>
+  </div>
+
+  <!-- 筛选栏 -->
+  <form method="get" class="history-filter-bar" id="history-filter-form">
+    <label>📐 位置号
+      <input type="number" name="position_no" min="1" value="{{ filter_position_no }}" placeholder="全部">
+    </label>
+    <label>📏 层号
+      <input type="number" name="layer_no" min="1" value="{{ filter_layer_no }}" placeholder="全部">
+    </label>
+    <label>🎯 定位结果
+      <select name="locate_ok">
+        <option value="">全部</option>
+        <option value="true" {% if filter_locate_ok == 'true' %}selected{% endif %}>OK</option>
+        <option value="false" {% if filter_locate_ok == 'false' %}selected{% endif %}>NG</option>
+      </select>
+    </label>
+    <label>📡 PLC 状态
+      <select name="plc_status">
+        <option value="">全部</option>
+        <option value="SUCCESS" {% if filter_plc_status == 'SUCCESS' %}selected{% endif %}>已写入</option>
+        <option value="FAILED" {% if filter_plc_status == 'FAILED' %}selected{% endif %}>写入失败</option>
+        <option value="SKIPPED" {% if filter_plc_status == 'SKIPPED' %}selected{% endif %}>跳过</option>
+        <option value="REJECTED" {% if filter_plc_status == 'REJECTED' %}selected{% endif %}>被拒绝</option>
+        <option value="PENDING" {% if filter_plc_status == 'PENDING' %}selected{% endif %}>待写入</option>
+      </select>
+    </label>
+    <button type="submit" class="btn btn-sm" style="background:var(--info);">筛选</button>
+    <a href="{% url 'vision:rack_location_history' %}" class="btn btn-secondary btn-sm">重置</a>
+  </form>
+
+  <!-- 汇总统计 -->
+  {% with total=results|length %}
+  <div class="history-stats">
+    <div class="stat-chip">
+      <span class="stat-label">总计</span>
+      <span class="stat-val">{{ total }}</span>
+    </div>
+    {% if total > 0 %}
+    <div class="stat-chip ok">
+      <span class="stat-label">OK</span>
+      <span class="stat-val" id="stat-ok">—</span>
+    </div>
+    <div class="stat-chip ng">
+      <span class="stat-label">NG</span>
+      <span class="stat-val" id="stat-ng">—</span>
+    </div>
+    {% endif %}
+  </div>
+  {% endwith %}
+
+  <!-- 结果表 -->
+  <div class="history-table-wrap">
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>时间</th>
+            <th>POS</th>
+            <th>层号</th>
+            <th>结果</th>
+            <th>实际 X</th>
+            <th>实际 Y</th>
+            <th>实际 Z</th>
+            <th>补偿 X</th>
+            <th>补偿 Y</th>
+            <th>补偿 Z</th>
+            <th>Rz</th>
+            <th>置信度</th>
+            <th>PLC 状态</th>
+            <th>配方</th>
+            <th>错误</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for r in results %}
+          <tr>
+            <td>{{ r.created_at|date:"m-d H:i:s" }}</td>
+            <td>{{ r.position_no }}</td>
+            <td>{{ r.layer_no }}</td>
+            <td>
+              {% if r.is_success %}
+                <span class="badge badge-ok">OK</span>
+              {% else %}
+                <span class="badge badge-fail">NG</span>
+              {% endif %}
+            </td>
+            <td>{{ r.actual_x|floatformat:2 }}</td>
+            <td>{{ r.actual_y|floatformat:2 }}</td>
+            <td>{{ r.actual_z|floatformat:2 }}</td>
+            <td class="{% if r.offset_x > 0 %}offset-positive{% elif r.offset_x < 0 %}offset-negative{% else %}offset-zero{% endif %}">
+              {% if r.offset_x > 0 %}+{% endif %}{{ r.offset_x|floatformat:3 }} mm
+            </td>
+            <td class="{% if r.offset_y > 0 %}offset-positive{% elif r.offset_y < 0 %}offset-negative{% else %}offset-zero{% endif %}">
+              {% if r.offset_y > 0 %}+{% endif %}{{ r.offset_y|floatformat:3 }} mm
+            </td>
+            <td class="{% if r.offset_z > 0 %}offset-positive{% elif r.offset_z < 0 %}offset-negative{% else %}offset-zero{% endif %}">
+              {% if r.offset_z > 0 %}+{% endif %}{{ r.offset_z|floatformat:3 }} mm
+            </td>
+            <td>{{ r.offset_rz|floatformat:3 }}°</td>
+            <td>{{ r.confidence|floatformat:1 }}%</td>
+            <td>
+              {% if r.plc_write_status == 'SUCCESS' %}
+                <span class="plc-badge success">已写入</span>
+              {% elif r.plc_write_status == 'FAILED' %}
+                <span class="plc-badge failed">失败</span>
+              {% elif r.plc_write_status == 'SKIPPED' %}
+                <span class="plc-badge skipped">跳过</span>
+              {% elif r.plc_write_status == 'REJECTED' %}
+                <span class="plc-badge rejected">拒绝</span>
+              {% else %}
+                <span class="plc-badge pending">待写入</span>
+              {% endif %}
+            </td>
+            <td>{{ r.recipe.recipe_name|default:"—" }}</td>
+            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ r.error_code }} {{ r.error_message }}">
+              {{ r.error_code }}{% if r.error_message %} {{ r.error_message }}{% endif %}{% if not r.error_code and not r.error_message %}—{% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="15" class="empty">暂无定位记录{% if filter_position_no or filter_layer_no or filter_locate_ok or filter_plc_status %}（当前筛选条件下）{% endif %}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const rows = document.querySelectorAll('.data-table tbody tr');
+  let ok = 0, ng = 0;
+  rows.forEach(row => {
+    if (row.querySelector('.badge-ok')) ok++;
+    if (row.querySelector('.badge-fail')) ng++;
+  });
+  const statOk = document.getElementById('stat-ok');
+  const statNg = document.getElementById('stat-ng');
+  if (statOk) statOk.textContent = ok;
+  if (statNg) statNg.textContent = ng;
+});
+</script>
 {% endblock %}
