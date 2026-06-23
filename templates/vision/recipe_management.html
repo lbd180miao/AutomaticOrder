@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}视觉配方模块 - AutomaticOrder{% endblock %}
+{% block title %}视觉配方模块 - AutomaticOrder v1.2{% endblock %}
 {% block content %}
 
 <style>
-/* ========== 视觉配方管理页面样式 ========== */
+/* ========== 视觉配方管理页面样式 v1.2 ========== */
 .recipe-page {
   display: flex;
   flex-direction: column;
@@ -189,43 +189,165 @@
   font-size: 14px;
 }
 
-/* Loading */
-#loading-overlay {
+/* Toast 提示框 */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 16px 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 280px;
+  animation: slideInRight 0.3s ease;
+}
+@keyframes slideInRight {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+}
+.toast.success {
+  border-left: 4px solid #10b981;
+}
+.toast.error {
+  border-left: 4px solid #ef4444;
+}
+.toast.info {
+  border-left: 4px solid #3b82f6;
+}
+.toast-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+.toast-content {
+  flex: 1;
+}
+.toast-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0 0 4px 0;
+  color: var(--text);
+}
+.toast-message {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Modal 弹窗 */
+.modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 22, 35, 0.55);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
-  backdrop-filter: blur(2px);
+  z-index: 10000;
+  backdrop-filter: blur(3px);
+  animation: fadeIn 0.2s ease;
 }
-.loading-card {
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.modal-content {
   background: #fff;
   border-radius: var(--radius);
-  padding: 30px 40px;
-  text-align: center;
   box-shadow: var(--shadow-lg);
-  min-width: 200px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s ease;
 }
-.spinner {
-  border: 4px solid #e5e7eb;
-  border-top: 4px solid var(--primary);
-  border-radius: 50%;
-  width: 44px;
-  height: 44px;
-  animation: spin 0.9s linear infinite;
-  margin: 0 auto 14px;
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
-.loading-card p {
+.modal-header h3 {
   margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+.modal-close:hover {
+  color: var(--text);
+}
+.modal-body {
+  padding: 24px;
+}
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.form-group {
+  margin-bottom: 16px;
+}
+.form-group label {
+  display: block;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
+  margin-bottom: 6px;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.form-group small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 </style>
 
@@ -234,6 +356,9 @@
   <div class="recipe-title-bar">
     <h1>视觉配方模块 - AutomaticOrder</h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button id="btn-create-recipe" class="btn btn-sm" style="background:var(--success);" type="button">
+        ➕ 新增配方
+      </button>
       <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-secondary btn-sm">泡棉检测工作台</a>
       <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-secondary btn-sm">料架定位工作台</a>
       <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
@@ -287,14 +412,47 @@
   </div>
 </div>
 
+<!-- 新增/编辑配方弹窗 -->
+<div id="recipe-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modal-title">新增配方</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>配方名称 <span style="color:red;">*</span></label>
+        <input type="text" id="modal-name" placeholder="例如：第1层泡棉检测配方">
+      </div>
+      <div class="form-group">
+        <label>POS 位置 <span style="color:red;">*</span></label>
+        <input type="number" id="modal-pos" min="0" placeholder="0">
+        <small>对应料架的层数位置，从 0 开始</small>
+      </div>
+      <div class="form-group">
+        <label>备注</label>
+        <textarea id="modal-remark" rows="3" placeholder="选填：配方说明或备注"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">取消</button>
+      <button class="btn btn-sm" style="background:var(--success);" onclick="submitModal()">确定</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============================================================
-//  视觉配方管理 · 前端逻辑
+//  视觉配方管理 · 前端逻辑 v1.2 (无Loading版本)
 // ============================================================
+console.log('配方管理页面已加载 - v1.2 (Toast提示版本)');
+
 const API = {
   recipes: '{% url "vision:api_vision_recipes" %}',
   recipeByPos: '{% url "vision:api_foam_recipe_by_pos" %}',
   saveRecipe: '{% url "vision:api_foam_recipe_save" %}',
+  createRecipe: '{% url "vision:api_foam_recipe_create" %}',
+  deleteRecipe: (id) => `/vision/api/recipes/foam-2d/${id}/delete/`,
   defaultRecipes: '{% url "vision:api_foam_recipe_defaults" %}',
 };
 
@@ -302,16 +460,44 @@ function getCsrf() {
   return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
 }
 
+function showToast(message, type = 'success', duration = 2000) {
+  const icons = {
+    success: '✅',
+    error: '❌',
+    info: 'ℹ️'
+  };
+  
+  const titles = {
+    success: '操作成功',
+    error: '操作失败',
+    info: '提示'
+  };
+  
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `
+    <div class="toast-icon">${icons[type]}</div>
+    <div class="toast-content">
+      <div class="toast-title">${titles[type]}</div>
+      <div class="toast-message">${message}</div>
+    </div>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'slideOutRight 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// 兼容旧代码，但不显示loading
 function showLoading(msg = '处理中...') {
-  if (document.getElementById('loading-overlay')) return;
-  const el = document.createElement('div');
-  el.id = 'loading-overlay';
-  el.innerHTML = `<div class="loading-card"><div class="spinner"></div><p>${msg}</p></div>`;
-  document.body.appendChild(el);
+  // 不显示loading，静默处理
 }
 
 function hideLoading() {
-  document.getElementById('loading-overlay')?.remove();
+  // 不做任何事
 }
 
 // ── 配方状态 ───────────────────────────────────────
@@ -319,6 +505,8 @@ let foam2DRecipes = [];
 let manualSelectedRecipe = null;
 let selectedRecipeForEdit = null;
 let currentPosIndex = 0;
+let modalMode = 'create'; // 'create' or 'edit'
+let editingRecipeId = null;
 
 function currentPOS() {
   return currentPosIndex;
@@ -334,18 +522,18 @@ function currentDetectionRecipe() {
 
 // ── 加载配方 ────────────────────────────────────────
 async function loadRecipes() {
-  showLoading('加载配方列表...');
   try {
     const res = await fetch(API.recipes + '?recipe_type=FOAM_2D&is_active=true');
     const data = await res.json();
     if (data.success) {
       foam2DRecipes = data.recipes || [];
       renderRecipeCards();
+    } else {
+      showToast('加载配方列表失败', 'error');
     }
   } catch (e) {
     console.error('加载配方失败：', e);
-  } finally {
-    hideLoading();
+    showToast('网络连接失败', 'error');
   }
 }
 
@@ -389,7 +577,8 @@ function renderRecipeCards() {
         </div>
         <div class="recipe-card-actions">
           <button class="btn btn-sm" onclick="selectRecipeForEdit(${recipe.id})">编辑</button>
-          ${!isManual ? `<button class="btn btn-secondary btn-sm" onclick="setManualRecipe(${recipe.id})">本次使用</button>` : ''}
+          <button class="btn btn-secondary btn-sm" onclick="copyRecipe(${recipe.id})">复制</button>
+          <button class="btn btn-sm" style="background:#ef4444;" onclick="deleteRecipe(${recipe.id}, '${recipe.name}')">删除</button>
         </div>
       </div>
     `;
@@ -482,7 +671,7 @@ window.setManualRecipe = function(recipeId) {
 async function saveSelectedRecipe() {
   const recipe = selectedRecipeForEdit || activeFoam2DRecipe();
   if (!recipe) {
-    alert('请先选择一个配方进行编辑');
+    showToast('请先选择一个配方进行编辑', 'error');
     return;
   }
 
@@ -504,7 +693,6 @@ async function saveSelectedRecipe() {
     max_offset_px: Number(document.getElementById('thresh-x').value),
   };
 
-  showLoading('保存配方中...');
   try {
     const res = await fetch(API.saveRecipe, {
       method: 'POST',
@@ -524,15 +712,13 @@ async function saveSelectedRecipe() {
     });
     const data = await res.json();
     if (data.success) {
-      alert('配方保存成功');
+      showToast('配方保存成功', 'success');
       await loadRecipes();
     } else {
-      alert('保存失败：' + (data.error || '未知错误'));
+      showToast(data.error || '保存失败', 'error');
     }
   } catch (e) {
-    alert('网络请求失败：' + e.message);
-  } finally {
-    hideLoading();
+    showToast('网络请求失败：' + e.message, 'error');
   }
 }
 
@@ -540,7 +726,6 @@ async function saveSelectedRecipe() {
 async function resetDefaultRecipes() {
   if (!confirm('确定要补齐默认配方吗？这将为缺失的 POS 创建默认配方。')) return;
   
-  showLoading('创建默认配方...');
   try {
     const res = await fetch(API.defaultRecipes, {
       method: 'POST',
@@ -548,17 +733,105 @@ async function resetDefaultRecipes() {
     });
     const data = await res.json();
     if (data.success) {
-      alert('默认配方创建成功');
+      showToast('默认配方创建成功', 'success');
       await loadRecipes();
     } else {
-      alert('创建失败：' + (data.error || '未知错误'));
+      showToast(data.error || '创建失败', 'error');
     }
   } catch (e) {
-    alert('网络请求失败：' + e.message);
-  } finally {
-    hideLoading();
+    showToast('网络请求失败：' + e.message, 'error');
   }
 }
+
+// ── 新增配方 ────────────────────────────────────────
+window.openCreateModal = function() {
+  modalMode = 'create';
+  editingRecipeId = null;
+  document.getElementById('modal-title').textContent = '新增配方';
+  document.getElementById('modal-name').value = '';
+  document.getElementById('modal-pos').value = '';
+  document.getElementById('modal-remark').value = '';
+  document.getElementById('recipe-modal').style.display = 'flex';
+};
+
+// ── 复制配方 ────────────────────────────────────────
+window.copyRecipe = function(recipeId) {
+  const recipe = foam2DRecipes.find(r => r.id === recipeId);
+  if (!recipe) return;
+  
+  modalMode = 'create';
+  editingRecipeId = null;
+  document.getElementById('modal-title').textContent = '复制配方';
+  document.getElementById('modal-name').value = recipe.name + ' (副本)';
+  document.getElementById('modal-pos').value = '';
+  document.getElementById('modal-remark').value = recipe.remark || '';
+  document.getElementById('recipe-modal').style.display = 'flex';
+};
+
+// ── 删除配方 ────────────────────────────────────────
+window.deleteRecipe = async function(recipeId, recipeName) {
+  if (!confirm(`确定要删除配方「${recipeName}」吗？\n\n此操作无法撤销！`)) return;
+  
+  try {
+    const res = await fetch(API.deleteRecipe(recipeId), {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf() },
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('配方删除成功', 'success');
+      await loadRecipes();
+    } else {
+      showToast(data.error || '删除失败', 'error');
+    }
+  } catch (e) {
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+};
+
+// ── 关闭弹窗 ────────────────────────────────────────
+window.closeModal = function() {
+  document.getElementById('recipe-modal').style.display = 'none';
+};
+
+// ── 提交弹窗 ────────────────────────────────────────
+window.submitModal = async function() {
+  const name = document.getElementById('modal-name').value.trim();
+  const pos = document.getElementById('modal-pos').value.trim();
+  const remark = document.getElementById('modal-remark').value.trim();
+  
+  if (!name) {
+    showToast('请输入配方名称', 'error');
+    return;
+  }
+  
+  if (pos === '' || pos < 0) {
+    showToast('请输入有效的 POS 位置（从 0 开始）', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(API.createRecipe, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name,
+        pos: parseInt(pos),
+        remark: remark,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('配方创建成功', 'success');
+      closeModal();
+      await loadRecipes();
+    } else {
+      showToast(data.error || '创建失败', 'error');
+    }
+  } catch (e) {
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+};
 
 // ── 标签页切换 ──────────────────────────────────────
 document.querySelectorAll('.recipe-tab').forEach(tab => {
@@ -586,6 +859,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-save-current-recipe')?.addEventListener('click', saveSelectedRecipe);
   document.getElementById('btn-reset-default-recipes')?.addEventListener('click', resetDefaultRecipes);
+  document.getElementById('btn-create-recipe')?.addEventListener('click', openCreateModal);
 
   loadRecipes();
 });

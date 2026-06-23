@@ -239,6 +239,74 @@ def api_foam_recipe_save(request):
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
+@require_POST
+def api_foam_recipe_delete(request, recipe_id):
+    """删除指定的泡棉检测配方"""
+    try:
+        recipe = get_object_or_404(VisionRecipe, id=recipe_id, recipe_type='FOAM_2D')
+        recipe_name = recipe.name
+        recipe.delete()
+        return JsonResponse({
+            'success': True,
+            'message': f'配方 "{recipe_name}" 已删除'
+        })
+    except Exception as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@require_POST
+def api_foam_recipe_create(request):
+    """创建新的泡棉检测配方"""
+    try:
+        body = json.loads(request.body or '{}')
+        pos = int(body.get('pos', 0))
+        if pos < 0:
+            raise ValueError('pos must be non-negative')
+        
+        # 检查该 POS 是否已存在配方
+        existing = VisionRecipe.objects.filter(
+            recipe_type='FOAM_2D',
+            pos=pos,
+            is_active=True
+        ).first()
+        
+        if existing:
+            return JsonResponse({
+                'success': False,
+                'error': f'POS {pos} 已存在配方，请先删除或编辑现有配方'
+            }, status=400)
+        
+        # 默认 ROI 配置
+        roi_config = body.get('roi_config') or {
+            'leftFoamROI': {'x': 220, 'y': 140, 'width': 90, 'height': 70},
+            'rightFoamROI': {'x': 780, 'y': 140, 'width': 110, 'height': 70}
+        }
+        
+        # 默认阈值配置
+        threshold_config = body.get('threshold_config') or {
+            'coverage_threshold': 0.75,
+            'score_threshold': 0.8,
+            'max_offset_px': 30
+        }
+        
+        recipe = VisionRecipe.objects.create(
+            recipe_type='FOAM_2D',
+            name=body.get('name') or f'第{pos + 1}层泡棉检测配方',
+            pos=pos,
+            camera_side=body.get('camera_side') or 'both',
+            image_width=int(body.get('image_width') or 1280),
+            image_height=int(body.get('image_height') or 720),
+            roi_config=roi_config,
+            threshold_config=threshold_config,
+            is_active=True,
+            remark=body.get('remark') or ''
+        )
+        
+        return JsonResponse({'success': True, 'recipe': serialize_recipe(recipe)})
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
 def _normalize_roi_ratio(values):
     if not isinstance(values, (list, tuple)) or len(values) != 4:
         raise ValueError('ROI must contain four ratio values')
