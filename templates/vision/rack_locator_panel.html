@@ -502,79 +502,6 @@
         </div>
         <textarea id="plc-payload" rows="8" style="width:100%;margin-top:12px;font-family:Consolas,monospace;font-size:12px;" readonly></textarea>
       </div>
-    </div>
-
-    <div class="rack-card" id="rack-card-right" style="display:none;">
-      <div class="rack-card-head">
-        <div class="rh-title">
-          <span class="rh-icon">🏭</span>
-          兼容容器
-        </div>
-        <span class="badge badge-muted" id="badge-right">待定位</span>
-      </div>
-      <div class="rack-card-body">
-        <div class="rack-status-banner idle" id="status-right">
-          <span>⏳</span> 等待定位
-        </div>
-
-        <div class="offset-grid">
-          <div class="offset-cell" id="cell-right-x">
-            <div class="offset-axis">X 轴</div>
-            <div class="offset-val" id="right-x">—</div>
-            <div class="offset-unit">mm</div>
-          </div>
-          <div class="offset-cell" id="cell-right-y">
-            <div class="offset-axis">Y 轴</div>
-            <div class="offset-val" id="right-y">—</div>
-            <div class="offset-unit">mm</div>
-          </div>
-          <div class="offset-cell" id="cell-right-z">
-            <div class="offset-axis">Z 轴</div>
-            <div class="offset-val" id="right-z">—</div>
-            <div class="offset-unit">mm</div>
-          </div>
-        </div>
-
-        <div class="confidence-row">
-          <span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">置信度</span>
-          <div class="confidence-bar-track">
-            <div class="confidence-bar-fill idle" id="conf-bar-right" style="width:0%"></div>
-          </div>
-          <span class="confidence-label" id="conf-val-right">—</span>
-        </div>
-
-        <div class="layer-vis">
-          <div class="layer-vis-title">📏 各层实测高度</div>
-          <div class="layer-bars" id="layer-bars-right">
-            <div style="color:var(--text-faint);font-size:12px;text-align:center;padding:10px;">待定位后显示</div>
-          </div>
-        </div>
-
-        <div class="recipe-compare" id="recipe-compare-right" style="display:none;">
-          <h4>🔍 配方比对</h4>
-          <div class="recipe-row">
-            <span class="r-key">层高</span>
-            <div class="r-vals">
-              <span class="r-expected" id="right-recipe-height">期望 —</span>
-              <span class="r-measured" id="right-measured-height">实测 —</span>
-              <span class="r-diff" id="right-diff-height">—</span>
-            </div>
-          </div>
-          <div class="recipe-row">
-            <span class="r-key">层距</span>
-            <div class="r-vals">
-              <span class="r-expected" id="right-recipe-spacing">期望 —</span>
-              <span class="r-measured" id="right-measured-spacing">实测 —</span>
-              <span class="r-diff" id="right-diff-spacing">—</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="rack-result-image" id="img-area-right">
-          <div class="img-placeholder">📷 定位后显示深度相机标注图</div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <!-- 最近定位历史 -->
@@ -844,8 +771,6 @@ document.addEventListener('DOMContentLoaded', () => {
     inp.type = 'hidden'; inp.name = 'csrfmiddlewaretoken'; inp.value = '{{ csrf_token }}';
     document.body.appendChild(inp);
   }
-  // 配方信息
-  document.getElementById('recipe-info').textContent = '3 层料架 · 由 MES 配方决定层高层距';
   loadHistory();
 });
 </script>

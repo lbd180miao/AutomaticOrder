@@ -79,11 +79,14 @@ class SimulatedDeviceAdapter(BaseDeviceAdapter):
 
         校验必填字段，缺失时返回 success=False。
         真实接入时替换为 Modbus/OPC UA 写寄存器逻辑。
+
+        兼容两种 payload 格式：
+          - 旧格式（双料架全扫描）：包含 layer_heights / recipe_matched
+          - 新格式（3D 单点位补偿）：包含 locate_ok / position_no / layer_no
         """
         from django.utils import timezone
 
-        required = ('side', 'offset_x', 'offset_y', 'offset_z',
-                    'layer_heights', 'confidence', 'recipe_matched')
+        required = ('side', 'offset_x', 'offset_y', 'offset_z', 'confidence')
         missing = [k for k in required if k not in payload]
         if missing:
             return {

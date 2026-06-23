@@ -891,12 +891,32 @@ def rack_location_recipe_edit(request, recipe_id):
 
 
 def rack_location_history(request):
-    results = (
+    qs = (
         RackLocationResult.objects
         .select_related('recipe', 'vision_task')
-        .order_by('-created_at')[:200]
+        .order_by('-created_at')
     )
-    return render(request, 'vision/rack_location_history.html', {'results': results})
+    # GET 参数筛选
+    position_no = request.GET.get('position_no')
+    layer_no = request.GET.get('layer_no')
+    locate_ok = request.GET.get('locate_ok')
+    plc_status = request.GET.get('plc_status')
+    if position_no not in (None, ''):
+        qs = qs.filter(position_no=int(position_no))
+    if layer_no not in (None, ''):
+        qs = qs.filter(layer_no=int(layer_no))
+    if locate_ok not in (None, ''):
+        qs = qs.filter(is_success=_as_bool(locate_ok))
+    if plc_status not in (None, ''):
+        qs = qs.filter(plc_write_status=plc_status)
+    results = qs[:200]
+    return render(request, 'vision/rack_location_history.html', {
+        'results': results,
+        'filter_position_no': position_no or '',
+        'filter_layer_no': layer_no or '',
+        'filter_locate_ok': locate_ok or '',
+        'filter_plc_status': plc_status or '',
+    })
 
 
 @require_POST
@@ -984,13 +1004,24 @@ def api_rack_location_recipes(request):
 
     try:
         data = _request_data(request)
+        position_no = _as_int(data.get('position_no'), 1)
+        layer_no = _as_int(data.get('layer_no'), 1)
+        enabled = _as_bool(data.get('enabled'), True)
+        # 唯一性校验：同一 position_no + layer_no 下只允许一个启用配方
+        if enabled and RackLocationRecipe.objects.filter(
+            position_no=position_no, layer_no=layer_no, enabled=True,
+        ).exists():
+            return JsonResponse({
+                'success': False,
+                'error': f'POS {position_no} / 层号 {layer_no} 已存在启用的配方，请先禁用或编辑现有配方',
+            }, status=400)
         recipe = RackLocationRecipe.objects.create(
-            recipe_name=data.get('recipe_name') or f"3D-POS-{data.get('position_no', 1)}-L{data.get('layer_no', 1)}",
+            recipe_name=data.get('recipe_name') or f"3D-POS-{position_no}-L{layer_no}",
             rack_type=data.get('rack_type') or '',
             rack_side='BOTH',
-            position_no=_as_int(data.get('position_no'), 1),
+            position_no=position_no,
             layer_count=_as_int(data.get('layer_count'), 3),
-            layer_no=_as_int(data.get('layer_no'), 1),
+            layer_no=layer_no,
             capture_pose_name=data.get('capture_pose_name') or '',
             standard_x=data.get('standard_x') or 0,
             standard_y=data.get('standard_y') or 0,
