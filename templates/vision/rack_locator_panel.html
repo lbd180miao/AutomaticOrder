@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}料架定位工作台 - AutomaticOrder{% endblock %}
+{% block title %}3D 料架定位工作台 - AutomaticOrder{% endblock %}
 {% block content %}
 
 <style>
@@ -89,7 +89,7 @@
   flex-shrink: 0;
 }
 
-/* 双架卡片网格 */
+/* 定位结果卡片网格 */
 .rack-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -148,7 +148,7 @@
 /* 偏差数值 */
 .offset-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-bottom: 14px;
 }
@@ -377,7 +377,7 @@
 
   <!-- 标题栏 -->
   <div class="rack-title-bar">
-    <h1>料架定位工作台 - AutomaticOrder</h1>
+    <h1>3D 料架定位工作台 - AutomaticOrder</h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a href="{% url 'vision:rack_results' %}" class="btn btn-secondary btn-sm">历史记录</a>
       <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
@@ -388,38 +388,44 @@
   <div class="workflow-banner">
     <div class="wb-icon">📡</div>
     <div class="wb-body">
-      <h3>料架定位操作流程（3D 深度相机 · 手眼安装）</h3>
+      <h3>3D 深度相机定位流程 · 按配方位置和层号单次拍照补偿</h3>
       <ul class="wb-steps">
-        <li>叉车将空料架放置装箱工位，人工确认就位</li>
-        <li>PLC 控制定位机构锁紧左右料架</li>
-        <li>机器人携带 3D 相机移动至标准拍照位，点击下方「触发定位拍照」</li>
-        <li>确认左/右架置信度 ≥ 70%，查看 X/Y/Z 偏差数据</li>
-        <li>偏差数据自动写入 PLC，机器人使用补偿数据装箱</li>
+        <li>选择当前配方位置 POS 与当前层号</li>
+        <li>机器人携带 3D 相机移动到该配方拍照位</li>
+        <li>拍一张深度图 / 点云，计算当前点位 X/Y/Z/Rz 补偿</li>
+        <li>页面保留本次补偿数据与 PLC payload</li>
+        <li>确认 OK 后写入 PLC，然后进入下一循环点位</li>
       </ul>
     </div>
   </div>
 
   <!-- 控制栏 -->
   <div class="rack-control-bar">
-    <span class="ctrl-label">📐 触发定位：</span>
-    <button id="btn-locate" class="btn" style="background:var(--info);min-width:160px;">
-      🎯 触发双料架定位拍照
-    </button>
-    <div class="sep"></div>
+    <span class="ctrl-label">📐 当前点位：</span>
+    <label>POS <input id="position-no" type="number" min="1" value="{{ latest.position_no|default:1 }}"></label>
+    <label>层号 <input id="layer-no" type="number" min="1" value="{{ latest.layer_no|default:1 }}"></label>
     <span class="ctrl-label">配方：</span>
-    <span id="recipe-info" style="font-size:13px;color:var(--text-muted);">加载中...</span>
+    <select id="recipe-id">
+      <option value="">按 POS/层号自动匹配</option>
+      {% for recipe in recipes %}
+        <option value="{{ recipe.id }}">POS {{ recipe.position_no }} / L{{ recipe.layer_no }} - {{ recipe.recipe_name }}</option>
+      {% endfor %}
+    </select>
+    <button id="btn-locate" class="btn" style="background:var(--info);min-width:160px;">
+      🎯 拍照计算补偿
+    </button>
+    <button id="btn-write-plc" class="btn btn-secondary" disabled>写入 PLC</button>
     <div class="sep"></div>
     <span id="last-locate-time" style="font-size:12px;color:var(--text-faint);">—</span>
   </div>
 
-  <!-- 双架状态卡片 -->
+  <!-- 当前点位状态卡片 -->
   <div class="rack-grid">
-    <!-- 左架 -->
     <div class="rack-card" id="rack-card-left">
       <div class="rack-card-head">
         <div class="rh-title">
           <span class="rh-icon">🏭</span>
-          左料架（LEFT）
+          当前点位定位结果
         </div>
         <span class="badge badge-muted" id="badge-left">待定位</span>
       </div>
@@ -444,6 +450,11 @@
             <div class="offset-axis">Z 轴</div>
             <div class="offset-val" id="left-z">—</div>
             <div class="offset-unit">mm</div>
+          </div>
+          <div class="offset-cell" id="cell-left-rz">
+            <div class="offset-axis">Rz</div>
+            <div class="offset-val" id="left-rz">—</div>
+            <div class="offset-unit">deg</div>
           </div>
         </div>
 
@@ -489,15 +500,15 @@
         <div class="rack-result-image" id="img-area-left">
           <div class="img-placeholder">📷 定位后显示深度相机标注图</div>
         </div>
+        <textarea id="plc-payload" rows="8" style="width:100%;margin-top:12px;font-family:Consolas,monospace;font-size:12px;" readonly></textarea>
       </div>
     </div>
 
-    <!-- 右架 -->
-    <div class="rack-card" id="rack-card-right">
+    <div class="rack-card" id="rack-card-right" style="display:none;">
       <div class="rack-card-head">
         <div class="rh-title">
           <span class="rh-icon">🏭</span>
-          右料架（RIGHT）
+          兼容容器
         </div>
         <span class="badge badge-muted" id="badge-right">待定位</span>
       </div>
@@ -577,14 +588,14 @@
         <thead>
           <tr>
             <th>时间</th>
-            <th>侧别</th>
+            <th>POS</th>
+            <th>层号</th>
             <th>X 偏差</th>
             <th>Y 偏差</th>
             <th>Z 偏差</th>
+            <th>Rz</th>
             <th>置信度</th>
-            <th>实测层高</th>
-            <th>实测层距</th>
-            <th>配方匹配</th>
+            <th>PLC</th>
             <th>状态</th>
           </tr>
         </thead>
@@ -602,9 +613,11 @@
 //  料架定位工作台 · 前端逻辑
 // ============================================================
 const RACK_API = {
-  locate:  '{% url "vision:api_rack_locate" %}',
-  results: '{% url "vision:api_rack_results" %}',
+  locate:  '{% url "vision:api_rack_location_trigger" %}',
+  writePlc: '{% url "vision:api_rack_location_write_plc" %}',
+  results: '{% url "vision:api_rack_location_results" %}',
 };
+let currentResultId = {{ latest.id|default:"null" }};
 
 function getCsrf() {
   return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
@@ -622,38 +635,52 @@ function hideRackLoading() { document.getElementById('rack-loading')?.remove(); 
 // ── 触发定位 ─────────────────────────────────────────────
 document.getElementById('btn-locate').addEventListener('click', async () => {
   setCardState('left',  'run');
-  setCardState('right', 'run');
   showRackLoading('3D 深度相机定位中，请稍候...');
   try {
     const res  = await fetch(RACK_API.locate, {
       method: 'POST',
       headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        position_no: Number(document.getElementById('position-no').value || 1),
+        layer_no: Number(document.getElementById('layer-no').value || 1),
+        recipe_id: document.getElementById('recipe-id').value,
+        write_plc: false,
+      }),
     });
     const data = await res.json();
     if (data.success) {
-      renderSide('left',  data.LEFT);
-      renderSide('right', data.RIGHT);
+      renderSide('left',  data.result);
       const now = new Date().toLocaleString('zh-CN', { hour12: false });
       document.getElementById('last-locate-time').textContent = '上次定位：' + now;
       loadHistory();
     } else {
       alert('定位失败：' + (data.error || '未知错误'));
       setCardState('left',  'idle');
-      setCardState('right', 'idle');
     }
   } catch (e) {
     alert('网络请求失败：' + e.message);
     setCardState('left',  'idle');
-    setCardState('right', 'idle');
   } finally {
     hideRackLoading();
   }
 });
 
+document.getElementById('btn-write-plc').addEventListener('click', async () => {
+  if (!currentResultId) return;
+  const res = await fetch(RACK_API.writePlc, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({result_id: currentResultId}),
+  });
+  const data = await res.json();
+  if (data.result) renderSide('left', data.result);
+});
+
 // ── 渲染单侧结果 ─────────────────────────────────────────
 function renderSide(side, data) {
-  const ok = data.is_success;
+  currentResultId = data.id || currentResultId;
+  const ok = data.locate_ok ?? data.is_success;
+  const recipeMatched = data.recipe_matched ?? ok;
   setCardState(side, ok ? 'success' : 'failed');
 
   // 状态横幅
@@ -662,7 +689,7 @@ function renderSide(side, data) {
   statusEl.innerHTML = ok
     ? '<span>✅</span> 定位成功 · 配方匹配'
     : '<span>❌</span> 定位失败 · 请检查置信度或配方</span>';
-  if (!data.recipe_matched) {
+  if (!recipeMatched) {
     statusEl.innerHTML = '<span>⚠️</span> 定位完成但配方超差，请人工核查';
     statusEl.className = 'rack-status-banner fail';
   }
@@ -671,6 +698,7 @@ function renderSide(side, data) {
   setOffsetCell(side, 'x', data.offset_x);
   setOffsetCell(side, 'y', data.offset_y);
   setOffsetCell(side, 'z', data.offset_z);
+  setOffsetCell(side, 'rz', data.offset_rz);
 
   // 置信度
   const conf = data.confidence || 0;
@@ -699,6 +727,8 @@ function renderSide(side, data) {
   const badge = document.getElementById(`badge-${side}`);
   badge.className = 'badge ' + (ok ? 'badge-ok' : 'badge-fail');
   badge.textContent = ok ? '定位 OK' : '定位 NG';
+  document.getElementById('btn-write-plc').disabled = !ok;
+  document.getElementById('plc-payload').value = JSON.stringify(data.plc_payload || {}, null, 2);
 }
 
 function setOffsetCell(side, axis, val) {
@@ -770,7 +800,9 @@ function setCardState(side, state) {
 // ── 历史记录 ─────────────────────────────────────────────
 async function loadHistory() {
   try {
-    const res  = await fetch(RACK_API.results);
+    const pos = encodeURIComponent(document.getElementById('position-no').value || '');
+    const layer = encodeURIComponent(document.getElementById('layer-no').value || '');
+    const res  = await fetch(RACK_API.results + '?position_no=' + pos + '&layer_no=' + layer);
     const data = await res.json();
     const tbody = document.getElementById('history-tbody');
     if (!data.results || !data.results.length) {
@@ -780,15 +812,15 @@ async function loadHistory() {
     tbody.innerHTML = data.results.map(r => `
       <tr>
         <td>${r.created_at || '—'}</td>
-        <td>${r.side === 'LEFT' ? '左架' : '右架'}</td>
+        <td>${r.position_no ?? '—'}</td>
+        <td>${r.layer_no ?? '—'}</td>
         <td>${fmtOffset(r.offset_x)}</td>
         <td>${fmtOffset(r.offset_y)}</td>
         <td>${fmtOffset(r.offset_z)}</td>
+        <td>${fmtOffset(r.offset_rz, '°')}</td>
         <td>${r.confidence != null ? (r.confidence * 100).toFixed(1) + '%' : '—'}</td>
-        <td>${r.measured_layer_height != null ? parseFloat(r.measured_layer_height).toFixed(1) + ' mm' : '—'}</td>
-        <td>${r.measured_layer_spacing != null ? parseFloat(r.measured_layer_spacing).toFixed(1) + ' mm' : '—'}</td>
-        <td>${r.is_recipe_matched ? '<span class="badge badge-ok">匹配</span>' : '<span class="badge badge-warn">超差</span>'}</td>
-        <td>${r.is_success ? '<span class="badge badge-ok">OK</span>' : '<span class="badge badge-fail">NG</span>'}</td>
+        <td>${r.plc_write_status || '—'}</td>
+        <td>${(r.locate_ok ?? r.is_success) ? '<span class="badge badge-ok">OK</span>' : '<span class="badge badge-fail">NG</span>'}</td>
       </tr>
     `).join('');
   } catch (e) {
@@ -797,10 +829,10 @@ async function loadHistory() {
   }
 }
 
-function fmtOffset(v) {
+function fmtOffset(v, unit='mm') {
   const n = parseFloat(v);
   if (isNaN(n)) return '—';
-  return (n > 0 ? '+' : '') + n.toFixed(2) + ' mm';
+  return (n > 0 ? '+' : '') + n.toFixed(3) + ' ' + unit;
 }
 
 document.getElementById('btn-refresh-history').addEventListener('click', loadHistory);

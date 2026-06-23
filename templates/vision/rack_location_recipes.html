@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}3D 料架定位配方{% endblock %}
+{% block content %}
+<h1>3D 料架定位配方</h1>
+<p class="muted">3D 配方独立于 2D 泡棉检测配方。现场按配方位置与层号循环拍照。</p>
+<p class="toolbar">
+  <a href="{% url 'vision:rack_location_recipe_create' %}" class="btn btn-primary">新增 3D 配方 / ROI 示教</a>
+  <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-secondary">进入定位工作台</a>
+  <a href="{% url 'vision:rack_location_history' %}" class="btn btn-secondary">历史结果</a>
+</p>
+<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+
+<section class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>新增 3D 定位配方</h2></div>
+  <div class="card-body" style="display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:12px;">
+    <label>配方名称 <input id="recipe-name" value="3D-POS-1-L1"></label>
+    <label>配方位置 <input id="position-no" type="number" min="1" value="1"></label>
+    <label>层号 <input id="layer-no" type="number" min="1" value="1"></label>
+    <label>拍照位 <input id="capture-pose-name" value="POSE-POS-1-L1"></label>
+    <label>标准 X(mm) <input id="standard-x" type="number" step="0.001" value="0"></label>
+    <label>标准 Y(mm) <input id="standard-y" type="number" step="0.001" value="0"></label>
+    <label>标准 Z(mm) <input id="standard-z" type="number" step="0.001" value="0"></label>
+    <label>置信度阈值 <input id="confidence-threshold" type="number" step="0.01" value="0.7"></label>
+    <label>最大 X(mm) <input id="max-offset-x" type="number" step="0.001" value="10"></label>
+    <label>最大 Y(mm) <input id="max-offset-y" type="number" step="0.001" value="10"></label>
+    <label>最大 Z(mm) <input id="max-offset-z" type="number" step="0.001" value="10"></label>
+    <label>手眼标定(JSON) <input id="hand-eye-config" value='{"matrix":"identity"}'></label>
+    <div style="grid-column:1/-1;">
+      <button id="btn-create-recipe" class="btn btn-primary" type="button">保存3D配方</button>
+      <span id="recipe-save-status" class="muted"></span>
+    </div>
+  </div>
+</section>
+<table class="table">
+  <thead>
+    <tr><th>配方</th><th>位置</th><th>层号</th><th>标准X</th><th>标准Y</th><th>标准Z</th><th>置信度阈值</th><th>启用</th><th>操作</th></tr>
+  </thead>
+  <tbody>
+  {% for recipe in recipes %}
+    <tr>
+      <td>{{ recipe.recipe_name }}</td>
+      <td>{{ recipe.position_no }}</td>
+      <td>{{ recipe.layer_no }}</td>
+      <td>{{ recipe.standard_x }}</td>
+      <td>{{ recipe.standard_y }}</td>
+      <td>{{ recipe.standard_z }}</td>
+      <td>{{ recipe.confidence_threshold }}</td>
+      <td>{{ recipe.enabled|yesno:"是,否" }}</td>
+      <td><a class="btn btn-secondary btn-sm" href="{% url 'vision:rack_location_recipe_edit' recipe.id %}">编辑 / ROI 示教</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="9">暂无 3D 料架定位配方，请点击上方按钮新增。</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<script>
+function csrfToken() {
+  return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+}
+function field(id) { return document.getElementById(id).value; }
+document.getElementById('btn-create-recipe').addEventListener('click', async () => {
+  const status = document.getElementById('recipe-save-status');
+  status.textContent = '保存中...';
+  let handEye = {};
+  try { handEye = JSON.parse(field('hand-eye-config') || '{}'); }
+  catch (e) { status.textContent = '手眼标定 JSON 格式错误'; return; }
+  const payload = {
+    recipe_name: field('recipe-name'),
+    position_no: Number(field('position-no')),
+    layer_no: Number(field('layer-no')),
+    capture_pose_name: field('capture-pose-name'),
+    standard_x: Number(field('standard-x')),
+    standard_y: Number(field('standard-y')),
+    standard_z: Number(field('standard-z')),
+    confidence_threshold: Number(field('confidence-threshold')),
+    max_offset_x: Number(field('max-offset-x')),
+    max_offset_y: Number(field('max-offset-y')),
+    max_offset_z: Number(field('max-offset-z')),
+    hand_eye_config: handEye,
+  };
+  const response = await fetch('{% url "vision:api_rack_location_recipes" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken()},
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (data.success) {
+    status.textContent = '已保存，刷新后可在工作台选择该配方';
+    window.location.reload();
+  } else {
+    status.textContent = '保存失败：' + (data.error || '未知错误');
+  }
+});
+</script>
+{% endblock %}

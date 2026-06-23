@@ -11,10 +11,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_http_methods
 
+from apps.devices.models import Device
 from apps.production.models import Rack, RackRecipe
 from .models import (
     CalibrationProfile,
     FoamInspectionResult,
+    RackLocationRecipe,
     RackLocationResult,
     VisionImage,
     VisionRecipe,
@@ -27,14 +29,57 @@ from .recipe_utils import (
     serialize_recipe,
 )
 from .services import VisionService
+from .rack_location import (
+    PlcVisionResultWriter,
+    RackLocationService,
+    result_payload as rack_location_result_payload,
+)
 
 
 def task_list(request):
-    tasks = (
-        VisionTask.objects.select_related('product', 'rack')
-        .prefetch_related('images', 'foam_results', 'rack_results')
-        .order_by('-created_at')[:200]
-    )
+    """视觉任务列表页面，显示最近200条任务记录
+    
+    优化查询性能并处理可能的数据库错误：
+    1. 使用 select_related 预加载外键关联（product, rack）
+    2. 使用 prefetch_related 预加载反向关联（images, foam_results, rack_results）
+    3. 限制返回最近 200 条记录
+    """
+    try:
+        # 尝试标准查询
+        tasks = (
+            VisionTask.objects
+            .select_related('product', 'rack')
+            .prefetch_related('images', 'foam_results', 'rack_results')
+            .order_by('-created_at')[:200]
+        )
+        # 强制执行查询以检测错误
+        list(tasks[:1])
+    except Exception as e:
+        # 如果 select_related 失败（可能是外键表问题），尝试不使用它
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f'VisionTask query with select_related failed: {str(e)}')
+        
+        try:
+            tasks = (
+                VisionTask.objects
+                .prefetch_related('images', 'foam_results', 'rack_results')
+                .order_by('-created_at')[:200]
+            )
+            # 强制执行查询
+            list(tasks[:1])
+        except Exception as e2:
+            # 最后尝试：只查询基本字段
+            logger.error(f'VisionTask query with prefetch_related also failed: {str(e2)}')
+            try:
+                tasks = VisionTask.objects.all().order_by('-created_at')[:200]
+                list(tasks[:1])
+            except Exception as e3:
+                # 完全失败，返回空列表并显示错误
+                logger.error(f'All VisionTask queries failed: {str(e3)}')
+                messages.error(request, f'数据库查询错误：{str(e3)}。请检查数据库迁移状态。')
+                tasks = []
+    
     return render(request, 'vision/task_list.html', {'tasks': tasks})
 
 
@@ -599,8 +644,18 @@ def api_foam_upload_inspect(request):
 # ------------------------------------------------------------------
 
 def rack_locator_panel(request):
-    """料架定位工作台页面（操作员可手动触发定位、查看左右架偏差与层高）。"""
-    return render(request, 'vision/rack_locator_panel.html')
+    """3D料架定位工作台：沿用原布局，业务改为位置/层号单次拍照补偿。"""
+    latest = (
+        RackLocationResult.objects
+        .select_related('recipe', 'vision_task')
+        .order_by('-created_at')
+        .first()
+    )
+    recipes = RackLocationRecipe.objects.filter(enabled=True).order_by('position_no', 'layer_no')
+    return render(request, 'vision/rack_locator_panel.html', {
+        'latest': latest,
+        'recipes': recipes,
+    })
 
 
 @require_POST
@@ -671,3 +726,336 @@ def api_rack_results(request):
         return JsonResponse({'success': True, 'results': results})
     except Exception as exc:
         return JsonResponse({'success': False, 'error': str(exc)})
+
+
+# ------------------------------------------------------------------
+# 3D 深度相机料架定位：按配方位置/层号单次拍照补偿
+# ------------------------------------------------------------------
+
+def _request_data(request):
+    if request.content_type and 'application/json' in request.content_type:
+        return json.loads(request.body or '{}')
+    return request.POST
+
+
+def _as_int(value, default=1):
+    if value in (None, ''):
+        return default
+    return int(value)
+
+
+def _as_float(value, default=0):
+    if value in (None, ''):
+        return default
+    return float(value)
+
+
+def _json_config(value, default=None):
+    if value in (None, ''):
+        return default if default is not None else {}
+    if isinstance(value, (dict, list)):
+        return value
+    return json.loads(value)
+
+
+def _serialize_rack_location_recipe(recipe):
+    return {
+        'id': recipe.id,
+        'recipe_name': recipe.recipe_name,
+        'rack_type': recipe.rack_type,
+        'rack_side': recipe.rack_side,
+        'position_no': recipe.position_no,
+        'layer_count': recipe.layer_count,
+        'layer_no': recipe.layer_no,
+        'camera_device_id': recipe.camera_device_id,
+        'camera_config_id': recipe.camera_config_id,
+        'capture_pose_name': recipe.capture_pose_name,
+        'standard_x': float(recipe.standard_x),
+        'standard_y': float(recipe.standard_y),
+        'standard_z': float(recipe.standard_z),
+        'standard_rz': float(recipe.standard_rz),
+        'roi_config': recipe.roi_config,
+        'reference_feature_config': recipe.reference_feature_config,
+        'hand_eye_config': recipe.hand_eye_config,
+        'max_offset_x': float(recipe.max_offset_x),
+        'max_offset_y': float(recipe.max_offset_y),
+        'max_offset_z': float(recipe.max_offset_z),
+        'max_offset_rz': float(recipe.max_offset_rz),
+        'confidence_threshold': float(recipe.confidence_threshold),
+        'enabled': recipe.enabled,
+    }
+
+
+def rack_location_workbench(request):
+    return redirect('vision:rack_locator_panel')
+
+
+def rack_location_recipes(request):
+    recipes = RackLocationRecipe.objects.order_by('position_no', 'layer_no', '-updated_at')
+    return render(request, 'vision/rack_location_recipes.html', {'recipes': recipes})
+
+
+def _rack_location_recipe_form_context(recipe=None):
+    sample = RackLocationService().capture_standard_image(recipe_id=getattr(recipe, 'id', None))
+    devices = Device.objects.filter(enabled=True).order_by('code')
+    defaults = {
+        'recipe_name': '3D-POS-1-L1',
+        'rack_type': '',
+        'rack_side': 'LEFT',
+        'position_no': 1,
+        'layer_count': 3,
+        'layer_no': 1,
+        'capture_pose_name': 'POSE-POS-1-L1',
+        'standard_x': 1200,
+        'standard_y': 350,
+        'standard_z': 850,
+        'standard_rz': 0,
+        'roi_config': {
+            'target_roi': {'x': 300, 'y': 180, 'w': 220, 'h': 160, 'feature_type': 'rack_reference'},
+        },
+        'reference_feature_config': {},
+        'hand_eye_config': {'matrix': 'identity'},
+        'max_offset_x': 20,
+        'max_offset_y': 20,
+        'max_offset_z': 20,
+        'max_offset_rz': 5,
+        'confidence_threshold': 0.8,
+        'enabled': True,
+    }
+    if recipe:
+        for key in defaults:
+            defaults[key] = getattr(recipe, key)
+    return {
+        'recipe': recipe,
+        'recipe_defaults': defaults,
+        'roi_config_json': json.dumps(defaults['roi_config'], ensure_ascii=False),
+        'reference_feature_config_json': json.dumps(defaults['reference_feature_config'], ensure_ascii=False),
+        'hand_eye_config_json': json.dumps(defaults['hand_eye_config'], ensure_ascii=False),
+        'devices': devices,
+        'sample_preview': sample,
+    }
+
+
+def _save_rack_location_recipe_from_request(request, recipe=None):
+    data = _request_data(request)
+    recipe = recipe or RackLocationRecipe()
+    recipe.recipe_name = data.get('recipe_name') or f"3D-POS-{data.get('position_no', 1)}-L{data.get('layer_no', 1)}"
+    recipe.rack_type = data.get('rack_type') or ''
+    recipe.rack_side = data.get('rack_side') or 'LEFT'
+    recipe.position_no = _as_int(data.get('position_no'), 1)
+    recipe.layer_count = _as_int(data.get('layer_count'), 3)
+    recipe.layer_no = _as_int(data.get('layer_no'), 1)
+    recipe.capture_pose_name = data.get('capture_pose_name') or ''
+    recipe.standard_x = _as_float(data.get('standard_x'), 0)
+    recipe.standard_y = _as_float(data.get('standard_y'), 0)
+    recipe.standard_z = _as_float(data.get('standard_z'), 0)
+    recipe.standard_rz = _as_float(data.get('standard_rz'), 0)
+    recipe.roi_config = _json_config(data.get('roi_config'), {})
+    recipe.reference_feature_config = _json_config(data.get('reference_feature_config'), {})
+    recipe.hand_eye_config = _json_config(data.get('hand_eye_config'), {'matrix': 'identity'})
+    recipe.max_offset_x = _as_float(data.get('max_offset_x'), 20)
+    recipe.max_offset_y = _as_float(data.get('max_offset_y'), 20)
+    recipe.max_offset_z = _as_float(data.get('max_offset_z'), 20)
+    recipe.max_offset_rz = _as_float(data.get('max_offset_rz'), 5)
+    recipe.confidence_threshold = _as_float(data.get('confidence_threshold'), 0.8)
+    recipe.enabled = _as_bool(data.get('enabled'), True)
+    camera_device_id = data.get('camera_device') or data.get('camera_device_id') or None
+    recipe.camera_device_id = camera_device_id or None
+    recipe.save()
+    return recipe
+
+
+@require_http_methods(['GET', 'POST'])
+def rack_location_recipe_create(request):
+    if request.method == 'POST':
+        try:
+            recipe = _save_rack_location_recipe_from_request(request)
+            messages.success(request, f'3D料架定位配方已保存：{recipe.recipe_name}')
+            return redirect('vision:rack_location_recipe_edit', recipe_id=recipe.id)
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            messages.error(request, f'保存失败：{exc}')
+    return render(request, 'vision/rack_location_recipe_form.html', _rack_location_recipe_form_context())
+
+
+@require_http_methods(['GET', 'POST'])
+def rack_location_recipe_edit(request, recipe_id):
+    recipe = get_object_or_404(RackLocationRecipe, pk=recipe_id)
+    if request.method == 'POST':
+        try:
+            recipe = _save_rack_location_recipe_from_request(request, recipe)
+            messages.success(request, f'3D料架定位配方已更新：{recipe.recipe_name}')
+            return redirect('vision:rack_location_recipe_edit', recipe_id=recipe.id)
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            messages.error(request, f'保存失败：{exc}')
+    return render(request, 'vision/rack_location_recipe_form.html', _rack_location_recipe_form_context(recipe))
+
+
+def rack_location_history(request):
+    results = (
+        RackLocationResult.objects
+        .select_related('recipe', 'vision_task')
+        .order_by('-created_at')[:200]
+    )
+    return render(request, 'vision/rack_location_history.html', {'results': results})
+
+
+@require_POST
+def rack_location_capture(request):
+    try:
+        data = _request_data(request)
+        payload = RackLocationService().capture_standard_image(recipe_id=data.get('recipe_id') or None)
+        return JsonResponse({'success': True, **payload})
+    except Exception as exc:  # noqa: BLE001
+        return JsonResponse({'success': False, 'error': f'相机采集失败: {exc}'}, status=400)
+
+
+@require_POST
+def rack_location_preview_calculate(request):
+    try:
+        data = _request_data(request)
+        output = RackLocationService().preview_calculate(
+            recipe_data=data.get('recipe_data') or data,
+            roi_config=data.get('roi_config') or {},
+            recipe_id=data.get('recipe_id') or None,
+        )
+        payload = output.to_payload()
+        return JsonResponse({'success': True, 'result': payload})
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@require_POST
+def api_rack_location_trigger(request):
+    try:
+        data = _request_data(request)
+        position_no = _as_int(data.get('position_no'), 1)
+        layer_no = _as_int(data.get('layer_no'), 1)
+        recipe_id = data.get('recipe_id') or None
+        write_plc = _as_bool(data.get('write_plc'), False)
+        result = RackLocationService().trigger(
+            position_no=position_no,
+            layer_no=layer_no,
+            recipe_id=recipe_id,
+            rack_side='BOTH',
+            write_plc=write_plc,
+        )
+        return JsonResponse({'success': True, 'result': rack_location_result_payload(result)})
+    except RackLocationRecipe.DoesNotExist:
+        return JsonResponse({'success': False, 'error': '未找到启用的3D料架定位配方'}, status=404)
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    except Exception as exc:  # noqa: BLE001
+        return JsonResponse({'success': False, 'error': str(exc)}, status=500)
+
+
+@require_POST
+def api_rack_location_write_plc(request):
+    try:
+        data = _request_data(request)
+        result = get_object_or_404(RackLocationResult, pk=data.get('result_id'))
+        response = PlcVisionResultWriter().write(result)
+        result.refresh_from_db()
+        return JsonResponse({
+            'success': bool(response.get('success')),
+            'plc_response': response,
+            'result': rack_location_result_payload(result),
+        })
+    except Exception as exc:  # noqa: BLE001
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@require_http_methods(['GET', 'POST'])
+def api_rack_location_recipes(request):
+    if request.method == 'GET':
+        qs = RackLocationRecipe.objects.all()
+        position_no = request.GET.get('position_no')
+        layer_no = request.GET.get('layer_no')
+        enabled = request.GET.get('enabled')
+        if position_no not in (None, ''):
+            qs = qs.filter(position_no=int(position_no))
+        if layer_no not in (None, ''):
+            qs = qs.filter(layer_no=int(layer_no))
+        if enabled not in (None, ''):
+            qs = qs.filter(enabled=_as_bool(enabled))
+        return JsonResponse({
+            'success': True,
+            'recipes': [_serialize_rack_location_recipe(recipe) for recipe in qs.order_by('position_no', 'layer_no')],
+        })
+
+    try:
+        data = _request_data(request)
+        recipe = RackLocationRecipe.objects.create(
+            recipe_name=data.get('recipe_name') or f"3D-POS-{data.get('position_no', 1)}-L{data.get('layer_no', 1)}",
+            rack_type=data.get('rack_type') or '',
+            rack_side='BOTH',
+            position_no=_as_int(data.get('position_no'), 1),
+            layer_count=_as_int(data.get('layer_count'), 3),
+            layer_no=_as_int(data.get('layer_no'), 1),
+            capture_pose_name=data.get('capture_pose_name') or '',
+            standard_x=data.get('standard_x') or 0,
+            standard_y=data.get('standard_y') or 0,
+            standard_z=data.get('standard_z') or 0,
+            standard_rz=data.get('standard_rz') or 0,
+            roi_config=data.get('roi_config') or {},
+            reference_feature_config=data.get('reference_feature_config') or {},
+            hand_eye_config=data.get('hand_eye_config') or {'matrix': 'identity'},
+            max_offset_x=data.get('max_offset_x') or 10,
+            max_offset_y=data.get('max_offset_y') or 10,
+            max_offset_z=data.get('max_offset_z') or 10,
+            max_offset_rz=data.get('max_offset_rz') or 5,
+            confidence_threshold=data.get('confidence_threshold') or 0.7,
+            enabled=_as_bool(data.get('enabled'), True),
+        )
+        return JsonResponse({'success': True, 'recipe': _serialize_rack_location_recipe(recipe)})
+    except Exception as exc:  # noqa: BLE001
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@require_POST
+def api_rack_location_recipe_update(request, recipe_id):
+    try:
+        recipe = get_object_or_404(RackLocationRecipe, pk=recipe_id)
+        data = _request_data(request)
+        updatable = [
+            'recipe_name', 'rack_type', 'capture_pose_name',
+            'standard_x', 'standard_y', 'standard_z', 'standard_rz',
+            'roi_config', 'reference_feature_config', 'hand_eye_config',
+            'max_offset_x', 'max_offset_y', 'max_offset_z', 'max_offset_rz',
+            'confidence_threshold', 'enabled',
+        ]
+        for field in updatable:
+            if field in data:
+                setattr(recipe, field, _as_bool(data[field]) if field == 'enabled' else data[field])
+        if 'position_no' in data:
+            recipe.position_no = _as_int(data.get('position_no'), recipe.position_no)
+        if 'layer_no' in data:
+            recipe.layer_no = _as_int(data.get('layer_no'), recipe.layer_no)
+        if 'layer_count' in data:
+            recipe.layer_count = _as_int(data.get('layer_count'), recipe.layer_count)
+        recipe.rack_side = 'BOTH'
+        recipe.save()
+        return JsonResponse({'success': True, 'recipe': _serialize_rack_location_recipe(recipe)})
+    except Exception as exc:  # noqa: BLE001
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@require_http_methods(['GET'])
+def api_rack_location_results(request):
+    qs = (
+        RackLocationResult.objects
+        .select_related('recipe', 'vision_task')
+        .order_by('-created_at')
+    )
+    position_no = request.GET.get('position_no')
+    layer_no = request.GET.get('layer_no')
+    locate_ok = request.GET.get('locate_ok')
+    if position_no not in (None, ''):
+        qs = qs.filter(position_no=int(position_no))
+    if layer_no not in (None, ''):
+        qs = qs.filter(layer_no=int(layer_no))
+    if locate_ok not in (None, ''):
+        qs = qs.filter(is_success=_as_bool(locate_ok))
+    return JsonResponse({
+        'success': True,
+        'results': [rack_location_result_payload(result) for result in qs[:100]],
+    })

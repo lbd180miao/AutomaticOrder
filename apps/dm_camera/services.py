@@ -299,7 +299,47 @@ class DMCameraService:
         except DMCameraException as e:
             logger.error(f"捕获帧失败: {str(e)}")
             raise
-    
+
+    def capture_frame_data(self, frame_type: str = 'DEPTH', save_record: bool = True) -> Dict:
+        """捕获一帧并返回后端算法可直接使用的数据。
+
+        原有 capture() 面向 JSON API，只返回元数据；3D 料架定位需要 numpy
+        深度图/点云数据和原始文件路径，因此提供这个服务层内部接口。
+        """
+        if not self.is_streaming:
+            raise DMCameraException("数据流未开启")
+
+        frame_type_map = {
+            'DEPTH': LWFrameType.LW_DEPTH_FRAME,
+            'IR': LWFrameType.LW_IR_FRAME,
+            'POINTCLOUD': LWFrameType.LW_POINTCLOUD_FRAME,
+        }
+        lw_frame_type = frame_type_map.get(frame_type, LWFrameType.LW_DEPTH_FRAME)
+        frame_data = self._camera.capture_frame(lw_frame_type)
+        result = {
+            'frame_type': frame_type,
+            'data': frame_data.data,
+            'width': frame_data.width,
+            'height': frame_data.height,
+            'image_width': frame_data.width,
+            'image_height': frame_data.height,
+            'frame_index': frame_data.frameIndex,
+            'confidence': 0.95,
+            'raw_data_path': '',
+            'result_image_path': '',
+            'timestamp': {
+                'sec': frame_data.timestamp.sec,
+                'usec': frame_data.timestamp.usec,
+            },
+        }
+        if save_record and self._current_session:
+            record = self._save_capture_record(frame_data, frame_type)
+            result['record_id'] = record.id
+            result['raw_data_path'] = record.data_file.name if record.data_file else ''
+            result['preview_url'] = record.preview_image.url if record.preview_image else ''
+            result['result_image_path'] = record.preview_image.name if record.preview_image else ''
+        return result
+
     def _save_capture_record(self, frame_data, frame_type: str) -> DMCaptureRecord:
         """保存采集记录"""
         config = self._current_session.config if self._current_session else None
@@ -334,9 +374,17 @@ class DMCameraService:
                 filename = f"{frame_type}_{frame_data.frameIndex}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
                 record.preview_image.save(filename, ContentFile(img_io.read()), save=True)
         
-        # 保存原始数据（可选）
-        # 这里可以保存numpy数组到文件
-        
+        # 保存原始数据，供 3D 料架定位算法追溯或离线复算。
+        try:
+            if getattr(frame_data, 'data', None) is not None:
+                raw_io = io.BytesIO()
+                np.save(raw_io, frame_data.data)
+                raw_io.seek(0)
+                filename = f"{frame_type}_{frame_data.frameIndex}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.npy"
+                record.data_file.save(filename, ContentFile(raw_io.read()), save=True)
+        except Exception as e:
+            logger.error(f"保存原始帧数据失败: {str(e)}")
+
         return record
     
     def _generate_preview_image(self, data: np.ndarray) -> Optional[Image.Image]:

@@ -17,19 +17,103 @@ class VisionTask(TimeStampedModel):
         return f'{self.task_type}:{self.status}'
 
 
+class RackLocationRecipe(TimeStampedModel):
+    """3D 深度相机料架定位配方。
+
+    该模型只服务 3D 料架定位，不与 2D 泡棉检测 VisionRecipe 混用。
+    现场按“配方位置 + 料架层号”循环拍照，每次照片只计算当前点位补偿。
+    """
+
+    recipe_name = models.CharField(max_length=128, unique=True)
+    rack_type = models.CharField(max_length=64, blank=True)
+    rack_side = models.CharField(
+        max_length=16,
+        choices=RackSide.choices,
+        default=RackSide.BOTH,
+        help_text='保留兼容字段；现场不区分左右时使用 BOTH。',
+    )
+    position_no = models.PositiveIntegerField(default=1, db_index=True)
+    layer_count = models.PositiveIntegerField(default=3)
+    layer_no = models.PositiveIntegerField(default=1, db_index=True)
+    camera_device = models.ForeignKey(
+        'devices.Device',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='rack_location_recipes',
+    )
+    camera_config = models.ForeignKey(
+        'dm_camera.DMCameraConfig',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='rack_location_recipes',
+    )
+    capture_pose_name = models.CharField(max_length=128, blank=True)
+    standard_x = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    standard_y = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    standard_z = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    standard_rz = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    roi_config = models.JSONField(default=dict, blank=True)
+    reference_feature_config = models.JSONField(default=dict, blank=True)
+    hand_eye_config = models.JSONField(default=dict, blank=True)
+    max_offset_x = models.DecimalField(max_digits=10, decimal_places=3, default=10)
+    max_offset_y = models.DecimalField(max_digits=10, decimal_places=3, default=10)
+    max_offset_z = models.DecimalField(max_digits=10, decimal_places=3, default=10)
+    max_offset_rz = models.DecimalField(max_digits=10, decimal_places=3, default=5)
+    confidence_threshold = models.DecimalField(max_digits=5, decimal_places=4, default=0.7000)
+    enabled = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['position_no', 'layer_no', '-updated_at']
+        indexes = [
+            models.Index(fields=['position_no', 'layer_no', 'enabled']),
+        ]
+
+    def __str__(self):
+        return f'{self.recipe_name}(POS {self.position_no}, L{self.layer_no})'
+
+    def applies_to(self, *, position_no, layer_no):
+        return (
+            self.enabled
+            and int(self.position_no) == int(position_no)
+            and int(self.layer_no) == int(layer_no)
+        )
+
+
 class RackLocationResult(TimeStampedModel):
     vision_task = models.ForeignKey(VisionTask, on_delete=models.CASCADE, related_name='rack_results')
+    recipe = models.ForeignKey(
+        RackLocationRecipe,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='results',
+    )
     rack = models.ForeignKey('production.Rack', null=True, blank=True, on_delete=models.SET_NULL)
     side = models.CharField(max_length=16, choices=RackSide.choices)
+    position_no = models.PositiveIntegerField(default=1, db_index=True)
+    layer_no = models.PositiveIntegerField(default=1, db_index=True)
     offset_x = models.DecimalField(max_digits=10, decimal_places=3, default=0)
     offset_y = models.DecimalField(max_digits=10, decimal_places=3, default=0)
     offset_z = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    offset_rz = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    actual_x = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    actual_y = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    actual_z = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    confidence = models.DecimalField(max_digits=5, decimal_places=4, default=0)
     measured_layer_height = models.DecimalField(max_digits=10, decimal_places=3, default=0)
     measured_layer_spacing = models.DecimalField(max_digits=10, decimal_places=3, default=0)
     recipe_layer_height = models.DecimalField(max_digits=10, decimal_places=3, default=0)
     recipe_layer_spacing = models.DecimalField(max_digits=10, decimal_places=3, default=0)
     is_recipe_matched = models.BooleanField(default=False)
     is_success = models.BooleanField(default=False)
+    error_code = models.CharField(max_length=64, blank=True)
+    error_message = models.TextField(blank=True)
+    raw_data_path = models.CharField(max_length=512, blank=True)
+    result_image_path = models.CharField(max_length=512, blank=True)
+    plc_write_status = models.CharField(max_length=32, default='SKIPPED')
+    plc_error_message = models.TextField(blank=True)
     result_data = models.JSONField(default=dict, blank=True)
 
 
