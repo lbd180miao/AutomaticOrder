@@ -44,6 +44,9 @@ urlpatterns = [
     # API — 料架定位（新增）
     path('api/rack/locate/', views.api_rack_locate, name='api_rack_locate'),
     path('api/rack/results/', views.api_rack_results, name='api_rack_results'),
+    path('api/rack-location/workbench/capture/', views.api_rack_location_workbench_capture, name='api_rack_location_workbench_capture'),
+    path('api/rack-location/workbench/calculate/', views.api_rack_location_workbench_calculate, name='api_rack_location_workbench_calculate'),
+    path('api/rack-location/workbench/save/', views.api_rack_location_workbench_save, name='api_rack_location_workbench_save'),
     path('api/rack-location/trigger/', views.api_rack_location_trigger, name='api_rack_location_trigger'),
     path('api/rack-location/write-plc/', views.api_rack_location_write_plc, name='api_rack_location_write_plc'),
     path('api/rack-location/recipes/', views.api_rack_location_recipes, name='api_rack_location_recipes'),

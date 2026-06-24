@@ -1,777 +1,284 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}3D 料架定位工作台 - AutomaticOrder{% endblock %}
 {% block content %}
 
 <style>
-/* ========== 料架定位工作台专属样式 ========== */
-.rack-workbench { display: flex; flex-direction: column; gap: 0; }
+/* ========== 3D 料架定位工作台 ========== */
+.rl-workbench { display: flex; flex-direction: column; gap: 0; }
 
-/* 标题栏 */
-.rack-title-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 18px;
-  flex-wrap: wrap;
-  gap: 12px;
+.rl-title-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 18px; flex-wrap: wrap; gap: 12px;
 }
-.rack-title-bar h1 {
-  margin: 0; font-size: 22px; font-weight: 700;
-}
-.rack-title-bar h1::before {
-  content: "";
-  display: inline-block;
-  width: 4px; height: 20px;
-  background: var(--info);
-  border-radius: 3px;
-  margin-right: 10px;
-  vertical-align: -3px;
+.rl-title-bar h1 { margin: 0; font-size: 22px; font-weight: 700; }
+.rl-title-bar h1::before {
+  content: ""; display: inline-block; width: 4px; height: 20px;
+  background: var(--info); border-radius: 3px; margin-right: 10px; vertical-align: -3px;
 }
 
-/* 操作流程提示横幅 */
-.workflow-banner {
-  background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
-  border: 1px solid #bae6fd;
-  border-left: 4px solid var(--info);
-  border-radius: var(--radius);
-  padding: 14px 18px;
-  margin-bottom: 18px;
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
+/* 配方/点位控制栏 */
+.rl-control-bar {
+  display: flex; align-items: center; gap: 12px; padding: 14px 18px;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm); margin-bottom: 18px; flex-wrap: wrap;
 }
-.workflow-banner .wb-icon { font-size: 24px; flex-shrink: 0; margin-top: 2px; }
-.workflow-banner .wb-body h3 {
-  margin: 0 0 6px;
-  font-size: 14px;
-  font-weight: 700;
-  color: #0369a1;
-}
-.workflow-banner .wb-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 18px;
-  list-style: none;
-  padding: 0; margin: 0;
-  font-size: 13px;
-  color: #0c4a6e;
-}
-.workflow-banner .wb-steps li::before {
-  content: "▶ ";
-  color: var(--info);
-}
+.rl-control-bar .ctrl-label { font-weight: 700; font-size: 14px; white-space: nowrap; }
+.rl-control-bar select, .rl-control-bar input { width: auto; min-width: auto; padding: 7px 12px; }
+.rl-control-bar input[type=number] { width: 80px; }
+.rl-control-bar .sep { width: 1px; height: 30px; background: var(--border); }
 
-/* 主控制栏 */
-.rack-control-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 18px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 18px;
-  flex-wrap: wrap;
-}
-.rack-control-bar .ctrl-label {
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--text);
-  white-space: nowrap;
-}
-.rack-control-bar select, .rack-control-bar input {
-  width: auto; min-width: auto; padding: 7px 12px;
-}
-.rack-control-bar .sep {
-  width: 1px; height: 30px;
-  background: var(--border);
-  flex-shrink: 0;
-}
+/* 主体双栏 */
+.rl-main { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 1024px) { .rl-main { grid-template-columns: 1fr; } }
 
-/* 定位结果卡片网格 */
-.rack-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-  margin-bottom: 18px;
+.rl-panel {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm); overflow: hidden;
 }
-
-/* 单架状态卡 */
-.rack-card {
-  background: #fff;
-  border: 2px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s;
+.rl-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 18px; border-bottom: 1px solid var(--border); background: var(--surface-2);
 }
-.rack-card.success { border-color: var(--success); }
-.rack-card.failed  { border-color: var(--danger);  }
-.rack-card.running { border-color: var(--primary);
-  box-shadow: 0 0 0 4px var(--primary-soft); }
-
-.rack-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 13px 18px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
-}
-.rack-card-head .rh-title {
-  font-size: 16px;
-  font-weight: 800;
-  color: #1f2937;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.rack-card-head .rh-icon { font-size: 22px; }
-.rack-card-body { padding: 16px 18px; }
-
-/* 状态横幅 */
-.rack-status-banner {
-  border-radius: var(--radius-sm);
-  padding: 10px 14px;
-  margin-bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 700;
-}
-.rack-status-banner.ok   { background: var(--success-soft); color: var(--success); border: 1px solid var(--success); }
-.rack-status-banner.fail { background: var(--danger-soft);  color: var(--danger);  border: 1px solid var(--danger);  }
-.rack-status-banner.idle { background: var(--surface-2);    color: var(--text-muted); border: 1px dashed var(--border); }
-.rack-status-banner.run  { background: var(--primary-soft); color: var(--primary); border: 1px solid var(--primary); }
-
-/* 偏差数值 */
-.offset-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 14px;
-}
-.offset-cell {
-  text-align: center;
-  padding: 10px 8px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-.offset-axis {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-muted);
-  margin-bottom: 4px;
-}
-.offset-val {
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-.offset-unit { font-size: 11px; color: var(--text-faint); font-weight: 400; }
-.offset-cell.positive .offset-val { color: #d97706; }
-.offset-cell.negative .offset-val { color: var(--info); }
-.offset-cell.zero .offset-val     { color: var(--success); }
-
-/* 层高可视化 */
-.layer-vis {
-  margin-bottom: 14px;
-}
-.layer-vis-title {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
-.layer-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.layer-bar-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.layer-bar-label {
-  width: 28px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-align: right;
-  flex-shrink: 0;
-}
-.layer-bar-track {
-  flex: 1;
-  height: 20px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  position: relative;
-}
-.layer-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--info) 0%, var(--primary) 100%);
-  border-radius: 10px;
-  transition: width 0.5s ease;
-  min-width: 2px;
-}
-.layer-bar-val {
-  width: 60px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-/* 置信度 */
-.confidence-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-.confidence-bar-track {
-  flex: 1;
-  height: 10px;
-  background: var(--surface-2);
-  border-radius: 999px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-}
-.confidence-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.5s, background 0.3s;
-}
-.confidence-bar-fill.high { background: var(--success); }
-.confidence-bar-fill.mid  { background: var(--warn); }
-.confidence-bar-fill.low  { background: var(--danger); }
-.confidence-label { font-size: 12px; font-weight: 700; width: 42px; text-align: right; }
-.conf-high { color: var(--success); }
-.conf-mid  { color: var(--warn); }
-.conf-low  { color: var(--danger); }
-
-/* 配方比对 */
-.recipe-compare {
-  margin-top: 12px;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-}
-.recipe-compare h4 {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  color: var(--text-muted);
-  margin: 0 0 8px;
-}
-.recipe-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 5px 0;
-  border-bottom: 1px dashed var(--border);
-  font-size: 12.5px;
-}
-.recipe-row:last-child { border-bottom: none; }
-.recipe-row .r-key { color: var(--text-faint); }
-.recipe-row .r-vals { display: flex; gap: 12px; }
-.recipe-row .r-expected { color: var(--text-muted); }
-.recipe-row .r-measured { font-weight: 700; color: var(--text); }
-.recipe-row .r-diff { font-size: 11px; }
-.r-diff.ok   { color: var(--success); }
-.r-diff.warn { color: var(--warn); }
-
-/* 结果图 */
-.rack-result-image {
-  width: 100%;
-  background: #0f1623;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 160px;
-  margin-top: 12px;
-}
-.rack-result-image img {
-  max-width: 100%;
-  max-height: 240px;
-  object-fit: contain;
-}
-.rack-result-image .img-placeholder {
-  color: #4b5563;
-  font-size: 13px;
-  text-align: center;
-  padding: 20px;
-}
-
-/* 历史列表 */
-.rack-panel {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-.rack-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 13px 18px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
-}
-.rack-panel-head h2 {
+.rl-panel-head h2 {
   margin: 0; font-size: 15px; font-weight: 700; color: #1f2937;
   display: flex; align-items: center; gap: 8px;
 }
-.rack-panel-head h2::before {
-  content: "";
-  width: 3px; height: 14px;
-  background: var(--info);
-  border-radius: 2px;
-}
+.rl-panel-head h2::before { content: ""; width: 3px; height: 14px; background: var(--info); border-radius: 2px; }
+.rl-panel-body { padding: 16px; }
 
-/* Loading 遮罩 */
-#rack-loading {
-  position: fixed; inset: 0;
-  background: rgba(15,22,35,0.55);
+/* 点云画布舞台 */
+.rl-image-stage {
+  position: relative; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden;
+  background: #0f172a; min-height: 360px;
   display: flex; align-items: center; justify-content: center;
-  z-index: 9999;
-  backdrop-filter: blur(2px);
 }
-.rack-loading-card {
-  background: #fff; border-radius: var(--radius);
-  padding: 30px 40px; text-align: center;
-  box-shadow: var(--shadow-lg); min-width: 200px;
+.rl-image-stage img { display: block; width: 100%; height: auto; }
+.rl-image-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+.rl-placeholder { color: #6b7280; text-align: center; padding: 40px 20px; }
+.rl-placeholder .cam-icon { font-size: 48px; opacity: 0.5; margin-bottom: 10px; }
+.rl-roi-readout {
+  position: absolute; left: 8px; bottom: 8px; padding: 3px 8px; border-radius: 6px;
+  background: rgba(15, 23, 42, 0.78); color: #e2e8f0;
+  font: 600 12px/1.4 ui-monospace, Menlo, monospace; pointer-events: none;
 }
-.rack-spinner {
-  border: 4px solid #e5e7eb;
-  border-top: 4px solid var(--info);
-  border-radius: 50%;
-  width: 44px; height: 44px;
-  animation: spin 0.9s linear infinite;
-  margin: 0 auto 14px;
+.rl-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.rl-actions .btn { flex: 1; min-width: 120px; }
+.rl-status { font-size: 12px; color: var(--text-muted); margin-top: 10px; font-style: italic; }
+.rl-source-chip {
+  display: inline-block; margin-top: 8px; padding: 2px 10px; border-radius: 999px;
+  font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted);
 }
-@keyframes spin { to { transform: rotate(360deg); } }
-.rack-loading-card p { margin: 0; font-weight: 600; color: var(--text); }
 
-/* 响应式 */
-@media (max-width: 900px) {
-  .rack-grid { grid-template-columns: 1fr; }
+/* 判定横幅 */
+.rl-verdict {
+  border-radius: var(--radius-sm); padding: 16px 18px; margin-bottom: 14px;
+  display: flex; align-items: center; gap: 14px;
 }
+.rl-verdict.ok   { background: var(--success-soft); border: 2px solid var(--success); }
+.rl-verdict.fail { background: var(--danger-soft);  border: 2px solid var(--danger); }
+.rl-verdict.idle { background: var(--surface-2); border: 2px dashed var(--border); }
+.rl-verdict .v-icon { font-size: 36px; }
+.rl-verdict .v-text strong { display: block; font-size: 18px; font-weight: 800; }
+.rl-verdict.ok   .v-text strong { color: var(--success); }
+.rl-verdict.fail .v-text strong { color: var(--danger); }
+.rl-verdict.idle .v-text strong { color: var(--text-muted); }
+.rl-verdict .v-sub { font-size: 13px; color: var(--text-muted); margin-top: 3px; }
+
+/* 偏差网格 */
+.rl-offset-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+.rl-offset-cell {
+  text-align: center; padding: 10px 8px; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.rl-offset-axis { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+.rl-offset-val { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rl-offset-unit { font-size: 11px; color: var(--text-faint); }
+.rl-offset-cell.positive .rl-offset-val { color: #d97706; }
+.rl-offset-cell.negative .rl-offset-val { color: var(--info); }
+.rl-offset-cell.zero .rl-offset-val { color: var(--success); }
+.rl-offset-cell.out .rl-offset-val { color: var(--danger); }
+
+/* 置信度 */
+.rl-conf-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.rl-conf-track { flex: 1; height: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+.rl-conf-fill { height: 100%; border-radius: 999px; transition: width 0.4s, background 0.3s; width: 0; }
+.rl-conf-fill.high { background: var(--success); } .rl-conf-fill.mid { background: var(--warn); } .rl-conf-fill.low { background: var(--danger); }
+.rl-conf-label { font-size: 12px; font-weight: 700; width: 48px; text-align: right; }
+
+/* 结果图 */
+.rl-result-image {
+  width: 100%; background: #0f1623; border-radius: 6px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; min-height: 200px; margin-bottom: 12px;
+}
+.rl-result-image img { max-width: 100%; max-height: 320px; object-fit: contain; }
+.rl-result-image .ph { color: #4b5563; font-size: 13px; text-align: center; padding: 30px; }
+
+.rl-detail-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.rl-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px;
+  font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted);
+}
+.rl-chip strong { color: var(--text); }
+
+/* 次级区块 */
+.rl-secondary { margin-top: 18px; }
+.rl-auto-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 18px; }
+.rl-auto-bar input[type=number] { width: 80px; }
+
+/* Loading */
+#rl-loading { position: fixed; inset: 0; background: rgba(15,22,35,0.55); display: flex; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(2px); }
+.rl-loading-card { background: #fff; border-radius: var(--radius); padding: 30px 40px; text-align: center; box-shadow: var(--shadow-lg); }
+.rl-spinner { border: 4px solid #e5e7eb; border-top: 4px solid var(--info); border-radius: 50%; width: 44px; height: 44px; animation: spin 0.9s linear infinite; margin: 0 auto 14px; }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 
-<div class="rack-workbench">
+<div class="rl-workbench">
 
   <!-- 标题栏 -->
-  <div class="rack-title-bar">
+  <div class="rl-title-bar">
     <h1>3D 料架定位工作台 - AutomaticOrder</h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <a href="{% url 'vision:rack_results' %}" class="btn btn-secondary btn-sm">历史记录</a>
+      <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-secondary btn-sm">🧩 配方管理</a>
+      <a href="{% url 'vision:rack_location_history' %}" class="btn btn-secondary btn-sm">历史记录</a>
       <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
     </div>
   </div>
 
-  <!-- 操作流程说明 -->
-  <div class="workflow-banner">
-    <div class="wb-icon">📡</div>
-    <div class="wb-body">
-      <h3>3D 深度相机定位流程 · 按配方位置和层号单次拍照补偿</h3>
-      <ul class="wb-steps">
-        <li>选择当前配方位置 POS 与当前层号</li>
-        <li>机器人携带 3D 相机移动到该配方拍照位</li>
-        <li>拍一张深度图 / 点云，计算当前点位 X/Y/Z/Rz 补偿</li>
-        <li>页面保留本次补偿数据与 PLC payload</li>
-        <li>确认 OK 后写入 PLC，然后进入下一循环点位</li>
-      </ul>
+  <!-- 配方 / 点位控制栏 -->
+  <div class="rl-control-bar">
+    <span class="ctrl-label">🧩 配方：</span>
+    <select id="recipe-id">
+      <option value="">不绑定配方（用下方坐标计算）</option>
+      {% for recipe in recipes %}
+        <option value="{{ recipe.id }}"
+                data-pos="{{ recipe.position_no }}" data-layer="{{ recipe.layer_no }}"
+                data-sx="{{ recipe.standard_x }}" data-sy="{{ recipe.standard_y }}" data-sz="{{ recipe.standard_z }}"
+                data-mox="{{ recipe.max_offset_x }}" data-moy="{{ recipe.max_offset_y }}" data-moz="{{ recipe.max_offset_z }}"
+                data-conf="{{ recipe.confidence_threshold }}">
+          POS {{ recipe.position_no }} / L{{ recipe.layer_no }} - {{ recipe.recipe_name }}
+        </option>
+      {% endfor %}
+    </select>
+    <span class="ctrl-label">POS</span>
+    <input id="position-no" type="number" min="1" value="{{ latest.position_no|default:1 }}">
+    <span class="ctrl-label">层号</span>
+    <input id="layer-no" type="number" min="1" value="{{ latest.layer_no|default:1 }}">
+    <div class="sep"></div>
+    <span id="last-time" style="font-size:12px;color:var(--text-faint);">—</span>
+  </div>
+
+  <!-- 双栏 -->
+  <div class="rl-main">
+
+    <!-- 左栏：点云 + ROI -->
+    <div class="rl-panel">
+      <div class="rl-panel-head">
+        <h2>3D 点云 · 拖拽绘制 ROI</h2>
+        <span class="badge badge-muted">深度伪彩</span>
+      </div>
+      <div class="rl-panel-body">
+        <div class="rl-image-stage" id="rl-stage">
+          <img id="rl-depth-image" src="" alt="3D 点云" style="display:none;">
+          <canvas id="rl-canvas" style="display:none;"></canvas>
+          <div class="rl-placeholder" id="rl-placeholder">
+            <div class="cam-icon">📡</div>
+            <p>点击「采集点云」获取 3D 深度相机画面</p>
+          </div>
+          <div class="rl-roi-readout" id="rl-roi-readout" style="display:none;">拖拽绘制 ROI</div>
+        </div>
+        <div class="rl-actions">
+          <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
+          <button id="btn-redraw" class="btn btn-secondary">重画 ROI</button>
+          <button id="btn-calculate" class="btn btn-success" style="background:var(--success);">🎯 计算偏差</button>
+        </div>
+        <span class="rl-source-chip" id="rl-source">数据源 —</span>
+        <p class="rl-status" id="rl-status">先选择配方，再采集点云。</p>
+      </div>
+    </div>
+
+    <!-- 右栏：结果 -->
+    <div class="rl-panel">
+      <div class="rl-panel-head">
+        <h2>计算结果 · 坐标偏差</h2>
+        <button id="btn-save" class="btn btn-sm" style="background:var(--primary);" disabled>💾 保存结果到数据库</button>
+      </div>
+      <div class="rl-panel-body">
+        <div class="rl-verdict idle" id="rl-verdict">
+          <div class="v-icon" id="rl-verdict-icon">⏳</div>
+          <div class="v-text">
+            <strong id="rl-verdict-text">等待计算</strong>
+            <div class="v-sub" id="rl-verdict-sub">采集点云并绘制 ROI 后点击「计算偏差」</div>
+          </div>
+        </div>
+
+        <div class="rl-offset-grid">
+          <div class="rl-offset-cell" id="cell-x"><div class="rl-offset-axis">X 轴</div><div class="rl-offset-val" id="off-x">—</div><div class="rl-offset-unit">mm</div></div>
+          <div class="rl-offset-cell" id="cell-y"><div class="rl-offset-axis">Y 轴</div><div class="rl-offset-val" id="off-y">—</div><div class="rl-offset-unit">mm</div></div>
+          <div class="rl-offset-cell" id="cell-z"><div class="rl-offset-axis">Z 轴</div><div class="rl-offset-val" id="off-z">—</div><div class="rl-offset-unit">mm</div></div>
+          <div class="rl-offset-cell" id="cell-rz"><div class="rl-offset-axis">Rz</div><div class="rl-offset-val" id="off-rz">—</div><div class="rl-offset-unit">deg</div></div>
+        </div>
+
+        <div class="rl-conf-row">
+          <span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">置信度</span>
+          <div class="rl-conf-track"><div class="rl-conf-fill" id="conf-bar"></div></div>
+          <span class="rl-conf-label" id="conf-val">—</span>
+        </div>
+
+        <div class="rl-result-image" id="rl-result-image">
+          <div class="ph" id="rl-result-ph">计算完成后，此处显示带 ROI 框的点云结果图</div>
+          <img id="rl-result-img" src="" alt="计算结果" style="display:none;">
+        </div>
+
+        <div class="rl-detail-row" id="rl-detail" style="display:none;">
+          <div class="rl-chip">实测 X <strong id="d-ax">—</strong></div>
+          <div class="rl-chip">实测 Y <strong id="d-ay">—</strong></div>
+          <div class="rl-chip">实测 Z <strong id="d-az">—</strong></div>
+          <div class="rl-chip">有效点 <strong id="d-points">—</strong></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 次级区块：自动触发 + 历史 -->
+  <div class="rl-panel rl-secondary">
+    <div class="rl-panel-head">
+      <h2>自动按 POS / 层号拍照计算（后续接 PLC）</h2>
+    </div>
+    <div class="rl-auto-bar">
+      <span class="ctrl-label">使用配方保存的 ROI 直接定位：</span>
+      <button id="btn-auto-trigger" class="btn btn-secondary">⚙️ 自动拍照计算</button>
+      <span class="rl-status" id="rl-auto-status" style="margin-top:0;"></span>
     </div>
   </div>
 
-  <!-- 控制栏 -->
-  <div class="rack-control-bar">
-    <span class="ctrl-label">📐 当前点位：</span>
-    <label>POS <input id="position-no" type="number" min="1" value="{{ latest.position_no|default:1 }}"></label>
-    <label>层号 <input id="layer-no" type="number" min="1" value="{{ latest.layer_no|default:1 }}"></label>
-    <span class="ctrl-label">配方：</span>
-    <select id="recipe-id">
-      <option value="">按 POS/层号自动匹配</option>
-      {% for recipe in recipes %}
-        <option value="{{ recipe.id }}">POS {{ recipe.position_no }} / L{{ recipe.layer_no }} - {{ recipe.recipe_name }}</option>
-      {% endfor %}
-    </select>
-    <button id="btn-locate" class="btn" style="background:var(--info);min-width:160px;">
-      🎯 拍照计算补偿
-    </button>
-    <button id="btn-write-plc" class="btn btn-secondary" disabled>写入 PLC</button>
-    <div class="sep"></div>
-    <span id="last-locate-time" style="font-size:12px;color:var(--text-faint);">—</span>
-  </div>
-
-  <!-- 当前点位状态卡片 -->
-  <div class="rack-grid">
-    <div class="rack-card" id="rack-card-left">
-      <div class="rack-card-head">
-        <div class="rh-title">
-          <span class="rh-icon">🏭</span>
-          当前点位定位结果
-        </div>
-        <span class="badge badge-muted" id="badge-left">待定位</span>
-      </div>
-      <div class="rack-card-body">
-        <div class="rack-status-banner idle" id="status-left">
-          <span>⏳</span> 等待定位
-        </div>
-
-        <!-- X/Y/Z 偏差 -->
-        <div class="offset-grid">
-          <div class="offset-cell" id="cell-left-x">
-            <div class="offset-axis">X 轴</div>
-            <div class="offset-val" id="left-x">—</div>
-            <div class="offset-unit">mm</div>
-          </div>
-          <div class="offset-cell" id="cell-left-y">
-            <div class="offset-axis">Y 轴</div>
-            <div class="offset-val" id="left-y">—</div>
-            <div class="offset-unit">mm</div>
-          </div>
-          <div class="offset-cell" id="cell-left-z">
-            <div class="offset-axis">Z 轴</div>
-            <div class="offset-val" id="left-z">—</div>
-            <div class="offset-unit">mm</div>
-          </div>
-          <div class="offset-cell" id="cell-left-rz">
-            <div class="offset-axis">Rz</div>
-            <div class="offset-val" id="left-rz">—</div>
-            <div class="offset-unit">deg</div>
-          </div>
-        </div>
-
-        <!-- 置信度 -->
-        <div class="confidence-row">
-          <span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">置信度</span>
-          <div class="confidence-bar-track">
-            <div class="confidence-bar-fill idle" id="conf-bar-left" style="width:0%"></div>
-          </div>
-          <span class="confidence-label" id="conf-val-left">—</span>
-        </div>
-
-        <!-- 层高可视化 -->
-        <div class="layer-vis">
-          <div class="layer-vis-title">📏 各层实测高度</div>
-          <div class="layer-bars" id="layer-bars-left">
-            <div style="color:var(--text-faint);font-size:12px;text-align:center;padding:10px;">待定位后显示</div>
-          </div>
-        </div>
-
-        <!-- 配方比对 -->
-        <div class="recipe-compare" id="recipe-compare-left" style="display:none;">
-          <h4>🔍 配方比对</h4>
-          <div class="recipe-row">
-            <span class="r-key">层高</span>
-            <div class="r-vals">
-              <span class="r-expected" id="left-recipe-height">期望 —</span>
-              <span class="r-measured" id="left-measured-height">实测 —</span>
-              <span class="r-diff" id="left-diff-height">—</span>
-            </div>
-          </div>
-          <div class="recipe-row">
-            <span class="r-key">层距</span>
-            <div class="r-vals">
-              <span class="r-expected" id="left-recipe-spacing">期望 —</span>
-              <span class="r-measured" id="left-measured-spacing">实测 —</span>
-              <span class="r-diff" id="left-diff-spacing">—</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 结果图 -->
-        <div class="rack-result-image" id="img-area-left">
-          <div class="img-placeholder">📷 定位后显示深度相机标注图</div>
-        </div>
-        <textarea id="plc-payload" rows="8" style="width:100%;margin-top:12px;font-family:Consolas,monospace;font-size:12px;" readonly></textarea>
-      </div>
-  </div>
-
-  <!-- 最近定位历史 -->
-  <div class="rack-panel">
-    <div class="rack-panel-head">
+  <div class="rl-panel rl-secondary">
+    <div class="rl-panel-head">
       <h2>最近定位记录</h2>
       <button id="btn-refresh-history" class="btn btn-secondary btn-sm">刷新</button>
     </div>
     <div style="overflow-x:auto;">
       <table class="data-table">
         <thead>
-          <tr>
-            <th>时间</th>
-            <th>POS</th>
-            <th>层号</th>
-            <th>X 偏差</th>
-            <th>Y 偏差</th>
-            <th>Z 偏差</th>
-            <th>Rz</th>
-            <th>置信度</th>
-            <th>PLC</th>
-            <th>状态</th>
-          </tr>
+          <tr><th>时间</th><th>POS</th><th>层号</th><th>X 偏差</th><th>Y 偏差</th><th>Z 偏差</th><th>Rz</th><th>置信度</th><th>状态</th></tr>
         </thead>
-        <tbody id="history-tbody">
-          <tr><td colspan="10" class="empty">加载中...</td></tr>
-        </tbody>
+        <tbody id="history-tbody"><tr><td colspan="9" class="empty">加载中...</td></tr></tbody>
       </table>
     </div>
   </div>
 
 </div>
 
+<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 <script>
-// ============================================================
-//  料架定位工作台 · 前端逻辑
-// ============================================================
-const RACK_API = {
-  locate:  '{% url "vision:api_rack_location_trigger" %}',
-  writePlc: '{% url "vision:api_rack_location_write_plc" %}',
-  results: '{% url "vision:api_rack_location_results" %}',
+window.rackLocatorConfig = {
+  captureUrl:   '{% url "vision:api_rack_location_workbench_capture" %}',
+  calculateUrl: '{% url "vision:api_rack_location_workbench_calculate" %}',
+  saveUrl:      '{% url "vision:api_rack_location_workbench_save" %}',
+  triggerUrl:   '{% url "vision:api_rack_location_trigger" %}',
+  resultsUrl:   '{% url "vision:api_rack_location_results" %}',
 };
-let currentResultId = {{ latest.id|default:"null" }};
-
-function getCsrf() {
-  return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
-}
-
-function showRackLoading(msg = '定位拍照中...') {
-  if (document.getElementById('rack-loading')) return;
-  const el = document.createElement('div');
-  el.id = 'rack-loading';
-  el.innerHTML = `<div class="rack-loading-card"><div class="rack-spinner"></div><p>${msg}</p></div>`;
-  document.body.appendChild(el);
-}
-function hideRackLoading() { document.getElementById('rack-loading')?.remove(); }
-
-// ── 触发定位 ─────────────────────────────────────────────
-document.getElementById('btn-locate').addEventListener('click', async () => {
-  setCardState('left',  'run');
-  showRackLoading('3D 深度相机定位中，请稍候...');
-  try {
-    const res  = await fetch(RACK_API.locate, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        position_no: Number(document.getElementById('position-no').value || 1),
-        layer_no: Number(document.getElementById('layer-no').value || 1),
-        recipe_id: document.getElementById('recipe-id').value,
-        write_plc: false,
-      }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      renderSide('left',  data.result);
-      const now = new Date().toLocaleString('zh-CN', { hour12: false });
-      document.getElementById('last-locate-time').textContent = '上次定位：' + now;
-      loadHistory();
-    } else {
-      alert('定位失败：' + (data.error || '未知错误'));
-      setCardState('left',  'idle');
-    }
-  } catch (e) {
-    alert('网络请求失败：' + e.message);
-    setCardState('left',  'idle');
-  } finally {
-    hideRackLoading();
-  }
-});
-
-document.getElementById('btn-write-plc').addEventListener('click', async () => {
-  if (!currentResultId) return;
-  const res = await fetch(RACK_API.writePlc, {
-    method: 'POST',
-    headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({result_id: currentResultId}),
-  });
-  const data = await res.json();
-  if (data.result) renderSide('left', data.result);
-});
-
-// ── 渲染单侧结果 ─────────────────────────────────────────
-function renderSide(side, data) {
-  currentResultId = data.id || currentResultId;
-  const ok = data.locate_ok ?? data.is_success;
-  const recipeMatched = data.recipe_matched ?? ok;
-  setCardState(side, ok ? 'success' : 'failed');
-
-  // 状态横幅
-  const statusEl = document.getElementById(`status-${side}`);
-  statusEl.className = `rack-status-banner ${ok ? 'ok' : 'fail'}`;
-  statusEl.innerHTML = ok
-    ? '<span>✅</span> 定位成功 · 配方匹配'
-    : '<span>❌</span> 定位失败 · 请检查置信度或配方</span>';
-  if (!recipeMatched) {
-    statusEl.innerHTML = '<span>⚠️</span> 定位完成但配方超差，请人工核查';
-    statusEl.className = 'rack-status-banner fail';
-  }
-
-  // X/Y/Z 偏差
-  setOffsetCell(side, 'x', data.offset_x);
-  setOffsetCell(side, 'y', data.offset_y);
-  setOffsetCell(side, 'z', data.offset_z);
-  setOffsetCell(side, 'rz', data.offset_rz);
-
-  // 置信度
-  const conf = data.confidence || 0;
-  const bar  = document.getElementById(`conf-bar-${side}`);
-  const valEl= document.getElementById(`conf-val-${side}`);
-  bar.style.width = Math.min(100, conf * 100) + '%';
-  bar.className = 'confidence-bar-fill ' + (conf >= 0.8 ? 'high' : conf >= 0.7 ? 'mid' : 'low');
-  valEl.textContent = (conf * 100).toFixed(1) + '%';
-  valEl.className = 'confidence-label ' + (conf >= 0.8 ? 'conf-high' : conf >= 0.7 ? 'conf-mid' : 'conf-low');
-
-  // 层高可视化
-  renderLayerBars(side, data.layer_heights || []);
-
-  // 配方比对
-  if (data.recipe_layer_height != null) {
-    renderRecipeCompare(side, data);
-  }
-
-  // 结果图
-  if (data.result_image_url) {
-    const area = document.getElementById(`img-area-${side}`);
-    area.innerHTML = `<img src="${data.result_image_url}?t=${Date.now()}" alt="${side} 定位结果">`;
-  }
-
-  // 角标
-  const badge = document.getElementById(`badge-${side}`);
-  badge.className = 'badge ' + (ok ? 'badge-ok' : 'badge-fail');
-  badge.textContent = ok ? '定位 OK' : '定位 NG';
-  document.getElementById('btn-write-plc').disabled = !ok;
-  document.getElementById('plc-payload').value = JSON.stringify(data.plc_payload || {}, null, 2);
-}
-
-function setOffsetCell(side, axis, val) {
-  const cell   = document.getElementById(`cell-${side}-${axis}`);
-  const valEl  = document.getElementById(`${side}-${axis}`);
-  const num    = parseFloat(val);
-  valEl.textContent = isNaN(num) ? '—' : (num > 0 ? '+' : '') + num.toFixed(2);
-  cell.classList.remove('positive', 'negative', 'zero');
-  if (!isNaN(num)) {
-    if (Math.abs(num) < 0.01) cell.classList.add('zero');
-    else if (num > 0) cell.classList.add('positive');
-    else cell.classList.add('negative');
-  }
-}
-
-function renderLayerBars(side, heights) {
-  const container = document.getElementById(`layer-bars-${side}`);
-  if (!heights.length) {
-    container.innerHTML = '<div style="color:var(--text-faint);font-size:12px;text-align:center;padding:10px;">无层高数据</div>';
-    return;
-  }
-  const max = Math.max(...heights);
-  container.innerHTML = heights.map((h, i) => {
-    const pct = max > 0 ? (h / max * 100) : 50;
-    return `
-      <div class="layer-bar-row">
-        <span class="layer-bar-label">L${i + 1}</span>
-        <div class="layer-bar-track">
-          <div class="layer-bar-fill" style="width:${pct}%"></div>
-        </div>
-        <span class="layer-bar-val">${h.toFixed(1)} mm</span>
-      </div>
-    `;
-  }).join('');
-}
-
-function renderRecipeCompare(side, data) {
-  const panel = document.getElementById(`recipe-compare-${side}`);
-  panel.style.display = '';
-
-  const rh  = parseFloat(data.recipe_layer_height)  || 0;
-  const rs  = parseFloat(data.recipe_layer_spacing)  || 0;
-  const mh  = parseFloat(data.measured_layer_height)  || 0;
-  const ms  = parseFloat(data.measured_layer_spacing) || 0;
-  const dh  = Math.abs(mh - rh);
-  const ds  = Math.abs(ms - rs);
-
-  document.getElementById(`${side}-recipe-height`).textContent  = `期望 ${rh.toFixed(1)}mm`;
-  document.getElementById(`${side}-measured-height`).textContent = `实测 ${mh.toFixed(1)}mm`;
-  const diffH = document.getElementById(`${side}-diff-height`);
-  diffH.textContent = `Δ${dh.toFixed(2)}mm`;
-  diffH.className   = `r-diff ${dh <= 3 ? 'ok' : 'warn'}`;
-
-  document.getElementById(`${side}-recipe-spacing`).textContent  = `期望 ${rs.toFixed(1)}mm`;
-  document.getElementById(`${side}-measured-spacing`).textContent = `实测 ${ms.toFixed(1)}mm`;
-  const diffS = document.getElementById(`${side}-diff-spacing`);
-  diffS.textContent = `Δ${ds.toFixed(2)}mm`;
-  diffS.className   = `r-diff ${ds <= 3 ? 'ok' : 'warn'}`;
-}
-
-function setCardState(side, state) {
-  const card = document.getElementById(`rack-card-${side}`);
-  card.classList.remove('success', 'failed', 'running');
-  if (state === 'success') card.classList.add('success');
-  else if (state === 'failed') card.classList.add('failed');
-  else if (state === 'run') card.classList.add('running');
-}
-
-// ── 历史记录 ─────────────────────────────────────────────
-async function loadHistory() {
-  try {
-    const pos = encodeURIComponent(document.getElementById('position-no').value || '');
-    const layer = encodeURIComponent(document.getElementById('layer-no').value || '');
-    const res  = await fetch(RACK_API.results + '?position_no=' + pos + '&layer_no=' + layer);
-    const data = await res.json();
-    const tbody = document.getElementById('history-tbody');
-    if (!data.results || !data.results.length) {
-      tbody.innerHTML = '<tr><td colspan="10" class="empty">暂无定位记录</td></tr>';
-      return;
-    }
-    tbody.innerHTML = data.results.map(r => `
-      <tr>
-        <td>${r.created_at || '—'}</td>
-        <td>${r.position_no ?? '—'}</td>
-        <td>${r.layer_no ?? '—'}</td>
-        <td>${fmtOffset(r.offset_x)}</td>
-        <td>${fmtOffset(r.offset_y)}</td>
-        <td>${fmtOffset(r.offset_z)}</td>
-        <td>${fmtOffset(r.offset_rz, '°')}</td>
-        <td>${r.confidence != null ? (r.confidence * 100).toFixed(1) + '%' : '—'}</td>
-        <td>${r.plc_write_status || '—'}</td>
-        <td>${(r.locate_ok ?? r.is_success) ? '<span class="badge badge-ok">OK</span>' : '<span class="badge badge-fail">NG</span>'}</td>
-      </tr>
-    `).join('');
-  } catch (e) {
-    document.getElementById('history-tbody').innerHTML =
-      `<tr><td colspan="10" class="empty">加载失败：${e.message}</td></tr>`;
-  }
-}
-
-function fmtOffset(v, unit='mm') {
-  const n = parseFloat(v);
-  if (isNaN(n)) return '—';
-  return (n > 0 ? '+' : '') + n.toFixed(3) + ' ' + unit;
-}
-
-document.getElementById('btn-refresh-history').addEventListener('click', loadHistory);
-
-// ── 初始化 ───────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  if (!document.querySelector('[name=csrfmiddlewaretoken]')) {
-    const inp = document.createElement('input');
-    inp.type = 'hidden'; inp.name = 'csrfmiddlewaretoken'; inp.value = '{{ csrf_token }}';
-    document.body.appendChild(inp);
-  }
-  loadHistory();
-});
 </script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}"></script>
 {% endblock %}

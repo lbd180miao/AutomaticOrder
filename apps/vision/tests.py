@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, mkdtemp
 from unittest.mock import patch
 
 import cv2
@@ -8,7 +8,7 @@ import numpy as np
 from django.conf import settings
 from django.apps import apps
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from apps.core.constants import ResultStatus, VisionTaskType
@@ -1247,18 +1247,23 @@ class RackLocation3DViewTests(TestCase):
         self.assertContains(response, '保存为标准位置')
 
     def test_preview_calculate_api_returns_actual_xyz_offsets_from_roi_pointcloud(self):
+        from apps.vision.rack_location import sample_scene_median_xyz
+
+        roi = {'x': 250, 'y': 180, 'w': 140, 'h': 90, 'feature_type': 'rack_reference'}
+        # 标准坐标取该 ROI 在同源标准场景中的中位数，因此默认偏差≈0、定位 OK。
+        expected_x, expected_y, expected_z = sample_scene_median_xyz(
+            {'x': roi['x'], 'y': roi['y'], 'w': roi['w'], 'h': roi['h']}
+        )
         response = self.client.post(
             reverse('vision:rack_location_preview_calculate'),
             data=json.dumps({
                 'recipe_id': self.recipe.id,
-                'roi_config': {
-                    'target_roi': {'x': 300, 'y': 180, 'w': 220, 'h': 160, 'feature_type': 'rack_reference'},
-                },
+                'roi_config': {'target_roi': roi},
                 'recipe_data': {
-                    'standard_x': 1200,
-                    'standard_y': 350,
-                    'standard_z': 850,
-                    'confidence_threshold': 0.8,
+                    'standard_x': expected_x,
+                    'standard_y': expected_y,
+                    'standard_z': expected_z,
+                    'confidence_threshold': 0.7,
                     'max_offset_x': 20,
                     'max_offset_y': 20,
                     'max_offset_z': 20,
@@ -1271,11 +1276,43 @@ class RackLocation3DViewTests(TestCase):
         payload = response.json()
         self.assertTrue(payload['success'])
         self.assertTrue(payload['result']['locate_ok'])
-        self.assertIn('actual_x', payload['result'])
-        self.assertIn('actual_y', payload['result'])
-        self.assertIn('actual_z', payload['result'])
-        self.assertAlmostEqual(payload['result']['actual_x'], 1200.8, places=1)
-        self.assertAlmostEqual(payload['result']['offset_x'], 0.8, places=1)
+        # 实际坐标来自 ROI 裁剪点云中位数，而非写死常量。
+        self.assertAlmostEqual(payload['result']['actual_x'], expected_x, places=2)
+        self.assertAlmostEqual(payload['result']['actual_y'], expected_y, places=2)
+        self.assertAlmostEqual(payload['result']['actual_z'], expected_z, places=2)
+        self.assertAlmostEqual(payload['result']['offset_x'], 0.0, places=2)
+        self.assertAlmostEqual(payload['result']['offset_y'], 0.0, places=2)
+        self.assertAlmostEqual(payload['result']['offset_z'], 0.0, places=2)
+
+    def test_preview_calculate_is_roi_responsive(self):
+        """不同 ROI 位置必须裁剪到点云的不同区域，得到不同的实际坐标——
+        证明 ROI 真正驱动点云计算，而不是返回写死值。"""
+        def actual_for(roi):
+            response = self.client.post(
+                reverse('vision:rack_location_preview_calculate'),
+                data=json.dumps({
+                    'recipe_id': self.recipe.id,
+                    'roi_config': {'target_roi': roi},
+                    'recipe_data': {
+                        'standard_x': 0, 'standard_y': 0, 'standard_z': 0,
+                        'confidence_threshold': 0.4,
+                        'max_offset_x': 9999, 'max_offset_y': 9999, 'max_offset_z': 9999,
+                    },
+                }),
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertTrue(body['success'])
+            r = body['result']
+            return (r['actual_x'], r['actual_y'], r['actual_z'])
+
+        left = actual_for({'x': 50, 'y': 60, 'w': 120, 'h': 120})
+        right = actual_for({'x': 450, 'y': 300, 'w': 120, 'h': 120})
+        self.assertNotAlmostEqual(left[0], right[0], places=1)
+        self.assertNotAlmostEqual(left[2], right[2], places=1)
+        # 左上 ROI 的 X 应小于右下 ROI（像素 x 更小 → 相机坐标 X 更小）。
+        self.assertLess(left[0], right[0])
 
     def test_task_list_has_single_3d_entry_without_new_old_labels(self):
         response = self.client.get(reverse('vision:task_list'))
@@ -1320,3 +1357,157 @@ class RackLocation3DViewTests(TestCase):
         self.assertTrue(payload['success'])
         self.assertEqual(payload['results'][0]['position_no'], 3)
         self.assertEqual(payload['results'][0]['layer_no'], 1)
+
+
+@override_settings(MEDIA_ROOT=mkdtemp())
+class RackLocationWorkbenchTests(TestCase):
+    """3D 工作台：采集点云 → 画 ROI → 计算 → 保存。"""
+
+    class CloudFrameProvider:
+        """提供一个组织化点云帧，模拟真实 3D 相机已返回 organized_pointcloud。"""
+        def capture(self, recipe, position_no, layer_no):
+            from apps.vision.rack_location import build_sample_pointcloud
+            return {
+                'source': 'dm_camera',
+                'organized_pointcloud': build_sample_pointcloud(side='LEFT', layer_count=3),
+            }
+
+    def setUp(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        from apps.vision.rack_location import sample_scene_median_xyz
+        self.roi = {'x': 250, 'y': 180, 'w': 140, 'h': 90, 'feature_type': 'rack_reference'}
+        sx, sy, sz = sample_scene_median_xyz(
+            {'x': self.roi['x'], 'y': self.roi['y'], 'w': self.roi['w'], 'h': self.roi['h']}
+        )
+        self.recipe = Recipe.objects.create(
+            recipe_name='WB-POS-02-L1',
+            rack_side='BOTH',
+            position_no=2,
+            layer_no=1,
+            layer_count=3,
+            standard_x=round(sx, 3),
+            standard_y=round(sy, 3),
+            standard_z=round(sz, 3),
+            max_offset_x=20,
+            max_offset_y=20,
+            max_offset_z=20,
+            confidence_threshold=0.5,
+            hand_eye_config={'matrix': 'identity'},
+        )
+
+    def _service(self):
+        from apps.vision.rack_location import RackLocationService
+        return RackLocationService(frame_provider=self.CloudFrameProvider())
+
+    def test_capture_workbench_persists_pointcloud_and_returns_preview(self):
+        payload = self._service().capture_workbench(recipe_id=self.recipe.id)
+        self.assertTrue(payload['pointcloud_token'].endswith('.npy'))
+        self.assertIn('rack_workbench', payload['pointcloud_token'])
+        self.assertTrue(payload['preview_image_url'])
+        self.assertGreater(payload['image_width'], 0)
+        self.assertGreater(payload['image_height'], 0)
+        abs_path = Path(settings.MEDIA_ROOT) / payload['pointcloud_token']
+        self.assertTrue(abs_path.exists())
+
+    def test_capture_workbench_falls_back_to_sample_when_camera_unavailable(self):
+        from apps.vision.rack_location import RackLocationService
+
+        class BrokenProvider:
+            def capture(self, recipe, position_no, layer_no):
+                raise RuntimeError('camera offline')
+
+        payload = RackLocationService(frame_provider=BrokenProvider()).capture_workbench(
+            recipe_id=self.recipe.id
+        )
+        self.assertEqual(payload['source'], 'sample')
+        self.assertTrue((Path(settings.MEDIA_ROOT) / payload['pointcloud_token']).exists())
+
+    def test_calculate_workbench_crops_persisted_cloud_without_db_write(self):
+        service = self._service()
+        captured = service.capture_workbench(recipe_id=self.recipe.id)
+        result = service.calculate_workbench(
+            token=captured['pointcloud_token'],
+            roi_config={'target_roi': self.roi},
+            recipe_id=self.recipe.id,
+        )
+        self.assertTrue(result['locate_ok'])
+        self.assertLess(abs(result['offset_x']), 20)
+        self.assertTrue(result['result_image_url'].endswith('.png') or 'rack_workbench' in result['result_image_url'])
+        self.assertEqual(RackLocationResult.objects.count(), 0)
+
+    def test_calculate_workbench_requires_roi(self):
+        service = self._service()
+        captured = service.capture_workbench(recipe_id=self.recipe.id)
+        with self.assertRaises(ValueError):
+            service.calculate_workbench(
+                token=captured['pointcloud_token'],
+                roi_config={},
+                recipe_id=self.recipe.id,
+            )
+
+    def test_calculate_workbench_rejects_stale_token(self):
+        with self.assertRaises(ValueError):
+            self._service().calculate_workbench(
+                token='vision/rack_workbench/does/not/exist.npy',
+                roi_config={'target_roi': self.roi},
+                recipe_id=self.recipe.id,
+            )
+
+    def test_save_workbench_result_writes_single_row(self):
+        service = self._service()
+        captured = service.capture_workbench(recipe_id=self.recipe.id)
+        result = service.save_workbench_result(
+            token=captured['pointcloud_token'],
+            roi_config={'target_roi': self.roi},
+            recipe_id=self.recipe.id,
+            position_no=2,
+            layer_no=1,
+        )
+        self.assertEqual(RackLocationResult.objects.count(), 1)
+        self.assertEqual(result.recipe, self.recipe)
+        self.assertEqual(result.position_no, 2)
+        self.assertEqual(result.layer_no, 1)
+        self.assertEqual(result.plc_write_status, 'SKIPPED')
+        self.assertTrue(result.result_image_path)
+
+    def test_workbench_api_capture_calculate_save_roundtrip(self):
+        from unittest.mock import patch
+        from apps.vision.rack_location import RackLocationService
+
+        def make_service(*args, **kwargs):
+            kwargs.setdefault('frame_provider', self.CloudFrameProvider())
+            return RackLocationService(**kwargs)
+
+        with patch('apps.vision.views.RackLocationService', side_effect=make_service):
+            cap = self.client.post(
+                reverse('vision:api_rack_location_workbench_capture'),
+                data=json.dumps({'recipe_id': self.recipe.id}),
+                content_type='application/json',
+            ).json()
+            self.assertTrue(cap['success'])
+
+            calc = self.client.post(
+                reverse('vision:api_rack_location_workbench_calculate'),
+                data=json.dumps({
+                    'pointcloud_token': cap['pointcloud_token'],
+                    'roi_config': {'target_roi': self.roi},
+                    'recipe_id': self.recipe.id,
+                }),
+                content_type='application/json',
+            ).json()
+            self.assertTrue(calc['success'])
+            self.assertIn('result_image_url', calc['result'])
+
+            save = self.client.post(
+                reverse('vision:api_rack_location_workbench_save'),
+                data=json.dumps({
+                    'pointcloud_token': cap['pointcloud_token'],
+                    'roi_config': {'target_roi': self.roi},
+                    'recipe_id': self.recipe.id,
+                    'position_no': 2,
+                    'layer_no': 1,
+                }),
+                content_type='application/json',
+            ).json()
+            self.assertTrue(save['success'])
+        self.assertEqual(RackLocationResult.objects.count(), 1)
