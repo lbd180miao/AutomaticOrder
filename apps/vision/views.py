@@ -33,6 +33,7 @@ from .rack_location import (
     PlcVisionResultWriter,
     RackLocationService,
     result_payload as rack_location_result_payload,
+    sample_scene_median_xyz,
 )
 
 
@@ -798,6 +799,14 @@ def rack_location_recipes(request):
 def _rack_location_recipe_form_context(recipe=None):
     sample = RackLocationService().capture_standard_image(recipe_id=getattr(recipe, 'id', None))
     devices = Device.objects.filter(enabled=True).order_by('code')
+    # 默认 ROI 落在标准场景的平整支撑面上；标准坐标直接取该 ROI 在
+    # 同源点云中的中位数，保证新建配方默认状态下补偿≈0、置信度健康，
+    # 移动 ROI 才会产生真实偏差。
+    default_target_roi = {'x': 250, 'y': 180, 'w': 140, 'h': 90, 'feature_type': 'rack_reference'}
+    try:
+        seed_x, seed_y, seed_z = sample_scene_median_xyz(default_target_roi)
+    except Exception:  # noqa: BLE001 - 兜底，避免场景生成异常阻塞表单
+        seed_x, seed_y, seed_z = 0.0, 0.0, 1090.0
     defaults = {
         'recipe_name': '3D-POS-1-L1',
         'rack_type': '',
@@ -806,12 +815,12 @@ def _rack_location_recipe_form_context(recipe=None):
         'layer_count': 3,
         'layer_no': 1,
         'capture_pose_name': 'POSE-POS-1-L1',
-        'standard_x': 1200,
-        'standard_y': 350,
-        'standard_z': 850,
+        'standard_x': round(seed_x, 3),
+        'standard_y': round(seed_y, 3),
+        'standard_z': round(seed_z, 3),
         'standard_rz': 0,
         'roi_config': {
-            'target_roi': {'x': 300, 'y': 180, 'w': 220, 'h': 160, 'feature_type': 'rack_reference'},
+            'target_roi': default_target_roi,
         },
         'reference_feature_config': {},
         'hand_eye_config': {'matrix': 'identity'},
@@ -819,7 +828,7 @@ def _rack_location_recipe_form_context(recipe=None):
         'max_offset_y': 20,
         'max_offset_z': 20,
         'max_offset_rz': 5,
-        'confidence_threshold': 0.8,
+        'confidence_threshold': 0.7,
         'enabled': True,
     }
     if recipe:
@@ -940,6 +949,52 @@ def rack_location_preview_calculate(request):
         )
         payload = output.to_payload()
         return JsonResponse({'success': True, 'result': payload})
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@require_POST
+def api_rack_location_workbench_capture(request):
+    """工作台「采集点云」：真实 3D 相机优先，离线回退模拟，返回预览图与 token。"""
+    try:
+        data = _request_data(request)
+        payload = RackLocationService().capture_workbench(recipe_id=data.get('recipe_id') or None)
+        return JsonResponse({'success': True, **payload})
+    except Exception as exc:  # noqa: BLE001
+        return JsonResponse({'success': False, 'error': f'相机采集失败: {exc}'}, status=400)
+
+
+@require_POST
+def api_rack_location_workbench_calculate(request):
+    """工作台「计算偏差」：按绘制的 ROI 裁剪持久化点云，仅预览不写库。"""
+    try:
+        data = _request_data(request)
+        payload = RackLocationService().calculate_workbench(
+            token=data.get('pointcloud_token'),
+            roi_config=data.get('roi_config') or {},
+            recipe_id=data.get('recipe_id') or None,
+            recipe_data=data.get('recipe_data') or None,
+            layer_no=_as_int(data.get('layer_no'), 1),
+        )
+        return JsonResponse({'success': True, 'result': payload})
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@require_POST
+def api_rack_location_workbench_save(request):
+    """工作台「保存结果到数据库」：重新确定性计算后写入一条 RackLocationResult。"""
+    try:
+        data = _request_data(request)
+        result = RackLocationService().save_workbench_result(
+            token=data.get('pointcloud_token'),
+            roi_config=data.get('roi_config') or {},
+            recipe_id=data.get('recipe_id') or None,
+            recipe_data=data.get('recipe_data') or None,
+            position_no=_as_int(data.get('position_no'), 1),
+            layer_no=_as_int(data.get('layer_no'), 1),
+        )
+        return JsonResponse({'success': True, 'result': rack_location_result_payload(result)})
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 

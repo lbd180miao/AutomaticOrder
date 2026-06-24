@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from decimal import Decimal
+import os
 import random
 from typing import Any, Optional
 
@@ -144,7 +145,13 @@ class PointCloudProcessor:
             roi_area = max(int(roi.get('w', roi.get('width', 1))) * int(roi.get('h', roi.get('height', 1))), 1)
             confidence = frame.get('confidence')
             if confidence is None:
-                confidence = min(0.99, max(0.0, points.shape[0] / roi_area))
+                # 置信度 = 有效点占比 与 ROI 内深度平整度 的综合。
+                # 画在平整支撑面上的 ROI 置信度高，跨越边缘/立柱的 ROI 置信度低，
+                # 让 “ROI 质量 → 置信度” 随绘制位置真实变化。
+                valid_ratio = min(1.0, points.shape[0] / roi_area)
+                z_std = float(np.std(points[:, 2])) if points.shape[0] else 999.0
+                flatness = 1.0 / (1.0 + z_std / 30.0)
+                confidence = max(0.0, min(0.99, 0.5 * valid_ratio + 0.5 * flatness))
             return {
                 **frame,
                 'actual_x': actual_x,
@@ -316,27 +323,40 @@ class SampleRackFrameProvider:
 
 def build_sample_pointcloud(
     *,
+    side: str = 'LEFT',
+    layer_count: int = 3,
     width: int = 640,
     height: int = 480,
-    target_roi: Optional[dict] = None,
-    actual_x: float = 1200.8,
-    actual_y: float = 349.6,
-    actual_z: float = 850.3,
+    **_legacy,
 ):
-    """Build an organized sample point-cloud with a stable rack reference area."""
-    pointcloud = np.zeros((height, width, 3), dtype=float)
-    xs = np.linspace(1180.0, 1220.0, width)
-    ys = np.linspace(330.0, 370.0, height)
-    pointcloud[:, :, 0] = xs[np.newaxis, :]
-    pointcloud[:, :, 1] = ys[:, np.newaxis]
-    pointcloud[:, :, 2] = 820.0
+    """Build an organized sample point-cloud (H x W x 3, mm) from the canonical
+    depth scene that is shown on the page.
 
-    roi = target_roi or {'x': 300, 'y': 180, 'w': 220, 'h': 160}
-    x, y, w, h = PointCloudProcessor()._normalized_roi(roi, width, height)
-    pointcloud[y:y + h, x:x + w, 0] = actual_x
-    pointcloud[y:y + h, x:x + w, 1] = actual_y
-    pointcloud[y:y + h, x:x + w, 2] = actual_z
-    return pointcloud
+    与 ``image_io.generate_depth_scene`` 共享同一深度场（``build_depth_field``），
+    因此页面上显示的深度伪彩图与此处用于 ROI 裁剪的点云是**同一个场景**：
+    在不同位置画 ROI 会裁剪到不同空间区域，从而得到不同的实际 X/Y/Z。
+    这让 “ROI → 点云裁剪 → 中位数坐标” 的流程真实可感，而不是返回写死值。
+
+    保留 ``**_legacy``（如旧的 ``target_roi``/``actual_x`` 关键字参数）以兼容
+    历史调用，但坐标不再被强行覆盖，而是完全由场景几何决定。
+    """
+    depth, _pillar, _region = image_io.build_depth_field(
+        side, int(layer_count or 3), width, height,
+    )
+    return image_io.depth_field_to_pointcloud(depth)
+
+
+def sample_scene_median_xyz(target_roi: dict, *, side: str = 'LEFT',
+                            layer_count: int = 3, width: int = 640,
+                            height: int = 480) -> tuple[float, float, float]:
+    """返回标准场景中给定 ROI 的中位数 X/Y/Z，用于把配方标准坐标默认值
+    对齐到场景，使默认 ROI 的补偿值约为 0。"""
+    pointcloud = build_sample_pointcloud(
+        side=side, layer_count=layer_count, width=width, height=height,
+    )
+    processor = PointCloudProcessor()
+    points = processor.crop_by_roi(pointcloud, target_roi)
+    return processor.calculate_median_xyz(points)
 
 
 class DMCameraRackFrameProvider:
@@ -534,15 +554,15 @@ class RackLocationService:
         elif not recipe.hand_eye_config:
             recipe.hand_eye_config = {'matrix': 'identity'}
 
-        target_roi = recipe.roi_config.get('target_roi') or {}
-        pointcloud = build_sample_pointcloud(target_roi=target_roi or None)
+        layer_count = int(recipe_data.get('layer_count') or getattr(recipe, 'layer_count', 3) or 3)
+        pointcloud = build_sample_pointcloud(side='LEFT', layer_count=layer_count)
         frame = {
             'source': 'sample_pointcloud',
             'organized_pointcloud': pointcloud,
             'roi_config': recipe.roi_config,
             'raw_data_path': 'vision/sample_pointcloud/sample_rack_location.npy',
             'result_image_path': 'vision/rack_location_results/sample_preview.png',
-            'confidence': 0.92,
+            # 不写死 confidence：由 ROI 内有效点占比 + 深度平整度计算，随绘制位置变化。
         }
         return self.estimator.calculate_rack_offset(
             frame,
@@ -550,6 +570,214 @@ class RackLocationService:
             rack_side=recipe.rack_side or RackSide.BOTH,
             layer_no=int(recipe_data.get('layer_no') or getattr(recipe, 'layer_no', 1) or 1),
         )
+
+    # ------------------------------------------------------------------
+    # 交互式工作台：采集真实点云 → 绘制 ROI → 计算 → 保存
+    # ------------------------------------------------------------------
+
+    def _persist_workbench_frame(self, pointcloud) -> tuple[str, str, int, int]:
+        """把组织化点云持久化为 .npy，并渲染像素一一对应的伪彩预览图。
+
+        返回 (npy 相对路径 token, 预览图 URL, 宽, 高)。
+        """
+        cloud = np.asarray(pointcloud, dtype=np.float32)
+        if cloud.ndim != 3 or cloud.shape[2] != 3:
+            raise ValueError('组织化点云必须是 H x W x 3')
+        height, width = int(cloud.shape[0]), int(cloud.shape[1])
+
+        date_dir = timezone.now().strftime('%Y/%m/%d')
+        rel_dir = f'vision/rack_workbench/{date_dir}'
+        abs_dir = os.path.join(settings.MEDIA_ROOT, rel_dir)
+        os.makedirs(abs_dir, exist_ok=True)
+        stamp = timezone.now().strftime('%H%M%S_%f')
+        npy_name = f'rack_workbench_{stamp}.npy'
+        np.save(os.path.join(abs_dir, npy_name), cloud)
+        npy_rel = f'{rel_dir}/{npy_name}'
+
+        preview = image_io.pointcloud_to_preview(cloud)
+        preview_rel, _, _ = image_io.save_image(
+            preview, 'rack_workbench_preview', rel_dir='vision/rack_workbench',
+        )
+        preview_url = settings.MEDIA_URL + preview_rel
+        return npy_rel, preview_url, width, height
+
+    def _load_workbench_pointcloud(self, token: str):
+        """按 token 安全加载持久化点云（限制在 MEDIA_ROOT 内，防目录穿越）。"""
+        if not token:
+            raise ValueError('点云数据已失效，请重新采集')
+        media_root = os.path.realpath(settings.MEDIA_ROOT)
+        abs_path = os.path.realpath(os.path.join(media_root, token))
+        if os.path.commonpath([abs_path, media_root]) != media_root or not os.path.exists(abs_path):
+            raise ValueError('点云数据已失效，请重新采集')
+        return np.load(abs_path)
+
+    def _build_workbench_recipe(self, recipe_id=None, recipe_data=None) -> RackLocationRecipe:
+        recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first() if recipe_id else None
+        recipe = recipe or RackLocationRecipe(recipe_name='WORKBENCH')
+        recipe_data = recipe_data or {}
+        for field in (
+            'standard_x', 'standard_y', 'standard_z', 'standard_rz',
+            'max_offset_x', 'max_offset_y', 'max_offset_z', 'max_offset_rz',
+            'confidence_threshold',
+        ):
+            if field in recipe_data and recipe_data[field] not in (None, ''):
+                setattr(recipe, field, recipe_data[field])
+        if recipe_data.get('hand_eye_config') is not None:
+            recipe.hand_eye_config = recipe_data.get('hand_eye_config') or {'matrix': 'identity'}
+        elif not recipe.hand_eye_config:
+            recipe.hand_eye_config = {'matrix': 'identity'}
+        return recipe
+
+    def capture_workbench(self, recipe_id=None) -> dict:
+        """采集一帧用于工作台：真实 3D 相机优先，离线回退到模拟场景；
+        持久化组织化点云并返回预览图与 token。"""
+        recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first() if recipe_id else None
+        position_no = int(getattr(recipe, 'position_no', 1) or 1)
+        layer_no = int(getattr(recipe, 'layer_no', 1) or 1)
+        layer_count = int(getattr(recipe, 'layer_count', 3) or 3)
+        side = str(getattr(recipe, 'rack_side', RackSide.LEFT) or RackSide.LEFT).upper()
+        side_key = 'RIGHT' if side == 'RIGHT' else 'LEFT'
+
+        pointcloud = None
+        source = 'sample'
+        try:
+            probe_recipe = recipe or RackLocationRecipe(
+                recipe_name='WORKBENCH', position_no=position_no, layer_no=layer_no,
+                layer_count=layer_count, hand_eye_config={'matrix': 'identity'},
+            )
+            frame = self.frame_provider.capture(probe_recipe, position_no, layer_no)
+            cloud = frame.get('organized_pointcloud')
+            if cloud is not None:
+                arr = np.asarray(cloud, dtype=float)
+                if arr.ndim == 3 and arr.shape[2] == 3:
+                    pointcloud = arr
+                    source = frame.get('source', 'dm_camera')
+        except Exception:  # noqa: BLE001 - 任何相机异常都回退到模拟点云
+            pointcloud = None
+
+        if pointcloud is None:
+            pointcloud = build_sample_pointcloud(side=side_key, layer_count=layer_count)
+            source = 'sample'
+
+        token, preview_url, width, height = self._persist_workbench_frame(pointcloud)
+        return {
+            'pointcloud_token': token,
+            'preview_image_url': preview_url,
+            'image_width': width,
+            'image_height': height,
+            'source': source,
+        }
+
+    def _compute_workbench(self, *, token, roi_config, recipe, layer_no):
+        """从持久化点云 + ROI 计算偏差，并渲染带框标注结果图。
+
+        返回 (RackLocationOutput, 结果图相对路径)。
+        """
+        roi_config = roi_config or {}
+        target_roi = roi_config.get('target_roi')
+        if not target_roi:
+            raise ValueError('请先绘制 ROI')
+
+        pointcloud = self._load_workbench_pointcloud(token)
+        recipe.roi_config = roi_config
+        frame = {
+            'source': 'workbench',
+            'organized_pointcloud': pointcloud,
+            'roi_config': roi_config,
+        }
+        output = self.estimator.calculate_rack_offset(
+            frame, recipe, rack_side=recipe.rack_side or RackSide.BOTH, layer_no=int(layer_no),
+        )
+
+        preview = image_io.pointcloud_to_preview(pointcloud)
+        annotated = image_io.annotate_pointcloud_roi(
+            preview, target_roi,
+            offsets={'offset_x': output.offset_x, 'offset_y': output.offset_y, 'offset_z': output.offset_z},
+            confidence=output.confidence,
+            actual=(output.actual_x, output.actual_y, output.actual_z),
+            locate_ok=output.locate_ok,
+        )
+        result_rel, _, _ = image_io.save_image(
+            annotated, 'rack_workbench_result', rel_dir='vision/rack_workbench',
+        )
+        return output, result_rel
+
+    def calculate_workbench(self, *, token, roi_config, recipe_id=None,
+                            recipe_data=None, layer_no=1) -> dict:
+        """工作台「计算偏差」：仅预览，不写库。"""
+        recipe = self._build_workbench_recipe(recipe_id, recipe_data)
+        layer_no = int((recipe_data or {}).get('layer_no') or layer_no or getattr(recipe, 'layer_no', 1) or 1)
+        output, result_rel = self._compute_workbench(
+            token=token, roi_config=roi_config, recipe=recipe, layer_no=layer_no,
+        )
+        payload = output.to_payload()
+        payload['result_image_url'] = settings.MEDIA_URL + result_rel
+        payload['result_image_path'] = result_rel
+        payload['source'] = (output.result_data or {}).get('source', 'workbench')
+        return payload
+
+    def save_workbench_result(self, *, token, roi_config, recipe_id=None, recipe_data=None,
+                              position_no=1, layer_no=1, rack=None, product=None) -> RackLocationResult:
+        """工作台「保存结果到数据库」：用同一点云重新确定性计算后写入一条记录。
+
+        不调用 PLC（本期只做手动现场调试）。
+        """
+        position_no = int(position_no)
+        layer_no = int(layer_no)
+        recipe = self._build_workbench_recipe(recipe_id, recipe_data)
+        output, result_rel = self._compute_workbench(
+            token=token, roi_config=roi_config, recipe=recipe, layer_no=layer_no,
+        )
+        db_recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first() if recipe_id else None
+
+        task = VisionTask.objects.create(
+            task_type=VisionTaskType.RACK_LOCATING,
+            product=product,
+            rack=rack,
+            status=ResultStatus.SUCCESS if output.locate_ok else ResultStatus.FAILED,
+            started_at=timezone.now(),
+            finished_at=timezone.now(),
+            error_message=output.error_message,
+        )
+        payload = output.to_payload()
+        result = RackLocationResult.objects.create(
+            vision_task=task,
+            recipe=db_recipe,
+            rack=rack,
+            side=output.rack_side or RackSide.BOTH,
+            position_no=position_no,
+            layer_no=layer_no,
+            offset_x=_decimal(output.offset_x),
+            offset_y=_decimal(output.offset_y),
+            offset_z=_decimal(output.offset_z),
+            offset_rz=_decimal(output.offset_rz),
+            actual_x=_decimal(output.actual_x),
+            actual_y=_decimal(output.actual_y),
+            actual_z=_decimal(output.actual_z),
+            confidence=_decimal(output.confidence, '0.0001'),
+            is_recipe_matched=output.locate_ok,
+            is_success=output.locate_ok,
+            error_code=output.error_code,
+            error_message=output.error_message,
+            raw_data_path=token or '',
+            result_image_path=result_rel,
+            result_data={
+                **(payload.get('result_data') or {}),
+                'task_kind': 'RACK_3D_LOCATION',
+                'position_no': position_no,
+                'layer_no': layer_no,
+                'source': 'workbench',
+                'plc_payload': payload['plc_payload'],
+            },
+            plc_write_status='SKIPPED',
+        )
+        VisionImage.objects.create(
+            vision_task=task,
+            image_type=VisionImageType.RESULT,
+            file=result_rel,
+            captured_at=timezone.now(),
+        )
+        return result
 
     def trigger(self, *, position_no: int, layer_no: int, recipe_id=None,
                 rack_side: str = RackSide.BOTH, write_plc: bool = False,

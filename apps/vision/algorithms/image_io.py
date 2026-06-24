@@ -273,13 +273,14 @@ def _defect_label(defect_type_str):
 
 
 # ---------------- 深度相机：料架场景 ----------------
-def generate_depth_scene(side='LEFT', layer_count=3, width=640, height=480):
-    """生成模拟深度图并转伪彩色：料架立柱 + 装箱区域 + 分层线。
+def build_depth_field(side='LEFT', layer_count=3, width=640, height=480):
+    """构造模拟料架场景的原始深度场（float32，单位近似 mm 前的相对量）。
 
-    参数：
-        side: 'LEFT' 或 'RIGHT'
-        layer_count: 料架层数，默认 3（与实际设备一致），在装箱区域绘制等距分层线
-    返回 (color_depth_image, pillar_roi, region_roi)。
+    这是 generate_depth_scene（生成伪彩图）与 depth_field_to_pointcloud
+    （反投影为组织化点云）共享的几何来源，保证“页面显示的深度图”与
+    “ROI 裁剪计算用的点云”是同一个场景：同一像素 (x,y) 对应同一空间点。
+
+    返回 (depth, pillar_roi, region_roi)，depth.shape == (height, width)。
     """
     # 构造渐变深度场（远近不同），叠加立柱与装箱区域。
     yy, xx = np.mgrid[0:height, 0:width]
@@ -303,6 +304,44 @@ def generate_depth_scene(side='LEFT', layer_count=3, width=640, height=480):
             y1 = region[1] + i * layer_h
             y2 = min(region[1] + (i + 1) * layer_h, region[3])
             depth[y1:y2, region[0]:region[2]] += float(i) * 8
+
+    return depth, pillar, region
+
+
+# 反投影模型参数（简化针孔模型）。真实相机接入后由相机内参 + 手眼标定替换。
+PINHOLE_FX = 600.0
+PINHOLE_FY = 600.0
+DEPTH_Z_SCALE = 4.2     # 相对深度 → 实际 Z(mm) 的缩放
+DEPTH_Z_OFFSET = 250.0  # Z(mm) 基准偏置，使装箱区落在 ~850mm 量级
+
+
+def depth_field_to_pointcloud(depth, *, fx=PINHOLE_FX, fy=PINHOLE_FY,
+                              z_scale=DEPTH_Z_SCALE, z_offset=DEPTH_Z_OFFSET):
+    """将原始深度场反投影为组织化点云 (H x W x 3)，单位 mm。
+
+    采用简化针孔模型：Z 由深度场线性映射到实际距离，X/Y 由像素相对光心
+    位置乘以 Z 反投影得到。结果在空间上连续变化——这意味着在不同位置
+    画 ROI 会得到不同的 X/Y/Z，从而真实地驱动 ROI → 坐标 计算流程。
+    """
+    depth = np.asarray(depth, dtype=np.float64)
+    height, width = depth.shape
+    cx, cy = width / 2.0, height / 2.0
+    yy, xx = np.mgrid[0:height, 0:width]
+    z = depth * z_scale + z_offset
+    x = (xx - cx) * z / fx
+    y = (yy - cy) * z / fy
+    return np.stack([x, y, z], axis=-1)
+
+
+def generate_depth_scene(side='LEFT', layer_count=3, width=640, height=480):
+    """生成模拟深度图并转伪彩色：料架立柱 + 装箱区域 + 分层线。
+
+    参数：
+        side: 'LEFT' 或 'RIGHT'
+        layer_count: 料架层数，默认 3（与实际设备一致），在装箱区域绘制等距分层线
+    返回 (color_depth_image, pillar_roi, region_roi)。
+    """
+    depth, pillar, region = build_depth_field(side, layer_count, width, height)
 
     depth_norm = cv2.normalize(depth, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     color = cv2.applyColorMap(depth_norm, cv2.COLORMAP_JET)
@@ -382,6 +421,72 @@ def annotate_depth(img, pillar, region, side, offsets,
         _put_label(out, f'层高(mm): {heights_str}', (12, h - 14),
                    COLOR_TEXT, scale=0.45)
 
+    return out
+
+
+def pointcloud_to_preview(pointcloud):
+    """将组织化点云 (H x W x 3, mm) 渲染为伪彩 BGR 预览图（按 Z 通道着色）。
+
+    3D 工作台专用：预览图与点云数组共享同一 H×W 网格，因此页面上对预览图
+    绘制的 ROI 像素坐标可直接用于裁剪点云（pixel (x,y) ↔ pointcloud[y, x]）。
+    无效 / 缺失点（NaN、inf 或 Z≈0）以暗色填充，不参与归一化。
+    """
+    cloud = np.asarray(pointcloud, dtype=np.float64)
+    if cloud.ndim != 3 or cloud.shape[2] != 3:
+        raise ValueError('organized pointcloud 必须是 H x W x 3')
+
+    z = cloud[:, :, 2]
+    valid = np.isfinite(z) & (np.abs(z) > 1e-9)
+    if not valid.any():
+        return np.zeros((cloud.shape[0], cloud.shape[1], 3), dtype=np.uint8)
+
+    z_valid = z[valid]
+    z_min, z_max = float(z_valid.min()), float(z_valid.max())
+    norm = np.zeros_like(z, dtype=np.float32)
+    if z_max - z_min > 1e-6:
+        norm[valid] = (z[valid] - z_min) / (z_max - z_min) * 255.0
+    else:
+        norm[valid] = 128.0
+    color = cv2.applyColorMap(norm.astype(np.uint8), cv2.COLORMAP_JET)
+    color[~valid] = (40, 40, 40)
+    return color
+
+
+def annotate_pointcloud_roi(preview, roi, *, offsets=None, confidence=None,
+                            actual=None, locate_ok=True):
+    """在点云伪彩预览图上叠加 target ROI 框、补偿向量与坐标/置信度文字。
+
+    3D 工作台专用。roi 接受 {x, y, w, h}（原始图像像素坐标）。
+    返回标注后的 BGR 图副本。
+    """
+    out = preview.copy()
+    h = height_of(out)
+    x = int(round(float(roi.get('x', 0))))
+    y = int(round(float(roi.get('y', 0))))
+    w = int(round(float(roi.get('w', roi.get('width', 0)) or 0)))
+    hh = int(round(float(roi.get('h', roi.get('height', 0)) or 0)))
+
+    box_color = COLOR_OK if locate_ok else COLOR_FAIL
+    draw_roi(out, (x, y, x + w, y + hh), color=box_color, label='target ROI', thickness=2)
+
+    offsets = offsets or {}
+    ox = float(offsets.get('offset_x', 0))
+    oy = float(offsets.get('offset_y', 0))
+    oz = float(offsets.get('offset_z', 0))
+    cx, cy = x + w // 2, y + hh // 2
+    end = (int(cx + ox * 8), int(cy + oy * 8))
+    cv2.arrowedLine(out, (cx, cy), end, COLOR_TEXT, 2, tipLength=0.3)
+    cv2.circle(out, (cx, cy), 4, COLOR_TEXT, -1)
+
+    verdict = '定位 OK' if locate_ok else '定位 NG'
+    _put_label(out, verdict, (12, 28), box_color, scale=0.6, thickness=2)
+    _put_label(out, f'X={ox:+.2f}  Y={oy:+.2f}  Z={oz:+.2f} mm', (12, 50), COLOR_TEXT, scale=0.5)
+    if confidence is not None:
+        conf_color = COLOR_OK if confidence >= 0.80 else COLOR_WARN
+        _put_label(out, f'置信度: {confidence:.2%}', (12, 70), conf_color, scale=0.5)
+    if actual is not None:
+        ax, ay, az = actual
+        _put_label(out, f'实测 X={ax:.1f} Y={ay:.1f} Z={az:.1f}', (12, h - 14), COLOR_TEXT, scale=0.45)
     return out
 
 
