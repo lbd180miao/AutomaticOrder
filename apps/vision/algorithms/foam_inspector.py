@@ -485,9 +485,9 @@ def _detect_foam_side(image, roi, cfg):
     white_pixel_count = cv2.countNonZero(strict_mask)
     white_pixel_coverage = round(white_pixel_count / roi_area, 4)
 
-    # Production coverage should approximate the visible foam region, not only
-    # the pure-white pixels. Shadowed foam is often gray, so build a broader
-    # neutral gray/white candidate mask and use its connected-region envelope.
+    # Production coverage should approximate the filled visible foam region,
+    # not only pure-white pixels. Shadowed foam is often gray, so build a
+    # broader neutral gray/white candidate mask and measure its contour area.
     foam_max_s = int(cfg.get('foam_max_s', 135))
     foam_min_v = int(cfg.get('foam_min_v', 85))
     foam_min_l = int(cfg.get('foam_min_l', 105))
@@ -505,7 +505,7 @@ def _detect_foam_side(image, roi, cfg):
         _, _, bw, bh, area = best_for_coverage
         envelope_coverage = round((bw * bh) / roi_area, 4)
         contour_coverage = round(area / roi_area, 4)
-        pixel_coverage = max(white_pixel_coverage, envelope_coverage)
+        pixel_coverage = max(white_pixel_coverage, contour_coverage)
     else:
         envelope_coverage = 0.0
         contour_coverage = 0.0

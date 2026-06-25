@@ -123,6 +123,37 @@ class FoamInspectorCoverageTests(SimpleTestCase):
         self.assertTrue(result['is_passed'])
         self.assertGreater(result['coverage_ratio'], 0.55)
 
+    def test_sparse_right_side_interference_does_not_pass_as_foam(self):
+        image = np.zeros((200, 240, 3), dtype=np.uint8)
+        image[:, :] = (25, 25, 25)
+
+        image[65:135, 30:90] = (138, 138, 138)
+        image[80:120, 45:75] = (235, 235, 235)
+
+        # Sparse bright structure in the right ROI: large envelope, little foam.
+        image[65:125, 150:160] = (225, 225, 225)
+        image[115:125, 150:210] = (225, 225, 225)
+
+        result = FoamInspector(simulate=False).inspect(
+            position_index=0,
+            image=image,
+            inspection_config={
+                'enable_quality_analysis': False,
+                'coverage_threshold': 0.3,
+                'foam_rois': {
+                    '0': {
+                        'left': [0.08, 0.25, 0.42, 0.75],
+                        'right': [0.58, 0.25, 0.92, 0.75],
+                    },
+                },
+            },
+        )
+
+        self.assertFalse(result['is_passed'])
+        self.assertEqual(result['defect_type'], FoamDefectType.MISSING)
+        self.assertTrue(result['result_data']['sides']['left']['is_present'])
+        self.assertFalse(result['result_data']['sides']['right']['is_present'])
+
 
 class VisionRecipeModelTests(TestCase):
     def test_default_foam_2d_recipes_are_created_for_three_positions(self):
@@ -168,6 +199,30 @@ class VisionRecipeModelTests(TestCase):
         self.assertEqual(config['coverage_threshold'], 0.66)
         self.assertEqual(config['score_threshold'], 0.88)
         self.assertEqual(config['max_offset_px'], 18)
+
+    def test_recipe_config_accepts_algorithm_threshold_field_names(self):
+        recipe = VisionRecipe.objects.create(
+            recipe_type='FOAM_2D',
+            name='algorithm threshold recipe',
+            pos=1,
+            image_width=1280,
+            image_height=720,
+            roi_config={
+                'leftFoamROI': {'x': 265, 'y': 428, 'width': 294, 'height': 269},
+                'rightFoamROI': {'x': 726, 'y': 434, 'width': 213, 'height': 266},
+            },
+            threshold_config={
+                'coverage_threshold': 0.3,
+                'score_threshold': 0.4,
+                'max_offset_px': 22,
+            },
+        )
+
+        config = build_foam_inspection_config(recipe)
+
+        self.assertEqual(config['coverage_threshold'], 0.3)
+        self.assertEqual(config['score_threshold'], 0.4)
+        self.assertEqual(config['max_offset_px'], 22)
 
 
 class VisionRecipeServiceTests(TestCase):
