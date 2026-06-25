@@ -104,6 +104,13 @@ def _pixel_roi_to_ratio(roi, image_width, image_height):
     ]
 
 
+def _threshold_value(thresholds, keys, default):
+    for key in keys:
+        if key in thresholds and thresholds[key] is not None:
+            return thresholds[key]
+    return default
+
+
 def build_foam_inspection_config(recipe):
     roi_config = recipe.roi_config or {}
     thresholds = recipe.threshold_config or {}
@@ -113,8 +120,9 @@ def build_foam_inspection_config(recipe):
     right = _pixel_roi_to_ratio(
         roi_config['rightFoamROI'], recipe.image_width, recipe.image_height
     )
-    max_offset_x = int(thresholds.get('maxOffsetX', 30))
-    max_offset_y = int(thresholds.get('maxOffsetY', 30))
+    max_offset = thresholds.get('max_offset_px')
+    max_offset_x = int(_threshold_value(thresholds, ('max_offset_x', 'maxOffsetX'), 30))
+    max_offset_y = int(_threshold_value(thresholds, ('max_offset_y', 'maxOffsetY'), 30))
     return {
         'foam_rois': {
             str(recipe.pos): {
@@ -122,7 +130,11 @@ def build_foam_inspection_config(recipe):
                 'right': right,
             },
         },
-        'coverage_threshold': float(thresholds.get('minCoverage', 0.75)),
-        'score_threshold': float(thresholds.get('minScore', 0.8)),
-        'max_offset_px': max(max_offset_x, max_offset_y),
+        'coverage_threshold': float(
+            _threshold_value(thresholds, ('coverage_threshold', 'minCoverage'), 0.75)
+        ),
+        'score_threshold': float(
+            _threshold_value(thresholds, ('score_threshold', 'minScore'), 0.8)
+        ),
+        'max_offset_px': int(max_offset) if max_offset is not None else max(max_offset_x, max_offset_y),
     }
