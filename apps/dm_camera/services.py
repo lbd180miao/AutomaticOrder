@@ -3,6 +3,7 @@ DM相机业务逻辑服务层
 """
 import os
 import io
+import atexit
 import logging
 from pathlib import Path
 from typing import Optional, Dict, List
@@ -27,7 +28,25 @@ class DMCameraService:
     _instance = None
     _camera: Optional[DMCamera] = None
     _current_session: Optional[DMCameraSession] = None
-    
+    _atexit_registered = False
+
+    @classmethod
+    def _release_on_exit(cls):
+        """进程退出时强制释放相机。
+
+        网络 ToF 相机同一时刻只允许一个会话；若进程（含 Django autoreload
+        重启、Ctrl+C）退出时未调用 LWCloseDevice，相机会一直被这条已死的
+        会话占用，下次再开就报 "device already occupied"。此处兜底关闭。
+        """
+        inst = cls._instance
+        if inst is None or inst._camera is None:
+            return
+        try:
+            inst._camera.disconnect()
+        except Exception:  # noqa: BLE001 - 退出清理，任何异常都忽略
+            pass
+        inst._camera = None
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -137,7 +156,12 @@ class DMCameraService:
             )
             
             logger.info(f"成功连接到设备: {connected_device.sn}")
-            
+
+            # 进程退出兜底释放，避免相机被已死会话长期占用。
+            if not DMCameraService._atexit_registered:
+                atexit.register(DMCameraService._release_on_exit)
+                DMCameraService._atexit_registered = True
+
             return {
                 'device_sn': connected_device.sn,
                 'device_type': connected_device.type,

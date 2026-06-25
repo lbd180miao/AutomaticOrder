@@ -39,30 +39,31 @@
   function setStatus(text) { const n = $('rl-status'); if (n) n.textContent = text; }
 
   // ── 选中配方的参数（标准坐标 / 允许偏差 / 阈值） ───────────
-  function selectedOption() {
-    const sel = $('recipe-id');
-    return sel && sel.value ? sel.options[sel.selectedIndex] : null;
+  // 新方案：配方选择改为卡片点击，数据存放在 .rl-recipe-card.selected 的 dataset 上
+  function selectedCardData() {
+    const card = document.querySelector('.rl-recipe-card.selected');
+    return card ? card.dataset : null;
   }
   function currentRecipeData() {
-    const opt = selectedOption();
+    const d = selectedCardData();
     const data = { layer_no: Number($('layer-no').value || 1) };
-    if (opt) {
-      data.standard_x = Number(opt.dataset.sx || 0);
-      data.standard_y = Number(opt.dataset.sy || 0);
-      data.standard_z = Number(opt.dataset.sz || 0);
-      data.max_offset_x = Number(opt.dataset.mox || 20);
-      data.max_offset_y = Number(opt.dataset.moy || 20);
-      data.max_offset_z = Number(opt.dataset.moz || 20);
-      data.confidence_threshold = Number(opt.dataset.conf || 0.7);
+    if (d) {
+      data.standard_x = Number(d.sx || 0);
+      data.standard_y = Number(d.sy || 0);
+      data.standard_z = Number(d.sz || 0);
+      data.max_offset_x = Number(d.mox || 20);
+      data.max_offset_y = Number(d.moy || 20);
+      data.max_offset_z = Number(d.moz || 20);
+      data.confidence_threshold = Number(d.conf || 0.7);
     }
     return data;
   }
   function maxOffsets() {
-    const opt = selectedOption();
+    const d = selectedCardData();
     return {
-      x: opt ? Number(opt.dataset.mox || 20) : 20,
-      y: opt ? Number(opt.dataset.moy || 20) : 20,
-      z: opt ? Number(opt.dataset.moz || 20) : 20,
+      x: d ? Number(d.mox || 20) : 20,
+      y: d ? Number(d.moy || 20) : 20,
+      z: d ? Number(d.moz || 20) : 20,
     };
   }
 
@@ -165,7 +166,13 @@
       $('rl-roi-readout').style.display = 'block';
       $('rl-source').textContent = '数据源 ' + (data.source || '—');
       setReadout();
-      setStatus('点云已采集，请在图上拖拽绘制 ROI。');
+      if (data.source && data.source.indexOf('sample') === 0) {
+        setStatus('⚠ 未取到真实相机数据，已回退模拟点云'
+          + (data.fallback_reason ? '：' + data.fallback_reason : '（相机未连接）')
+          + '。请检查相机连接后重试。');
+      } else {
+        setStatus('点云已采集（真实相机），请在图上拖拽绘制 ROI。');
+      }
     } catch (e) {
       setStatus('网络请求失败：' + e.message);
     } finally { hideLoading(); }
@@ -321,12 +328,8 @@
     return isNaN(n) ? '—' : (n > 0 ? '+' : '') + n.toFixed(3) + ' ' + unit;
   }
 
-  // ── 配方选择联动 POS/层号 ─────────────────────────────────
-  $('recipe-id').addEventListener('change', () => {
-    const opt = selectedOption();
-    if (opt && opt.dataset.pos) $('position-no').value = opt.dataset.pos;
-    if (opt && opt.dataset.layer) $('layer-no').value = opt.dataset.layer;
-  });
+  // ── 配方卡片选择联动 POS/层号（已由 HTML 层 selectRecipeCard() 处理，此处仅保留历史兼容） ──
+  // $('recipe-id').addEventListener('change', ...) 已迁移到 HTML 内联 onclick
 
   $('btn-refresh-history').addEventListener('click', loadHistory);
   window.addEventListener('resize', resizeCanvas);

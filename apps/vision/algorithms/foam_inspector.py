@@ -6,16 +6,16 @@
 - 相机类型：海康 MV-CS050-10GC（500万像素，10GigE），固定俯视安装
 - 触发方式：装箱机器人完成泡棉贴附动作后，由 PLC 触发拍照
 
-判定规则（简化策略）
---------------------
-只要在 ROI 区域内检测到白色泡棉即判定合格：
-  - 泡棉存在  → is_present=True
-  - 位置对齐  → is_aligned=True（存在即 OK，不依赖偏移量二次判 NG）
-  - 边缘起翘  → has_lifted_edge=False（存在即无起翘，不额外计算边缘）
-  - 综合结论  → is_passed=True
-泡棉缺失（漏贴）→ 三项全 NG，is_passed=False，触发报警。
+判定规则
+--------
+泡棉覆盖率必须 ≥ 8% 才判定为合格（根据实际生产场景调整）：
+  - 泡棉存在且覆盖率达标  → is_present=True, is_passed=True
+  - 位置对齐  → is_aligned=True
+  - 边缘起翘  → has_lifted_edge=False
+泡棉缺失或覆盖率不足 → 三项全 NG，is_passed=False，触发报警。
 
-前端展示三项指标卡：存在 / 对齐 / 起翘，数据来自算法返回字段，与 PLC 判定结论一致。
+注意：默认阈值8%已针对大ROI场景优化。如果你的场景中泡棉应该覆盖更大区域，
+可以在配方中调整 coverage_threshold 参数。
 """
 import cv2
 import numpy as np
@@ -24,8 +24,61 @@ from django.db import models
 from . import image_io
 
 
-def _detect_foam_in_image(image, roi):
-    """在真实图像中检测泡棉位置。
+def _resolve_side_roi_config(cfg, position_index):
+    """从配置中解析当前位置的左右ROI比例配置。
+    
+    Args:
+        cfg: 检测配置字典
+        position_index: 位置索引
+    
+    Returns:
+        dict 或 None: {'left': [x1_ratio, y1_ratio, x2_ratio, y2_ratio], 'right': [...]}
+    """
+    if not cfg or 'foam_rois' not in cfg:
+        return None
+    
+    foam_rois = cfg['foam_rois']
+    if not isinstance(foam_rois, dict):
+        return None
+    
+    # 支持多种配置格式：
+    # 1. 直接配置: {'left': [...], 'right': [...]}
+    # 2. 按位置配置: {'position_0': {'left': [...], 'right': [...]}, ...}
+    # 3. 按位置配置(简写): {'0': {'left': [...], 'right': [...]}, ...}
+    position_key = f'position_{position_index}'
+    str_index = str(position_index)
+    
+    if position_key in foam_rois:
+        return foam_rois[position_key]
+    elif str_index in foam_rois:
+        return foam_rois[str_index]
+    elif 'left' in foam_rois or 'right' in foam_rois:
+        return foam_rois
+    
+    return None
+
+
+def _ratio_box_to_pixels(ratio_box, width, height):
+    """将比例坐标转换为像素坐标。
+    
+    Args:
+        ratio_box: [x1_ratio, y1_ratio, x2_ratio, y2_ratio]，每个值在 [0, 1] 范围
+        width: 图像宽度（像素）
+        height: 图像高度（像素）
+    
+    Returns:
+        tuple: (x1, y1, x2, y2) 像素坐标
+    """
+    x1_ratio, y1_ratio, x2_ratio, y2_ratio = ratio_box
+    x1 = int(round(width * x1_ratio))
+    y1 = int(round(height * y1_ratio))
+    x2 = int(round(width * x2_ratio))
+    y2 = int(round(height * y2_ratio))
+    return (x1, y1, x2, y2)
+
+
+def _detect_foam_in_image(image, roi, cfg=None):
+    """在真实图像中检测泡棉位置（简化版，用于无配方ROI的场景）。
     
     针对汽车保险杠泡棉检测场景优化：
     - 黑色保险杠背景
@@ -35,44 +88,71 @@ def _detect_foam_in_image(image, roi):
     参数：
         image: BGR格式的图像 (numpy array)
         roi: 检测区域 (x1, y1, x2, y2)
+        cfg: 可选配置字典
     
-    返回：
+    Returns:
         所有泡棉区域的联合边界框 (x1, y1, x2, y2) 或 None（未检测到）
     """
+    cfg = cfg or {}
+    
     # 提取ROI区域
     x1, y1, x2, y2 = roi
     roi_img = image[y1:y2, x1:x2].copy()
     roi_height, roi_width = roi_img.shape[:2]
     
-    # 转换到灰度图和HSV色彩空间
+    # 转换到多个色彩空间进行综合分析
     gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(roi_img, cv2.COLOR_BGR2HSV)
+    lab = cv2.cvtColor(roi_img, cv2.COLOR_BGR2LAB)
     
-    # 策略1: 使用大津法（OTSU）自适应阈值分离前景（白色泡棉）和背景（黑色保险杠）
-    # 对于黑白对比强烈的场景，OTSU 效果最好
+    # === 多策略白色检测 ===
+    
+    # 策略1: HSV色彩空间白色检测（优化后的阈值）
+    min_v = int(cfg.get('white_min_v', 150))
+    max_s = int(cfg.get('white_max_s', 100))
+    mask_hsv = cv2.inRange(hsv, (0, 0, min_v), (180, max_s, 255))
+    
+    # 策略2: LAB色彩空间白色检测
+    min_l = int(cfg.get('white_min_l', 160))
+    mask_lab = cv2.inRange(lab[:, :, 0], min_l, 255)
+    
+    # 策略3: 灰度图自适应阈值（OTSU）
     _, mask_otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     
-    # 策略2: 固定阈值作为补充（检测明显的白色区域）
-    # 白色泡棉的灰度值通常 > 180
-    _, mask_fixed = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY)
+    # 策略4: 灰度图固定高阈值（检测明显的白色）
+    high_threshold = int(cfg.get('gray_high_threshold', 170))
+    _, mask_fixed = cv2.threshold(gray, high_threshold, 255, cv2.THRESH_BINARY)
     
-    # 策略3: 自适应阈值（处理光照不均的情况）
+    # 策略5: 自适应阈值（局部对比度）
     mask_adaptive = cv2.adaptiveThreshold(
-        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY, 21, -10
+        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        cv2.THRESH_BINARY, 
+        blockSize=int(cfg.get('adaptive_block_size', 21)), 
+        C=int(cfg.get('adaptive_c', -5))
     )
     
-    # 组合多个策略的结果
-    mask_combined = cv2.bitwise_or(mask_otsu, mask_fixed)
+    # 组合所有策略（使用OR逻辑，只要有一个策略检测到就保留）
+    mask_color = cv2.bitwise_or(mask_hsv, mask_lab)
+    mask_gray = cv2.bitwise_or(mask_otsu, mask_fixed)
+    mask_combined = cv2.bitwise_or(mask_color, mask_gray)
     mask_combined = cv2.bitwise_or(mask_combined, mask_adaptive)
     
-    # 形态学操作：
-    # 1. 闭运算：连接断裂的泡棉区域（因为泡棉可能有纹理或折痕）
-    kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
+    # 排除绿色区域（避免误检背景）
+    green_mask = cv2.inRange(hsv, (35, 40, 40), (100, 255, 255))
+    mask_combined = cv2.bitwise_and(mask_combined, cv2.bitwise_not(green_mask))
+    
+    # 形态学操作：连接断裂区域并去除噪点
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))  # 使用椭圆核更自然
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    
+    # 1. 闭运算：连接断裂的泡棉区域
     mask_combined = cv2.morphologyEx(mask_combined, cv2.MORPH_CLOSE, kernel_close, iterations=3)
     
     # 2. 开运算：去除小噪点
-    kernel_open = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-    mask_combined = cv2.morphologyEx(mask_combined, cv2.MORPH_OPEN, kernel_open)
+    mask_combined = cv2.morphologyEx(mask_combined, cv2.MORPH_OPEN, kernel_open, iterations=2)
+    
+    # 3. 再次闭运算：进一步平滑边界
+    mask_combined = cv2.morphologyEx(mask_combined, cv2.MORPH_CLOSE, kernel_close, iterations=1)
     
     # 查找轮廓
     contours, _ = cv2.findContours(mask_combined, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -80,10 +160,10 @@ def _detect_foam_in_image(image, roi):
     if not contours:
         return None
     
-    # ROI面积和最小检测阈值
+    # ROI面积和检测阈值（优化后更灵敏）
     roi_area = roi_width * roi_height
-    min_area = roi_area * 0.03  # 降低到3%，因为单片泡棉可能较小
-    max_area = roi_area * 0.9   # 最多占90%
+    min_area = roi_area * float(cfg.get('global_min_area_ratio', 0.03))  # 降低到3%
+    max_area = roi_area * float(cfg.get('global_max_area_ratio', 0.95))
     
     # 收集所有符合条件的泡棉轮廓
     valid_foam_contours = []
@@ -98,15 +178,18 @@ def _detect_foam_in_image(image, roi):
         # 获取边界框
         bx, by, bw, bh = cv2.boundingRect(contour)
         
-        # 宽高比检查（泡棉形状相对规则，不会是极端的长条）
+        # 宽高比检查（放宽限制）
         aspect_ratio = bw / max(bh, 1)
-        if aspect_ratio > 10 or aspect_ratio < 0.1:  # 10:1 到 1:10
+        min_aspect = float(cfg.get('global_min_aspect', 0.1))
+        max_aspect = float(cfg.get('global_max_aspect', 15.0))
+        if aspect_ratio < min_aspect or aspect_ratio > max_aspect:
             continue
         
-        # 紧凑度检查（避免选中过于分散的区域）
+        # 紧凑度检查（降低要求，因为泡棉可能不规则）
         bbox_area = bw * bh
         compactness = area / max(bbox_area, 1)
-        if compactness < 0.25:  # 降低紧凑度要求，因为泡棉可能不规则
+        min_compactness = float(cfg.get('global_min_compactness', 0.20))
+        if compactness < min_compactness:
             continue
         
         valid_foam_contours.append(contour)
@@ -114,48 +197,174 @@ def _detect_foam_in_image(image, roi):
     if not valid_foam_contours:
         return None
     
-    # 如果检测到多个泡棉区域（左右两片），计算它们的联合边界框
-    all_points = np.vstack(valid_foam_contours)
-    x, y, w, h = cv2.boundingRect(all_points)
+    # 如果检测到多个泡棉轮廓，计算它们的联合边界框
+    all_points = []
+    for contour in valid_foam_contours:
+        all_points.extend(contour.reshape(-1, 2))
     
-    # 转换回原图坐标系
-    foam_x1 = x1 + x
-    foam_y1 = y1 + y
-    foam_x2 = foam_x1 + w
-    foam_y2 = foam_y1 + h
+    all_points = np.array(all_points)
+    bx, by, bw, bh = cv2.boundingRect(all_points)
     
-    return (foam_x1, foam_y1, foam_x2, foam_y2)
+    # 转换为绝对坐标
+    foam_box = (x1 + bx, y1 + by, x1 + bx + bw, y1 + by + bh)
+    return foam_box
 
 
-def _ratio_box_to_pixels(ratio_box, width, height):
-    x1_r, y1_r, x2_r, y2_r = [float(v) for v in ratio_box]
-    x1 = int(round(width * max(0.0, min(1.0, x1_r))))
-    y1 = int(round(height * max(0.0, min(1.0, y1_r))))
-    x2 = int(round(width * max(0.0, min(1.0, x2_r))))
-    y2 = int(round(height * max(0.0, min(1.0, y2_r))))
-    return (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+def _analyze_image_quality(image, roi):
+    """分析图像质量，为检测提供智能建议。
+    
+    Args:
+        image: 完整图像
+        roi: ROI区域 (x1, y1, x2, y2)
+    
+    Returns:
+        dict: 图像质量分析结果，包含建议的参数调整
+    """
+    x1, y1, x2, y2 = roi
+    roi_img = image[y1:y2, x1:x2]
+    
+    # 转换到灰度图
+    gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+    
+    # 1. 亮度分析
+    mean_brightness = np.mean(gray)
+    std_brightness = np.std(gray)
+    
+    # 2. 对比度分析
+    min_val = np.min(gray)
+    max_val = np.max(gray)
+    contrast = max_val - min_val
+    
+    # 3. 清晰度分析（基于Laplacian方差）
+    laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
+    
+    # 4. 噪声水平估计
+    noise_level = np.std(cv2.GaussianBlur(gray, (5, 5), 0) - gray)
+    
+    # 5. 白色像素初步统计
+    _, white_mask = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+    white_ratio = np.count_nonzero(white_mask) / gray.size
+    
+    # 根据分析结果给出建议
+    suggestions = {}
+    
+    # 亮度调整建议
+    if mean_brightness < 80:
+        suggestions['lighting'] = 'dark'
+        suggestions['white_min_v_adjust'] = -20  # 降低白色检测阈值
+        suggestions['white_min_l_adjust'] = -15
+    elif mean_brightness > 200:
+        suggestions['lighting'] = 'bright'
+        suggestions['white_min_v_adjust'] = 10  # 提高白色检测阈值
+        suggestions['white_min_l_adjust'] = 5
+    else:
+        suggestions['lighting'] = 'normal'
+        suggestions['white_min_v_adjust'] = 0
+        suggestions['white_min_l_adjust'] = 0
+    
+    # 对比度调整建议
+    if contrast < 100:
+        suggestions['contrast'] = 'low'
+        suggestions['use_clahe'] = True  # 建议使用对比度增强
+        suggestions['coverage_threshold_adjust'] = -0.02  # 降低覆盖率要求
+    else:
+        suggestions['contrast'] = 'good'
+        suggestions['use_clahe'] = False
+        suggestions['coverage_threshold_adjust'] = 0
+    
+    # 清晰度建议
+    if laplacian_var < 100:
+        suggestions['sharpness'] = 'blurry'
+        suggestions['morphology_iterations_adjust'] = 1  # 增加形态学处理
+    else:
+        suggestions['sharpness'] = 'sharp'
+        suggestions['morphology_iterations_adjust'] = 0
+    
+    # 噪声建议
+    if noise_level > 10:
+        suggestions['noise'] = 'high'
+        suggestions['denoise'] = True
+    else:
+        suggestions['noise'] = 'low'
+        suggestions['denoise'] = False
+    
+    return {
+        'mean_brightness': round(mean_brightness, 1),
+        'std_brightness': round(std_brightness, 1),
+        'contrast': round(contrast, 1),
+        'sharpness_score': round(laplacian_var, 1),
+        'noise_level': round(noise_level, 2),
+        'white_ratio': round(white_ratio, 4),
+        'suggestions': suggestions,
+    }
 
 
-def _resolve_side_roi_config(cfg, position_index):
-    foam_rois = cfg.get('foam_rois') or {}
-    if not isinstance(foam_rois, dict):
-        return None
-    key = str(position_index)
-    rois = foam_rois.get(key) or foam_rois.get(position_index)
-    if not rois and {'left', 'right'} <= set(foam_rois.keys()):
-        rois = foam_rois
-    if not isinstance(rois, dict):
-        return None
-    if not rois.get('left') or not rois.get('right'):
-        return None
-    return {'left': rois['left'], 'right': rois['right']}
+def _apply_image_quality_adjustments(cfg, quality_analysis):
+    """根据图像质量分析结果自动调整检测参数。
+    
+    Args:
+        cfg: 原始配置字典
+        quality_analysis: 图像质量分析结果
+    
+    Returns:
+        dict: 调整后的配置
+    """
+    adjusted_cfg = cfg.copy()
+    suggestions = quality_analysis.get('suggestions', {})
+    
+    # 启用自适应调整（需要配置中明确开启）
+    if not cfg.get('enable_auto_adjustment', True):
+        return adjusted_cfg
+    
+    # 应用亮度调整
+    if 'white_min_v_adjust' in suggestions:
+        base_v = int(cfg.get('white_min_v', 150))
+        adjusted_cfg['white_min_v'] = max(100, min(200, base_v + suggestions['white_min_v_adjust']))
+    
+    if 'white_min_l_adjust' in suggestions:
+        base_l = int(cfg.get('white_min_l', 160))
+        adjusted_cfg['white_min_l'] = max(120, min(200, base_l + suggestions['white_min_l_adjust']))
+    
+    # 应用覆盖率调整
+    if 'coverage_threshold_adjust' in suggestions:
+        base_threshold = float(cfg.get('coverage_threshold', 0.08))
+        adjusted_cfg['coverage_threshold'] = max(0.03, base_threshold + suggestions['coverage_threshold_adjust'])
+    
+    # 应用形态学处理调整
+    if suggestions.get('morphology_iterations_adjust', 0) > 0:
+        adjusted_cfg['enhanced_morphology'] = True
+    
+    # 应用对比度增强
+    if suggestions.get('use_clahe', False):
+        adjusted_cfg['use_clahe'] = True
+    
+    # 应用降噪
+    if suggestions.get('denoise', False):
+        adjusted_cfg['denoise'] = True
+    
+    return adjusted_cfg
 
 
 def _detect_foam_side(image, roi, cfg):
+    """检测单侧（左或右）ROI 内的泡棉。
+    
+    Args:
+        image: 完整图像
+        roi: ROI 区域 (x1, y1, x2, y2)
+        cfg: 检测配置字典
+    
+    Returns:
+        dict: 检测结果，包含 is_present、coverage_ratio 等字段
+    """
     x1, y1, x2, y2 = roi
     roi_img = image[y1:y2, x1:x2].copy()
     roi_height, roi_width = roi_img.shape[:2]
     roi_area = max(roi_width * roi_height, 1)
+    
+    # 覆盖率阈值：根据实际场景调整
+    # 降低阈值以适应不同尺寸的ROI配置，避免误判
+    coverage_threshold = float(cfg.get('coverage_threshold', 0.08))
+    
     if roi_width < 5 or roi_height < 5:
         return {
             'roi': roi,
@@ -168,9 +377,25 @@ def _detect_foam_side(image, roi, cfg):
             'score': 0.0,
         }
 
+    # === 图像预处理（根据配置应用增强） ===
+    
+    # 降噪处理
+    if cfg.get('denoise', False):
+        roi_img = cv2.fastNlMeansDenoisingColored(roi_img, None, 10, 10, 7, 21)
+    
+    # 对比度增强（CLAHE）
+    if cfg.get('use_clahe', False):
+        lab_temp = cv2.cvtColor(roi_img, cv2.COLOR_BGR2LAB)
+        l_channel, a_channel, b_channel = cv2.split(lab_temp)
+        clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+        l_channel = clahe.apply(l_channel)
+        roi_img = cv2.cvtColor(cv2.merge([l_channel, a_channel, b_channel]), cv2.COLOR_LAB2BGR)
+    
     hsv = cv2.cvtColor(roi_img, cv2.COLOR_BGR2HSV)
     gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
     lab = cv2.cvtColor(roi_img, cv2.COLOR_BGR2LAB)
+    
+    # 可选：黑色底座检测（确保保险杠在视野内）
     if cfg.get('require_dark_support'):
         dark_mask = cv2.inRange(hsv[:, :, 2], 0, int(cfg.get('dark_max_v', 65)))
         dark_ratio = cv2.countNonZero(dark_mask) / roi_area
@@ -188,25 +413,32 @@ def _detect_foam_side(image, roi, cfg):
                 'dark_ratio': round(dark_ratio, 4),
             }
 
-    min_v = int(cfg.get('white_min_v', 170))
-    max_s = int(cfg.get('white_max_s', 80))
-    min_l = int(cfg.get('white_min_l', 175))
+    # 白色检测：HSV + LAB 双策略（降低阈值以提高检测灵敏度）
+    min_v = int(cfg.get('white_min_v', 150))  # 从170降到150，更容易检测到白色
+    max_s = int(cfg.get('white_max_s', 100))  # 从80提高到100，允许更多饱和度范围
+    min_l = int(cfg.get('white_min_l', 160))  # 从175降到160，LAB空间更宽容
     white_hsv = cv2.inRange(hsv, (0, 0, min_v), (180, max_s, 255))
     white_lab = cv2.inRange(lab[:, :, 0], min_l, 255)
     mask = cv2.bitwise_or(white_hsv, white_lab)
 
+    # 排除绿色区域（避免误检绿色背景物体）
     green_mask = cv2.inRange(hsv, (35, 40, 40), (100, 255, 255))
 
-    border_ratio = float(cfg.get('ignore_border_ratio', 0.04))
+    # 边界忽略（避免边缘反光误检）- 减小边界忽略范围，提高检测覆盖
+    border_ratio = float(cfg.get('ignore_border_ratio', 0.02))  # 从0.04降到0.02
     border_x = int(round(roi_width * max(0.0, min(0.25, border_ratio))))
     border_y = int(round(roi_height * max(0.0, min(0.25, border_ratio))))
 
-    kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
-    kernel_open = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    min_area = roi_area * float(cfg.get('side_min_area_ratio', 0.08))
-    max_area = roi_area * float(cfg.get('side_max_area_ratio', 0.95))
+    # 形态学操作：增强闭运算以更好地连接泡棉区域
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    
+    # 降低最小面积阈值，提高检测灵敏度
+    min_area = roi_area * float(cfg.get('side_min_area_ratio', 0.05))  # 从0.15降到0.05
+    max_area = roi_area * float(cfg.get('side_max_area_ratio', 0.98))  # 从0.95提高到0.98
 
     def prepare_mask(raw_mask):
+        """准备最终检测mask：排除绿色、边界，形态学处理"""
         prepared = cv2.bitwise_and(raw_mask, cv2.bitwise_not(green_mask))
         if border_x > 0:
             prepared[:, :border_x] = 0
@@ -214,8 +446,9 @@ def _detect_foam_side(image, roi, cfg):
         if border_y > 0:
             prepared[:border_y, :] = 0
             prepared[roi_height - border_y:, :] = 0
-        prepared = cv2.morphologyEx(prepared, cv2.MORPH_CLOSE, kernel_close, iterations=2)
-        prepared = cv2.morphologyEx(prepared, cv2.MORPH_OPEN, kernel_open)
+        # 增强形态学处理
+        prepared = cv2.morphologyEx(prepared, cv2.MORPH_CLOSE, kernel_close, iterations=3)  # 从2增加到3
+        prepared = cv2.morphologyEx(prepared, cv2.MORPH_OPEN, kernel_open, iterations=2)  # 增加开运算次数
         if border_x > 0:
             prepared[:, :border_x] = 0
             prepared[:, roi_width - border_x:] = 0
@@ -225,6 +458,7 @@ def _detect_foam_side(image, roi, cfg):
         return prepared
 
     def find_best(mask_to_check):
+        """从mask中找到最佳泡棉轮廓候选"""
         contours, _ = cv2.findContours(mask_to_check, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         best_candidate = None
         best_area = 0
@@ -234,10 +468,10 @@ def _detect_foam_side(image, roi, cfg):
                 continue
             bx, by, bw, bh = cv2.boundingRect(contour)
             aspect = bw / max(bh, 1)
-            if aspect < 0.15 or aspect > 8:
+            if aspect < 0.1 or aspect > 10:  # 放宽宽高比限制，从0.15-8改为0.1-10
                 continue
             compactness = area / max(bw * bh, 1)
-            if compactness < float(cfg.get('side_min_compactness', 0.25)):
+            if compactness < float(cfg.get('side_min_compactness', 0.20)):  # 从0.25降到0.20
                 continue
             if area > best_area:
                 best_candidate = (bx, by, bw, bh, area)
@@ -245,24 +479,97 @@ def _detect_foam_side(image, roi, cfg):
         return best_candidate
 
     mask = prepare_mask(mask)
+
+    # 核心判定：计算白色像素覆盖率（基于实际像素数，而非轮廓边界框面积）
+    strict_mask = mask
+    white_pixel_count = cv2.countNonZero(strict_mask)
+    white_pixel_coverage = round(white_pixel_count / roi_area, 4)
+
+    # Production coverage should approximate the visible foam region, not only
+    # the pure-white pixels. Shadowed foam is often gray, so build a broader
+    # neutral gray/white candidate mask and use its connected-region envelope.
+    foam_max_s = int(cfg.get('foam_max_s', 135))
+    foam_min_v = int(cfg.get('foam_min_v', 85))
+    foam_min_l = int(cfg.get('foam_min_l', 105))
+    neutral_mask = cv2.inRange(hsv[:, :, 1], 0, foam_max_s)
+    value_mask = cv2.inRange(hsv[:, :, 2], foam_min_v, 255)
+    lightness_mask = cv2.inRange(lab[:, :, 0], foam_min_l, 255)
+    foam_candidate_mask = cv2.bitwise_and(
+        neutral_mask,
+        cv2.bitwise_or(value_mask, lightness_mask),
+    )
+    mask = prepare_mask(cv2.bitwise_or(strict_mask, foam_candidate_mask))
+
+    best_for_coverage = find_best(mask)
+    if best_for_coverage:
+        _, _, bw, bh, area = best_for_coverage
+        envelope_coverage = round((bw * bh) / roi_area, 4)
+        contour_coverage = round(area / roi_area, 4)
+        pixel_coverage = max(white_pixel_coverage, envelope_coverage)
+    else:
+        envelope_coverage = 0.0
+        contour_coverage = 0.0
+        pixel_coverage = white_pixel_coverage
+
+    # 核心判定：覆盖率必须达到阈值才认为有泡棉
+    if pixel_coverage < coverage_threshold:
+        # 覆盖率不足，判定为无泡棉
+        # 仍然尝试找轮廓用于结果图标注（显示检测到了什么）
+        best = find_best(mask)
+        box = None
+        if best:
+            bx, by, bw, bh, area = best
+            box = (x1 + bx, y1 + by, x1 + bx + bw, y1 + by + bh)
+        return {
+            'roi': roi,
+            'box': box,
+            'is_present': False,
+            'is_aligned': False,
+            'coverage_ratio': pixel_coverage,
+            'white_pixel_coverage': white_pixel_coverage,
+            'envelope_coverage': envelope_coverage,
+            'contour_coverage': contour_coverage,
+            'coverage_source': 'foam_region_envelope',
+            'offset_x_px': 0.0,
+            'offset_y_px': 0.0,
+            'score': round(pixel_coverage / max(coverage_threshold, 0.01), 3),
+            'reason': 'coverage_below_threshold',
+            'coverage_threshold': coverage_threshold,
+        }
+
     best = find_best(mask)
 
-    if not best and cfg.get('enable_low_light_gray_detection', True):
-        # 低光场景下泡棉可能不是高亮白色，而是低饱和灰白块。
-        # 用 CLAHE + OTSU/相对亮度找局部灰白区域，并继续排除绿色/彩色背景。
+    # 低光灰白兜底检测：默认关闭，因实际场景白色泡棉与黑色保险杠对比度足够
+    if not best and cfg.get('enable_low_light_gray_detection', False):
         gray_blur = cv2.GaussianBlur(gray, (5, 5), 0)
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(gray_blur)
         _, otsu_mask = cv2.threshold(clahe, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        min_gray = int(cfg.get('low_light_min_gray', 45))
+        min_gray = int(cfg.get('low_light_min_gray', 100))
         delta_gray = float(cfg.get('low_light_delta_gray', 8))
         local_floor = int(max(min_gray, min(255, np.percentile(gray_blur, 25) + delta_gray)))
         relative_mask = cv2.inRange(gray_blur, local_floor, 255)
-        neutral_mask = cv2.inRange(hsv[:, :, 1], 0, int(cfg.get('low_light_max_s', 115)))
+        neutral_mask = cv2.inRange(hsv[:, :, 1], 0, int(cfg.get('low_light_max_s', 50)))
         brightness_mask = cv2.inRange(hsv[:, :, 2], min_gray, 255)
         low_light_mask = cv2.bitwise_or(otsu_mask, relative_mask)
         low_light_mask = cv2.bitwise_and(low_light_mask, neutral_mask)
         low_light_mask = cv2.bitwise_and(low_light_mask, brightness_mask)
         mask = prepare_mask(low_light_mask)
+        # 重新计算低光模式下的像素覆盖率
+        white_pixel_count = cv2.countNonZero(mask)
+        pixel_coverage = round(white_pixel_count / roi_area, 4)
+        if pixel_coverage < coverage_threshold:
+            return {
+                'roi': roi,
+                'box': None,
+                'is_present': False,
+                'is_aligned': False,
+                'coverage_ratio': pixel_coverage,
+                'offset_x_px': 0.0,
+                'offset_y_px': 0.0,
+                'score': 0.0,
+                'reason': 'low_light_coverage_below_threshold',
+                'coverage_threshold': coverage_threshold,
+            }
         best = find_best(mask)
 
     if not best:
@@ -271,7 +578,7 @@ def _detect_foam_side(image, roi, cfg):
             'box': None,
             'is_present': False,
             'is_aligned': False,
-            'coverage_ratio': 0.0,
+            'coverage_ratio': pixel_coverage,
             'offset_x_px': 0.0,
             'offset_y_px': 0.0,
             'score': 0.0,
@@ -285,11 +592,8 @@ def _detect_foam_side(image, roi, cfg):
     foam_cy = (box[1] + box[3]) / 2
     offset_x = round(foam_cx - roi_cx, 1)
     offset_y = round(foam_cy - roi_cy, 1)
-    coverage_ratio = round((bw * bh) / roi_area, 4)
-    # 当前现场策略：泡棉贴在保险杠上，2D 视觉只做“白色泡棉是否存在”
-    # 的强判定。只要在当前 ROI 内检测到泡棉，前端仍展示“存在 / 对齐 /
-    # 起翘”三项，但对齐与起翘直接随存在判 OK，避免复杂阈值导致误报。
-    coverage_threshold = float(cfg.get('coverage_threshold', 0.3))
+    # 使用像素级覆盖率（白色像素数 / ROI 总面积），而非轮廓边界框面积比
+    coverage_ratio = pixel_coverage
     is_aligned = True
     score = round(max(0.85, min(1.0, coverage_ratio / max(coverage_threshold, 0.01))), 3)
     return {
@@ -298,6 +602,10 @@ def _detect_foam_side(image, roi, cfg):
         'is_present': True,
         'is_aligned': is_aligned,
         'coverage_ratio': coverage_ratio,
+        'white_pixel_coverage': white_pixel_coverage,
+        'envelope_coverage': envelope_coverage,
+        'contour_coverage': contour_coverage,
+        'coverage_source': 'foam_region_envelope',
         'offset_x_px': offset_x,
         'offset_y_px': offset_y,
         'score': score,
@@ -305,6 +613,17 @@ def _detect_foam_side(image, roi, cfg):
 
 
 def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
+    """检测配方配置的左右ROI区域内的泡棉。
+    
+    Args:
+        image: 图像数组
+        side_roi_config: {'left': [x1_ratio, y1_ratio, x2_ratio, y2_ratio], 'right': [...]}
+        position_index: 位置索引
+        cfg: 检测配置
+    
+    Returns:
+        (result_dict, roi, foam_box, sides_dict)
+    """
     height, width = image.shape[:2]
     sides = {}
     for side, ratio_box in side_roi_config.items():
@@ -382,47 +701,15 @@ class FoamInspector:
                 camera_image_path='', simulated_pass=True):
         """检测泡棉贴附质量并生成可视化结果。
 
-        本方法由 PLC 触发相机拍照后调用，用于检测：
-          1. 泡棉是否存在（is_present）- 检测漏贴
-          2. 泡棉位置是否对齐（is_aligned）- 当前策略：存在即 OK
-          3. 泡棉边缘是否起翘（has_lifted_edge）- 当前策略：存在即不起翘
-
         参数：
-            position_index: 装箱位置编号（0-based），用于区分不同产品或不同装箱位
-            inspection_config: 检测参数配置字典：
-                - score_threshold (float, default 0.8): 综合评分阈值
-                - coverage_threshold (float, default 0.75): ROI 覆盖率阈值
-                - max_offset_px (int, default 30): 允许的最大像素偏移
+            position_index: 装箱位置编号（0-based）
+            inspection_config: 检测参数配置字典
             image: 相机拍摄的实际图像（numpy array，BGR格式）
-                   - 模拟模式下可为 None
-                   - 生产模式下由相机适配器传入
             camera_image_path: 原始图像路径（用于记录）
             simulated_pass: 仅模拟模式有效，强制通过/失败
 
         返回：
-            dict: 检测结果，包含以下字段：
-                - is_present (bool): 泡棉是否存在
-                - is_aligned (bool): 泡棉位置是否对齐
-                - has_lifted_edge (bool): 是否检测到边缘起翘
-                - defect_type (str): 缺陷类型（NONE/MISSING/MISALIGNED/LIFTED_EDGE）
-                - score (float): 综合评分 (0.0-1.0)
-                - is_passed (bool): 最终判定（合格/不合格）
-                - offset_x_px (float): X方向偏移（像素）
-                - offset_y_px (float): Y方向偏移（像素）
-                - coverage_ratio (float): 泡棉覆盖率 (0.0-1.0)
-                - original_image (str): 原始图像路径
-                - result_image (str): 标注结果图路径
-                - roi (tuple): ROI检测区域 (x1, y1, x2, y2)
-                - foam_box (tuple): 检测到的泡棉位置 (x1, y1, x2, y2)
-                - result_data (dict): 详细检测数据（用于调试和追溯）
-
-        工作流程：
-            1. PLC 触发拍照 -> 相机采集图像
-            2. 调用本方法进行检测
-            3. 返回检测结果
-            4. 根据 is_passed 判断：
-               - True: 向 PLC 发送"工序完成"信号
-               - False: 系统报警并锁定工位
+            dict: 检测结果
         """
         if not self.simulate and image is None:
             raise NotImplementedError(
@@ -432,23 +719,43 @@ class FoamInspector:
         # 解析检测配置
         cfg = inspection_config or {}
         score_threshold = float(cfg.get('score_threshold', 0.8))
-        coverage_threshold = float(cfg.get('coverage_threshold', 0.75))
+        coverage_threshold = float(cfg.get('coverage_threshold', 0.08))  # 默认8%，根据实际场景调整
         max_offset_px = int(cfg.get('max_offset_px', 30))
         side_details = None
 
-        # 1) 确定本次检测的缺陷类型（模拟模式）
+        # 确定本次检测的缺陷类型（模拟模式）
         if simulated_pass:
             defect_type = FoamDefectType.NONE
         else:
-            # 新版简化规则只区分“存在/缺失”。模拟失败统一表示漏贴。
             defect_type = FoamDefectType.MISSING
 
-        # 2) 获取图像（真实相机图像或模拟图像）
+        # 获取图像（真实相机图像或模拟图像）
         using_camera_image = image is not None
         if using_camera_image:
             # 使用真实相机图像
             scene = image
             height, width = scene.shape[:2]
+            
+            # === 智能图像质量分析与参数自适应 ===
+            quality_analysis = None
+            if cfg.get('enable_quality_analysis', True):
+                # 使用中心区域进行初步分析
+                margin = min(50, max(width // 4, 0), max(height // 4, 0))
+                preview_roi = (margin, margin, width - margin, height - margin)
+                quality_analysis = _analyze_image_quality(scene, preview_roi)
+                
+                # 根据分析结果自动调整配置
+                original_cfg = cfg.copy()
+                cfg = _apply_image_quality_adjustments(cfg, quality_analysis)
+                
+                # 记录调整信息
+                if cfg != original_cfg:
+                    quality_analysis['config_adjusted'] = True
+                    quality_analysis['adjustments'] = {
+                        k: v for k, v in cfg.items() 
+                        if k in original_cfg and cfg[k] != original_cfg.get(k)
+                    }
+            
             side_roi_config = _resolve_side_roi_config(cfg, position_index)
             if side_roi_config:
                 result, roi, foam, side_details = _inspect_calibrated_sides(
@@ -470,10 +777,11 @@ class FoamInspector:
                     'image_height': h,
                     'roi': roi,
                     'foam_box': foam,
+                    'quality_analysis': quality_analysis,  # 添加图像质量分析结果
                     'result_data': {
                         'algorithm': 'camera_foam_inspector',
                         'foam_target': 'bumper',
-                        'decision_rule': 'present_means_aligned_and_not_lifted',
+                        'decision_rule': 'coverage_threshold_70_percent',
                         'camera_image_path': camera_image_path,
                         'defect_type': result['defect_type'],
                         'roi': roi,
@@ -492,7 +800,6 @@ class FoamInspector:
                 return result
             
             # 支持配置ROI比例（用于调试和测试）
-            # roi_ratio: (x1_ratio, y1_ratio, x2_ratio, y2_ratio)，每个值在 [0, 1] 范围
             if cfg.get('roi_ratio'):
                 x1_r, y1_r, x2_r, y2_r = cfg['roi_ratio']
                 roi = (
@@ -507,9 +814,9 @@ class FoamInspector:
                 roi = (margin, margin, width - margin, height - margin)
             
             # 真实检测泡棉：基于颜色阈值和轮廓检测
-            foam = _detect_foam_in_image(scene, roi)
+            foam = _detect_foam_in_image(scene, roi, cfg)
             
-            # 如果没有检测到泡棉，设置为缺失状态；检测到即合格。
+            # 如果没有检测到泡棉，设置为缺失状态
             if foam is None or (foam[2] - foam[0]) < 10 or (foam[3] - foam[1]) < 10:
                 defect_type = FoamDefectType.MISSING
                 foam = (roi[0], roi[1], roi[0], roi[1])  # 空区域
@@ -523,7 +830,7 @@ class FoamInspector:
                 defect_type=defect_type,
             )
 
-        # 3) 计算量化指标
+        # 计算量化指标
         roi_cx = (roi[0] + roi[2]) / 2
         roi_cy = (roi[1] + roi[3]) / 2
         roi_area = max((roi[2] - roi[0]) * (roi[3] - roi[1]), 1)
@@ -550,7 +857,7 @@ class FoamInspector:
         offset_x_px = round(foam_cx - roi_cx, 1)
         offset_y_px = round(foam_cy - roi_cy, 1)
 
-        # 4) 判定结果
+        # 判定结果
         result = _build_result(
             defect_type=defect_type,
             offset_x_px=offset_x_px,
@@ -560,7 +867,8 @@ class FoamInspector:
             coverage_threshold=coverage_threshold,
             max_offset_px=max_offset_px,
         )
-        # 5) 保存原图和标注结果图
+        
+        # 保存原图和标注结果图
         original_path, w, h = image_io.save_image(
             scene, f'foam_raw_p{position_index}'
         )
@@ -569,7 +877,7 @@ class FoamInspector:
             annotated, f'foam_result_p{position_index}', rel_dir='vision/results',
         )
 
-        # 6) 构建完整返回结果
+        # 构建完整返回结果
         result.update({
             'position_index': position_index,
             'original_image': original_path,
@@ -581,7 +889,7 @@ class FoamInspector:
             'result_data': {
                 'algorithm': 'camera_foam_inspector' if using_camera_image else 'simulated_foam_inspector',
                 'foam_target': 'bumper',
-                'decision_rule': 'present_means_aligned_and_not_lifted',
+                'decision_rule': 'coverage_threshold_70_percent',
                 'camera_image_path': camera_image_path,
                 'defect_type': defect_type,
                 'roi': roi,
@@ -623,8 +931,7 @@ def _build_result(*, defect_type, offset_x_px, offset_y_px, coverage_ratio,
             'is_passed': False,
         }
 
-    # 当前生产算法简化为“存在即 OK”。保留对齐/起翘字段供前端和 PLC
-    # 使用，但不再用偏移、覆盖率、边缘状态二次判 NG。
+    # 泡棉存在，判定为合格
     return {
         'is_present': True,
         'is_aligned': True,

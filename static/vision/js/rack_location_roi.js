@@ -97,6 +97,19 @@
       };
     }
 
+    function setReadout(text) {
+      const node = el('rl-roi-readout');
+      if (node) node.textContent = text;
+    }
+
+    function readoutFromReal(realRoi) {
+      if (!realRoi) {
+        setReadout('拖拽绘制 ROI');
+        return;
+      }
+      setReadout(`ROI  x=${realRoi.x}  y=${realRoi.y}  w=${realRoi.w}  h=${realRoi.h}`);
+    }
+
     function displayToReal(displayRoi) {
       const naturalWidth = image.naturalWidth || Number(image.dataset.naturalWidth) || canvas.width;
       const naturalHeight = image.naturalHeight || Number(image.dataset.naturalHeight) || canvas.height;
@@ -129,6 +142,7 @@
       writeRoiConfig(roi);
       state.displayRoi = realToDisplay(roi);
       draw();
+      readoutFromReal(roi);
     }
 
     canvas.addEventListener('mousedown', (event) => {
@@ -148,6 +162,7 @@
         h: Math.abs(current.y - state.start.y),
       };
       draw();
+      readoutFromReal(displayToReal(state.displayRoi));
     });
 
     window.addEventListener('mouseup', () => {
@@ -159,7 +174,9 @@
         draw();
         return;
       }
-      writeRoiConfig(displayToReal(state.displayRoi));
+      const realRoi = displayToReal(state.displayRoi);
+      writeRoiConfig(realRoi);
+      readoutFromReal(realRoi);
       el('rack-location-ui-status').textContent = 'ROI 已更新，可预计算或保存配方。';
     });
 
@@ -168,6 +185,7 @@
       el('roi-config-input').value = '{}';
       ['roi-x', 'roi-y', 'roi-w', 'roi-h'].forEach((id) => setValue(id, ''));
       draw();
+      readoutFromReal(null);
       el('rack-location-ui-status').textContent = '请重新在图上拖拽绘制 ROI。';
     });
 
@@ -211,17 +229,47 @@
         return;
       }
       const result = data.result || {};
+      renderPreviewResult(result);
+      el('rack-location-ui-status').textContent = result.locate_ok ? '预计算 OK。' : ('预计算 NG：' + (result.error_message || result.error_code || '未知错误'));
+    });
+
+    function colorOffset(id, value, limit) {
+      const input = el(id);
+      if (!input) return;
+      input.value = Number(value || 0).toFixed(3);
+      input.classList.remove('rl-out', 'rl-in');
+      if (Number.isFinite(limit)) {
+        input.classList.add(Math.abs(Number(value || 0)) > limit ? 'rl-out' : 'rl-in');
+      }
+    }
+
+    function renderPreviewResult(result) {
+      const recipe = currentRecipeData();
       setValue('actual-x', Number(result.actual_x || 0).toFixed(3));
       setValue('actual-y', Number(result.actual_y || 0).toFixed(3));
       setValue('actual-z', Number(result.actual_z || 0).toFixed(3));
-      setValue('offset-x', Number(result.offset_x || 0).toFixed(3));
-      setValue('offset-y', Number(result.offset_y || 0).toFixed(3));
-      setValue('offset-z', Number(result.offset_z || 0).toFixed(3));
-      setValue('preview-confidence', Number(result.confidence || 0).toFixed(4));
+      colorOffset('offset-x', result.offset_x, recipe.max_offset_x);
+      colorOffset('offset-y', result.offset_y, recipe.max_offset_y);
+      colorOffset('offset-z', result.offset_z, recipe.max_offset_z);
+      const confidence = Number(result.confidence || 0);
+      setValue('preview-confidence', confidence.toFixed(4));
       setValue('locate-ok', result.locate_ok ? 'OK' : 'NG');
       setValue('error-message', result.error_message || '');
-      el('rack-location-ui-status').textContent = result.locate_ok ? '预计算 OK。' : ('预计算 NG：' + (result.error_message || result.error_code || '未知错误'));
-    });
+
+      const badge = el('locate-badge');
+      if (badge) {
+        badge.className = 'badge ' + (result.locate_ok ? 'badge-ok' : 'badge-fail');
+        badge.textContent = result.locate_ok ? '定位 OK' : '定位 NG';
+      }
+      const threshold = recipe.confidence_threshold;
+      const confChip = el('rl-confidence-chip');
+      if (confChip) confChip.textContent = `置信度 ${(confidence * 100).toFixed(1)}% / 阈值 ${(threshold * 100).toFixed(0)}%`;
+      const meta = result.result_data || {};
+      const pointsChip = el('rl-points-chip');
+      if (pointsChip) pointsChip.textContent = `有效点 ${meta.valid_point_count ?? '—'}`;
+      const sourceChip = el('rl-source-chip');
+      if (sourceChip) sourceChip.textContent = `数据源 ${meta.source || result.source || '—'}`;
+    }
 
     el('btn-save-standard')?.addEventListener('click', () => {
       if (!el('actual-x')?.value) {
