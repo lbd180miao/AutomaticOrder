@@ -27,6 +27,7 @@
                data-natural-width="{{ sample_preview.image_width }}"
                data-natural-height="{{ sample_preview.image_height }}">
           <canvas id="rack-location-canvas"></canvas>
+          <div id="rl-roi-readout" class="rl-roi-readout">拖拽绘制 ROI</div>
         </div>
         <div class="toolbar rack-location-actions">
           <button type="button" id="btn-capture-standard" class="btn btn-secondary">采集标准图</button>
@@ -101,14 +102,20 @@
           <label>confidence_threshold <input name="confidence_threshold" id="confidence-threshold" type="number" min="0" max="1" step="0.01" value="{{ recipe_defaults.confidence_threshold }}"></label>
         </fieldset>
 
-        <fieldset class="rack-location-fieldset">
+        <fieldset class="rack-location-fieldset rack-location-result">
           <legend>预计算结果</legend>
+          <div class="rl-result-head rack-location-wide">
+            <span id="locate-badge" class="badge badge-muted">未预计算</span>
+            <span id="rl-confidence-chip" class="rl-chip">置信度 —</span>
+            <span id="rl-points-chip" class="rl-chip">有效点 —</span>
+            <span id="rl-source-chip" class="rl-chip">数据源 —</span>
+          </div>
           <label>actual_x <input id="actual-x" readonly></label>
           <label>actual_y <input id="actual-y" readonly></label>
           <label>actual_z <input id="actual-z" readonly></label>
-          <label>offset_x <input id="offset-x" readonly></label>
-          <label>offset_y <input id="offset-y" readonly></label>
-          <label>offset_z <input id="offset-z" readonly></label>
+          <label>offset_x <input id="offset-x" class="rl-offset" readonly></label>
+          <label>offset_y <input id="offset-y" class="rl-offset" readonly></label>
+          <label>offset_z <input id="offset-z" class="rl-offset" readonly></label>
           <label>confidence <input id="preview-confidence" readonly></label>
           <label>locate_ok <input id="locate-ok" readonly></label>
           <label class="rack-location-wide">error_message <input id="error-message" readonly></label>
@@ -160,8 +167,42 @@ window.rackLocationRecipeConfig = {
   height: 100%;
   cursor: crosshair;
 }
+.rl-roi-readout {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #e2e8f0;
+  font: 600 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  pointer-events: none;
+}
 .rack-location-actions {
   margin-top: 12px;
+}
+.rl-result-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.rl-chip {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #eef1f6;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+}
+.rack-location-result input.rl-offset.rl-out {
+  color: var(--danger);
+  font-weight: 700;
+}
+.rack-location-result input.rl-offset.rl-in {
+  color: var(--success);
+  font-weight: 600;
 }
 .rack-location-form-grid {
   display: grid;

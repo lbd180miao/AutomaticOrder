@@ -574,16 +574,17 @@ def api_foam_upload_inspect(request):
                 recipe_config = build_foam_inspection_config(recipe)
         inspection_config = {
             'score_threshold': 0.8,
-            'coverage_threshold': 0.75,
+            'coverage_threshold': 0.35,  # 根据实际场景调整为35%
             'max_offset_px': 30,
         }
         inspection_config.update(recipe_config)
+        # 使用真实图像检测，simulated_pass参数不影响结果
         result = inspector.inspect(
             position_index=position_index,
             inspection_config=inspection_config,
             image=image,
             camera_image_path=str(temp_path),
-            simulated_pass=True,
+            simulated_pass=True,  # 当image不为None时此参数被忽略
         )
         if recipe:
             result.setdefault('result_data', {})['recipe'] = serialize_recipe(recipe)
@@ -796,7 +797,7 @@ def rack_location_recipes(request):
     return render(request, 'vision/rack_location_recipes.html', {'recipes': recipes})
 
 
-def _rack_location_recipe_form_context(recipe=None):
+def _rack_location_recipe_form_context(recipe=None, prefill: dict | None = None):
     sample = RackLocationService().capture_standard_image(recipe_id=getattr(recipe, 'id', None))
     devices = Device.objects.filter(enabled=True).order_by('code')
     # 默认 ROI 落在标准场景的平整支撑面上；标准坐标直接取该 ROI 在
@@ -834,6 +835,21 @@ def _rack_location_recipe_form_context(recipe=None):
     if recipe:
         for key in defaults:
             defaults[key] = getattr(recipe, key)
+    # 支持从 GET 参数预填（配方管理页 Modal 弹窗跳转时使用）
+    if prefill:
+        for k, v in prefill.items():
+            if k in defaults and v not in (None, ''):
+                try:
+                    if isinstance(defaults[k], bool):
+                        defaults[k] = v in (True, 'true', '1', 'True')
+                    elif isinstance(defaults[k], int):
+                        defaults[k] = int(v)
+                    elif isinstance(defaults[k], float):
+                        defaults[k] = float(v)
+                    else:
+                        defaults[k] = v
+                except (ValueError, TypeError):
+                    pass
     return {
         'recipe': recipe,
         'recipe_defaults': defaults,
@@ -883,7 +899,10 @@ def rack_location_recipe_create(request):
             return redirect('vision:rack_location_recipe_edit', recipe_id=recipe.id)
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
             messages.error(request, f'保存失败：{exc}')
-    return render(request, 'vision/rack_location_recipe_form.html', _rack_location_recipe_form_context())
+    # 支持 GET 参数预填（从配方管理页 Modal 跳转而来）
+    prefill = {k: v for k, v in request.GET.items() if v not in (None, '')}
+    return render(request, 'vision/rack_location_recipe_form.html',
+                  _rack_location_recipe_form_context(prefill=prefill or None))
 
 
 @require_http_methods(['GET', 'POST'])

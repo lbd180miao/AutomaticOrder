@@ -35,6 +35,61 @@ def _decimal(value: Any, places: str = '0.001') -> Decimal:
     return Decimal(str(value or 0)).quantize(Decimal(places))
 
 
+def _simulate_xyz_from_scene(
+    *,
+    recipe: 'RackLocationRecipe',
+    position_no: int,
+    layer_no: int,
+    target_roi: dict,
+) -> tuple[float, float, float]:
+    """无真实点云时，从 2D 深度场景图像的 ROI 中位数推算模拟 X/Y/Z。
+
+    与 2D 泡棉检测工作台共享同一底层深度场（image_io.build_depth_field），
+    确保 3D 定位展示的坐标与画面场景内容关联，而非纯随机数。
+
+    逻辑：
+    1. 若配方有 target_roi → 从场景点云中裁剪该区域取中位数
+    2. 无 ROI → 用标准坐标叠加小量确定性高斯噪声（使同侧结果稳定）
+    """
+    std_x = float(recipe.standard_x)
+    std_y = float(recipe.standard_y)
+    std_z = float(recipe.standard_z)
+    layer_count = int(recipe.layer_count or 3)
+
+    # 用 (position_no, layer_no) 作为随机种子，保证同配方每次结果一致
+    seed_str = f'xyz-pos{position_no}-layer{layer_no}'
+    rng = random.Random(seed_str)
+
+    if target_roi and all(target_roi.get(k) is not None for k in ('x', 'y')):
+        try:
+            # 与页面显示的场景共享同一深度场
+            pointcloud = build_sample_pointcloud(
+                side='LEFT', layer_count=layer_count,
+            )
+            processor = PointCloudProcessor()
+            points = processor.crop_by_roi(pointcloud, target_roi)
+            med_x, med_y, med_z = processor.calculate_median_xyz(points)
+            # 叠加小量确定性噪声（≤1mm），模拟真实抖动
+            noise_x = round(rng.gauss(0, 0.4), 3)
+            noise_y = round(rng.gauss(0, 0.4), 3)
+            noise_z = round(rng.gauss(0, 0.3), 3)
+            return (
+                round(med_x + noise_x, 3),
+                round(med_y + noise_y, 3),
+                round(med_z + noise_z, 3),
+            )
+        except Exception:  # noqa: BLE001 — 兜底：场景异常时退化到标准坐标模拟
+            pass
+
+    # 无 ROI 或点云裁剪失败：对标准坐标叠加小量确定性偏移
+    return (
+        round(std_x + rng.gauss(0, 0.8), 3),
+        round(std_y + rng.gauss(0, 0.8), 3),
+        round(std_z + rng.gauss(0, 0.5), 3),
+    )
+
+
+
 @dataclass
 class RackLocationOutput:
     rack_side: str
@@ -162,14 +217,27 @@ class PointCloudProcessor:
                 'valid_point_count': int(points.shape[0]),
             }
 
-        rng = random.Random(f'pos-{position_no}-layer-{layer_no}')
+        # ── 无点云帧时：从 2D 深度场景图像 ROI 中位数推算坐标 ──────────────────
+        # 利用与 2D 相机工作台同源的深度场（image_io.build_depth_field），
+        # 按配方中保存的 target_roi 区域取中位数像素深度值，
+        # 再叠加小量高斯噪声，让同一配方重复采集结果稳定一致，
+        # 且随 ROI 绘制位置不同而产生真实感差异。
+        target_roi = (recipe.roi_config or {}).get('target_roi') or {}
+        actual_x, actual_y, actual_z = _simulate_xyz_from_scene(
+            recipe=recipe,
+            position_no=position_no,
+            layer_no=layer_no,
+            target_roi=target_roi,
+        )
+        rng = random.Random(f'rz-pos-{position_no}-layer-{layer_no}')
         return {
             **frame,
-            'actual_x': float(recipe.standard_x) + round(rng.uniform(-2.0, 2.0), 3),
-            'actual_y': float(recipe.standard_y) + round(rng.uniform(-2.0, 2.0), 3),
-            'actual_z': float(recipe.standard_z) + round(rng.uniform(-1.2, 1.2), 3),
-            'offset_rz': round(rng.uniform(-0.5, 0.5), 3),
+            'actual_x': actual_x,
+            'actual_y': actual_y,
+            'actual_z': actual_z,
+            'offset_rz': round(rng.gauss(0, 0.15), 3),
             'confidence': float(frame.get('confidence', 0.92)),
+            'source': 'scene_simulated',
         }
 
 
@@ -376,7 +444,9 @@ class DMCameraRackFrameProvider:
 
             service = DMCameraService()
             if not service.is_connected:
-                return self.fallback_provider.capture(recipe, position_no, layer_no)
+                # 工作台采集不要求事先在相机页面手动「连接」：此处自动连接物理
+                # 相机（默认第一台 + 激活配置），连接失败才会进入下方异常回退。
+                service.connect()
             if not service.is_streaming:
                 service.start_stream()
             frame = service.capture_frame_data(frame_type='POINTCLOUD', save_record=True)
@@ -393,12 +463,20 @@ class DMCameraRackFrameProvider:
                 arr = np.asarray(raw_data)
                 width = int(frame.get('width') or frame.get('image_width') or 0)
                 height = int(frame.get('height') or frame.get('image_height') or 0)
-                # 点云帧：reshape 为 H×W×3 组织化点云
-                if frame.get('frame_type') == 'POINTCLOUD' and arr.ndim == 1 and width > 0 and height > 0:
-                    try:
+                if frame.get('frame_type') == 'POINTCLOUD':
+                    # DM SDK 点云帧的 data 可能是扁平 (N,3)、1D 连续 XYZ，
+                    # 或已经是 H×W×3；统一整理成组织化点云供 ROI 裁剪。
+                    if arr.ndim == 3 and arr.shape[2] == 3:
+                        result['organized_pointcloud'] = arr
+                    elif arr.ndim == 2 and arr.shape[1] == 3:
+                        if width > 0 and height > 0 and arr.shape[0] == width * height:
+                            result['organized_pointcloud'] = arr.reshape(height, width, 3)
+                        else:
+                            result['pointcloud'] = arr
+                    elif arr.ndim == 1 and width > 0 and height > 0 and arr.size == width * height * 3:
                         result['organized_pointcloud'] = arr.reshape(height, width, 3)
-                    except ValueError:
-                        # reshape 失败时保留原始 1D 数据，供 extract_pose fallback
+                    else:
+                        # 形状无法对齐到 H×W×3 时保留原始点列，供 extract_pose fallback
                         result['pointcloud'] = arr
                 elif arr.ndim == 3 and arr.shape[2] == 3:
                     result['organized_pointcloud'] = arr
@@ -640,33 +718,41 @@ class RackLocationService:
 
         pointcloud = None
         source = 'sample'
+        fallback_reason = ''
         try:
             probe_recipe = recipe or RackLocationRecipe(
                 recipe_name='WORKBENCH', position_no=position_no, layer_no=layer_no,
                 layer_count=layer_count, hand_eye_config={'matrix': 'identity'},
             )
             frame = self.frame_provider.capture(probe_recipe, position_no, layer_no)
+            # provider 内部回退（相机未连接 / 采集异常）时会带上原因，透传给前端排查。
+            fallback_reason = frame.get('fallback_reason', '') or ''
             cloud = frame.get('organized_pointcloud')
             if cloud is not None:
                 arr = np.asarray(cloud, dtype=float)
                 if arr.ndim == 3 and arr.shape[2] == 3:
                     pointcloud = arr
                     source = frame.get('source', 'dm_camera')
-        except Exception:  # noqa: BLE001 - 任何相机异常都回退到模拟点云
+        except Exception as exc:  # noqa: BLE001 - 任何相机异常都回退到模拟点云
             pointcloud = None
+            fallback_reason = str(exc)
 
         if pointcloud is None:
             pointcloud = build_sample_pointcloud(side=side_key, layer_count=layer_count)
             source = 'sample'
 
         token, preview_url, width, height = self._persist_workbench_frame(pointcloud)
-        return {
+        payload = {
             'pointcloud_token': token,
             'preview_image_url': preview_url,
             'image_width': width,
             'image_height': height,
             'source': source,
         }
+        # 没拿到真实相机数据时，把原因暴露出来（未找到设备 / 数据流未开启等）。
+        if source != 'dm_camera' and fallback_reason:
+            payload['fallback_reason'] = fallback_reason
+        return payload
 
     def _compute_workbench(self, *, token, roi_config, recipe, layer_no):
         """从持久化点云 + ROI 计算偏差，并渲染带框标注结果图。
