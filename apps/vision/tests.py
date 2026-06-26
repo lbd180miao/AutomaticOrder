@@ -1194,6 +1194,67 @@ class RackLocationROI3DModelTests(TestCase):
         self.assertIsNone(global_roi.layer_no)
 
 
+class DMCameraRackFrameProviderTests(TestCase):
+    def _recipe(self, name='Provider-POS-01-L1'):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        return Recipe.objects.create(
+            recipe_name=name,
+            rack_side='LEFT',
+            position_no=1,
+            layer_no=1,
+            layer_count=3,
+            hand_eye_config={'matrix': 'identity'},
+        )
+
+    def test_provider_captures_pointcloud_without_dm_capture_record_side_effects(self):
+        from apps.vision.rack_location import DMCameraRackFrameProvider
+
+        recipe = self._recipe()
+
+        class FakeDMCameraService:
+            calls = []
+
+            def __init__(self):
+                self.is_connected = False
+                self.is_streaming = False
+
+            def connect(self):
+                self.is_connected = True
+
+            def start_stream(self):
+                self.is_streaming = True
+
+            def capture_frame_data(self, frame_type='DEPTH', save_record=True):
+                self.calls.append((frame_type, save_record))
+                return {
+                    'frame_type': frame_type,
+                    'data': np.zeros((2, 2, 3), dtype=float),
+                    'width': 2,
+                    'height': 2,
+                }
+
+        with patch('apps.dm_camera.services.DMCameraService', FakeDMCameraService):
+            payload = DMCameraRackFrameProvider().capture(recipe, position_no=1, layer_no=1)
+
+        self.assertEqual(FakeDMCameraService.calls, [('POINTCLOUD', False)])
+        self.assertEqual(payload['source'], 'dm_camera')
+        self.assertEqual(payload['organized_pointcloud'].shape, (2, 2, 3))
+
+    @override_settings(VISION_RACK_LOCATION_FORCE_SAMPLE=True)
+    def test_provider_can_force_sample_without_touching_dm_service(self):
+        from apps.vision.rack_location import DMCameraRackFrameProvider
+
+        class UnexpectedDMCameraService:
+            def __init__(self):
+                raise AssertionError('DM service should not be instantiated')
+
+        with patch('apps.dm_camera.services.DMCameraService', UnexpectedDMCameraService):
+            payload = DMCameraRackFrameProvider().capture(self._recipe('Forced-Sample'), 1, 1)
+
+        self.assertEqual(payload['source'], 'sample_forced')
+        self.assertIn('raw_data_path', payload)
+
+
 class RackLocationRecipe3DModelTests(TestCase):
     def test_position_recipe_matches_enabled_position_and_layer_without_side_split(self):
         Recipe = apps.get_model('vision', 'RackLocationRecipe')
@@ -1441,6 +1502,7 @@ class RackLocationService3DTests(TestCase):
         self.assertEqual(RackLocationResult.objects.count(), 1)
 
 
+@override_settings(VISION_RACK_LOCATION_FORCE_SAMPLE=True)
 class RackLocation3DViewTests(TestCase):
     def setUp(self):
         Recipe = apps.get_model('vision', 'RackLocationRecipe')
@@ -1474,6 +1536,13 @@ class RackLocation3DViewTests(TestCase):
         self.assertContains(response, 'btn-write-plc')
         self.assertContains(response, 'api_vision_3d_capture')
         self.assertContains(response, 'api_vision_3d_test_locate')
+
+    def test_workbench_javascript_preserves_unified_api_success_flag(self):
+        script_path = Path(settings.BASE_DIR) / 'static' / 'vision' / 'js' / 'rack_locator_workbench.js'
+        script = script_path.read_text(encoding='utf-8')
+
+        self.assertIn('success: data.success', script)
+        self.assertIn("error: data.error || ''", script)
 
     def test_recipe_create_page_contains_depth_image_roi_teaching_ui(self):
         response = self.client.get(reverse('vision:rack_location_recipe_create'))
@@ -1929,7 +1998,7 @@ class Rack3DLocatorServiceTests(TestCase):
         self.assertIn('plc_payload', result.result_data)
 
 
-@override_settings(MEDIA_ROOT=mkdtemp())
+@override_settings(MEDIA_ROOT=mkdtemp(), VISION_RACK_LOCATION_FORCE_SAMPLE=True)
 class Rack3DLocatorApiTests(TestCase):
     def setUp(self):
         Recipe = apps.get_model('vision', 'RackLocationRecipe')
