@@ -1455,17 +1455,25 @@ class RackLocation3DViewTests(TestCase):
             hand_eye_config={'matrix': 'identity'},
         )
 
-    def test_existing_rack_locator_panel_focuses_on_position_and_layer_not_left_right_side(self):
+    def test_rack_locator_panel_exposes_3d_roi_workbench_controls(self):
         response = self.client.get(reverse('vision:rack_locator_panel'))
 
-        self.assertContains(response, '3D 料架定位')
-        self.assertContains(response, 'position-no')
-        self.assertContains(response, 'layer-no')
-        self.assertNotContains(response, 'rack-side')
-        self.assertNotContains(response, '左料架')
-        self.assertNotContains(response, '右料架')
-        self.assertNotContains(response, '旧3D')
-        self.assertNotContains(response, '旧料架')
+        self.assertContains(response, '3D 料架定位工作台')
+        self.assertContains(response, 'rack-side')
+        self.assertContains(response, '左料架')
+        self.assertContains(response, '右料架')
+        self.assertContains(response, 'locate-mode')
+        self.assertContains(response, 'roi-x-min')
+        self.assertContains(response, 'roi-x-max')
+        self.assertContains(response, 'roi-y-min')
+        self.assertContains(response, 'roi-y-max')
+        self.assertContains(response, 'roi-z-min')
+        self.assertContains(response, 'roi-z-max')
+        self.assertContains(response, 'btn-auto-align')
+        self.assertContains(response, 'btn-save-roi')
+        self.assertContains(response, 'btn-write-plc')
+        self.assertContains(response, 'api_vision_3d_capture')
+        self.assertContains(response, 'api_vision_3d_test_locate')
 
     def test_recipe_create_page_contains_depth_image_roi_teaching_ui(self):
         response = self.client.get(reverse('vision:rack_location_recipe_create'))

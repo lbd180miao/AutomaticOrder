@@ -82,7 +82,16 @@
 }
 .rl-manual-bar .ctrl-label { font-weight: 700; font-size: 13px; white-space: nowrap; color: var(--text-muted); }
 .rl-manual-bar input[type=number] { width: 80px; padding: 6px 10px; }
+.rl-manual-bar select { min-width: 92px; padding: 6px 10px; }
 .rl-manual-bar .sep { width: 1px; height: 28px; background: var(--border); }
+.rl-roi3d-grid {
+  display: grid; grid-template-columns: repeat(6, minmax(88px, 1fr)); gap: 8px;
+  width: 100%; padding-top: 2px;
+}
+.rl-roi3d-field { display: flex; flex-direction: column; gap: 4px; }
+.rl-roi3d-field label { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.rl-roi3d-field input { width: 100%; padding: 6px 8px; }
+@media (max-width: 900px) { .rl-roi3d-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); } }
 
 /* 主体双栏 */
 .rl-main { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
@@ -262,8 +271,31 @@
       <input id="position-no" type="number" min="1" value="{{ latest.position_no|default:1 }}">
       <span class="ctrl-label" style="color:var(--text);">层号</span>
       <input id="layer-no" type="number" min="1" value="{{ latest.layer_no|default:1 }}">
+      <select id="layer-no-select" aria-label="层号选择">
+        <option value="1" {% if latest.layer_no|default:1 == 1 %}selected{% endif %}>1 层</option>
+        <option value="2" {% if latest.layer_no == 2 %}selected{% endif %}>2 层</option>
+        <option value="3" {% if latest.layer_no == 3 %}selected{% endif %}>3 层</option>
+      </select>
+      <span class="ctrl-label" style="color:var(--text);">料架</span>
+      <select id="rack-side" aria-label="料架侧">
+        <option value="LEFT">左料架</option>
+        <option value="RIGHT">右料架</option>
+      </select>
+      <span class="ctrl-label" style="color:var(--text);">模式</span>
+      <select id="locate-mode" aria-label="定位模式">
+        <option value="local">局部定位</option>
+        <option value="global">全局定位</option>
+      </select>
       <div class="sep"></div>
       <span id="last-time" style="font-size:12px;color:var(--text-faint);">—</span>
+      <div class="rl-roi3d-grid" aria-label="3D ROI 参数">
+        <div class="rl-roi3d-field"><label for="roi-x-min">X Min</label><input id="roi-x-min" type="number" step="0.001" value="-100"></div>
+        <div class="rl-roi3d-field"><label for="roi-x-max">X Max</label><input id="roi-x-max" type="number" step="0.001" value="100"></div>
+        <div class="rl-roi3d-field"><label for="roi-y-min">Y Min</label><input id="roi-y-min" type="number" step="0.001" value="-100"></div>
+        <div class="rl-roi3d-field"><label for="roi-y-max">Y Max</label><input id="roi-y-max" type="number" step="0.001" value="100"></div>
+        <div class="rl-roi3d-field"><label for="roi-z-min">Z Min</label><input id="roi-z-min" type="number" step="0.001" value="-100"></div>
+        <div class="rl-roi3d-field"><label for="roi-z-max">Z Max</label><input id="roi-z-max" type="number" step="0.001" value="100"></div>
+      </div>
     </div>
   </div>
 
@@ -291,8 +323,11 @@
         </div>
         <div class="rl-actions">
           <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
+          <button id="btn-auto-align" class="btn btn-secondary">自动对齐</button>
           <button id="btn-redraw" class="btn btn-secondary">重画 ROI</button>
           <button id="btn-calculate" class="btn btn-success" style="background:var(--success);">🎯 计算偏差</button>
+          <button id="btn-save-roi" class="btn btn-secondary">保存 ROI</button>
+          <button id="btn-write-plc" class="btn btn-secondary">写入 PLC</button>
         </div>
         <span class="rl-source-chip" id="rl-source">数据源 —</span>
         <p class="rl-status" id="rl-status">先选择配方，再采集点云。</p>
@@ -407,6 +442,8 @@ function applyRecipeCard(el) {
   document.getElementById('recipe-id').value   = id;
   document.getElementById('position-no').value = pos;
   document.getElementById('layer-no').value    = layer;
+  const layerSelect = document.getElementById('layer-no-select');
+  if (layerSelect) layerSelect.value = layer;
 
   // 更新信息条
   const bar = document.getElementById('selected-recipe-bar');
@@ -427,11 +464,18 @@ function applyRecipeCard(el) {
 
 // ── 工作台配置传入 ─────────────────────────────────
 window.rackLocatorConfig = {
-  captureUrl:   '{% url "vision:api_rack_location_workbench_capture" %}',
-  calculateUrl: '{% url "vision:api_rack_location_workbench_calculate" %}',
-  saveUrl:      '{% url "vision:api_rack_location_workbench_save" %}',
-  triggerUrl:   '{% url "vision:api_rack_location_trigger" %}',
-  resultsUrl:   '{% url "vision:api_rack_location_results" %}',
+  captureEndpoint: 'api_vision_3d_capture',
+  testLocateEndpoint: 'api_vision_3d_test_locate',
+  captureUrl: '{% url "vision:api_vision_3d_capture" %}',
+  autoAlignUrl: '{% url "vision:api_vision_3d_auto_align" %}',
+  testLocateUrl: '{% url "vision:api_vision_3d_test_locate" %}',
+  saveRoiUrl: '{% url "vision:api_vision_3d_rois" %}',
+  writePlcUrl: '{% url "vision:api_vision_3d_write_plc" %}',
+  legacyCaptureUrl: '{% url "vision:api_rack_location_workbench_capture" %}',
+  legacyCalculateUrl: '{% url "vision:api_rack_location_workbench_calculate" %}',
+  legacySaveUrl: '{% url "vision:api_rack_location_workbench_save" %}',
+  triggerUrl: '{% url "vision:api_rack_location_trigger" %}',
+  resultsUrl: '{% url "vision:api_rack_location_results" %}',
 };
 </script>
 <script src="{% static 'vision/js/rack_locator_workbench.js' %}"></script>

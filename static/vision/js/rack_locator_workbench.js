@@ -15,6 +15,7 @@
     drawing: false,
     start: null,
     displayRoi: null,
+    lastResultId: null,
   };
 
   // ── Loading 遮罩 ─────────────────────────────────────────
@@ -38,6 +39,39 @@
 
   function setStatus(text) { const n = $('rl-status'); if (n) n.textContent = text; }
 
+  function apiPayload(data) {
+    return data && data.data ? data.data : data;
+  }
+
+  function numberInput(id, fallback) {
+    const node = $(id);
+    const value = node ? Number(node.value) : NaN;
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  function currentRackSide() {
+    return $('rack-side')?.value || 'LEFT';
+  }
+
+  function currentLayerNo() {
+    return numberInput('layer-no-select', numberInput('layer-no', 1));
+  }
+
+  function currentMode() {
+    return $('locate-mode')?.value || 'local';
+  }
+
+  function currentRoi3D() {
+    return {
+      x_min: numberInput('roi-x-min', -100),
+      x_max: numberInput('roi-x-max', 100),
+      y_min: numberInput('roi-y-min', -100),
+      y_max: numberInput('roi-y-max', 100),
+      z_min: numberInput('roi-z-min', -100),
+      z_max: numberInput('roi-z-max', 100),
+    };
+  }
+
   // ── 选中配方的参数（标准坐标 / 允许偏差 / 阈值） ───────────
   // 新方案：配方选择改为卡片点击，数据存放在 .rl-recipe-card.selected 的 dataset 上
   function selectedCardData() {
@@ -46,7 +80,7 @@
   }
   function currentRecipeData() {
     const d = selectedCardData();
-    const data = { layer_no: Number($('layer-no').value || 1) };
+    const data = { layer_no: currentLayerNo() };
     if (d) {
       data.standard_x = Number(d.sx || 0);
       data.standard_y = Number(d.sy || 0);
@@ -153,11 +187,17 @@
   $('btn-capture').addEventListener('click', async () => {
     showLoading('3D 相机采集中...');
     try {
-      const data = await postJson(CFG.captureUrl, { recipe_id: $('recipe-id').value || null });
+      const raw = await postJson(CFG.captureUrl || CFG.legacyCaptureUrl, {
+        recipe_id: $('recipe-id').value || null,
+        rack_side: currentRackSide(),
+        layer_no: currentLayerNo(),
+      });
+      const data = apiPayload(raw);
       if (!data.success) { setStatus(data.error || '采集失败'); return; }
       state.token = data.pointcloud_token;
       state.roi = null; state.displayRoi = null;
-      image.src = data.preview_image_url + '?t=' + Date.now();
+      const previewUrl = data.pointcloud_preview_url || data.preview_image_url;
+      if (previewUrl) image.src = previewUrl + '?t=' + Date.now();
       image.dataset.naturalWidth = data.image_width;
       image.dataset.naturalHeight = data.image_height;
       image.style.display = 'block';
@@ -187,16 +227,18 @@
   // ── 计算偏差 ─────────────────────────────────────────────
   $('btn-calculate').addEventListener('click', async () => {
     if (!state.token) { setStatus('请先采集点云。'); return; }
-    if (!state.roi) { setStatus('请先在图上绘制 ROI。'); return; }
     showLoading('计算坐标偏差中...');
     try {
-      const data = await postJson(CFG.calculateUrl, {
+      const raw = await postJson(CFG.testLocateUrl || CFG.legacyCalculateUrl, {
         pointcloud_token: state.token,
+        roi: currentRoi3D(),
         roi_config: { target_roi: state.roi },
+        rack_side: currentRackSide(),
         recipe_id: $('recipe-id').value || null,
         recipe_data: currentRecipeData(),
-        layer_no: Number($('layer-no').value || 1),
+        layer_no: currentLayerNo(),
       });
+      const data = apiPayload(raw);
       if (!data.success) { setStatus(data.error || '计算失败'); return; }
       renderResult(data.result);
       $('btn-save').disabled = false;
@@ -212,13 +254,13 @@
     if (!state.token || !state.roi) return;
     showLoading('保存结果中...');
     try {
-      const data = await postJson(CFG.saveUrl, {
+      const data = await postJson(CFG.legacySaveUrl || CFG.saveUrl, {
         pointcloud_token: state.token,
         roi_config: { target_roi: state.roi },
         recipe_id: $('recipe-id').value || null,
         recipe_data: currentRecipeData(),
         position_no: Number($('position-no').value || 1),
-        layer_no: Number($('layer-no').value || 1),
+        layer_no: currentLayerNo(),
       });
       if (!data.success) { setStatus(data.error || '保存失败'); return; }
       setStatus('结果已保存到数据库。');
@@ -228,8 +270,70 @@
     } finally { hideLoading(); }
   });
 
+  $('btn-auto-align')?.addEventListener('click', async () => {
+    if (!state.token) { setStatus('请先采集点云。'); return; }
+    showLoading('自动对齐 ROI 中...');
+    try {
+      const raw = await postJson(CFG.autoAlignUrl, {
+        pointcloud_token: state.token,
+        rack_side: currentRackSide(),
+        layer_no: currentLayerNo(),
+        roi: currentRoi3D(),
+      });
+      const data = apiPayload(raw);
+      if (!data.success) { setStatus(data.error || '自动对齐失败'); return; }
+      const roi = data.roi || data.roi_3d || {};
+      Object.entries({
+        'roi-x-min': roi.x_min,
+        'roi-x-max': roi.x_max,
+        'roi-y-min': roi.y_min,
+        'roi-y-max': roi.y_max,
+        'roi-z-min': roi.z_min,
+        'roi-z-max': roi.z_max,
+      }).forEach(([id, value]) => {
+        if ($(id) && value != null) $(id).value = Number(value).toFixed(3);
+      });
+      setStatus('自动对齐完成，可执行试定位。');
+    } catch (e) {
+      setStatus('网络请求失败：' + e.message);
+    } finally { hideLoading(); }
+  });
+
+  $('btn-save-roi')?.addEventListener('click', async () => {
+    showLoading('保存 3D ROI 中...');
+    try {
+      const raw = await postJson(CFG.saveRoiUrl, {
+        recipe_id: $('recipe-id').value || null,
+        rack_side: currentRackSide(),
+        layer_no: currentLayerNo(),
+        mode: currentMode(),
+        name: `${currentRackSide()}-L${currentLayerNo()}-${currentMode()}`,
+        ...currentRoi3D(),
+      });
+      const data = apiPayload(raw);
+      if (!data.success) { setStatus(data.error || '保存 ROI 失败'); return; }
+      setStatus('3D ROI 已保存。');
+    } catch (e) {
+      setStatus('网络请求失败：' + e.message);
+    } finally { hideLoading(); }
+  });
+
+  $('btn-write-plc')?.addEventListener('click', async () => {
+    if (!state.lastResultId) { setStatus('请先完成一次定位计算。'); return; }
+    showLoading('写入 PLC 中...');
+    try {
+      const raw = await postJson(CFG.writePlcUrl, { result_id: state.lastResultId });
+      const data = apiPayload(raw);
+      if (!data.success) { setStatus(data.error || 'PLC 写入失败'); return; }
+      setStatus('定位结果已写入 PLC。');
+    } catch (e) {
+      setStatus('网络请求失败：' + e.message);
+    } finally { hideLoading(); }
+  });
+
   // ── 渲染结果 ─────────────────────────────────────────────
   function renderResult(r) {
+    state.lastResultId = r.id || r.result_id || state.lastResultId || null;
     const ok = r.locate_ok ?? r.is_success;
     const v = $('rl-verdict');
     v.className = 'rl-verdict ' + (ok ? 'ok' : 'fail');
@@ -281,7 +385,8 @@
     try {
       const data = await postJson(CFG.triggerUrl, {
         position_no: Number($('position-no').value || 1),
-        layer_no: Number($('layer-no').value || 1),
+        layer_no: currentLayerNo(),
+        rack_side: currentRackSide(),
         recipe_id: $('recipe-id').value || null,
         write_plc: false,
       });
