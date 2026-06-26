@@ -170,6 +170,42 @@ class PointCloudProcessor:
         points = pointcloud[y:y + h, x:x + w, :].reshape(-1, 3)
         return self.filter_valid_points(points)
 
+    def _normalized_roi_3d(self, roi: dict) -> dict:
+        required = ('x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max')
+        try:
+            normalized = {key: float(roi[key]) for key in required}
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError('三维 ROI 参数无效') from exc
+
+        if normalized['x_min'] >= normalized['x_max']:
+            raise ValueError('x_min must be less than x_max')
+        if normalized['y_min'] >= normalized['y_max']:
+            raise ValueError('y_min must be less than y_max')
+        if normalized['z_min'] >= normalized['z_max']:
+            raise ValueError('z_min must be less than z_max')
+        return normalized
+
+    def crop_by_roi_3d(self, organized_pointcloud, roi: dict):
+        pointcloud = np.asarray(organized_pointcloud, dtype=float)
+        if pointcloud.ndim == 3 and pointcloud.shape[2] == 3:
+            points = pointcloud.reshape(-1, 3)
+        elif pointcloud.ndim == 2 and pointcloud.shape[1] == 3:
+            points = pointcloud
+        else:
+            raise ValueError('pointcloud 必须是 H x W x 3 或 N x 3')
+
+        valid_points = self.filter_valid_points(points)
+        bounds = self._normalized_roi_3d(roi)
+        mask = (
+            (valid_points[:, 0] >= bounds['x_min'])
+            & (valid_points[:, 0] <= bounds['x_max'])
+            & (valid_points[:, 1] >= bounds['y_min'])
+            & (valid_points[:, 1] <= bounds['y_max'])
+            & (valid_points[:, 2] >= bounds['z_min'])
+            & (valid_points[:, 2] <= bounds['z_max'])
+        )
+        return valid_points[mask]
+
     def filter_valid_points(self, points):
         points = np.asarray(points, dtype=float).reshape(-1, 3)
         finite_mask = np.isfinite(points).all(axis=1)
