@@ -16,6 +16,7 @@ from apps.production.models import Rack, RackRecipe
 from .models import (
     CalibrationProfile,
     FoamInspectionResult,
+    RackLocationROI3D,
     RackLocationRecipe,
     RackLocationResult,
     VisionImage,
@@ -31,8 +32,10 @@ from .recipe_utils import (
 from .services import VisionService
 from .rack_location import (
     PlcVisionResultWriter,
+    Rack3DLocator,
     RackLocationService,
     result_payload as rack_location_result_payload,
+    roi3d_to_dict,
     sample_scene_median_xyz,
 )
 
@@ -740,6 +743,14 @@ def _request_data(request):
     return request.POST
 
 
+def _api3d_success(data=None, status=200):
+    return JsonResponse({'success': True, 'data': data or {}, 'error': ''}, status=status)
+
+
+def _api3d_error(message, status=400):
+    return JsonResponse({'success': False, 'data': {}, 'error': str(message)}, status=status)
+
+
 def _as_int(value, default=1):
     if value in (None, ''):
         return default
@@ -786,6 +797,14 @@ def _serialize_rack_location_recipe(recipe):
         'confidence_threshold': float(recipe.confidence_threshold),
         'enabled': recipe.enabled,
     }
+
+
+def _serialize_3d_recipe(recipe):
+    return _serialize_rack_location_recipe(recipe)
+
+
+def _serialize_3d_roi(roi):
+    return roi3d_to_dict(roi)
 
 
 def rack_location_workbench(request):
@@ -970,6 +989,170 @@ def rack_location_preview_calculate(request):
         return JsonResponse({'success': True, 'result': payload})
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@require_http_methods(['GET', 'POST'])
+def api_vision_3d_recipes(request):
+    if request.method == 'GET':
+        qs = RackLocationRecipe.objects.all().order_by('rack_side', 'position_no', 'layer_no')
+        rack_side = request.GET.get('rack_side')
+        layer_no = request.GET.get('layer_no')
+        enabled = request.GET.get('enabled')
+        if rack_side:
+            qs = qs.filter(rack_side=rack_side)
+        if layer_no not in (None, ''):
+            qs = qs.filter(layer_no=int(layer_no))
+        if enabled not in (None, ''):
+            qs = qs.filter(enabled=_as_bool(enabled))
+        return _api3d_success({'recipes': [_serialize_3d_recipe(recipe) for recipe in qs]})
+
+    try:
+        data = _request_data(request)
+        recipe = RackLocationRecipe.objects.create(
+            recipe_name=data.get('recipe_name') or f"3D-{data.get('rack_side', 'LEFT')}-L{data.get('layer_no', 1)}",
+            rack_side=data.get('rack_side') or 'LEFT',
+            rack_type=data.get('rack_type') or '',
+            position_no=_as_int(data.get('position_no'), 1),
+            layer_no=_as_int(data.get('layer_no'), 1),
+            layer_count=_as_int(data.get('layer_count'), 3),
+            standard_x=_as_float(data.get('standard_x'), 0),
+            standard_y=_as_float(data.get('standard_y'), 0),
+            standard_z=_as_float(data.get('standard_z'), 0),
+            standard_rz=_as_float(data.get('standard_rz'), 0),
+            hand_eye_config=data.get('hand_eye_config') or {'matrix': 'identity'},
+            enabled=_as_bool(data.get('enabled'), True),
+        )
+        return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
+
+
+@require_http_methods(['GET', 'PUT'])
+def api_vision_3d_recipe_detail(request, recipe_id):
+    recipe = get_object_or_404(RackLocationRecipe, pk=recipe_id)
+    if request.method == 'GET':
+        return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
+    try:
+        data = _request_data(request)
+        for field in (
+            'recipe_name', 'rack_side', 'rack_type', 'capture_pose_name',
+            'standard_x', 'standard_y', 'standard_z', 'standard_rz',
+            'hand_eye_config', 'enabled',
+        ):
+            if field in data:
+                setattr(recipe, field, _as_bool(data[field]) if field == 'enabled' else data[field])
+        for field in ('position_no', 'layer_no', 'layer_count'):
+            if field in data:
+                setattr(recipe, field, _as_int(data[field], getattr(recipe, field)))
+        recipe.save()
+        return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
+
+
+@require_http_methods(['GET', 'POST'])
+def api_vision_3d_rois(request):
+    if request.method == 'GET':
+        qs = RackLocationROI3D.objects.select_related('recipe').all()
+        recipe_id = request.GET.get('recipe_id')
+        if recipe_id not in (None, ''):
+            qs = qs.filter(recipe_id=recipe_id)
+        return _api3d_success({'rois': [_serialize_3d_roi(roi) for roi in qs.order_by('mode', 'layer_no')]})
+
+    try:
+        data = _request_data(request)
+        roi = RackLocationROI3D.objects.create(
+            recipe_id=data.get('recipe_id'),
+            roi_name=data.get('roi_name') or '3D ROI',
+            mode=data.get('mode') or RackLocationROI3D.MODE_LOCAL,
+            layer_no=data.get('layer_no') or None,
+            coordinate_system=data.get('coordinate_system') or 'rack',
+            x_min=data.get('x_min'),
+            x_max=data.get('x_max'),
+            y_min=data.get('y_min'),
+            y_max=data.get('y_max'),
+            z_min=data.get('z_min'),
+            z_max=data.get('z_max'),
+            enabled=_as_bool(data.get('enabled'), True),
+        )
+        return _api3d_success({'roi': _serialize_3d_roi(roi)})
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
+
+
+@require_http_methods(['PUT'])
+def api_vision_3d_roi_detail(request, roi_id):
+    try:
+        roi = get_object_or_404(RackLocationROI3D, pk=roi_id)
+        data = _request_data(request)
+        for field in (
+            'roi_name', 'mode', 'layer_no', 'coordinate_system',
+            'x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max', 'enabled',
+        ):
+            if field in data:
+                setattr(roi, field, _as_bool(data[field]) if field == 'enabled' else data[field])
+        roi.save()
+        return _api3d_success({'roi': _serialize_3d_roi(roi)})
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
+
+
+@require_POST
+def api_vision_3d_capture(request):
+    try:
+        data = _request_data(request)
+        payload = Rack3DLocator().capture(
+            recipe_id=data.get('recipe_id') or None,
+            rack_side=data.get('rack_side') or 'LEFT',
+            layer_no=_as_int(data.get('layer_no'), 1),
+        )
+        return _api3d_success(payload)
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
+
+
+@require_POST
+def api_vision_3d_auto_align(request):
+    try:
+        data = _request_data(request)
+        payload = Rack3DLocator().auto_align(
+            token=data.get('pointcloud_token'),
+            recipe_id=data.get('recipe_id') or None,
+        )
+        return _api3d_success(payload)
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
+
+
+@require_POST
+def api_vision_3d_test_locate(request):
+    try:
+        data = _request_data(request)
+        payload = Rack3DLocator().test_locate(
+            token=data.get('pointcloud_token'),
+            roi_3d=data.get('roi') or data.get('roi_3d') or {},
+            recipe_id=data.get('recipe_id') or None,
+            rack_side=data.get('rack_side') or 'LEFT',
+            layer_no=_as_int(data.get('layer_no'), 1),
+        )
+        return _api3d_success({'result': payload})
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
+
+
+@require_POST
+def api_vision_3d_write_plc(request):
+    try:
+        data = _request_data(request)
+        result = get_object_or_404(RackLocationResult, pk=data.get('result_id'))
+        response = Rack3DLocator().write_result_to_plc(result)
+        result.refresh_from_db()
+        return _api3d_success({
+            'plc_response': response,
+            'result': rack_location_result_payload(result),
+        })
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
 
 
 @require_POST
