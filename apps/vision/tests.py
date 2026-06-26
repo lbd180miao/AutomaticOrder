@@ -1574,6 +1574,37 @@ class RackLocation3DViewTests(TestCase):
         self.assertIn('offset_x', payload['result'])
         self.assertIn('plc_payload', payload['result'])
 
+    def test_old_trigger_endpoint_can_locate_with_3d_roi_recipe(self):
+        ROI = apps.get_model('vision', 'RackLocationROI3D')
+        ROI.objects.create(
+            recipe=self.recipe,
+            roi_name='兼容全局ROI',
+            mode='global',
+            x_min=-500,
+            x_max=500,
+            y_min=-300,
+            y_max=300,
+            z_min=500,
+            z_max=1400,
+        )
+
+        response = self.client.post(
+            reverse('vision:api_rack_location_trigger'),
+            data={
+                'position_no': 3,
+                'layer_no': 1,
+                'recipe_id': self.recipe.id,
+                'rack_side': 'LEFT',
+                'write_plc': 'false',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['result']['rack_side'], 'LEFT')
+        self.assertIn('plc_payload', payload['result'])
+
     def test_results_api_filters_by_position_and_layer(self):
         from apps.vision.rack_location import RackLocationService
 
@@ -1743,6 +1774,34 @@ class RackLocationWorkbenchTests(TestCase):
             ).json()
             self.assertTrue(save['success'])
         self.assertEqual(RackLocationResult.objects.count(), 1)
+
+    def test_old_workbench_calculate_accepts_3d_roi_payload(self):
+        service = self._service()
+        captured = service.capture_workbench(recipe_id=self.recipe.id)
+
+        response = self.client.post(
+            reverse('vision:api_rack_location_workbench_calculate'),
+            data=json.dumps({
+                'pointcloud_token': captured['pointcloud_token'],
+                'roi_3d': {
+                    'x_min': -500,
+                    'x_max': 500,
+                    'y_min': -300,
+                    'y_max': 300,
+                    'z_min': 500,
+                    'z_max': 1400,
+                },
+                'recipe_id': self.recipe.id,
+                'rack_side': 'LEFT',
+                'layer_no': 1,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['result']['roi_source'], 'request')
 
 
 @override_settings(MEDIA_ROOT=mkdtemp())

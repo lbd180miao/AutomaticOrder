@@ -1177,6 +1177,8 @@ def api_rack_location_workbench_calculate(request):
             recipe_id=data.get('recipe_id') or None,
             recipe_data=data.get('recipe_data') or None,
             layer_no=_as_int(data.get('layer_no'), 1),
+            roi_3d=data.get('roi_3d') or data.get('roi'),
+            rack_side=data.get('rack_side') or 'LEFT',
         )
         return JsonResponse({'success': True, 'result': payload})
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
@@ -1209,13 +1211,22 @@ def api_rack_location_trigger(request):
         layer_no = _as_int(data.get('layer_no'), 1)
         recipe_id = data.get('recipe_id') or None
         write_plc = _as_bool(data.get('write_plc'), False)
-        result = RackLocationService().trigger(
-            position_no=position_no,
-            layer_no=layer_no,
-            recipe_id=recipe_id,
-            rack_side='BOTH',
-            write_plc=write_plc,
-        )
+        rack_side = data.get('rack_side') or 'BOTH'
+        if data.get('rack_side') or data.get('use_3d_roi'):
+            result = Rack3DLocator().locate(
+                rack_side=rack_side,
+                layer_no=layer_no,
+                recipe_id=recipe_id,
+                write_plc=write_plc,
+            )
+        else:
+            result = RackLocationService().trigger(
+                position_no=position_no,
+                layer_no=layer_no,
+                recipe_id=recipe_id,
+                rack_side='BOTH',
+                write_plc=write_plc,
+            )
         return JsonResponse({'success': True, 'result': rack_location_result_payload(result)})
     except RackLocationRecipe.DoesNotExist:
         return JsonResponse({'success': False, 'error': '未找到启用的3D料架定位配方'}, status=404)
