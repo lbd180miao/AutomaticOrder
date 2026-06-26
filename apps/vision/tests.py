@@ -1860,3 +1860,152 @@ class Rack3DLocatorServiceTests(TestCase):
         self.assertEqual(result.result_data['roi_id'], self.local_roi.id)
         self.assertEqual(result.result_data['roi_source'], 'local')
         self.assertIn('plc_payload', result.result_data)
+
+
+@override_settings(MEDIA_ROOT=mkdtemp())
+class Rack3DLocatorApiTests(TestCase):
+    def setUp(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        self.recipe = Recipe.objects.create(
+            recipe_name='API-3D-LEFT-L1',
+            rack_side='LEFT',
+            position_no=1,
+            layer_no=1,
+            layer_count=3,
+            standard_x=0,
+            standard_y=0,
+            standard_z=850,
+            max_offset_x=9999,
+            max_offset_y=9999,
+            max_offset_z=9999,
+            confidence_threshold=0.1,
+            hand_eye_config={'matrix': 'identity'},
+        )
+
+    def test_vision_3d_recipe_crud_uses_unified_response(self):
+        create = self.client.post(
+            reverse('vision:api_vision_3d_recipes'),
+            data=json.dumps({
+                'recipe_name': 'API-3D-RIGHT-L2',
+                'rack_side': 'RIGHT',
+                'rack_type': 'STD',
+                'position_no': 2,
+                'layer_no': 2,
+                'layer_count': 3,
+                'standard_x': 10,
+                'standard_y': 20,
+                'standard_z': 900,
+                'hand_eye_config': {'matrix': 'identity'},
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(create.status_code, 200)
+        created = create.json()
+        self.assertTrue(created['success'])
+        self.assertEqual(created['error'], '')
+        recipe_id = created['data']['recipe']['id']
+
+        detail = self.client.get(reverse('vision:api_vision_3d_recipe_detail', args=[recipe_id]))
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()['data']['recipe']['rack_side'], 'RIGHT')
+
+        update = self.client.put(
+            reverse('vision:api_vision_3d_recipe_detail', args=[recipe_id]),
+            data=json.dumps({'enabled': False, 'rack_type': 'UPDATED'}),
+            content_type='application/json',
+        )
+        self.assertEqual(update.status_code, 200)
+        self.assertFalse(update.json()['data']['recipe']['enabled'])
+
+    def test_vision_3d_roi_crud(self):
+        create = self.client.post(
+            reverse('vision:api_vision_3d_rois'),
+            data=json.dumps({
+                'recipe_id': self.recipe.id,
+                'roi_name': '第1层ROI',
+                'mode': 'local',
+                'layer_no': 1,
+                'coordinate_system': 'rack',
+                'x_min': -200,
+                'x_max': 200,
+                'y_min': -150,
+                'y_max': 150,
+                'z_min': 600,
+                'z_max': 1200,
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(create.status_code, 200)
+        roi_id = create.json()['data']['roi']['id']
+
+        listing = self.client.get(reverse('vision:api_vision_3d_rois'), {'recipe_id': self.recipe.id})
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(listing.json()['data']['rois'][0]['id'], roi_id)
+
+        update = self.client.put(
+            reverse('vision:api_vision_3d_roi_detail', args=[roi_id]),
+            data=json.dumps({'x_min': -180, 'x_max': 180}),
+            content_type='application/json',
+        )
+        self.assertEqual(update.status_code, 200)
+        self.assertEqual(update.json()['data']['roi']['x_min'], -180.0)
+
+    def test_vision_3d_capture_align_test_locate_and_write_plc(self):
+        ROI = apps.get_model('vision', 'RackLocationROI3D')
+        ROI.objects.create(
+            recipe=self.recipe,
+            roi_name='全局ROI',
+            mode='global',
+            x_min=-500,
+            x_max=500,
+            y_min=-300,
+            y_max=300,
+            z_min=500,
+            z_max=1400,
+        )
+
+        capture = self.client.post(
+            reverse('vision:api_vision_3d_capture'),
+            data=json.dumps({'recipe_id': self.recipe.id, 'rack_side': 'LEFT', 'layer_no': 1}),
+            content_type='application/json',
+        )
+        self.assertEqual(capture.status_code, 200)
+        token = capture.json()['data']['pointcloud_token']
+
+        align = self.client.post(
+            reverse('vision:api_vision_3d_auto_align'),
+            data=json.dumps({'pointcloud_token': token, 'recipe_id': self.recipe.id}),
+            content_type='application/json',
+        )
+        self.assertEqual(align.status_code, 200)
+        self.assertEqual(align.json()['data']['coordinate_system']['name'], 'rack')
+
+        locate = self.client.post(
+            reverse('vision:api_vision_3d_test_locate'),
+            data=json.dumps({
+                'pointcloud_token': token,
+                'recipe_id': self.recipe.id,
+                'rack_side': 'LEFT',
+                'layer_no': 1,
+                'roi': {
+                    'x_min': -500,
+                    'x_max': 500,
+                    'y_min': -300,
+                    'y_max': 300,
+                    'z_min': 500,
+                    'z_max': 1400,
+                },
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(locate.status_code, 200)
+        self.assertIn('offset_x', locate.json()['data']['result'])
+
+        result = self.client.post(
+            reverse('vision:api_vision_3d_write_plc'),
+            data=json.dumps({'result_id': 999999}),
+            content_type='application/json',
+        )
+        self.assertEqual(result.status_code, 400)
+        self.assertFalse(result.json()['success'])
+        self.assertIn('error', result.json())
