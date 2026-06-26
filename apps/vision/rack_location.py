@@ -28,11 +28,38 @@ from apps.alarms.services import AlarmService
 from apps.devices.services import DeviceService, get_device_adapter
 
 from .algorithms import image_io
-from .models import RackLocationRecipe, RackLocationResult, VisionImage, VisionTask
+from .models import RackLocationROI3D, RackLocationRecipe, RackLocationResult, VisionImage, VisionTask
 
 
 def _decimal(value: Any, places: str = '0.001') -> Decimal:
     return Decimal(str(value or 0)).quantize(Decimal(places))
+
+
+def roi3d_to_dict(roi: RackLocationROI3D | dict) -> dict:
+    if isinstance(roi, dict):
+        return {
+            'x_min': float(roi['x_min']),
+            'x_max': float(roi['x_max']),
+            'y_min': float(roi['y_min']),
+            'y_max': float(roi['y_max']),
+            'z_min': float(roi['z_min']),
+            'z_max': float(roi['z_max']),
+        }
+    return {
+        'id': roi.id,
+        'recipe_id': roi.recipe_id,
+        'roi_name': roi.roi_name,
+        'mode': roi.mode,
+        'layer_no': roi.layer_no,
+        'coordinate_system': roi.coordinate_system,
+        'x_min': float(roi.x_min),
+        'x_max': float(roi.x_max),
+        'y_min': float(roi.y_min),
+        'y_max': float(roi.y_max),
+        'z_min': float(roi.z_min),
+        'z_max': float(roi.z_max),
+        'enabled': roi.enabled,
+    }
 
 
 def _simulate_xyz_from_scene(
@@ -606,6 +633,265 @@ class PlcVisionResultWriter:
             lock_workstation=True,
         )
         return response
+
+
+class Rack3DLocator:
+    """Formal 3D rack-location facade using rack-coordinate 3D ROI boxes."""
+
+    def __init__(self, *, frame_provider=None, processor=None, plc_writer=None):
+        self.frame_provider = frame_provider or DMCameraRackFrameProvider()
+        self.processor = processor or PointCloudProcessor()
+        self.plc_writer = plc_writer or PlcVisionResultWriter()
+
+    def _select_recipe(self, *, recipe_id=None, rack_side=RackSide.LEFT, layer_no=1):
+        qs = RackLocationRecipe.objects.filter(enabled=True)
+        if recipe_id:
+            return qs.get(pk=recipe_id)
+        recipe = qs.filter(rack_side=rack_side, layer_no=layer_no).order_by('position_no').first()
+        if recipe:
+            return recipe
+        return qs.get(rack_side=RackSide.BOTH, layer_no=layer_no)
+
+    def _select_roi(self, recipe: RackLocationRecipe, layer_no: int):
+        local_roi = (
+            RackLocationROI3D.objects
+            .filter(recipe=recipe, enabled=True, mode=RackLocationROI3D.MODE_LOCAL, layer_no=layer_no)
+            .order_by('-updated_at')
+            .first()
+        )
+        if local_roi:
+            return local_roi, 'local'
+        global_roi = (
+            RackLocationROI3D.objects
+            .filter(recipe=recipe, enabled=True, mode=RackLocationROI3D.MODE_GLOBAL)
+            .order_by('-updated_at')
+            .first()
+        )
+        if global_roi:
+            return global_roi, 'global'
+        return None, 'missing'
+
+    def _persist_frame(self, pointcloud):
+        return RackLocationService(
+            frame_provider=self.frame_provider,
+            plc_writer=self.plc_writer,
+        )._persist_workbench_frame(pointcloud)
+
+    def _load_pointcloud(self, token):
+        return RackLocationService(
+            frame_provider=self.frame_provider,
+            plc_writer=self.plc_writer,
+        )._load_workbench_pointcloud(token)
+
+    def capture(self, *, recipe_id=None, rack_side=RackSide.LEFT, layer_no=1) -> dict:
+        recipe = self._select_recipe(recipe_id=recipe_id, rack_side=rack_side, layer_no=layer_no) if recipe_id else None
+        position_no = int(getattr(recipe, 'position_no', 1) or 1)
+        layer_no = int(getattr(recipe, 'layer_no', layer_no) or layer_no)
+        layer_count = int(getattr(recipe, 'layer_count', 3) or 3)
+        side = str(getattr(recipe, 'rack_side', rack_side) or rack_side).upper()
+        side_key = RackSide.RIGHT if side == RackSide.RIGHT else RackSide.LEFT
+
+        pointcloud = None
+        source = 'sample'
+        fallback_reason = ''
+        try:
+            probe_recipe = recipe or RackLocationRecipe(
+                recipe_name='VISION-3D-CAPTURE',
+                rack_side=side_key,
+                position_no=position_no,
+                layer_no=layer_no,
+                layer_count=layer_count,
+                hand_eye_config={'matrix': 'identity'},
+            )
+            frame = self.frame_provider.capture(probe_recipe, position_no, layer_no)
+            fallback_reason = frame.get('fallback_reason', '') or ''
+            cloud = frame.get('organized_pointcloud')
+            if cloud is not None:
+                arr = np.asarray(cloud, dtype=float)
+                if arr.ndim == 3 and arr.shape[2] == 3:
+                    pointcloud = arr
+                    source = frame.get('source', 'dm_camera')
+        except Exception as exc:  # noqa: BLE001
+            fallback_reason = str(exc)
+
+        if pointcloud is None:
+            pointcloud = build_sample_pointcloud(side=side_key, layer_count=layer_count)
+            source = 'sample'
+
+        token, preview_url, width, height = self._persist_frame(pointcloud)
+        return {
+            'pointcloud_token': token,
+            'pointcloud_preview_url': preview_url,
+            'raw_rgb_image_url': preview_url,
+            'raw_depth_image_url': preview_url,
+            'image_width': width,
+            'image_height': height,
+            'source': source,
+            'fallback_reason': fallback_reason,
+        }
+
+    def auto_align(self, *, token, recipe_id=None) -> dict:
+        pointcloud = self._load_pointcloud(token)
+        views = self.generate_corrected_views(pointcloud)
+        return {
+            'coordinate_system': {
+                'name': 'rack',
+                'transform_matrix': [
+                    [1, 0, 0, 0],
+                    [0, 1, 0, 0],
+                    [0, 0, 1, 0],
+                    [0, 0, 0, 1],
+                ],
+                'source': 'mock_identity',
+            },
+            'features': {
+                'columns': [],
+                'layers': [],
+                'support_plane': {'normal': [0, 0, 1], 'offset': 0},
+            },
+            'views': views,
+        }
+
+    def generate_corrected_views(self, pointcloud) -> dict:
+        preview = image_io.pointcloud_to_preview(pointcloud)
+        front_rel, _, _ = image_io.save_image(preview, 'rack_3d_front', rel_dir='vision/rack_3d')
+        top_rel, _, _ = image_io.save_image(np.flipud(preview), 'rack_3d_top', rel_dir='vision/rack_3d')
+        side_rel, _, _ = image_io.save_image(np.fliplr(preview), 'rack_3d_side', rel_dir='vision/rack_3d')
+        point_rel, _, _ = image_io.save_image(preview, 'rack_3d_pointcloud', rel_dir='vision/rack_3d')
+        return {
+            'front_view_url': settings.MEDIA_URL + front_rel,
+            'top_view_url': settings.MEDIA_URL + top_rel,
+            'side_view_url': settings.MEDIA_URL + side_rel,
+            'pointcloud_view_url': settings.MEDIA_URL + point_rel,
+        }
+
+    def _output_from_points(self, *, points, recipe, rack_side, layer_no, roi_source, roi_id=None, token='') -> RackLocationOutput:
+        actual_x, actual_y, actual_z = self.processor.calculate_median_xyz(points)
+        confidence = min(0.99, max(0.0, points.shape[0] / 1000.0))
+        frame = {
+            'actual_x': actual_x,
+            'actual_y': actual_y,
+            'actual_z': actual_z,
+            'confidence': confidence,
+            'source': 'rack_3d_roi',
+            'raw_data_path': token,
+        }
+        output = RackPoseEstimator(processor=self.processor).calculate_rack_offset(
+            frame, recipe, rack_side=rack_side, layer_no=layer_no,
+        )
+        output.result_data = {
+            **(output.result_data or {}),
+            'roi_id': roi_id,
+            'roi_source': roi_source,
+            'coordinate_system': 'rack',
+            'point_count': int(points.shape[0]),
+        }
+        return output
+
+    def test_locate(self, *, token, roi_3d, recipe_id=None, rack_side=RackSide.LEFT, layer_no=1) -> dict:
+        recipe = self._select_recipe(recipe_id=recipe_id, rack_side=rack_side, layer_no=layer_no)
+        pointcloud = self._load_pointcloud(token)
+        points = self.processor.crop_by_roi_3d(pointcloud, roi_3d)
+        if points.shape[0] < self.processor.min_valid_points:
+            raise ValueError('ROI 内有效点数太少')
+        output = self._output_from_points(
+            points=points,
+            recipe=recipe,
+            rack_side=rack_side,
+            layer_no=int(layer_no),
+            roi_source='request',
+            token=token,
+        )
+        preview = image_io.pointcloud_to_preview(pointcloud)
+        result_rel, _, _ = image_io.save_image(preview, 'rack_3d_cropped', rel_dir='vision/rack_3d')
+        payload = output.to_payload()
+        payload.update({
+            'roi_source': 'request',
+            'cropped_preview_url': settings.MEDIA_URL + result_rel,
+        })
+        return payload
+
+    def locate(self, *, rack_side, layer_no, recipe_id=None, write_plc=False, product=None, rack=None, workflow=None):
+        recipe = self._select_recipe(recipe_id=recipe_id, rack_side=rack_side, layer_no=layer_no)
+        roi, roi_source = self._select_roi(recipe, int(layer_no))
+        task = VisionTask.objects.create(
+            task_type=VisionTaskType.RACK_LOCATING,
+            product=product,
+            rack=rack,
+            status=ResultStatus.RUNNING,
+            started_at=timezone.now(),
+        )
+        if roi is None:
+            result = RackLocationResult.objects.create(
+                vision_task=task,
+                recipe=recipe,
+                rack=rack,
+                side=rack_side,
+                position_no=recipe.position_no,
+                layer_no=layer_no,
+                confidence=0,
+                is_success=False,
+                error_code='ROI_NOT_CONFIGURED',
+                error_message='未找到对应的三维 ROI 配方',
+                result_data={'roi_source': roi_source, 'task_kind': 'RACK_3D_LOCATION'},
+            )
+            task.status = ResultStatus.FAILED
+            task.finished_at = timezone.now()
+            task.error_message = result.error_message
+            task.save(update_fields=['status', 'finished_at', 'error_message', 'updated_at'])
+            return result
+
+        captured = self.capture(recipe_id=recipe.id, rack_side=rack_side, layer_no=layer_no)
+        pointcloud = self._load_pointcloud(captured['pointcloud_token'])
+        points = self.processor.crop_by_roi_3d(pointcloud, roi3d_to_dict(roi))
+        output = self._output_from_points(
+            points=points,
+            recipe=recipe,
+            rack_side=rack_side,
+            layer_no=int(layer_no),
+            roi_source=roi_source,
+            roi_id=roi.id,
+            token=captured['pointcloud_token'],
+        )
+        payload = output.to_payload()
+        result = RackLocationResult.objects.create(
+            vision_task=task,
+            recipe=recipe,
+            rack=rack,
+            side=rack_side,
+            position_no=recipe.position_no,
+            layer_no=layer_no,
+            offset_x=_decimal(output.offset_x),
+            offset_y=_decimal(output.offset_y),
+            offset_z=_decimal(output.offset_z),
+            offset_rz=_decimal(output.offset_rz),
+            actual_x=_decimal(output.actual_x),
+            actual_y=_decimal(output.actual_y),
+            actual_z=_decimal(output.actual_z),
+            confidence=_decimal(output.confidence, '0.0001'),
+            is_recipe_matched=output.locate_ok,
+            is_success=output.locate_ok,
+            error_code=output.error_code,
+            error_message=output.error_message,
+            raw_data_path=captured['pointcloud_token'],
+            result_data={
+                **(payload.get('result_data') or {}),
+                'task_kind': 'RACK_3D_LOCATION',
+                'roi_id': roi.id,
+                'roi_source': roi_source,
+                'plc_payload': payload['plc_payload'],
+            },
+        )
+        if write_plc:
+            self.write_result_to_plc(result)
+        task.status = ResultStatus.SUCCESS if result.is_success else ResultStatus.FAILED
+        task.finished_at = timezone.now()
+        task.error_message = result.error_message
+        task.save(update_fields=['status', 'finished_at', 'error_message', 'updated_at'])
+        return result
+
+    def write_result_to_plc(self, result):
+        return self.plc_writer.write(result)
 
 
 class RackLocationService:

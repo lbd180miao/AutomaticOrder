@@ -1743,3 +1743,120 @@ class RackLocationWorkbenchTests(TestCase):
             ).json()
             self.assertTrue(save['success'])
         self.assertEqual(RackLocationResult.objects.count(), 1)
+
+
+@override_settings(MEDIA_ROOT=mkdtemp())
+class Rack3DLocatorServiceTests(TestCase):
+    class CloudFrameProvider:
+        def capture(self, recipe, position_no, layer_no):
+            from apps.vision.rack_location import build_sample_pointcloud
+            return {
+                'source': 'dm_camera',
+                'organized_pointcloud': build_sample_pointcloud(side='LEFT', layer_count=3),
+            }
+
+    def setUp(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        ROI = apps.get_model('vision', 'RackLocationROI3D')
+        self.recipe = Recipe.objects.create(
+            recipe_name='LOCATOR-LEFT-L1',
+            rack_side='LEFT',
+            position_no=1,
+            layer_no=1,
+            layer_count=3,
+            standard_x=0,
+            standard_y=0,
+            standard_z=850,
+            max_offset_x=9999,
+            max_offset_y=9999,
+            max_offset_z=9999,
+            confidence_threshold=0.1,
+            hand_eye_config={'matrix': 'identity'},
+        )
+        self.global_roi = ROI.objects.create(
+            recipe=self.recipe,
+            roi_name='全局ROI',
+            mode='global',
+            x_min=-500,
+            x_max=500,
+            y_min=-300,
+            y_max=300,
+            z_min=500,
+            z_max=1400,
+        )
+        self.local_roi = ROI.objects.create(
+            recipe=self.recipe,
+            roi_name='第1层ROI',
+            mode='local',
+            layer_no=1,
+            x_min=-250,
+            x_max=250,
+            y_min=-180,
+            y_max=180,
+            z_min=650,
+            z_max=1200,
+        )
+
+    def _locator(self):
+        from apps.vision.rack_location import Rack3DLocator
+        return Rack3DLocator(frame_provider=self.CloudFrameProvider())
+
+    def test_capture_returns_token_and_observation_images(self):
+        payload = self._locator().capture(recipe_id=self.recipe.id)
+
+        self.assertTrue(payload['pointcloud_token'].endswith('.npy'))
+        self.assertTrue(payload['pointcloud_preview_url'])
+        self.assertIn('raw_rgb_image_url', payload)
+        self.assertIn('raw_depth_image_url', payload)
+        self.assertEqual(payload['source'], 'dm_camera')
+
+    def test_auto_align_returns_rack_coordinate_system_and_corrected_views(self):
+        captured = self._locator().capture(recipe_id=self.recipe.id)
+
+        payload = self._locator().auto_align(
+            token=captured['pointcloud_token'],
+            recipe_id=self.recipe.id,
+        )
+
+        self.assertEqual(payload['coordinate_system']['name'], 'rack')
+        self.assertEqual(payload['coordinate_system']['transform_matrix'][0], [1, 0, 0, 0])
+        self.assertTrue(payload['views']['front_view_url'])
+        self.assertTrue(payload['views']['top_view_url'])
+        self.assertTrue(payload['views']['side_view_url'])
+
+    def test_test_locate_uses_request_roi_without_saving(self):
+        captured = self._locator().capture(recipe_id=self.recipe.id)
+
+        payload = self._locator().test_locate(
+            token=captured['pointcloud_token'],
+            roi_3d={
+                'x_min': -250,
+                'x_max': 250,
+                'y_min': -180,
+                'y_max': 180,
+                'z_min': 650,
+                'z_max': 1200,
+            },
+            recipe_id=self.recipe.id,
+            rack_side='LEFT',
+            layer_no=1,
+        )
+
+        self.assertIn('offset_x', payload)
+        self.assertIn('confidence', payload)
+        self.assertEqual(payload['roi_source'], 'request')
+        self.assertTrue(payload['cropped_preview_url'])
+        self.assertEqual(apps.get_model('vision', 'RackLocationResult').objects.count(), 0)
+
+    def test_locate_loads_local_roi_before_global_roi(self):
+        result = self._locator().locate(
+            rack_side='LEFT',
+            layer_no=1,
+            recipe_id=self.recipe.id,
+            write_plc=False,
+        )
+
+        self.assertEqual(result.side, 'LEFT')
+        self.assertEqual(result.result_data['roi_id'], self.local_roi.id)
+        self.assertEqual(result.result_data['roi_source'], 'local')
+        self.assertIn('plc_payload', result.result_data)
