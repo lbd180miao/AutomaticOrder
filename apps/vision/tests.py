@@ -1345,6 +1345,45 @@ class RackLocationPointCloudProcessorTests(SimpleTestCase):
         with self.assertRaisesMessage(ValueError, 'ROI 超出图像范围'):
             processor.crop_by_roi(pointcloud, {'x': 4, 'y': 1, 'w': 3, 'h': 2})
 
+    def test_crop_by_roi_3d_filters_points_inside_spatial_box(self):
+        from apps.vision.rack_location import PointCloudProcessor
+
+        pointcloud = np.array([
+            [[0, 0, 10], [5, 5, 15], [20, 0, 10]],
+            [[2, 4, 12], [9, 9, 19], [np.nan, 1, 1]],
+        ], dtype=float)
+        processor = PointCloudProcessor()
+
+        points = processor.crop_by_roi_3d(pointcloud, {
+            'x_min': 0,
+            'x_max': 10,
+            'y_min': 0,
+            'y_max': 10,
+            'z_min': 10,
+            'z_max': 20,
+        })
+
+        self.assertEqual(points.shape, (4, 3))
+        self.assertTrue(np.all(points[:, 0] >= 0))
+        self.assertTrue(np.all(points[:, 0] <= 10))
+        self.assertTrue(np.all(points[:, 2] >= 10))
+        self.assertTrue(np.all(points[:, 2] <= 20))
+
+    def test_crop_by_roi_3d_rejects_invalid_bounds(self):
+        from apps.vision.rack_location import PointCloudProcessor
+
+        pointcloud = np.zeros((2, 2, 3), dtype=float)
+
+        with self.assertRaisesMessage(ValueError, 'x_min must be less than x_max'):
+            PointCloudProcessor().crop_by_roi_3d(pointcloud, {
+                'x_min': 5,
+                'x_max': 5,
+                'y_min': 0,
+                'y_max': 10,
+                'z_min': 0,
+                'z_max': 10,
+            })
+
 
 class RackLocationService3DTests(TestCase):
     class StaticFrameProvider:
