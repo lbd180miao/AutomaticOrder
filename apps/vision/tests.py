@@ -1208,8 +1208,16 @@ class DMCameraRackFrameProviderTests(TestCase):
 
     def test_provider_captures_pointcloud_without_dm_capture_record_side_effects(self):
         from apps.vision.rack_location import DMCameraRackFrameProvider
+        Config = apps.get_model('dm_camera', 'DMCameraConfig')
 
         recipe = self._recipe()
+        active_config = Config.objects.create(
+            name='Rack Locator SDK',
+            device_sn='SDK-SN-001',
+            frame_rate=12,
+            exposure_time=1500,
+            is_active=True,
+        )
 
         class FakeDMCameraService:
             calls = []
@@ -1218,7 +1226,8 @@ class DMCameraRackFrameProviderTests(TestCase):
                 self.is_connected = False
                 self.is_streaming = False
 
-            def connect(self):
+            def connect(self, device_sn=None, config_id=None):
+                self.calls.append(('connect', device_sn, config_id))
                 self.is_connected = True
 
             def start_stream(self):
@@ -1236,7 +1245,10 @@ class DMCameraRackFrameProviderTests(TestCase):
         with patch('apps.dm_camera.services.DMCameraService', FakeDMCameraService):
             payload = DMCameraRackFrameProvider().capture(recipe, position_no=1, layer_no=1)
 
-        self.assertEqual(FakeDMCameraService.calls, [('POINTCLOUD', False)])
+        self.assertEqual(FakeDMCameraService.calls, [
+            ('connect', 'SDK-SN-001', active_config.id),
+            ('POINTCLOUD', False),
+        ])
         self.assertEqual(payload['source'], 'dm_camera')
         self.assertEqual(payload['organized_pointcloud'].shape, (2, 2, 3))
 
@@ -1534,6 +1546,15 @@ class RackLocation3DViewTests(TestCase):
         self.assertContains(response, 'btn-auto-align')
         self.assertContains(response, 'btn-save-roi')
         self.assertContains(response, 'btn-write-plc')
+        self.assertContains(response, 'btn-sdk-debug')
+        self.assertContains(response, 'sdk-debug-drawer')
+        self.assertContains(response, 'sdk-frame-rate')
+        self.assertContains(response, 'sdk-exposure-time')
+        self.assertContains(response, 'sdk-trigger-mode')
+        self.assertContains(response, 'sdk-confidence-threshold')
+        self.assertContains(response, 'btn-sdk-save-config')
+        self.assertContains(response, 'apiSdkFindDevicesUrl')
+        self.assertContains(response, 'apiSdkCreateConfigUrl')
         self.assertContains(response, 'api_vision_3d_capture')
         self.assertContains(response, 'api_vision_3d_test_locate')
 

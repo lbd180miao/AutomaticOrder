@@ -26,6 +26,7 @@ from apps.core.constants import (
 )
 from apps.alarms.services import AlarmService
 from apps.devices.services import DeviceService, get_device_adapter
+from apps.dm_camera.models import DMCameraConfig
 
 from .algorithms import image_io
 from .models import RackLocationROI3D, RackLocationRecipe, RackLocationResult, VisionImage, VisionTask
@@ -514,7 +515,11 @@ class DMCameraRackFrameProvider:
             if not service.is_connected:
                 # 工作台采集不要求事先在相机页面手动「连接」：此处自动连接物理
                 # 相机（默认第一台 + 激活配置），连接失败才会进入下方异常回退。
-                service.connect()
+                active_config = DMCameraConfig.objects.filter(is_active=True).first()
+                service.connect(
+                    device_sn=getattr(active_config, 'device_sn', None) or None,
+                    config_id=getattr(active_config, 'id', None),
+                )
             if not service.is_streaming:
                 service.start_stream()
             frame = service.capture_frame_data(frame_type='POINTCLOUD', save_record=False)
