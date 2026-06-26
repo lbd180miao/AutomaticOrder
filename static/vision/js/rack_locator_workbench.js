@@ -16,6 +16,7 @@
     start: null,
     displayRoi: null,
     lastResultId: null,
+    sdkConfigId: null,
   };
 
   // ── Loading 遮罩 ─────────────────────────────────────────
@@ -37,7 +38,18 @@
     return res.json();
   }
 
+  async function sendJson(url, method, body) {
+    const options = {
+      method,
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+    };
+    if (body !== undefined) options.body = JSON.stringify(body || {});
+    const res = await fetch(url, options);
+    return res.json();
+  }
+
   function setStatus(text) { const n = $('rl-status'); if (n) n.textContent = text; }
+  function setSdkStatus(text) { const n = $('sdk-status'); if (n) n.textContent = text; }
 
   function apiPayload(data) {
     if (!data || !data.data) return data || {};
@@ -82,6 +94,59 @@
       z_min: numberInput('roi-z-min', -100),
       z_max: numberInput('roi-z-max', 100),
     };
+  }
+
+  function boolSelect(id, fallback) {
+    const node = $(id);
+    if (!node) return fallback;
+    return node.value === 'true';
+  }
+
+  function sdkConfigPayload() {
+    return {
+      name: $('sdk-config-name')?.value || '3D料架定位SDK',
+      device_sn: $('sdk-device-sn')?.value || '',
+      frame_rate: numberInput('sdk-frame-rate', 10),
+      exposure_time: numberInput('sdk-exposure-time', 1000),
+      trigger_mode: $('sdk-trigger-mode')?.value || 'ACTIVE',
+      confidence_filter_enable: true,
+      confidence_threshold: numberInput('sdk-confidence-threshold', 15),
+      flying_pixels_filter_enable: true,
+      flying_pixels_threshold: numberInput('sdk-flying-pixels-threshold', 5),
+      spatial_filter_enable: true,
+      spatial_threshold: numberInput('sdk-spatial-threshold', 5),
+      is_active: true,
+    };
+  }
+
+  function fillSdkConfig(config) {
+    state.sdkConfigId = config?.id || null;
+    if (!config) return;
+    if ($('sdk-config-name')) $('sdk-config-name').value = config.name || '3D料架定位SDK';
+    if ($('sdk-device-sn')) $('sdk-device-sn').value = config.device_sn || '';
+    if ($('sdk-frame-rate')) $('sdk-frame-rate').value = config.frame_rate ?? 10;
+    if ($('sdk-exposure-time')) $('sdk-exposure-time').value = config.exposure_time ?? 1000;
+    if ($('sdk-trigger-mode')) $('sdk-trigger-mode').value = config.trigger_mode || 'ACTIVE';
+    if ($('sdk-confidence-threshold')) $('sdk-confidence-threshold').value = config.confidence_threshold ?? 15;
+    if ($('sdk-flying-pixels-threshold')) $('sdk-flying-pixels-threshold').value = config.flying_pixels_threshold ?? 5;
+    if ($('sdk-spatial-threshold')) $('sdk-spatial-threshold').value = config.spatial_threshold ?? 5;
+  }
+
+  async function loadSdkConfig() {
+    try {
+      const data = await sendJson(CFG.apiSdkConfigsUrl, 'GET');
+      if (!data.success) { setSdkStatus(data.error || '读取配置失败'); return; }
+      const configs = data.data?.configs || [];
+      const active = configs.find((cfg) => cfg.is_active) || configs[0];
+      if (active) {
+        fillSdkConfig(active);
+        setSdkStatus(`已读取当前配置：${active.name}`);
+      } else {
+        setSdkStatus('暂无 SDK 配置，可填写参数后保存为当前配置。');
+      }
+    } catch (e) {
+      setSdkStatus('读取配置失败：' + e.message);
+    }
   }
 
   // ── 选中配方的参数（标准坐标 / 允许偏差 / 阈值） ───────────
@@ -341,6 +406,122 @@
     } catch (e) {
       setStatus('网络请求失败：' + e.message);
     } finally { hideLoading(); }
+  });
+
+  $('btn-sdk-debug')?.addEventListener('click', () => {
+    $('sdk-debug-drawer')?.classList.add('open');
+    $('sdk-drawer-backdrop')?.classList.add('open');
+    loadSdkConfig();
+  });
+  function closeSdkDrawer() {
+    $('sdk-debug-drawer')?.classList.remove('open');
+    $('sdk-drawer-backdrop')?.classList.remove('open');
+  }
+  $('btn-sdk-close')?.addEventListener('click', closeSdkDrawer);
+  $('sdk-drawer-backdrop')?.addEventListener('click', closeSdkDrawer);
+
+  $('btn-sdk-load-config')?.addEventListener('click', loadSdkConfig);
+
+  $('btn-sdk-save-config')?.addEventListener('click', async () => {
+    setSdkStatus('保存 SDK 配置中...');
+    try {
+      const payload = sdkConfigPayload();
+      const url = state.sdkConfigId
+        ? `/dm-camera/api/configs/${state.sdkConfigId}/update/`
+        : CFG.apiSdkCreateConfigUrl;
+      const data = await sendJson(url, state.sdkConfigId ? 'PUT' : 'POST', payload);
+      if (!data.success) { setSdkStatus(data.error || '保存配置失败'); return; }
+      if (!state.sdkConfigId && data.data?.id) state.sdkConfigId = data.data.id;
+      setSdkStatus('已保存为当前全局 SDK 配置，正式采集将复用该配置。');
+      await loadSdkConfig();
+    } catch (e) {
+      setSdkStatus('保存配置失败：' + e.message);
+    }
+  });
+
+  $('btn-sdk-find-devices')?.addEventListener('click', async () => {
+    setSdkStatus('查找设备中...');
+    try {
+      const data = await sendJson(CFG.apiSdkFindDevicesUrl, 'GET');
+      const list = $('sdk-device-list');
+      if (!data.success) { setSdkStatus(data.error || '查找设备失败'); return; }
+      const devices = data.data?.devices || [];
+      if (list) {
+        list.innerHTML = devices.length
+          ? devices.map((d) => `<button type="button" class="btn btn-secondary btn-sm sdk-device-pick" data-sn="${d.sn || ''}">${d.sn || '未知SN'} ${d.ip || ''}</button>`).join('')
+          : '未找到设备';
+        list.querySelectorAll('.sdk-device-pick').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            if ($('sdk-device-sn')) $('sdk-device-sn').value = btn.dataset.sn || '';
+            setSdkStatus('已选择设备：' + (btn.dataset.sn || '默认设备'));
+          });
+        });
+      }
+      setSdkStatus(devices.length ? `找到 ${devices.length} 台设备` : '未找到设备');
+    } catch (e) {
+      setSdkStatus('查找设备失败：' + e.message);
+    }
+  });
+
+  $('btn-sdk-connect')?.addEventListener('click', async () => {
+    setSdkStatus('连接设备中...');
+    try {
+      const data = await sendJson(CFG.apiSdkConnectUrl, 'POST', {
+        device_sn: $('sdk-device-sn')?.value || null,
+        config_id: state.sdkConfigId,
+      });
+      setSdkStatus(data.success ? '设备已连接。' : (data.error || '连接失败'));
+    } catch (e) {
+      setSdkStatus('连接失败：' + e.message);
+    }
+  });
+
+  $('btn-sdk-disconnect')?.addEventListener('click', async () => {
+    try {
+      const data = await sendJson(CFG.apiSdkDisconnectUrl, 'POST', {});
+      setSdkStatus(data.success ? '设备已断开。' : (data.error || '断开失败'));
+    } catch (e) {
+      setSdkStatus('断开失败：' + e.message);
+    }
+  });
+
+  $('btn-sdk-start-stream')?.addEventListener('click', async () => {
+    try {
+      const data = await sendJson(CFG.apiSdkStartStreamUrl, 'POST', {});
+      setSdkStatus(data.success ? '数据流已开启。' : (data.error || '开启数据流失败'));
+    } catch (e) {
+      setSdkStatus('开启数据流失败：' + e.message);
+    }
+  });
+
+  $('btn-sdk-stop-stream')?.addEventListener('click', async () => {
+    try {
+      const data = await sendJson(CFG.apiSdkStopStreamUrl, 'POST', {});
+      setSdkStatus(data.success ? '数据流已停止。' : (data.error || '停止数据流失败'));
+    } catch (e) {
+      setSdkStatus('停止数据流失败：' + e.message);
+    }
+  });
+
+  $('btn-sdk-capture')?.addEventListener('click', async () => {
+    setSdkStatus('测试采集中...');
+    try {
+      const data = await sendJson(CFG.apiSdkCaptureUrl, 'POST', {
+        frame_type: $('sdk-frame-type')?.value || 'POINTCLOUD',
+        save_record: boolSelect('sdk-save-record', true),
+      });
+      if (!data.success) { setSdkStatus(data.error || '测试采集失败'); return; }
+      const payload = data.data || {};
+      const preview = $('sdk-preview');
+      if (preview) {
+        preview.innerHTML = payload.preview_url
+          ? `<img src="${payload.preview_url}?t=${Date.now()}" alt="SDK 采集预览">`
+          : `采集成功：${payload.frame_type || ''} ${payload.width || '-'} x ${payload.height || '-'}`;
+      }
+      setSdkStatus('测试采集完成。');
+    } catch (e) {
+      setSdkStatus('测试采集失败：' + e.message);
+    }
   });
 
   // ── 渲染结果 ─────────────────────────────────────────────
