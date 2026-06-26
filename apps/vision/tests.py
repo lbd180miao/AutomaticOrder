@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from django.conf import settings
 from django.apps import apps
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
@@ -1090,6 +1091,107 @@ class DepthRoiDebugViewTests(TestCase):
         )
 
         self.assertNotContains(response, '深度相机拍照检测ROI')
+
+
+class RackLocationROI3DModelTests(TestCase):
+    def setUp(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        self.recipe = Recipe.objects.create(
+            recipe_name='ROI3D-POS-01-L1',
+            rack_side='LEFT',
+            position_no=1,
+            layer_no=1,
+            standard_x=0,
+            standard_y=0,
+            standard_z=0,
+            hand_eye_config={'matrix': 'identity'},
+        )
+
+    def test_global_and_local_roi_store_rack_coordinate_bounds(self):
+        ROI = apps.get_model('vision', 'RackLocationROI3D')
+
+        global_roi = ROI.objects.create(
+            recipe=self.recipe,
+            roi_name='左料架全局ROI',
+            mode='global',
+            layer_no=None,
+            coordinate_system='rack',
+            x_min=-300,
+            x_max=300,
+            y_min=-150,
+            y_max=150,
+            z_min=700,
+            z_max=1100,
+        )
+        local_roi = ROI.objects.create(
+            recipe=self.recipe,
+            roi_name='左料架第1层ROI',
+            mode='local',
+            layer_no=1,
+            coordinate_system='rack',
+            x_min=-120,
+            x_max=120,
+            y_min=-80,
+            y_max=80,
+            z_min=820,
+            z_max=900,
+        )
+
+        self.assertEqual(global_roi.mode, 'global')
+        self.assertIsNone(global_roi.layer_no)
+        self.assertEqual(local_roi.layer_no, 1)
+        self.assertEqual(float(local_roi.x_min), -120.0)
+        self.assertEqual(float(local_roi.z_max), 900.0)
+
+    def test_roi_rejects_invalid_spatial_bounds(self):
+        ROI = apps.get_model('vision', 'RackLocationROI3D')
+        roi = ROI(
+            recipe=self.recipe,
+            roi_name='无效ROI',
+            mode='local',
+            layer_no=1,
+            x_min=10,
+            x_max=10,
+            y_min=0,
+            y_max=20,
+            z_min=0,
+            z_max=20,
+        )
+
+        with self.assertRaisesMessage(ValidationError, 'x_min must be less than x_max'):
+            roi.full_clean()
+
+    def test_local_roi_requires_layer_and_global_roi_clears_layer(self):
+        ROI = apps.get_model('vision', 'RackLocationROI3D')
+
+        local_roi = ROI(
+            recipe=self.recipe,
+            roi_name='缺少层号',
+            mode='local',
+            layer_no=None,
+            x_min=0,
+            x_max=10,
+            y_min=0,
+            y_max=10,
+            z_min=0,
+            z_max=10,
+        )
+        with self.assertRaisesMessage(ValidationError, 'local ROI requires layer_no'):
+            local_roi.full_clean()
+
+        global_roi = ROI.objects.create(
+            recipe=self.recipe,
+            roi_name='自动清空层号',
+            mode='global',
+            layer_no=2,
+            x_min=0,
+            x_max=10,
+            y_min=0,
+            y_max=10,
+            z_min=0,
+            z_max=10,
+        )
+        self.assertIsNone(global_roi.layer_no)
 
 
 class RackLocationRecipe3DModelTests(TestCase):

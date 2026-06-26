@@ -88,6 +88,88 @@ class RackLocationRecipe(TimeStampedModel):
         )
 
 
+class RackLocationROI3D(TimeStampedModel):
+    MODE_GLOBAL = 'global'
+    MODE_LOCAL = 'local'
+    MODE_CHOICES = (
+        (MODE_GLOBAL, '全局定位'),
+        (MODE_LOCAL, '局部定位'),
+    )
+
+    recipe = models.ForeignKey(
+        RackLocationRecipe,
+        on_delete=models.CASCADE,
+        related_name='rois_3d',
+    )
+    roi_name = models.CharField(max_length=128)
+    mode = models.CharField(max_length=16, choices=MODE_CHOICES)
+    layer_no = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    coordinate_system = models.CharField(max_length=32, default='rack')
+    x_min = models.DecimalField(max_digits=10, decimal_places=3)
+    x_max = models.DecimalField(max_digits=10, decimal_places=3)
+    y_min = models.DecimalField(max_digits=10, decimal_places=3)
+    y_max = models.DecimalField(max_digits=10, decimal_places=3)
+    z_min = models.DecimalField(max_digits=10, decimal_places=3)
+    z_max = models.DecimalField(max_digits=10, decimal_places=3)
+    enabled = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['recipe_id', 'mode', 'layer_no', '-updated_at']
+        indexes = [
+            models.Index(fields=['recipe', 'mode', 'layer_no', 'enabled']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['recipe'],
+                condition=models.Q(mode='global', enabled=True),
+                name='unique_enabled_global_3d_roi_per_recipe',
+            ),
+            models.UniqueConstraint(
+                fields=['recipe', 'layer_no'],
+                condition=models.Q(mode='local', enabled=True),
+                name='unique_enabled_local_3d_roi_per_recipe_layer',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(x_min__lt=models.F('x_max')),
+                name='rack_3d_roi_x_min_lt_x_max',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(y_min__lt=models.F('y_max')),
+                name='rack_3d_roi_y_min_lt_y_max',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(z_min__lt=models.F('z_max')),
+                name='rack_3d_roi_z_min_lt_z_max',
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.mode == self.MODE_GLOBAL:
+            self.layer_no = None
+        elif self.mode == self.MODE_LOCAL and self.layer_no is None:
+            errors['layer_no'] = 'local ROI requires layer_no'
+
+        if self.x_min is not None and self.x_max is not None and self.x_min >= self.x_max:
+            errors['x_min'] = 'x_min must be less than x_max'
+        if self.y_min is not None and self.y_max is not None and self.y_min >= self.y_max:
+            errors['y_min'] = 'y_min must be less than y_max'
+        if self.z_min is not None and self.z_max is not None and self.z_min >= self.z_max:
+            errors['z_min'] = 'z_min must be less than z_max'
+        if errors:
+            from django.core.exceptions import ValidationError
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        layer = f'L{self.layer_no}' if self.layer_no else 'GLOBAL'
+        return f'{self.recipe.recipe_name}:{self.mode}:{layer}:{self.roi_name}'
+
+
 class RackLocationResult(TimeStampedModel):
     vision_task = models.ForeignKey(VisionTask, on_delete=models.CASCADE, related_name='rack_results')
     recipe = models.ForeignKey(

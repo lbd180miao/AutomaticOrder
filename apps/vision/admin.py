@@ -3,6 +3,7 @@ from django.contrib import admin
 from .models import (
     CalibrationProfile,
     FoamInspectionResult,
+    RackLocationROI3D,
     RackLocationRecipe,
     RackLocationResult,
     VisionImage,
@@ -20,6 +21,16 @@ class RackLocationRecipeAdmin(admin.ModelAdmin):
     )
     list_filter = ('enabled', 'rack_side', 'layer_no')
     search_fields = ('recipe_name', 'rack_type', 'capture_pose_name')
+
+
+@admin.register(RackLocationROI3D)
+class RackLocationROI3DAdmin(admin.ModelAdmin):
+    list_display = (
+        'roi_name', 'recipe', 'mode', 'layer_no', 'coordinate_system',
+        'x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max', 'enabled',
+    )
+    list_filter = ('enabled', 'mode', 'coordinate_system', 'layer_no')
+    search_fields = ('roi_name', 'recipe__recipe_name')
 
 
 @admin.register(RackLocationResult)
