@@ -502,6 +502,11 @@ class DMCameraRackFrameProvider:
         self.fallback_provider = fallback_provider or SampleRackFrameProvider()
 
     def capture(self, recipe: RackLocationRecipe, position_no: int, layer_no: int) -> dict:
+        if getattr(settings, 'VISION_RACK_LOCATION_FORCE_SAMPLE', False):
+            frame = self.fallback_provider.capture(recipe, position_no, layer_no)
+            frame['source'] = 'sample_forced'
+            return frame
+
         try:
             from apps.dm_camera.services import DMCameraService
 
@@ -512,7 +517,7 @@ class DMCameraRackFrameProvider:
                 service.connect()
             if not service.is_streaming:
                 service.start_stream()
-            frame = service.capture_frame_data(frame_type='POINTCLOUD', save_record=True)
+            frame = service.capture_frame_data(frame_type='POINTCLOUD', save_record=False)
 
             # ── key 映射：SDK 'data' → 算法层 'organized_pointcloud' ──
             result = {

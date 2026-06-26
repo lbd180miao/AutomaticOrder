@@ -40,7 +40,19 @@
   function setStatus(text) { const n = $('rl-status'); if (n) n.textContent = text; }
 
   function apiPayload(data) {
-    return data && data.data ? data.data : data;
+    if (!data || !data.data) return data || {};
+    if (typeof data.data === 'object' && !Array.isArray(data.data)) {
+      return {
+        success: data.success,
+        error: data.error || '',
+        ...data.data,
+      };
+    }
+    return {
+      success: data.success,
+      error: data.error || '',
+      data: data.data,
+    };
   }
 
   function numberInput(id, fallback) {
