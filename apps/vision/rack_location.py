@@ -1111,8 +1111,20 @@ class RackLocationService:
         return output, result_rel
 
     def calculate_workbench(self, *, token, roi_config, recipe_id=None,
-                            recipe_data=None, layer_no=1) -> dict:
+                            recipe_data=None, layer_no=1, roi_3d=None,
+                            rack_side=RackSide.LEFT) -> dict:
         """工作台「计算偏差」：仅预览，不写库。"""
+        if roi_3d:
+            return Rack3DLocator(
+                frame_provider=self.frame_provider,
+                plc_writer=self.plc_writer,
+            ).test_locate(
+                token=token,
+                roi_3d=roi_3d,
+                recipe_id=recipe_id,
+                rack_side=rack_side,
+                layer_no=layer_no,
+            )
         recipe = self._build_workbench_recipe(recipe_id, recipe_data)
         layer_no = int((recipe_data or {}).get('layer_no') or layer_no or getattr(recipe, 'layer_no', 1) or 1)
         output, result_rel = self._compute_workbench(
