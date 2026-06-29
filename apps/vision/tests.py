@@ -128,6 +128,99 @@ class Rack3DSerializationSemanticsTests(TestCase):
         self.assertEqual(payload['final_offset_x'], 11.0)
 
 
+@override_settings(MEDIA_ROOT=mkdtemp())
+class Rack3DCurrentRecipeAndRoiApiTests(TestCase):
+    def setUp(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        self.global_recipe = Recipe.objects.create(
+            recipe_name='CUR-GLOBAL',
+            rack_side='BOTH',
+            position_no=1,
+            layer_no=0,
+            layer_count=3,
+            standard_x=0,
+            standard_y=0,
+            standard_z=850,
+            hand_eye_config={'matrix': 'identity'},
+        )
+        self.layer_recipe = Recipe.objects.create(
+            recipe_name='CUR-L2',
+            rack_side='BOTH',
+            position_no=1,
+            layer_no=2,
+            layer_count=3,
+            standard_x=0,
+            standard_y=0,
+            standard_z=900,
+            hand_eye_config={'matrix': 'identity'},
+        )
+
+    def test_current_recipe_api_uses_locate_type_and_layer_index(self):
+        response = self.client.get(
+            reverse('vision:api_vision_3d_recipe_current'),
+            {'locate_type': 'GLOBAL', 'layer_index': '0'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['data']['recipe']['id'], self.global_recipe.id)
+        self.assertEqual(payload['data']['recipe']['locate_type'], 'GLOBAL')
+        self.assertEqual(payload['data']['recipe']['layer_index'], 0)
+
+    def test_save_roi_requires_alignment_token(self):
+        response = self.client.post(
+            reverse('vision:api_vision_3d_rois'),
+            data=json.dumps({
+                'recipe_id': self.layer_recipe.id,
+                'locate_type': 'LAYER',
+                'layer_index': 2,
+                'x_min': -10,
+                'x_max': 10,
+                'y_min': -10,
+                'y_max': 10,
+                'z_min': 700,
+                'z_max': 950,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['success'])
+        self.assertIn('请先自动对齐', response.json()['error'])
+
+    def test_save_roi_accepts_alignment_token_and_maps_layer_semantics(self):
+        token = 'vision/rack_workbench/aligned.npy'
+        path = Path(settings.MEDIA_ROOT) / token
+        path.parent.mkdir(parents=True, exist_ok=True)
+        np.save(path, np.zeros((2, 2, 3), dtype=np.float32))
+
+        response = self.client.post(
+            reverse('vision:api_vision_3d_rois'),
+            data=json.dumps({
+                'recipe_id': self.layer_recipe.id,
+                'alignment_token': token,
+                'locate_type': 'LAYER',
+                'layer_index': 2,
+                'roi_name': '第2层ROI',
+                'x_min': -10,
+                'x_max': 10,
+                'y_min': -10,
+                'y_max': 10,
+                'z_min': 700,
+                'z_max': 950,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        ROI = apps.get_model('vision', 'RackLocationROI3D')
+        roi = ROI.objects.get(recipe=self.layer_recipe)
+        self.assertEqual(roi.mode, ROI.MODE_LOCAL)
+        self.assertEqual(roi.layer_no, 2)
+        self.assertEqual(response.json()['data']['roi']['locate_type'], 'LAYER')
+
+
 class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
     def _template_source(self):
         template_path = Path(settings.BASE_DIR) / 'templates' / 'vision' / 'foam_inspector_interactive.html'

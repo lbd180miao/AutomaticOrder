@@ -744,6 +744,48 @@ class Rack3DLocator:
             plc_writer=self.plc_writer,
         )._load_workbench_pointcloud(token)
 
+    def _media_token_exists(self, token: str) -> bool:
+        if not token:
+            return False
+        media_root = os.path.realpath(settings.MEDIA_ROOT)
+        abs_path = os.path.realpath(os.path.join(media_root, token))
+        return os.path.commonpath([abs_path, media_root]) == media_root and os.path.exists(abs_path)
+
+    def get_current_recipe(self, *, locate_type, layer_index, rack_type=None):
+        semantics = locate_semantics(locate_type=locate_type, layer_index=layer_index)
+        qs = RackLocationRecipe.objects.filter(enabled=True, layer_no=semantics['layer_no'])
+        if rack_type:
+            qs = qs.filter(rack_type=rack_type)
+        return qs.order_by('position_no', '-updated_at').first()
+
+    def save_roi(self, *, recipe_id, locate_type, layer_index, roi_3d, alignment_token,
+                 roi_name='3D ROI', enabled=True):
+        if not self._media_token_exists(alignment_token):
+            raise ValueError('请先自动对齐，再保存生产 ROI')
+        semantics = locate_semantics(locate_type=locate_type, layer_index=layer_index)
+        recipe = RackLocationRecipe.objects.get(pk=recipe_id)
+        layer_no = None if semantics['roi_mode'] == RackLocationROI3D.MODE_GLOBAL else semantics['layer_no']
+        RackLocationROI3D.objects.filter(
+            recipe=recipe,
+            mode=semantics['roi_mode'],
+            layer_no=layer_no,
+            enabled=True,
+        ).update(enabled=False)
+        return RackLocationROI3D.objects.create(
+            recipe=recipe,
+            roi_name=roi_name,
+            mode=semantics['roi_mode'],
+            layer_no=layer_no,
+            coordinate_system='rack',
+            x_min=roi_3d['x_min'],
+            x_max=roi_3d['x_max'],
+            y_min=roi_3d['y_min'],
+            y_max=roi_3d['y_max'],
+            z_min=roi_3d['z_min'],
+            z_max=roi_3d['z_max'],
+            enabled=enabled,
+        )
+
     def capture(self, *, recipe_id=None, rack_side=RackSide.LEFT, layer_no=1) -> dict:
         recipe = self._select_recipe(recipe_id=recipe_id, rack_side=rack_side, layer_no=layer_no) if recipe_id else None
         position_no = int(getattr(recipe, 'position_no', 1) or 1)

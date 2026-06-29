@@ -45,6 +45,7 @@ urlpatterns = [
     path('api/rack/locate/', views.api_rack_locate, name='api_rack_locate'),
     path('api/rack/results/', views.api_rack_results, name='api_rack_results'),
     path('api/vision/3d/recipes/', views.api_vision_3d_recipes, name='api_vision_3d_recipes'),
+    path('api/vision/3d/recipes/current/', views.api_vision_3d_recipe_current, name='api_vision_3d_recipe_current'),
     path('api/vision/3d/recipes/<int:recipe_id>/', views.api_vision_3d_recipe_detail, name='api_vision_3d_recipe_detail'),
     path('api/vision/3d/rois/', views.api_vision_3d_rois, name='api_vision_3d_rois'),
     path('api/vision/3d/rois/<int:roi_id>/', views.api_vision_3d_roi_detail, name='api_vision_3d_roi_detail'),
