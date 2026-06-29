@@ -852,6 +852,7 @@ class Rack3DLocator:
                 'layers': [],
                 'support_plane': {'normal': [0, 0, 1], 'offset': 0},
             },
+            'aligned_pointcloud_token': token,
             'views': views,
         }
 

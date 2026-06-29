@@ -35,6 +35,7 @@ from .rack_location import (
     Rack3DLocator,
     RackLocationService,
     locate_semantics,
+    normalize_locate_type,
     result_payload as rack_location_result_payload,
     roi3d_to_dict,
     sample_scene_median_xyz,
@@ -1166,6 +1167,27 @@ def api_vision_3d_capture(request):
 
 
 @require_POST
+def api_vision_3d_camera_test(request):
+    try:
+        from apps.dm_camera.services import DMCameraService
+        status = DMCameraService().get_status()
+        return _api3d_success({
+            'online': bool(status.get('connected') or status.get('streaming')),
+            'status': status,
+        })
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_success({
+            'online': False,
+            'status': {'error': str(exc)},
+        })
+
+
+@require_POST
+def api_vision_3d_align(request):
+    return api_vision_3d_auto_align(request)
+
+
+@require_POST
 def api_vision_3d_auto_align(request):
     try:
         data = _request_data(request)
@@ -1174,6 +1196,32 @@ def api_vision_3d_auto_align(request):
             recipe_id=data.get('recipe_id') or None,
         )
         return _api3d_success(payload)
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
+
+
+@require_POST
+def api_vision_3d_locate(request):
+    try:
+        data = _request_data(request)
+        semantics = locate_semantics(
+            locate_type=(
+                data.get('locate_type')
+                or ('GLOBAL' if _as_int(data.get('layer_index'), 1) == 0 else 'LAYER')
+            ),
+            layer_index=(
+                data.get('layer_index')
+                if data.get('layer_index') is not None
+                else data.get('layer_no')
+            ),
+        )
+        result = Rack3DLocator().locate(
+            rack_side=data.get('rack_side') or 'BOTH',
+            layer_no=semantics['layer_no'],
+            recipe_id=data.get('recipe_id') or None,
+            write_plc=_as_bool(data.get('write_plc'), False),
+        )
+        return _api3d_success({'result': rack_location_result_payload(result)})
     except Exception as exc:  # noqa: BLE001
         return _api3d_error(exc)
 
@@ -1192,6 +1240,38 @@ def api_vision_3d_test_locate(request):
         return _api3d_success({'result': payload})
     except Exception as exc:  # noqa: BLE001
         return _api3d_error(exc)
+
+
+@require_http_methods(['GET'])
+def api_vision_3d_results_latest(request):
+    result = (
+        RackLocationResult.objects
+        .select_related('recipe', 'vision_task')
+        .order_by('-created_at')
+        .first()
+    )
+    return _api3d_success({'result': rack_location_result_payload(result) if result else None})
+
+
+@require_http_methods(['GET'])
+def api_vision_3d_results(request):
+    qs = RackLocationResult.objects.select_related('recipe', 'vision_task').order_by('-created_at')
+    layer_index = request.GET.get('layer_index')
+    if layer_index not in (None, ''):
+        qs = qs.filter(layer_no=int(layer_index))
+
+    locate_type = request.GET.get('locate_type')
+    if locate_type:
+        expected = normalize_locate_type(locate_type)
+        results = [
+            result for result in qs[:200]
+            if (result.result_data or {}).get('locate_type') == expected
+            or (expected == 'GLOBAL' and int(result.layer_no or 0) == 0)
+            or (expected == 'LAYER' and int(result.layer_no or 0) in {1, 2, 3})
+        ]
+        return _api3d_success({'results': [rack_location_result_payload(result) for result in results]})
+
+    return _api3d_success({'results': [rack_location_result_payload(result) for result in qs[:100]]})
 
 
 @require_POST

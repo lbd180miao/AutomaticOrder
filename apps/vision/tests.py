@@ -221,6 +221,69 @@ class Rack3DCurrentRecipeAndRoiApiTests(TestCase):
         self.assertEqual(response.json()['data']['roi']['locate_type'], 'LAYER')
 
 
+@override_settings(MEDIA_ROOT=mkdtemp(), VISION_RACK_LOCATION_FORCE_SAMPLE=True)
+class Rack3DFormalApiFlowTests(TestCase):
+    def setUp(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        self.recipe = Recipe.objects.create(
+            recipe_name='FLOW-GLOBAL',
+            rack_side='BOTH',
+            position_no=1,
+            layer_no=0,
+            layer_count=3,
+            standard_x=0,
+            standard_y=0,
+            standard_z=850,
+            max_offset_x=9999,
+            max_offset_y=9999,
+            max_offset_z=9999,
+            confidence_threshold=0.1,
+            hand_eye_config={'matrix': 'identity'},
+        )
+
+    def test_camera_test_api_returns_online_boolean(self):
+        response = self.client.post(reverse('vision:api_vision_3d_camera_test'))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertIn('online', payload['data'])
+
+    def test_align_alias_accepts_capture_token(self):
+        capture = self.client.post(
+            reverse('vision:api_vision_3d_capture'),
+            data=json.dumps({'recipe_id': self.recipe.id, 'locate_type': 'GLOBAL', 'layer_index': 0}),
+            content_type='application/json',
+        ).json()
+
+        response = self.client.post(
+            reverse('vision:api_vision_3d_align'),
+            data=json.dumps({'pointcloud_token': capture['data']['pointcloud_token'], 'recipe_id': self.recipe.id}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['data']['aligned_pointcloud_token'])
+
+    def test_results_latest_api_returns_latest_result(self):
+        task = VisionTask.objects.create(task_type=VisionTaskType.RACK_LOCATING, status=ResultStatus.SUCCESS)
+        RackLocationResult.objects.create(
+            vision_task=task,
+            recipe=self.recipe,
+            side='BOTH',
+            position_no=1,
+            layer_no=0,
+            confidence=0.9,
+            is_success=True,
+            result_data={'locate_type': 'GLOBAL', 'layer_index': 0},
+        )
+
+        response = self.client.get(reverse('vision:api_vision_3d_results_latest'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['data']['result']['locate_type'], 'GLOBAL')
+
+
 class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
     def _template_source(self):
         template_path = Path(settings.BASE_DIR) / 'templates' / 'vision' / 'foam_inspector_interactive.html'
