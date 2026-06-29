@@ -646,6 +646,20 @@ class PlcVisionResultWriter:
             return f'置信度不足: {float(result.confidence):.2%} < {float(recipe.confidence_threshold):.2%}'
         return ''
 
+    def _validate_plc_payload(self, payload: dict) -> str:
+        if not payload:
+            return 'PLC payload 缺失'
+        if payload.get('compensation_valid') is not True:
+            return '补偿无效，未写入 PLC'
+        for key in ('offset_x', 'offset_y', 'offset_z', 'offset_rz'):
+            if key not in payload:
+                return f'PLC payload 缺少 {key}'
+            try:
+                float(payload[key])
+            except (TypeError, ValueError):
+                return f'PLC payload {key} 不是有效数值'
+        return ''
+
     def write(self, result: RackLocationResult) -> dict:
         payload = result.result_data.get('plc_payload') or {}
         if not result.is_success:
@@ -655,6 +669,20 @@ class PlcVisionResultWriter:
             return {'success': False, 'skipped': True, 'error': result.plc_error_message}
 
         # ── 二次校验：按当前配方阈值重新检查 ──
+        rejection = self._validate_plc_payload(payload)
+        if rejection:
+            result.plc_write_status = 'REJECTED'
+            result.plc_error_message = rejection
+            result.save(update_fields=['plc_write_status', 'plc_error_message', 'updated_at'])
+            AlarmService().create(
+                source=AlarmSource.VISION,
+                level=AlarmLevel.ERROR,
+                message=f'VISION_3D PLC写入被拒绝: {rejection}',
+                rack=result.rack,
+                lock_workstation=True,
+            )
+            return {'success': False, 'rejected': True, 'error': rejection}
+
         rejection = self._revalidate_offsets(result)
         if rejection:
             result.plc_write_status = 'REJECTED'
@@ -1496,6 +1524,31 @@ class RackLocationService:
             raise
 
 
+def _normalized_plc_payload(result: RackLocationResult, *, locate_type: str,
+                            layer_index: int, overall: dict, layer: dict,
+                            final: dict) -> dict:
+    payload = dict((result.result_data or {}).get('plc_payload') or {})
+    final_offset = {
+        'x': float(final.get('x', result.offset_x)),
+        'y': float(final.get('y', result.offset_y)),
+        'z': float(final.get('z', result.offset_z)),
+        'rz': float(final.get('rz', result.offset_rz)),
+    }
+    payload.update({
+        'locate_type': payload.get('locate_type', locate_type),
+        'layer_index': int(payload.get('layer_index', layer_index)),
+        'offset_x': float(payload.get('offset_x', final_offset['x'])),
+        'offset_y': float(payload.get('offset_y', final_offset['y'])),
+        'offset_z': float(payload.get('offset_z', final_offset['z'])),
+        'offset_rz': float(payload.get('offset_rz', final_offset['rz'])),
+        'overall_offset': payload.get('overall_offset') or overall or {},
+        'layer_offset': payload.get('layer_offset') or layer or {},
+        'final_offset': payload.get('final_offset') or final_offset,
+        'compensation_valid': bool(payload.get('compensation_valid', result.is_success)),
+    })
+    return payload
+
+
 def result_payload(result: RackLocationResult) -> dict:
     result_img = result.vision_task.images.filter(image_type=VisionImageType.RESULT).first()
     data = result.result_data or {}
@@ -1506,6 +1559,14 @@ def result_payload(result: RackLocationResult) -> dict:
     overall = data.get('overall_offset') or {}
     layer = data.get('layer_offset') or {}
     final = data.get('final_offset') or {}
+    plc_payload = _normalized_plc_payload(
+        result,
+        locate_type=locate_type,
+        layer_index=layer_index,
+        overall=overall,
+        layer=layer,
+        final=final,
+    )
     return {
         'id': result.id,
         'task_id': result.vision_task_id,
@@ -1544,6 +1605,6 @@ def result_payload(result: RackLocationResult) -> dict:
         'result_image_url': result_img.file.url if result_img else '',
         'plc_write_status': result.plc_write_status,
         'plc_error_message': result.plc_error_message,
-        'plc_payload': result.result_data.get('plc_payload') or {},
+        'plc_payload': plc_payload,
         'created_at': result.created_at.isoformat() if result.created_at else '',
     }

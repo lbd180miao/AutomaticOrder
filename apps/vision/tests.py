@@ -425,6 +425,88 @@ class Rack3DGlobalLayerCompensationTests(TestCase):
         self.assertEqual(result.result_data['plc_payload']['offset_z'], 33.0)
 
 
+class Rack3DPlcSafetyTests(TestCase):
+    class RejectingAdapter:
+        def __init__(self):
+            self.called = False
+
+        def send_rack_offsets(self, payload):
+            self.called = True
+            return {'success': True, 'echo': payload}
+
+    def setUp(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        self.recipe = Recipe.objects.create(
+            recipe_name='PLC-SAFETY',
+            rack_side='LEFT',
+            position_no=3,
+            layer_no=1,
+            max_offset_x=9999,
+            max_offset_y=9999,
+            max_offset_z=9999,
+            confidence_threshold=0.1,
+        )
+        self.task = VisionTask.objects.create(task_type=VisionTaskType.RACK_LOCATING, status=ResultStatus.SUCCESS)
+
+    def _result(self, plc_payload):
+        return RackLocationResult.objects.create(
+            vision_task=self.task,
+            recipe=self.recipe,
+            side='LEFT',
+            position_no=3,
+            layer_no=1,
+            offset_x=1,
+            offset_y=2,
+            offset_z=3,
+            confidence=0.9,
+            is_success=True,
+            result_data={'plc_payload': plc_payload},
+        )
+
+    def test_writer_rejects_invalid_compensation_without_calling_adapter(self):
+        from apps.vision.rack_location import PlcVisionResultWriter
+
+        adapter = self.RejectingAdapter()
+        result = self._result({
+            'compensation_valid': False,
+            'offset_x': 1,
+            'offset_y': 2,
+            'offset_z': 3,
+            'offset_rz': 0,
+        })
+
+        with patch('apps.vision.rack_location.AlarmService'):
+            response = PlcVisionResultWriter(adapter=adapter).write(result)
+
+        result.refresh_from_db()
+        self.assertFalse(response['success'])
+        self.assertTrue(response['rejected'])
+        self.assertFalse(adapter.called)
+        self.assertEqual(result.plc_write_status, 'REJECTED')
+
+    def test_result_payload_normalizes_plc_payload_from_final_offset(self):
+        from apps.vision.rack_location import result_payload
+
+        result = self._result({
+            'compensation_valid': True,
+        })
+        result.result_data.update({
+            'locate_type': 'LAYER',
+            'layer_index': 1,
+            'overall_offset': {'x': 10, 'y': 20, 'z': 30, 'rz': 0},
+            'layer_offset': {'x': 1, 'y': 2, 'z': 3, 'rz': 0},
+            'final_offset': {'x': 11, 'y': 22, 'z': 33, 'rz': 0},
+        })
+        result.save(update_fields=['result_data'])
+
+        payload = result_payload(result)
+
+        self.assertEqual(payload['plc_payload']['locate_type'], 'LAYER')
+        self.assertEqual(payload['plc_payload']['layer_index'], 1)
+        self.assertEqual(payload['plc_payload']['offset_z'], 33.0)
+        self.assertTrue(payload['plc_payload']['compensation_valid'])
+
+
 class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
     def _template_source(self):
         template_path = Path(settings.BASE_DIR) / 'templates' / 'vision' / 'foam_inspector_interactive.html'
