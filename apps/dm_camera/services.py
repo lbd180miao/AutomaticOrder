@@ -16,8 +16,9 @@ from django.utils import timezone
 from django.conf import settings
 
 from .models import DMCameraConfig, DMCaptureRecord, DMCameraSession
-from .sdk_wrapper import DMCamera, DMCameraException, DeviceInfo
+from .sdk_wrapper import DMCamera, DMCameraConfigurationError, DMCameraException, DeviceInfo
 from .sdk.LW_DM_Type import LWTriggerMode, LWFrameType, LWDataRecvType
+from .tofconfig import TofConfigError, load_tof_config
 
 logger = logging.getLogger(__name__)
 
@@ -104,8 +105,8 @@ class DMCameraService:
             连接信息
         """
         try:
-            # 如果已连接，先断开
-            if self.is_connected:
+            # 先释放任何旧 SDK 实例；即使未连接成功，旧实例析构也会清理 SDK 全局资源。
+            if self._camera is not None:
                 self.disconnect()
             
             # 创建相机实例
@@ -170,27 +171,44 @@ class DMCameraService:
                 'session_id': self._current_session.id
             }
         
-        except DMCameraException as e:
+        except Exception as e:  # noqa: BLE001 - 设备打开后的任何失败都必须释放 SDK 资源
             logger.error(f"连接设备失败: {str(e)}")
             if self._current_session:
                 self._current_session.status = 'ERROR'
                 self._current_session.error_message = str(e)
                 self._current_session.save()
+            if self._camera is not None:
+                try:
+                    self._camera.disconnect()
+                except Exception:  # noqa: BLE001 - 连接失败后的资源清理不能覆盖原始错误
+                    pass
+                self._camera = None
             raise
     
     def disconnect(self):
         """断开相机连接"""
+        disconnect_error = None
         try:
             if self._camera:
-                self._camera.disconnect()
-                self._camera = None
-            
-            if self._current_session:
-                self._current_session.status = 'IDLE'
-                self._current_session.disconnected_at = timezone.now()
-                self._current_session.save()
-                self._current_session = None
-            
+                try:
+                    self._camera.disconnect()
+                except DMCameraException as e:
+                    disconnect_error = e
+
+            session = self._current_session
+            self._camera = None
+            self._current_session = None
+
+            if session:
+                session.status = 'ERROR' if disconnect_error else 'IDLE'
+                session.disconnected_at = timezone.now()
+                if disconnect_error:
+                    session.error_message = str(disconnect_error)
+                session.save()
+
+            if disconnect_error:
+                raise disconnect_error
+
             logger.info("设备已断开连接")
         
         except DMCameraException as e:
@@ -203,24 +221,35 @@ class DMCameraService:
             raise DMCameraException("设备未连接")
         
         # 映射触发模式
+        try:
+            tof_config = load_tof_config()
+        except TofConfigError as e:
+            raise DMCameraConfigurationError(f"tofconfig configuration error: {e}") from e
+
         trigger_mode_map = {
             'ACTIVE': LWTriggerMode.LW_TRIGGER_ACTIVE,
             'SOFT': LWTriggerMode.LW_TRIGGER_SOFT,
             'HARD': LWTriggerMode.LW_TRIGGER_HARD,
         }
+        try:
+            trigger_mode = trigger_mode_map[tof_config.trigger_mode]
+        except KeyError as e:
+            raise DMCameraConfigurationError(
+                f"invalid tofconfig trigger_mode: {tof_config.trigger_mode}"
+            ) from e
         
         # 配置相机
         self._camera.configure_camera(
-            frame_rate=config.frame_rate,
-            exposure_time=config.exposure_time,
-            trigger_mode=trigger_mode_map.get(config.trigger_mode, LWTriggerMode.LW_TRIGGER_ACTIVE)
+            frame_rate=tof_config.frame_rate,
+            exposure_time=tof_config.exposure_time,
+            trigger_mode=trigger_mode,
         )
         
         # 配置滤波器
         self._camera.set_filters(
-            confidence=(config.confidence_filter_enable, config.confidence_threshold),
-            flying_pixels=(config.flying_pixels_filter_enable, config.flying_pixels_threshold),
-            spatial=(config.spatial_filter_enable, config.spatial_threshold)
+            confidence=tof_config.confidence,
+            flying_pixels=tof_config.flying_pixels,
+            spatial=tof_config.spatial,
         )
         
         logger.info(f"已应用配置: {config.name}")

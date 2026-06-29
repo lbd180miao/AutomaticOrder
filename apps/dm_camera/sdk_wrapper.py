@@ -30,6 +30,10 @@ class DMCameraException(Exception):
     pass
 
 
+class DMCameraConfigurationError(DMCameraException):
+    """DM相机配置无效，调用方不得回退到样例数据。"""
+
+
 class DMCamera:
     """DM 3D深度相机包装类"""
     
@@ -163,23 +167,32 @@ class DMCamera:
             raise DMCameraException("设备未连接")
         
         try:
-            # 置信度滤波
+            # 置信度滤波 - 确保阈值在合理范围内
+            conf_enabled, conf_threshold = confidence
+            if conf_enabled and conf_threshold < 1:
+                conf_threshold = 15  # 使用默认值
             ret = self.camera.LWSetConfidenceFilterParams(
-                self.device_handle, confidence[0], confidence[1]
+                self.device_handle, conf_enabled, conf_threshold
             )
             if ret != LWReturnCode.LW_RETURN_OK.value:
                 raise DMCameraException(f"设置置信度滤波失败，错误码: {ret}")
             
-            # 飞点滤波
+            # 飞点滤波 - 确保阈值在合理范围内
+            fly_enabled, fly_threshold = flying_pixels
+            if fly_enabled and fly_threshold < 1:
+                fly_threshold = 5  # 使用默认值
             ret = self.camera.LWSetFlyingPixelsFilterParams(
-                self.device_handle, flying_pixels[0], flying_pixels[1]
+                self.device_handle, fly_enabled, fly_threshold
             )
             if ret != LWReturnCode.LW_RETURN_OK.value:
                 raise DMCameraException(f"设置飞点滤波失败，错误码: {ret}")
             
-            # 空间滤波
+            # 空间滤波 - SDK要求最小值为5，即使禁用也要传递有效参数
+            spatial_enabled, spatial_threshold = spatial
+            if spatial_threshold < 5:
+                spatial_threshold = 5  # SDK最小值要求
             ret = self.camera.LWSetSpatialFilterParams(
-                self.device_handle, spatial[0], spatial[1]
+                self.device_handle, spatial_enabled, spatial_threshold
             )
             if ret != LWReturnCode.LW_RETURN_OK.value:
                 raise DMCameraException(f"设置空间滤波失败，错误码: {ret}")

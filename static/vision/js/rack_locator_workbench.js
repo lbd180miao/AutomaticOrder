@@ -12,11 +12,13 @@
   const state = {
     token: null,         // 持久化点云 token
     roi: null,           // 真实图像像素 ROI {x,y,w,h}
+    alignmentToken: null,
     drawing: false,
     start: null,
     displayRoi: null,
     lastResultId: null,
-    sdkConfigId: null,
+    lastResultOk: false,
+    currentRecipe: null,
   };
 
   // ── Loading 遮罩 ─────────────────────────────────────────
@@ -38,18 +40,7 @@
     return res.json();
   }
 
-  async function sendJson(url, method, body) {
-    const options = {
-      method,
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
-    };
-    if (body !== undefined) options.body = JSON.stringify(body || {});
-    const res = await fetch(url, options);
-    return res.json();
-  }
-
   function setStatus(text) { const n = $('rl-status'); if (n) n.textContent = text; }
-  function setSdkStatus(text) { const n = $('sdk-status'); if (n) n.textContent = text; }
 
   function apiPayload(data) {
     if (!data || !data.data) return data || {};
@@ -85,6 +76,55 @@
     return $('locate-mode')?.value || 'local';
   }
 
+  function currentLocateType() {
+    return String(currentMode()).toLowerCase() === 'global' ? 'GLOBAL' : 'LAYER';
+  }
+
+  function currentLayerIndex() {
+    return currentLocateType() === 'GLOBAL' ? 0 : currentLayerNo();
+  }
+
+  function semanticPayload(extra) {
+    return {
+      locate_type: currentLocateType(),
+      layer_index: currentLayerIndex(),
+      layer_no: currentLayerIndex(),
+      ...(extra || {}),
+    };
+  }
+
+  function setButton(id, enabled) {
+    const node = $(id);
+    if (node) node.disabled = !enabled;
+  }
+
+  function refreshActionState() {
+    setButton('btn-auto-align', Boolean(state.token));
+    setButton('btn-redraw', Boolean(state.token));
+    setButton('btn-calculate', Boolean(state.token));
+    setButton('btn-save-roi', Boolean(state.alignmentToken));
+    setButton('btn-write-plc', Boolean(state.lastResultId && state.lastResultOk));
+  }
+
+  async function refreshCurrentRecipe() {
+    if (!CFG.currentRecipeUrl) return;
+    try {
+      const query = new URLSearchParams({
+        locate_type: currentLocateType(),
+        layer_index: String(currentLayerIndex()),
+      });
+      const res = await fetch(`${CFG.currentRecipeUrl}?${query.toString()}`);
+      const data = apiPayload(await res.json());
+      const recipe = data.recipe || null;
+      state.currentRecipe = recipe;
+      if (recipe && recipe.id && $('recipe-id')) {
+        $('recipe-id').value = recipe.id;
+      }
+    } catch (e) {
+      state.currentRecipe = null;
+    }
+  }
+
   function currentRoi3D() {
     return {
       x_min: numberInput('roi-x-min', -100),
@@ -96,59 +136,6 @@
     };
   }
 
-  function boolSelect(id, fallback) {
-    const node = $(id);
-    if (!node) return fallback;
-    return node.value === 'true';
-  }
-
-  function sdkConfigPayload() {
-    return {
-      name: $('sdk-config-name')?.value || '3D料架定位SDK',
-      device_sn: $('sdk-device-sn')?.value || '',
-      frame_rate: numberInput('sdk-frame-rate', 10),
-      exposure_time: numberInput('sdk-exposure-time', 1000),
-      trigger_mode: $('sdk-trigger-mode')?.value || 'ACTIVE',
-      confidence_filter_enable: true,
-      confidence_threshold: numberInput('sdk-confidence-threshold', 15),
-      flying_pixels_filter_enable: true,
-      flying_pixels_threshold: numberInput('sdk-flying-pixels-threshold', 5),
-      spatial_filter_enable: true,
-      spatial_threshold: numberInput('sdk-spatial-threshold', 5),
-      is_active: true,
-    };
-  }
-
-  function fillSdkConfig(config) {
-    state.sdkConfigId = config?.id || null;
-    if (!config) return;
-    if ($('sdk-config-name')) $('sdk-config-name').value = config.name || '3D料架定位SDK';
-    if ($('sdk-device-sn')) $('sdk-device-sn').value = config.device_sn || '';
-    if ($('sdk-frame-rate')) $('sdk-frame-rate').value = config.frame_rate ?? 10;
-    if ($('sdk-exposure-time')) $('sdk-exposure-time').value = config.exposure_time ?? 1000;
-    if ($('sdk-trigger-mode')) $('sdk-trigger-mode').value = config.trigger_mode || 'ACTIVE';
-    if ($('sdk-confidence-threshold')) $('sdk-confidence-threshold').value = config.confidence_threshold ?? 15;
-    if ($('sdk-flying-pixels-threshold')) $('sdk-flying-pixels-threshold').value = config.flying_pixels_threshold ?? 5;
-    if ($('sdk-spatial-threshold')) $('sdk-spatial-threshold').value = config.spatial_threshold ?? 5;
-  }
-
-  async function loadSdkConfig() {
-    try {
-      const data = await sendJson(CFG.apiSdkConfigsUrl, 'GET');
-      if (!data.success) { setSdkStatus(data.error || '读取配置失败'); return; }
-      const configs = data.data?.configs || [];
-      const active = configs.find((cfg) => cfg.is_active) || configs[0];
-      if (active) {
-        fillSdkConfig(active);
-        setSdkStatus(`已读取当前配置：${active.name}`);
-      } else {
-        setSdkStatus('暂无 SDK 配置，可填写参数后保存为当前配置。');
-      }
-    } catch (e) {
-      setSdkStatus('读取配置失败：' + e.message);
-    }
-  }
-
   // ── 选中配方的参数（标准坐标 / 允许偏差 / 阈值） ───────────
   // 新方案：配方选择改为卡片点击，数据存放在 .rl-recipe-card.selected 的 dataset 上
   function selectedCardData() {
@@ -157,7 +144,7 @@
   }
   function currentRecipeData() {
     const d = selectedCardData();
-    const data = { layer_no: currentLayerNo() };
+    const data = { layer_no: currentLayerIndex(), locate_type: currentLocateType(), layer_index: currentLayerIndex() };
     if (d) {
       data.standard_x = Number(d.sx || 0);
       data.standard_y = Number(d.sy || 0);
@@ -264,14 +251,16 @@
   $('btn-capture').addEventListener('click', async () => {
     showLoading('3D 相机采集中...');
     try {
-      const raw = await postJson(CFG.captureUrl || CFG.legacyCaptureUrl, {
+      const raw = await postJson(CFG.captureUrl || CFG.legacyCaptureUrl, semanticPayload({
         recipe_id: $('recipe-id').value || null,
         rack_side: currentRackSide(),
-        layer_no: currentLayerNo(),
-      });
+      }));
       const data = apiPayload(raw);
       if (!data.success) { setStatus(data.error || '采集失败'); return; }
       state.token = data.pointcloud_token;
+      state.alignmentToken = null;
+      state.lastResultId = null;
+      state.lastResultOk = false;
       state.roi = null; state.displayRoi = null;
       const previewUrl = data.pointcloud_preview_url || data.preview_image_url;
       if (previewUrl) image.src = previewUrl + '?t=' + Date.now();
@@ -292,13 +281,15 @@
       }
     } catch (e) {
       setStatus('网络请求失败：' + e.message);
-    } finally { hideLoading(); }
+    } finally { hideLoading(); refreshActionState(); }
   });
 
   $('btn-redraw').addEventListener('click', () => {
     state.roi = null; state.displayRoi = null;
+    state.alignmentToken = null;
     draw(); setReadout();
     setStatus('请重新拖拽绘制 ROI。');
+    refreshActionState();
   });
 
   // ── 计算偏差 ─────────────────────────────────────────────
@@ -306,15 +297,14 @@
     if (!state.token) { setStatus('请先采集点云。'); return; }
     showLoading('计算坐标偏差中...');
     try {
-      const raw = await postJson(CFG.testLocateUrl || CFG.legacyCalculateUrl, {
+      const raw = await postJson(CFG.testLocateUrl || CFG.legacyCalculateUrl, semanticPayload({
         pointcloud_token: state.token,
         roi: currentRoi3D(),
         roi_config: { target_roi: state.roi },
         rack_side: currentRackSide(),
         recipe_id: $('recipe-id').value || null,
         recipe_data: currentRecipeData(),
-        layer_no: currentLayerNo(),
-      });
+      }));
       const data = apiPayload(raw);
       if (!data.success) { setStatus(data.error || '计算失败'); return; }
       renderResult(data.result);
@@ -351,12 +341,12 @@
     if (!state.token) { setStatus('请先采集点云。'); return; }
     showLoading('自动对齐 ROI 中...');
     try {
-      const raw = await postJson(CFG.autoAlignUrl, {
+      const raw = await postJson(CFG.autoAlignUrl, semanticPayload({
         pointcloud_token: state.token,
+        recipe_id: $('recipe-id').value || null,
         rack_side: currentRackSide(),
-        layer_no: currentLayerNo(),
         roi: currentRoi3D(),
-      });
+      }));
       const data = apiPayload(raw);
       if (!data.success) { setStatus(data.error || '自动对齐失败'); return; }
       const roi = data.roi || data.roi_3d || {};
@@ -370,6 +360,8 @@
       }).forEach(([id, value]) => {
         if ($(id) && value != null) $(id).value = Number(value).toFixed(3);
       });
+      state.alignmentToken = data.aligned_pointcloud_token || data.pointcloud_token || state.token;
+      refreshActionState();
       setStatus('自动对齐完成，可执行试定位。');
     } catch (e) {
       setStatus('网络请求失败：' + e.message);
@@ -377,16 +369,18 @@
   });
 
   $('btn-save-roi')?.addEventListener('click', async () => {
+    if (!state.alignmentToken) { setStatus('请先自动对齐，再保存 ROI。'); return; }
     showLoading('保存 3D ROI 中...');
     try {
-      const raw = await postJson(CFG.saveRoiUrl, {
+      const raw = await postJson(CFG.saveRoiUrl, semanticPayload({
         recipe_id: $('recipe-id').value || null,
         rack_side: currentRackSide(),
-        layer_no: currentLayerNo(),
         mode: currentMode(),
-        name: `${currentRackSide()}-L${currentLayerNo()}-${currentMode()}`,
+        roi_name: `${currentRackSide()}-L${currentLayerIndex()}-${currentLocateType()}`,
+        alignment_token: state.alignmentToken,
+        roi_3d: currentRoi3D(),
         ...currentRoi3D(),
-      });
+      }));
       const data = apiPayload(raw);
       if (!data.success) { setStatus(data.error || '保存 ROI 失败'); return; }
       setStatus('3D ROI 已保存。');
@@ -396,6 +390,7 @@
   });
 
   $('btn-write-plc')?.addEventListener('click', async () => {
+    if (!state.lastResultId || !state.lastResultOk) { setStatus('请先完成一次 OK 的正式定位。'); return; }
     if (!state.lastResultId) { setStatus('请先完成一次定位计算。'); return; }
     showLoading('写入 PLC 中...');
     try {
@@ -408,126 +403,11 @@
     } finally { hideLoading(); }
   });
 
-  $('btn-sdk-debug')?.addEventListener('click', () => {
-    $('sdk-debug-drawer')?.classList.add('open');
-    $('sdk-drawer-backdrop')?.classList.add('open');
-    loadSdkConfig();
-  });
-  function closeSdkDrawer() {
-    $('sdk-debug-drawer')?.classList.remove('open');
-    $('sdk-drawer-backdrop')?.classList.remove('open');
-  }
-  $('btn-sdk-close')?.addEventListener('click', closeSdkDrawer);
-  $('sdk-drawer-backdrop')?.addEventListener('click', closeSdkDrawer);
-
-  $('btn-sdk-load-config')?.addEventListener('click', loadSdkConfig);
-
-  $('btn-sdk-save-config')?.addEventListener('click', async () => {
-    setSdkStatus('保存 SDK 配置中...');
-    try {
-      const payload = sdkConfigPayload();
-      const url = state.sdkConfigId
-        ? `/dm-camera/api/configs/${state.sdkConfigId}/update/`
-        : CFG.apiSdkCreateConfigUrl;
-      const data = await sendJson(url, state.sdkConfigId ? 'PUT' : 'POST', payload);
-      if (!data.success) { setSdkStatus(data.error || '保存配置失败'); return; }
-      if (!state.sdkConfigId && data.data?.id) state.sdkConfigId = data.data.id;
-      setSdkStatus('已保存为当前全局 SDK 配置，正式采集将复用该配置。');
-      await loadSdkConfig();
-    } catch (e) {
-      setSdkStatus('保存配置失败：' + e.message);
-    }
-  });
-
-  $('btn-sdk-find-devices')?.addEventListener('click', async () => {
-    setSdkStatus('查找设备中...');
-    try {
-      const data = await sendJson(CFG.apiSdkFindDevicesUrl, 'GET');
-      const list = $('sdk-device-list');
-      if (!data.success) { setSdkStatus(data.error || '查找设备失败'); return; }
-      const devices = data.data?.devices || [];
-      if (list) {
-        list.innerHTML = devices.length
-          ? devices.map((d) => `<button type="button" class="btn btn-secondary btn-sm sdk-device-pick" data-sn="${d.sn || ''}">${d.sn || '未知SN'} ${d.ip || ''}</button>`).join('')
-          : '未找到设备';
-        list.querySelectorAll('.sdk-device-pick').forEach((btn) => {
-          btn.addEventListener('click', () => {
-            if ($('sdk-device-sn')) $('sdk-device-sn').value = btn.dataset.sn || '';
-            setSdkStatus('已选择设备：' + (btn.dataset.sn || '默认设备'));
-          });
-        });
-      }
-      setSdkStatus(devices.length ? `找到 ${devices.length} 台设备` : '未找到设备');
-    } catch (e) {
-      setSdkStatus('查找设备失败：' + e.message);
-    }
-  });
-
-  $('btn-sdk-connect')?.addEventListener('click', async () => {
-    setSdkStatus('连接设备中...');
-    try {
-      const data = await sendJson(CFG.apiSdkConnectUrl, 'POST', {
-        device_sn: $('sdk-device-sn')?.value || null,
-        config_id: state.sdkConfigId,
-      });
-      setSdkStatus(data.success ? '设备已连接。' : (data.error || '连接失败'));
-    } catch (e) {
-      setSdkStatus('连接失败：' + e.message);
-    }
-  });
-
-  $('btn-sdk-disconnect')?.addEventListener('click', async () => {
-    try {
-      const data = await sendJson(CFG.apiSdkDisconnectUrl, 'POST', {});
-      setSdkStatus(data.success ? '设备已断开。' : (data.error || '断开失败'));
-    } catch (e) {
-      setSdkStatus('断开失败：' + e.message);
-    }
-  });
-
-  $('btn-sdk-start-stream')?.addEventListener('click', async () => {
-    try {
-      const data = await sendJson(CFG.apiSdkStartStreamUrl, 'POST', {});
-      setSdkStatus(data.success ? '数据流已开启。' : (data.error || '开启数据流失败'));
-    } catch (e) {
-      setSdkStatus('开启数据流失败：' + e.message);
-    }
-  });
-
-  $('btn-sdk-stop-stream')?.addEventListener('click', async () => {
-    try {
-      const data = await sendJson(CFG.apiSdkStopStreamUrl, 'POST', {});
-      setSdkStatus(data.success ? '数据流已停止。' : (data.error || '停止数据流失败'));
-    } catch (e) {
-      setSdkStatus('停止数据流失败：' + e.message);
-    }
-  });
-
-  $('btn-sdk-capture')?.addEventListener('click', async () => {
-    setSdkStatus('测试采集中...');
-    try {
-      const data = await sendJson(CFG.apiSdkCaptureUrl, 'POST', {
-        frame_type: $('sdk-frame-type')?.value || 'POINTCLOUD',
-        save_record: boolSelect('sdk-save-record', true),
-      });
-      if (!data.success) { setSdkStatus(data.error || '测试采集失败'); return; }
-      const payload = data.data || {};
-      const preview = $('sdk-preview');
-      if (preview) {
-        preview.innerHTML = payload.preview_url
-          ? `<img src="${payload.preview_url}?t=${Date.now()}" alt="SDK 采集预览">`
-          : `采集成功：${payload.frame_type || ''} ${payload.width || '-'} x ${payload.height || '-'}`;
-      }
-      setSdkStatus('测试采集完成。');
-    } catch (e) {
-      setSdkStatus('测试采集失败：' + e.message);
-    }
-  });
-
   // ── 渲染结果 ─────────────────────────────────────────────
   function renderResult(r) {
-    state.lastResultId = r.id || r.result_id || state.lastResultId || null;
+    state.lastResultId = r.id || r.result_id || null;
     const ok = r.locate_ok ?? r.is_success;
+    state.lastResultOk = Boolean(ok && state.lastResultId);
     const v = $('rl-verdict');
     v.className = 'rl-verdict ' + (ok ? 'ok' : 'fail');
     $('rl-verdict-icon').textContent = ok ? '✅' : '❌';
@@ -535,10 +415,10 @@
     $('rl-verdict-sub').textContent = ok ? '可保存结果到数据库' : (r.error_message || r.error_code || '置信度或偏差超限');
 
     const mo = maxOffsets();
-    setOffset('x', r.offset_x, mo.x);
-    setOffset('y', r.offset_y, mo.y);
-    setOffset('z', r.offset_z, mo.z);
-    setOffset('rz', r.offset_rz, null);
+    setOffset('x', r.final_offset_x ?? r.offset_x, mo.x);
+    setOffset('y', r.final_offset_y ?? r.offset_y, mo.y);
+    setOffset('z', r.final_offset_z ?? r.offset_z, mo.z);
+    setOffset('rz', r.final_offset_rz ?? r.offset_rz, null);
 
     const conf = Number(r.confidence || 0);
     const bar = $('conf-bar'), lab = $('conf-val');
@@ -558,6 +438,7 @@
     $('d-az').textContent = Number(r.actual_z || 0).toFixed(2);
     $('d-points').textContent = meta.valid_point_count ?? '—';
     $('rl-detail').style.display = 'flex';
+    refreshActionState();
   }
 
   function setOffset(axis, val, limit) {
@@ -576,13 +457,13 @@
   $('btn-auto-trigger').addEventListener('click', async () => {
     showLoading('自动拍照计算中...');
     try {
-      const data = await postJson(CFG.triggerUrl, {
+      const raw = await postJson(CFG.locateUrl || CFG.triggerUrl, semanticPayload({
         position_no: Number($('position-no').value || 1),
-        layer_no: currentLayerNo(),
         rack_side: currentRackSide(),
         recipe_id: $('recipe-id').value || null,
         write_plc: false,
-      });
+      }));
+      const data = apiPayload(raw);
       const status = $('rl-auto-status');
       if (!data.success) { status.textContent = '失败：' + (data.error || '未知错误'); return; }
       renderResult(data.result);
@@ -596,10 +477,13 @@
   // ── 历史记录 ─────────────────────────────────────────────
   async function loadHistory() {
     try {
-      const pos = encodeURIComponent($('position-no').value || '');
-      const layer = encodeURIComponent($('layer-no').value || '');
-      const res = await fetch(`${CFG.resultsUrl}?position_no=${pos}&layer_no=${layer}`);
-      const data = await res.json();
+      const query = new URLSearchParams({
+        position_no: $('position-no').value || '',
+        layer_index: String(currentLayerIndex()),
+        locate_type: currentLocateType(),
+      });
+      const res = await fetch(`${CFG.results3dUrl || CFG.resultsUrl}?${query.toString()}`);
+      const data = apiPayload(await res.json());
       const tbody = $('history-tbody');
       if (!data.results || !data.results.length) {
         tbody.innerHTML = '<tr><td colspan="9" class="empty">暂无定位记录</td></tr>';
@@ -632,7 +516,24 @@
   $('btn-refresh-history').addEventListener('click', loadHistory);
   window.addEventListener('resize', resizeCanvas);
   image.addEventListener('load', resizeCanvas);
+  ['locate-mode', 'layer-no-select', 'layer-no'].forEach((id) => {
+    $(id)?.addEventListener('change', async () => {
+      state.alignmentToken = null;
+      state.lastResultId = null;
+      state.lastResultOk = false;
+      refreshActionState();
+      await refreshCurrentRecipe();
+      loadHistory();
+    });
+  });
 
-  document.addEventListener('DOMContentLoaded', loadHistory);
-  if (document.readyState !== 'loading') loadHistory();
+  document.addEventListener('DOMContentLoaded', async () => {
+    refreshActionState();
+    await refreshCurrentRecipe();
+    loadHistory();
+  });
+  if (document.readyState !== 'loading') {
+    refreshActionState();
+    refreshCurrentRecipe().finally(loadHistory);
+  }
 }());

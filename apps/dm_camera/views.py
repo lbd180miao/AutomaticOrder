@@ -2,6 +2,7 @@
 DM相机REST API视图
 """
 import logging
+import re
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -11,7 +12,8 @@ import json
 
 from .models import DMCameraConfig, DMCaptureRecord, DMCameraSession
 from .services import DMCameraService
-from .sdk_wrapper import DMCameraException
+from .sdk.LW_DM_Type import LWReturnCode
+from .sdk_wrapper import DMCameraException, DLL_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -19,18 +21,53 @@ logger = logging.getLogger(__name__)
 dm_service = DMCameraService()
 
 
-def api_response(data=None, error=None, status=200):
+def api_response(data=None, error=None, status=200, error_detail=None):
     """统一API响应格式"""
     if error:
-        return JsonResponse({
+        payload = {
             'success': False,
             'error': error
-        }, status=status)
+        }
+        if error_detail:
+            payload['error_detail'] = error_detail
+        return JsonResponse(payload, status=status)
     
     return JsonResponse({
         'success': True,
         'data': data
     }, status=status)
+
+
+def sdk_error_detail(exc):
+    """Parse SDK numeric return code and attach an operator-facing suggestion."""
+    message = str(exc)
+    match = re.search(r'(?:错误码|error code)[:：]?\s*(\d+)', message, re.IGNORECASE)
+    code = int(match.group(1)) if match else None
+    code_name = ''
+
+    if code is not None:
+        for item in LWReturnCode:
+            if item.value == code:
+                code_name = item.name
+                break
+
+    suggestions = {
+        'LW_RETURN_UNINITIALIZED': 'SDK资源未初始化或被旧实例清理，请先点击一键恢复连接；如果仍失败，请重启Django服务。',
+        'LW_RETURN_DEVICE_OCCUPIED': '相机被其它客户端或进程占用，请关闭厂家客户端/其它服务后点击一键恢复连接。',
+        'LW_RETURN_NETWORK_ERROR': '网络通信异常，请检查相机IP、网卡IP、网段和网线连接。',
+        'LW_RETURN_DEVICE_IP_CONFLICT': '检测到设备IP冲突，请检查相机和本机网段。',
+        'LW_RETURN_HANDLE_EXPIRE': '设备句柄已失效，请重新查找设备后再连接。',
+    }
+
+    return {
+        'code': code,
+        'name': code_name,
+        'message': message,
+        'suggestion': suggestions.get(
+            code_name,
+            '请先断开当前会话，重新查找设备；仍失败时检查厂家客户端或其它进程是否占用相机。'
+        ),
+    }
 
 
 @require_http_methods(["GET"])
@@ -41,7 +78,7 @@ def find_devices(request):
         return api_response(data={'devices': devices})
     except DMCameraException as e:
         logger.error(f"查找设备失败: {str(e)}")
-        return api_response(error=str(e), status=500)
+        return api_response(error=str(e), error_detail=sdk_error_detail(e), status=500)
     except Exception as e:
         logger.exception("查找设备异常")
         return api_response(error="查找设备失败", status=500)
@@ -61,7 +98,7 @@ def connect_camera(request):
     
     except DMCameraException as e:
         logger.error(f"连接设备失败: {str(e)}")
-        return api_response(error=str(e), status=500)
+        return api_response(error=str(e), error_detail=sdk_error_detail(e), status=500)
     except Exception as e:
         logger.exception("连接设备异常")
         return api_response(error="连接设备失败", status=500)
@@ -77,7 +114,7 @@ def disconnect_camera(request):
     
     except DMCameraException as e:
         logger.error(f"断开设备失败: {str(e)}")
-        return api_response(error=str(e), status=500)
+        return api_response(error=str(e), error_detail=sdk_error_detail(e), status=500)
     except Exception as e:
         logger.exception("断开设备异常")
         return api_response(error="断开设备失败", status=500)
@@ -93,7 +130,7 @@ def start_stream(request):
     
     except DMCameraException as e:
         logger.error(f"开启数据流失败: {str(e)}")
-        return api_response(error=str(e), status=500)
+        return api_response(error=str(e), error_detail=sdk_error_detail(e), status=500)
     except Exception as e:
         logger.exception("开启数据流异常")
         return api_response(error="开启数据流失败", status=500)
@@ -109,7 +146,7 @@ def stop_stream(request):
     
     except DMCameraException as e:
         logger.error(f"停止数据流失败: {str(e)}")
-        return api_response(error=str(e), status=500)
+        return api_response(error=str(e), error_detail=sdk_error_detail(e), status=500)
     except Exception as e:
         logger.exception("停止数据流异常")
         return api_response(error="停止数据流失败", status=500)
@@ -129,7 +166,7 @@ def capture_frame(request):
     
     except DMCameraException as e:
         logger.error(f"捕获帧失败: {str(e)}")
-        return api_response(error=str(e), status=500)
+        return api_response(error=str(e), error_detail=sdk_error_detail(e), status=500)
     except Exception as e:
         logger.exception("捕获帧异常")
         return api_response(error="捕获帧失败", status=500)
@@ -145,6 +182,80 @@ def get_status(request):
     except Exception as e:
         logger.exception("获取状态异常")
         return api_response(error="获取状态失败", status=500)
+
+
+@require_http_methods(["GET"])
+def diagnostics(request):
+    """Return SDK, connection, and device discovery diagnostics."""
+    payload = {
+        'sdk': {
+            'dll_path': str(DLL_PATH),
+            'dll_exists': DLL_PATH.exists(),
+        },
+        'status': None,
+        'devices': [],
+        'status_error': None,
+        'device_error': None,
+    }
+
+    try:
+        payload['status'] = dm_service.get_status()
+    except Exception as e:
+        logger.exception("读取DM相机状态失败")
+        payload['status_error'] = str(e)
+
+    try:
+        payload['devices'] = dm_service.find_devices()
+    except DMCameraException as e:
+        logger.error(f"诊断查找设备失败: {str(e)}")
+        payload['device_error'] = sdk_error_detail(e)
+    except Exception as e:
+        logger.exception("诊断查找设备异常")
+        payload['device_error'] = {
+            'code': None,
+            'name': '',
+            'message': str(e),
+            'suggestion': '设备枚举异常，请检查SDK DLL、相机网络和服务日志。',
+        }
+
+    return api_response(data=payload)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def recover_camera(request):
+    """Disconnect stale resources, rediscover devices, and reconnect."""
+    try:
+        data = json.loads(request.body) if request.body else {}
+        requested_sn = data.get('device_sn') or None
+        config_id = data.get('config_id')
+        should_start_stream = bool(data.get('start_stream'))
+
+        try:
+            dm_service.disconnect()
+        except DMCameraException:
+            logger.info("恢复连接时忽略断开失败，继续重新枚举设备", exc_info=True)
+            dm_service._camera = None
+            dm_service._current_session = None
+
+        devices = dm_service.find_devices()
+        selected_sn = requested_sn or (devices[0].get('sn') if devices else None)
+        connection = dm_service.connect(device_sn=selected_sn, config_id=config_id)
+        stream = dm_service.start_stream() if should_start_stream else None
+
+        return api_response(data={
+            'devices': devices,
+            'connection': connection,
+            'stream': stream,
+            'status': dm_service.get_status(),
+        })
+
+    except DMCameraException as e:
+        logger.error(f"恢复连接失败: {str(e)}")
+        return api_response(error=str(e), error_detail=sdk_error_detail(e), status=500)
+    except Exception as e:
+        logger.exception("恢复连接异常")
+        return api_response(error=str(e), status=500)
 
 
 # ========== 配置管理 ==========

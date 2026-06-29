@@ -177,3 +177,237 @@
 2026-06-25 23:06:45 INFO LWDMApi.cpp LWInitializeResources 5732 
 2026-06-25 23:06:45 INFO LWDMApi.cpp LWCleanupResources 5743 
 2026-06-25 23:06:45 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-26 15:58:01 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-26 15:58:01 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-26 15:58:04 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 2
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 1
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetTriggerMode 2986 <2512ABDM60008>
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIntrinsicParam 3436 <2512ABDM60008>, SensorType: 1
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIRGMMGain 3743 <2512ABDM60008>
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUData 4201 <2512ABDM60008>
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUExtrinsicParam 4177 <2512ABDM60008>
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFrameRate 3190 <2512ABDM60008>, Value: 10
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetTriggerMode 2965 <2512ABDM60008>, Mode: 0
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetExposureTime 3231 <2512ABDM60008>, SensorType: 1, Value: 1000 
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetConfidenceFilterParams 3598 <2512ABDM60008>, Value: [1, 15]
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFlyingPixelsFilterParams 3558 <2512ABDM60008>, Value: [1, 5]
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [1, 5]
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetDataReceiveType 2950 <2512ABDM60008>, Type: 7
+2026-06-26 15:58:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::StartStream 2883 <2512ABDM60008>
+2026-06-29 09:43:04 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 09:43:04 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 09:43:07 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 09:43:08 ERROR LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2597 <2512ABDM60008>, The device is already occupied.(192.168.1.123)
+2026-06-29 09:43:08 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 09:43:10 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 09:43:10 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 09:43:13 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 09:43:14 ERROR LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2597 <2512ABDM60008>, The device is already occupied.(192.168.1.123)
+2026-06-29 09:43:14 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 09:58:19 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 09:58:19 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 09:58:22 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 09:58:23 ERROR LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2597 <2512ABDM60008>, The device is already occupied.(192.168.1.123)
+2026-06-29 09:58:23 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 09:58:36 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 09:58:36 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 09:58:39 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 2
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 1
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetTriggerMode 2986 <2512ABDM60008>
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIntrinsicParam 3436 <2512ABDM60008>, SensorType: 1
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIRGMMGain 3743 <2512ABDM60008>
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUData 4201 <2512ABDM60008>
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUExtrinsicParam 4177 <2512ABDM60008>
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFrameRate 3190 <2512ABDM60008>, Value: 10
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetTriggerMode 2965 <2512ABDM60008>, Mode: 0
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetExposureTime 3231 <2512ABDM60008>, SensorType: 1, Value: 1004 
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetConfidenceFilterParams 3598 <2512ABDM60008>, Value: [0, 15]
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFlyingPixelsFilterParams 3558 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [0, 2]
+2026-06-29 09:58:40 INFO LWDMApi.cpp ljhNS::DeviceHandle::CloseDevice 2710 <2512ABDM60008>
+2026-06-29 09:58:40 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 09:58:42 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 09:58:42 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 09:58:45 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 2
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 1
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetTriggerMode 2986 <2512ABDM60008>
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIntrinsicParam 3436 <2512ABDM60008>, SensorType: 1
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIRGMMGain 3743 <2512ABDM60008>
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUData 4201 <2512ABDM60008>
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUExtrinsicParam 4177 <2512ABDM60008>
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFrameRate 3190 <2512ABDM60008>, Value: 10
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetTriggerMode 2965 <2512ABDM60008>, Mode: 0
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetExposureTime 3231 <2512ABDM60008>, SensorType: 1, Value: 1004 
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetConfidenceFilterParams 3598 <2512ABDM60008>, Value: [0, 15]
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFlyingPixelsFilterParams 3558 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [0, 2]
+2026-06-29 09:58:46 INFO LWDMApi.cpp ljhNS::DeviceHandle::CloseDevice 2710 <2512ABDM60008>
+2026-06-29 09:58:46 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 09:59:51 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 09:59:51 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 09:59:54 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 2
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 1
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetTriggerMode 2986 <2512ABDM60008>
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIntrinsicParam 3436 <2512ABDM60008>, SensorType: 1
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIRGMMGain 3743 <2512ABDM60008>
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUData 4201 <2512ABDM60008>
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUExtrinsicParam 4177 <2512ABDM60008>
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFrameRate 3190 <2512ABDM60008>, Value: 10
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetTriggerMode 2965 <2512ABDM60008>, Mode: 0
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetExposureTime 3231 <2512ABDM60008>, SensorType: 1, Value: 1004 
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetConfidenceFilterParams 3598 <2512ABDM60008>, Value: [0, 15]
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFlyingPixelsFilterParams 3558 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [0, 2]
+2026-06-29 09:59:55 INFO LWDMApi.cpp ljhNS::DeviceHandle::CloseDevice 2710 <2512ABDM60008>
+2026-06-29 09:59:56 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 10:00:08 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 10:00:08 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 10:00:11 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 2
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 1
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetTriggerMode 2986 <2512ABDM60008>
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIntrinsicParam 3436 <2512ABDM60008>, SensorType: 1
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIRGMMGain 3743 <2512ABDM60008>
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUData 4201 <2512ABDM60008>
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUExtrinsicParam 4177 <2512ABDM60008>
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFrameRate 3190 <2512ABDM60008>, Value: 10
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetTriggerMode 2965 <2512ABDM60008>, Mode: 0
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetExposureTime 3231 <2512ABDM60008>, SensorType: 1, Value: 1004 
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetConfidenceFilterParams 3598 <2512ABDM60008>, Value: [0, 15]
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFlyingPixelsFilterParams 3558 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [0, 2]
+2026-06-29 10:00:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::CloseDevice 2710 <2512ABDM60008>
+2026-06-29 10:00:12 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 10:00:14 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 10:00:14 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 10:00:17 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 2
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 1
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetTriggerMode 2986 <2512ABDM60008>
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIntrinsicParam 3436 <2512ABDM60008>, SensorType: 1
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIRGMMGain 3743 <2512ABDM60008>
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUData 4201 <2512ABDM60008>
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUExtrinsicParam 4177 <2512ABDM60008>
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFrameRate 3190 <2512ABDM60008>, Value: 10
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetTriggerMode 2965 <2512ABDM60008>, Mode: 0
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetExposureTime 3231 <2512ABDM60008>, SensorType: 1, Value: 1004 
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetConfidenceFilterParams 3598 <2512ABDM60008>, Value: [0, 15]
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFlyingPixelsFilterParams 3558 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [0, 2]
+2026-06-29 10:00:18 INFO LWDMApi.cpp ljhNS::DeviceHandle::CloseDevice 2710 <2512ABDM60008>
+2026-06-29 10:00:18 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 10:03:08 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 10:03:08 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 10:03:11 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 2
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 1
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetTriggerMode 2986 <2512ABDM60008>
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIntrinsicParam 3436 <2512ABDM60008>, SensorType: 1
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIRGMMGain 3743 <2512ABDM60008>
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUData 4201 <2512ABDM60008>
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUExtrinsicParam 4177 <2512ABDM60008>
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFrameRate 3190 <2512ABDM60008>, Value: 10
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetTriggerMode 2965 <2512ABDM60008>, Mode: 0
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetExposureTime 3231 <2512ABDM60008>, SensorType: 1, Value: 1004 
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetConfidenceFilterParams 3598 <2512ABDM60008>, Value: [0, 15]
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFlyingPixelsFilterParams 3558 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [0, 2]
+2026-06-29 10:03:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::CloseDevice 2710 <2512ABDM60008>
+2026-06-29 10:03:12 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 10:05:55 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 10:05:55 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 10:05:58 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 2
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 1
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetTriggerMode 2986 <2512ABDM60008>
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIntrinsicParam 3436 <2512ABDM60008>, SensorType: 1
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIRGMMGain 3743 <2512ABDM60008>
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUData 4201 <2512ABDM60008>
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUExtrinsicParam 4177 <2512ABDM60008>
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFrameRate 3190 <2512ABDM60008>, Value: 10
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetTriggerMode 2965 <2512ABDM60008>, Mode: 0
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetExposureTime 3231 <2512ABDM60008>, SensorType: 1, Value: 1004 
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetConfidenceFilterParams 3598 <2512ABDM60008>, Value: [0, 15]
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFlyingPixelsFilterParams 3558 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [0, 2]
+2026-06-29 10:05:59 INFO LWDMApi.cpp ljhNS::DeviceHandle::CloseDevice 2710 <2512ABDM60008>
+2026-06-29 10:05:59 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 10:08:08 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 10:08:08 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 10:08:11 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 10:08:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 2
+2026-06-29 10:08:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 1
+2026-06-29 10:08:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetTriggerMode 2986 <2512ABDM60008>
+2026-06-29 10:08:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIntrinsicParam 3436 <2512ABDM60008>, SensorType: 1
+2026-06-29 10:08:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIRGMMGain 3743 <2512ABDM60008>
+2026-06-29 10:08:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUData 4201 <2512ABDM60008>
+2026-06-29 10:08:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUExtrinsicParam 4177 <2512ABDM60008>
+2026-06-29 10:08:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFrameRate 3190 <2512ABDM60008>, Value: 10
+2026-06-29 10:08:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetTriggerMode 2965 <2512ABDM60008>, Mode: 0
+2026-06-29 10:08:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetExposureTime 3231 <2512ABDM60008>, SensorType: 1, Value: 1004 
+2026-06-29 10:08:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetConfidenceFilterParams 3598 <2512ABDM60008>, Value: [0, 15]
+2026-06-29 10:08:13 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFlyingPixelsFilterParams 3558 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 10:08:13 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [0, 2]
+2026-06-29 10:08:13 INFO LWDMApi.cpp ljhNS::DeviceHandle::CloseDevice 2710 <2512ABDM60008>
+2026-06-29 10:08:13 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 13:09:37 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 13:09:37 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 13:09:41 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 2
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 1
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetTriggerMode 2986 <2512ABDM60008>
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIntrinsicParam 3436 <2512ABDM60008>, SensorType: 1
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIRGMMGain 3743 <2512ABDM60008>
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUData 4201 <2512ABDM60008>
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUExtrinsicParam 4177 <2512ABDM60008>
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFrameRate 3190 <2512ABDM60008>, Value: 10
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetTriggerMode 2965 <2512ABDM60008>, Mode: 0
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetExposureTime 3231 <2512ABDM60008>, SensorType: 1, Value: 1004 
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetConfidenceFilterParams 3598 <2512ABDM60008>, Value: [0, 15]
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFlyingPixelsFilterParams 3558 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [0, 2]
+2026-06-29 13:09:42 INFO LWDMApi.cpp ljhNS::DeviceHandle::CloseDevice 2710 <2512ABDM60008>
+2026-06-29 13:09:42 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 13:16:01 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 13:16:01 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 13:16:04 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 2
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 1
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetTriggerMode 2986 <2512ABDM60008>
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIntrinsicParam 3436 <2512ABDM60008>, SensorType: 1
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIRGMMGain 3743 <2512ABDM60008>
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUData 4201 <2512ABDM60008>
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUExtrinsicParam 4177 <2512ABDM60008>
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFrameRate 3190 <2512ABDM60008>, Value: 10
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetTriggerMode 2965 <2512ABDM60008>, Mode: 0
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetExposureTime 3231 <2512ABDM60008>, SensorType: 1, Value: 1004 
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetConfidenceFilterParams 3598 <2512ABDM60008>, Value: [0, 15]
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFlyingPixelsFilterParams 3558 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetDataReceiveType 2950 <2512ABDM60008>, Type: 7
+2026-06-29 13:16:05 INFO LWDMApi.cpp ljhNS::DeviceHandle::StartStream 2883 <2512ABDM60008>
+2026-06-29 13:53:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::StopStream 2898 <2512ABDM60008>
+2026-06-29 13:53:12 INFO LWDMApi.cpp ljhNS::DeviceHandle::CloseDevice 2710 <2512ABDM60008>
+2026-06-29 13:53:12 INFO LWDMApi.cpp LWCleanupResources 5743 
+2026-06-29 14:23:10 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-29 14:23:10 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-29 14:23:13 INFO LWDMApi.cpp ljhNS::DeviceHandle::OpenDevice 2566 <2512ABDM60008>
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 2
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetResolution 3370 <2512ABDM60008>, SensorType: 1
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetTriggerMode 2986 <2512ABDM60008>
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIntrinsicParam 3436 <2512ABDM60008>, SensorType: 1
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIRGMMGain 3743 <2512ABDM60008>
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUData 4201 <2512ABDM60008>
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::GetIMUExtrinsicParam 4177 <2512ABDM60008>
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFrameRate 3190 <2512ABDM60008>, Value: 10
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetTriggerMode 2965 <2512ABDM60008>, Mode: 0
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetExposureTime 3231 <2512ABDM60008>, SensorType: 1, Value: 1004 
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetConfidenceFilterParams 3598 <2512ABDM60008>, Value: [0, 15]
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetFlyingPixelsFilterParams 3558 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [0, 5]
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetDataReceiveType 2950 <2512ABDM60008>, Type: 7
+2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::StartStream 2883 <2512ABDM60008>
