@@ -284,6 +284,147 @@ class Rack3DFormalApiFlowTests(TestCase):
         self.assertEqual(response.json()['data']['result']['locate_type'], 'GLOBAL')
 
 
+@override_settings(MEDIA_ROOT=mkdtemp(), VISION_RACK_LOCATION_FORCE_SAMPLE=True)
+class Rack3DGlobalLayerCompensationTests(TestCase):
+    def setUp(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        ROI = apps.get_model('vision', 'RackLocationROI3D')
+        self.global_recipe = Recipe.objects.create(
+            recipe_name='COMP-GLOBAL',
+            rack_side='LEFT',
+            position_no=7,
+            layer_no=0,
+            layer_count=3,
+            standard_x=0,
+            standard_y=0,
+            standard_z=0,
+            max_offset_x=9999,
+            max_offset_y=9999,
+            max_offset_z=9999,
+            confidence_threshold=0.1,
+            hand_eye_config={'matrix': 'identity'},
+        )
+        self.layer_recipe = Recipe.objects.create(
+            recipe_name='COMP-LAYER-1',
+            rack_side='LEFT',
+            position_no=7,
+            layer_no=1,
+            layer_count=3,
+            standard_x=0,
+            standard_y=0,
+            standard_z=0,
+            max_offset_x=9999,
+            max_offset_y=9999,
+            max_offset_z=9999,
+            confidence_threshold=0.1,
+            hand_eye_config={'matrix': 'identity'},
+        )
+        ROI.objects.create(
+            recipe=self.global_recipe,
+            roi_name='global',
+            mode='global',
+            x_min=-1,
+            x_max=1,
+            y_min=-1,
+            y_max=1,
+            z_min=-1,
+            z_max=1,
+        )
+        ROI.objects.create(
+            recipe=self.layer_recipe,
+            roi_name='layer-1',
+            mode='local',
+            layer_no=1,
+            x_min=-1,
+            x_max=1,
+            y_min=-1,
+            y_max=1,
+            z_min=-1,
+            z_max=1,
+        )
+
+    def _locate_with_offsets(self, recipe, layer_no, offsets):
+        from apps.vision.rack_location import Rack3DLocator, RackLocationOutput
+
+        locator = Rack3DLocator()
+        output = RackLocationOutput(
+            rack_side='LEFT',
+            position_no=recipe.position_no,
+            layer_no=layer_no,
+            locate_ok=True,
+            actual_x=100,
+            actual_y=200,
+            actual_z=300,
+            offset_x=offsets['x'],
+            offset_y=offsets['y'],
+            offset_z=offsets['z'],
+            offset_rz=offsets.get('rz', 0),
+            confidence=0.95,
+        )
+        with (
+            patch.object(locator, 'capture', return_value={'pointcloud_token': 'mock.npy'}),
+            patch.object(locator, '_load_pointcloud', return_value=np.zeros((2, 2, 3))),
+            patch.object(locator.processor, 'crop_by_roi_3d', return_value=np.ones((8, 3))),
+            patch.object(locator, '_output_from_points', return_value=output),
+        ):
+            return locator.locate(
+                rack_side='LEFT',
+                layer_no=layer_no,
+                recipe_id=recipe.id,
+                write_plc=False,
+            )
+
+    def test_global_locate_records_overall_and_final_offsets(self):
+        result = self._locate_with_offsets(
+            self.global_recipe,
+            0,
+            {'x': 10, 'y': 20, 'z': 30, 'rz': 0.5},
+        )
+
+        self.assertEqual(result.result_data['locate_type'], 'GLOBAL')
+        self.assertEqual(result.result_data['layer_index'], 0)
+        self.assertEqual(result.result_data['overall_offset']['x'], 10)
+        self.assertEqual(result.result_data['layer_offset']['x'], 0)
+        self.assertEqual(result.result_data['final_offset']['x'], 10)
+        self.assertEqual(float(result.offset_z), 30)
+
+    def test_layer_locate_combines_latest_global_and_layer_offsets(self):
+        task = VisionTask.objects.create(task_type=VisionTaskType.RACK_LOCATING, status=ResultStatus.SUCCESS)
+        RackLocationResult.objects.create(
+            vision_task=task,
+            recipe=self.global_recipe,
+            side='LEFT',
+            position_no=7,
+            layer_no=0,
+            offset_x=10,
+            offset_y=20,
+            offset_z=30,
+            offset_rz=0.5,
+            confidence=0.9,
+            is_success=True,
+            result_data={
+                'locate_type': 'GLOBAL',
+                'layer_index': 0,
+                'overall_offset': {'x': 10, 'y': 20, 'z': 30, 'rz': 0.5},
+                'final_offset': {'x': 10, 'y': 20, 'z': 30, 'rz': 0.5},
+            },
+        )
+
+        result = self._locate_with_offsets(
+            self.layer_recipe,
+            1,
+            {'x': 1, 'y': 2, 'z': 3, 'rz': 0.4},
+        )
+
+        self.assertEqual(result.result_data['locate_type'], 'LAYER')
+        self.assertEqual(result.result_data['layer_index'], 1)
+        self.assertEqual(result.result_data['overall_offset']['x'], 10)
+        self.assertEqual(result.result_data['layer_offset']['z'], 3)
+        self.assertEqual(result.result_data['final_offset'], {'x': 11.0, 'y': 22.0, 'z': 33.0, 'rz': 0.9})
+        self.assertEqual(float(result.offset_x), 11)
+        self.assertEqual(result.result_data['plc_payload']['offset_z'], 33.0)
+
+
 class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
     def _template_source(self):
         template_path = Path(settings.BASE_DIR) / 'templates' / 'vision' / 'foam_inspector_interactive.html'
