@@ -892,6 +892,92 @@ class Rack3DLocator:
         }
         return output
 
+    def _offset_dict(self, *, x=0, y=0, z=0, rz=0) -> dict:
+        return {
+            'x': round(float(x or 0), 3),
+            'y': round(float(y or 0), 3),
+            'z': round(float(z or 0), 3),
+            'rz': round(float(rz or 0), 3),
+        }
+
+    def _output_offset(self, output: RackLocationOutput) -> dict:
+        return self._offset_dict(
+            x=output.offset_x,
+            y=output.offset_y,
+            z=output.offset_z,
+            rz=output.offset_rz,
+        )
+
+    def _result_offset(self, result: RackLocationResult | None) -> dict:
+        if result is None:
+            return self._offset_dict()
+        data = result.result_data or {}
+        final = data.get('final_offset') or data.get('overall_offset') or {}
+        return self._offset_dict(
+            x=final.get('x', result.offset_x),
+            y=final.get('y', result.offset_y),
+            z=final.get('z', result.offset_z),
+            rz=final.get('rz', result.offset_rz),
+        )
+
+    def _latest_global_result(self, *, recipe: RackLocationRecipe, rack_side: str) -> RackLocationResult | None:
+        return (
+            RackLocationResult.objects
+            .filter(
+                position_no=recipe.position_no,
+                side=rack_side,
+                layer_no=0,
+                is_success=True,
+            )
+            .order_by('-created_at')
+            .first()
+        )
+
+    def _combine_offsets(self, overall: dict, layer: dict) -> dict:
+        return self._offset_dict(
+            x=float(overall.get('x', 0)) + float(layer.get('x', 0)),
+            y=float(overall.get('y', 0)) + float(layer.get('y', 0)),
+            z=float(overall.get('z', 0)) + float(layer.get('z', 0)),
+            rz=float(overall.get('rz', 0)) + float(layer.get('rz', 0)),
+        )
+
+    def _semantic_result_data(self, *, recipe, rack_side, layer_no, output, payload) -> dict:
+        semantics = locate_semantics(
+            locate_type=LOCATE_TYPE_GLOBAL if int(layer_no or 0) == 0 else LOCATE_TYPE_LAYER,
+            layer_index=layer_no,
+        )
+        measured = self._output_offset(output)
+        global_result = None
+        if semantics['locate_type'] == LOCATE_TYPE_GLOBAL:
+            overall = measured
+            layer = self._offset_dict()
+        else:
+            global_result = self._latest_global_result(recipe=recipe, rack_side=rack_side)
+            overall = self._result_offset(global_result)
+            layer = measured
+        final = self._combine_offsets(overall, layer)
+        plc_payload = {
+            **(payload.get('plc_payload') or {}),
+            'locate_type': semantics['locate_type'],
+            'layer_index': semantics['layer_index'],
+            'offset_x': final['x'],
+            'offset_y': final['y'],
+            'offset_z': final['z'],
+            'offset_rz': final['rz'],
+            'overall_offset': overall,
+            'layer_offset': layer,
+            'final_offset': final,
+        }
+        return {
+            'locate_type': semantics['locate_type'],
+            'layer_index': semantics['layer_index'],
+            'overall_offset': overall,
+            'layer_offset': layer,
+            'final_offset': final,
+            'global_result_id': global_result.id if global_result else None,
+            'plc_payload': plc_payload,
+        }
+
     def test_locate(self, *, token, roi_3d, recipe_id=None, rack_side=RackSide.LEFT, layer_no=1) -> dict:
         recipe = self._select_recipe(recipe_id=recipe_id, rack_side=rack_side, layer_no=layer_no)
         pointcloud = self._load_pointcloud(token)
@@ -958,6 +1044,14 @@ class Rack3DLocator:
             token=captured['pointcloud_token'],
         )
         payload = output.to_payload()
+        semantic_data = self._semantic_result_data(
+            recipe=recipe,
+            rack_side=rack_side,
+            layer_no=layer_no,
+            output=output,
+            payload=payload,
+        )
+        final_offset = semantic_data['final_offset']
         result = RackLocationResult.objects.create(
             vision_task=task,
             recipe=recipe,
@@ -965,10 +1059,10 @@ class Rack3DLocator:
             side=rack_side,
             position_no=recipe.position_no,
             layer_no=layer_no,
-            offset_x=_decimal(output.offset_x),
-            offset_y=_decimal(output.offset_y),
-            offset_z=_decimal(output.offset_z),
-            offset_rz=_decimal(output.offset_rz),
+            offset_x=_decimal(final_offset['x']),
+            offset_y=_decimal(final_offset['y']),
+            offset_z=_decimal(final_offset['z']),
+            offset_rz=_decimal(final_offset['rz']),
             actual_x=_decimal(output.actual_x),
             actual_y=_decimal(output.actual_y),
             actual_z=_decimal(output.actual_z),
@@ -980,10 +1074,10 @@ class Rack3DLocator:
             raw_data_path=captured['pointcloud_token'],
             result_data={
                 **(payload.get('result_data') or {}),
+                **semantic_data,
                 'task_kind': 'RACK_3D_LOCATION',
                 'roi_id': roi.id,
                 'roi_source': roi_source,
-                'plc_payload': payload['plc_payload'],
             },
         )
         if write_plc:
