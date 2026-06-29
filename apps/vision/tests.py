@@ -67,6 +67,67 @@ class Rack3DSemanticMappingTests(SimpleTestCase):
         )
 
 
+class Rack3DSerializationSemanticsTests(TestCase):
+    def setUp(self):
+        self.recipe = apps.get_model('vision', 'RackLocationRecipe').objects.create(
+            recipe_name='SER-GLOBAL',
+            rack_side='BOTH',
+            position_no=1,
+            layer_no=0,
+            layer_count=3,
+            standard_x=0,
+            standard_y=0,
+            standard_z=850,
+            hand_eye_config={'matrix': 'identity'},
+        )
+        self.task = VisionTask.objects.create(
+            task_type=VisionTaskType.RACK_LOCATING,
+            status=ResultStatus.SUCCESS,
+        )
+
+    def test_recipe_serializer_exposes_locate_type_and_layer_index(self):
+        from apps.vision.views import _serialize_3d_recipe
+
+        payload = _serialize_3d_recipe(self.recipe)
+
+        self.assertEqual(payload['locate_type'], 'GLOBAL')
+        self.assertEqual(payload['layer_index'], 0)
+        self.assertEqual(payload['total_layers'], 3)
+        self.assertEqual(payload['photo_pose_name'], '')
+
+    def test_result_payload_exposes_overall_layer_and_final_offsets(self):
+        from apps.vision.rack_location import result_payload as rack_location_result_payload
+
+        result = RackLocationResult.objects.create(
+            vision_task=self.task,
+            recipe=self.recipe,
+            side='BOTH',
+            position_no=1,
+            layer_no=2,
+            offset_x=1,
+            offset_y=2,
+            offset_z=3,
+            offset_rz=0.4,
+            confidence=0.91,
+            is_success=True,
+            result_data={
+                'locate_type': 'LAYER',
+                'layer_index': 2,
+                'overall_offset': {'x': 10, 'y': 20, 'z': 30, 'rz': 1.5},
+                'layer_offset': {'x': 1, 'y': 2, 'z': 3, 'rz': 0.4},
+                'final_offset': {'x': 11, 'y': 22, 'z': 33, 'rz': 1.9},
+            },
+        )
+
+        payload = rack_location_result_payload(result)
+
+        self.assertEqual(payload['locate_type'], 'LAYER')
+        self.assertEqual(payload['layer_index'], 2)
+        self.assertEqual(payload['overall_offset_x'], 10.0)
+        self.assertEqual(payload['layer_offset_x'], 1.0)
+        self.assertEqual(payload['final_offset_x'], 11.0)
+
+
 class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
     def _template_source(self):
         template_path = Path(settings.BASE_DIR) / 'templates' / 'vision' / 'foam_inspector_interactive.html'
