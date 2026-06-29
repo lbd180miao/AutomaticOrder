@@ -432,7 +432,7 @@ class TofConfigTests(TestCase):
 
         self.assertEqual(config.frame_rate, 10)
         self.assertEqual(config.exposure_time, 1004)
-        self.assertEqual(config.spatial, (False, 2))
+        self.assertEqual(config.spatial, (False, 5))
 
     def test_missing_file_raises_tof_config_error(self):
         from tempfile import TemporaryDirectory
