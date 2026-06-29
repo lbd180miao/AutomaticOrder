@@ -1361,12 +1361,22 @@ class RackLocationService:
 
 def result_payload(result: RackLocationResult) -> dict:
     result_img = result.vision_task.images.filter(image_type=VisionImageType.RESULT).first()
+    data = result.result_data or {}
+    locate_type = data.get('locate_type') or (
+        LOCATE_TYPE_GLOBAL if int(result.layer_no or 0) == 0 else LOCATE_TYPE_LAYER
+    )
+    layer_index = int(data.get('layer_index', result.layer_no or 0))
+    overall = data.get('overall_offset') or {}
+    layer = data.get('layer_offset') or {}
+    final = data.get('final_offset') or {}
     return {
         'id': result.id,
         'task_id': result.vision_task_id,
         'task_kind': 'RACK_3D_LOCATION',
         'position_no': result.position_no,
         'layer_no': result.layer_no,
+        'locate_type': locate_type,
+        'layer_index': layer_index,
         'rack_side': result.side,
         'locate_ok': result.is_success,
         'is_success': result.is_success,
@@ -1377,6 +1387,18 @@ def result_payload(result: RackLocationResult) -> dict:
         'offset_y': float(result.offset_y),
         'offset_z': float(result.offset_z),
         'offset_rz': float(result.offset_rz),
+        'overall_offset_x': float(overall.get('x', result.offset_x if locate_type == LOCATE_TYPE_GLOBAL else 0)),
+        'overall_offset_y': float(overall.get('y', result.offset_y if locate_type == LOCATE_TYPE_GLOBAL else 0)),
+        'overall_offset_z': float(overall.get('z', result.offset_z if locate_type == LOCATE_TYPE_GLOBAL else 0)),
+        'overall_offset_rz': float(overall.get('rz', result.offset_rz if locate_type == LOCATE_TYPE_GLOBAL else 0)),
+        'layer_offset_x': float(layer.get('x', result.offset_x if locate_type == LOCATE_TYPE_LAYER else 0)),
+        'layer_offset_y': float(layer.get('y', result.offset_y if locate_type == LOCATE_TYPE_LAYER else 0)),
+        'layer_offset_z': float(layer.get('z', result.offset_z if locate_type == LOCATE_TYPE_LAYER else 0)),
+        'layer_offset_rz': float(layer.get('rz', result.offset_rz if locate_type == LOCATE_TYPE_LAYER else 0)),
+        'final_offset_x': float(final.get('x', result.offset_x)),
+        'final_offset_y': float(final.get('y', result.offset_y)),
+        'final_offset_z': float(final.get('z', result.offset_z)),
+        'final_offset_rz': float(final.get('rz', result.offset_rz)),
         'confidence': float(result.confidence),
         'error_code': result.error_code,
         'error_message': result.error_message,

@@ -34,6 +34,7 @@ from .rack_location import (
     PlcVisionResultWriter,
     Rack3DLocator,
     RackLocationService,
+    locate_semantics,
     result_payload as rack_location_result_payload,
     roi3d_to_dict,
     sample_scene_median_xyz,
@@ -800,11 +801,29 @@ def _serialize_rack_location_recipe(recipe):
 
 
 def _serialize_3d_recipe(recipe):
-    return _serialize_rack_location_recipe(recipe)
+    payload = _serialize_rack_location_recipe(recipe)
+    semantics = locate_semantics(
+        locate_type='GLOBAL' if int(recipe.layer_no or 0) == 0 else 'LAYER',
+        layer_index=int(recipe.layer_no or 0),
+    )
+    payload.update({
+        'locate_type': semantics['locate_type'],
+        'layer_index': semantics['layer_index'],
+        'total_layers': int(recipe.layer_count or 3),
+        'photo_pose_name': recipe.capture_pose_name,
+        'robot_pose_code': (recipe.reference_feature_config or {}).get('robot_pose_code', ''),
+    })
+    return payload
 
 
 def _serialize_3d_roi(roi):
-    return roi3d_to_dict(roi)
+    payload = roi3d_to_dict(roi)
+    semantics = locate_semantics(mode=roi.mode, layer_index=roi.layer_no or 0)
+    payload.update({
+        'locate_type': semantics['locate_type'],
+        'layer_index': semantics['layer_index'],
+    })
+    return payload
 
 
 def rack_location_workbench(request):
