@@ -1,4 +1,4 @@
-# 3D SDK Frontend Removal Implementation Plan
+﻿# 3D SDK Frontend Removal Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -17,7 +17,7 @@
 - Modify: `apps/dm_camera/tests.py`
 - Read at runtime: `3d_SDK/tofconfig`
 
-- [ ] **Step 1: Write failing decoder and validation tests**
+- [x] **Step 1: Write failing decoder and validation tests**
 
 Add these imports and tests to `apps/dm_camera/tests.py`:
 
@@ -78,13 +78,13 @@ class TofConfigTests(TestCase):
                 load_tof_config(self.write_config(directory, payload))
 ```
 
-- [ ] **Step 2: Run tests and verify the new module is missing**
+- [x] **Step 2: Run tests and verify the new module is missing**
 
 Run: `.\.venv\Scripts\python.exe manage.py test apps.dm_camera.tests.TofConfigTests`
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'apps.dm_camera.tofconfig'`.
 
-- [ ] **Step 3: Implement the minimal decoder and validator**
+- [x] **Step 3: Implement the minimal decoder and validator**
 
 Create `apps/dm_camera/tofconfig.py`:
 
@@ -165,13 +165,13 @@ def load_tof_config(path=None):
     )
 ```
 
-- [ ] **Step 4: Run the focused tests**
+- [x] **Step 4: Run the focused tests**
 
 Run: `.\.venv\Scripts\python.exe manage.py test apps.dm_camera.tests.TofConfigTests`
 
 Expected: 4 tests pass.
 
-- [ ] **Step 5: Commit the decoder**
+- [x] **Step 5: Commit the decoder**
 
 ```powershell
 git add apps/dm_camera/tofconfig.py apps/dm_camera/tests.py 3d_SDK/tofconfig
@@ -184,7 +184,7 @@ git commit -m "feat: load 3d camera parameters from tofconfig"
 - Modify: `apps/dm_camera/services.py`
 - Modify: `apps/dm_camera/tests.py`
 
-- [ ] **Step 1: Write a failing service mapping test**
+- [x] **Step 1: Write a failing service mapping test**
 
 Add to `apps/dm_camera/tests.py`:
 
@@ -227,13 +227,13 @@ class DMCameraTofConfigApplicationTests(TestCase):
         self.assertEqual(calls[1][1]['spatial'], (False, 2))
 ```
 
-- [ ] **Step 2: Run the service test and verify it fails**
+- [x] **Step 2: Run the service test and verify it fails**
 
 Run: `.\.venv\Scripts\python.exe manage.py test apps.dm_camera.tests.DMCameraTofConfigApplicationTests`
 
 Expected: FAIL because `apps.dm_camera.services.load_tof_config` does not exist or `_apply_config` reads model attributes.
 
-- [ ] **Step 3: Switch `_apply_config` to the file-backed configuration**
+- [x] **Step 3: Switch `_apply_config` to the file-backed configuration**
 
 In `apps/dm_camera/services.py`, import `load_tof_config`, load it at the start of `_apply_config`, and map the resulting trigger string through the existing `trigger_mode_map`:
 
@@ -264,13 +264,13 @@ def _apply_config(self, config):
 
 Keep the `config` argument because connection sessions still reference `DMCameraConfig`; remove only its use for imaging/filter values.
 
-- [ ] **Step 4: Run decoder, service, and connection recovery tests**
+- [x] **Step 4: Run decoder, service, and connection recovery tests**
 
 Run: `.\.venv\Scripts\python.exe manage.py test apps.dm_camera.tests.TofConfigTests apps.dm_camera.tests.DMCameraTofConfigApplicationTests apps.dm_camera.tests.DMCameraServiceConnectionRecoveryTests`
 
 Expected: all focused tests pass.
 
-- [ ] **Step 5: Commit service integration**
+- [x] **Step 5: Commit service integration**
 
 ```powershell
 git add apps/dm_camera/services.py apps/dm_camera/tests.py
@@ -286,7 +286,7 @@ git commit -m "feat: apply tofconfig during camera connection"
 - Modify: `apps/vision/urls.py`
 - Modify: `apps/vision/views.py`
 
-- [ ] **Step 1: Change the page test to require absence of SDK development controls**
+- [x] **Step 1: Change the page test to require absence of SDK development controls**
 
 Replace the SDK-positive assertions in `test_rack_locator_panel_exposes_3d_roi_workbench_controls` with:
 
@@ -310,13 +310,13 @@ self.assertContains(response, 'api_vision_3d_test_locate')
 
 Delete `test_vision_3d_sdk_config_api_reads_and_saves_active_global_config`, because that endpoint exists only for the removed editor.
 
-- [ ] **Step 2: Run the page test and verify it fails**
+- [x] **Step 2: Run the page test and verify it fails**
 
 Run: `.\.venv\Scripts\python.exe manage.py test apps.vision.tests.RackLocation3DViewTests.test_rack_locator_panel_exposes_3d_roi_workbench_controls`
 
 Expected: FAIL because `btn-sdk-debug` and other SDK markers are still rendered.
 
-- [ ] **Step 3: Remove SDK-only template content**
+- [x] **Step 3: Remove SDK-only template content**
 
 In `templates/vision/rack_locator_panel.html`, delete:
 
@@ -325,21 +325,21 @@ In `templates/vision/rack_locator_panel.html`, delete:
 - the `sdk-drawer-backdrop` element and entire `sdk-debug-drawer` aside;
 - `sdkConfigUrl`, `apiSdkFindDevicesUrl`, `apiSdkDiagnosticsUrl`, and `apiSdkRecoverUrl` from `window.rackLocatorConfig`.
 
-- [ ] **Step 4: Remove SDK-only JavaScript**
+- [x] **Step 4: Remove SDK-only JavaScript**
 
 In `static/vision/js/rack_locator_workbench.js`, delete SDK state and helpers (`sdkConfigId`, `setSdkStatus`, `setSdkTile`, `setSdkPreviewMeta`, `sdkConfigPayload`, `fillSdkConfig`, `loadSdkConfig`, `saveSdkConfig`, `refreshSdkDiagnostics`, `runSdkCaptureTest`) and every `btn-sdk-*` event listener. Preserve capture, ROI, calculation, history, and unified response handling.
 
-- [ ] **Step 5: Remove the frontend-only SDK config endpoint**
+- [x] **Step 5: Remove the frontend-only SDK config endpoint**
 
 Delete the `api/vision/3d/sdk-config/` path from `apps/vision/urls.py`. Delete `_serialize_dm_camera_config`, `_default_dm_camera_config_payload`, and `api_vision_3d_sdk_config` from `apps/vision/views.py`, then remove the now-unused `DMCameraConfig` import from that file. The separate import in `apps/vision/rack_location.py` remains unchanged for production device selection.
 
-- [ ] **Step 6: Run page and 3D API tests**
+- [x] **Step 6: Run page and 3D API tests**
 
 Run: `.\.venv\Scripts\python.exe manage.py test apps.vision.tests.RackLocation3DViewTests apps.vision.tests.Rack3DLocatorApiTests`
 
 Expected: tests pass and production 3D endpoints remain covered.
 
-- [ ] **Step 7: Commit the workbench cleanup**
+- [x] **Step 7: Commit the workbench cleanup**
 
 ```powershell
 git add templates/vision/rack_locator_panel.html static/vision/js/rack_locator_workbench.js apps/vision/tests.py apps/vision/urls.py apps/vision/views.py
@@ -356,7 +356,7 @@ git commit -m "refactor: remove 3d sdk controls from workbench"
 - Verify: `templates/dm_camera_demo.html`
 - Test: `apps/dm_camera/tests.py`
 
-- [ ] **Step 1: Verify the route, view, template, and APIs remain**
+- [x] **Step 1: Verify the route, view, template, and APIs remain**
 
 Run:
 
@@ -368,51 +368,76 @@ rg -n "def demo_page" apps/dm_camera/views.py
 
 Expected: `Test-Path` returns `True`; the root route resolves to `views.demo_page`; `demo_page` remains defined; API routes are listed.
 
-- [ ] **Step 2: Run the existing demo-page and API tests**
+- [x] **Step 2: Run the existing demo-page and API tests**
 
 Run: `.\.venv\Scripts\python.exe manage.py test apps.dm_camera`
 
 Expected: the suite passes, including coverage that `/dm-camera/` returns HTTP 200 (or equivalent route-resolution coverage) and retained API routes still work.
 
-- [ ] **Step 3: Treat any removal as a regression**
+- [x] **Step 3: Treat any removal as a regression**
 
 If the root demo route, view, template, or any `/dm-camera/api/*` route is missing, stop and restore it before completing the frontend cleanup. Do not execute the cancelled page-removal task.
 
 ### Task 5: Verify the retained production surface
 
 **Files:**
-- Verify only; fix failures in the files changed by Tasks 1–4
+- Verify only; fix failures in the files changed by Tasks 1鈥?
 
-- [ ] **Step 1: Scan for removed frontend markers**
+- [x] **Step 1: Scan for removed frontend markers**
 
 Run: `rg -n "btn-sdk-debug|sdk-debug-drawer|sdkConfigUrl|apiSdk" templates/vision/rack_locator_panel.html static/vision/js/rack_locator_workbench.js`
 
 Expected: no matches in the rack-location template or JavaScript. `templates/dm_camera_demo.html` is intentionally retained and is not part of this removal scan.
 
-- [ ] **Step 2: Verify required backend routes remain**
+- [x] **Step 2: Verify required backend routes remain**
 
 Run: `rg -n "path\('', views\.demo_page|api/devices/find|api/connect|api/capture|api/status" apps/dm_camera/urls.py`
 
 Expected: the root demo route and all four representative API routes are present.
 
-- [ ] **Step 3: Run Django system checks**
+- [x] **Step 3: Run Django system checks**
 
 Run: `.\.venv\Scripts\python.exe manage.py check`
 
 Expected: `System check identified no issues`.
 
-- [ ] **Step 4: Run the affected test suites**
+- [x] **Step 4: Run the affected test suites**
 
 Run: `.\.venv\Scripts\python.exe manage.py test apps.dm_camera apps.vision`
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Inspect the final diff**
+- [x] **Step 5: Inspect the final diff**
 
 Run: `git diff --check` and `git status --short`
 
 Expected: no whitespace errors; only intended implementation files and unrelated pre-existing user changes appear.
 
-- [ ] **Step 6: Record verification outcome**
+- [x] **Step 6: Record verification outcome**
 
-If every command passed, leave the tree unchanged and record the commands and pass counts in the handoff. If a command failed, return to the task that owns the failing file, add a focused regression test, make the minimal correction, and rerun that task before repeating Steps 1–5.
+If every command passed, leave the tree unchanged and record the commands and pass counts in the handoff. If a command failed, return to the task that owns the failing file, add a focused regression test, make the minimal correction, and rerun that task before repeating Steps 1鈥?.
+
+---
+
+### Execution Record
+
+Completed on 2026-06-29.
+
+Verification commands:
+
+```powershell
+rg -n "btn-sdk-debug|sdk-debug-drawer|sdkConfigUrl|apiSdk" templates/vision/rack_locator_panel.html static/vision/js/rack_locator_workbench.js
+rg -n "path\('', views\.demo_page|api/devices/find|api/connect|api/capture|api/status" apps/dm_camera/urls.py
+.\.venv\Scripts\python.exe manage.py check
+.\.venv\Scripts\python.exe manage.py test apps.dm_camera apps.vision
+git diff --check
+git status --short
+```
+
+Outcome:
+
+- Rack-location template and JavaScript contain no removed SDK drawer markers.
+- The independent `/dm-camera/` demo route and representative API routes remain.
+- Django system check reported no issues.
+- Affected Django suites passed: 144 tests, 0 failures.
+- Final working tree contained this plan update plus the pre-existing untracked `apps/vision/management/commands/clean_vision_records.py`.
