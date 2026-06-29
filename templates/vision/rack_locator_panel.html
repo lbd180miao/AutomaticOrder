@@ -196,41 +196,6 @@
 .rl-spinner { border: 4px solid #e5e7eb; border-top: 4px solid var(--info); border-radius: 50%; width: 44px; height: 44px; animation: spin 0.9s linear infinite; margin: 0 auto 14px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* SDK 调试侧边栏 */
-.sdk-drawer-backdrop {
-  position: fixed; inset: 0; z-index: 9990; background: rgba(15,23,42,0.35);
-  display: none;
-}
-.sdk-drawer-backdrop.open { display: block; }
-.sdk-debug-drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; z-index: 9991;
-  width: min(460px, 100vw); background: #fff; border-left: 1px solid var(--border);
-  box-shadow: -16px 0 36px rgba(15,23,42,0.18); transform: translateX(100%);
-  transition: transform 0.2s ease; display: flex; flex-direction: column;
-}
-.sdk-debug-drawer.open { transform: translateX(0); }
-.sdk-drawer-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--surface-2);
-}
-.sdk-drawer-head h2 { margin: 0; font-size: 16px; font-weight: 800; }
-.sdk-drawer-body { padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
-.sdk-section { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; background: #fff; }
-.sdk-section h3 { margin: 0 0 10px; font-size: 13px; font-weight: 800; color: #1f2937; }
-.sdk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.sdk-field { display: flex; flex-direction: column; gap: 5px; }
-.sdk-field label { font-size: 11px; font-weight: 700; color: var(--text-muted); }
-.sdk-field input, .sdk-field select { width: 100%; padding: 7px 9px; }
-.sdk-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.sdk-actions .btn { flex: 1; min-width: 110px; }
-.sdk-status { min-height: 18px; font-size: 12px; color: var(--text-muted); }
-.sdk-device-list { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-muted); }
-.sdk-preview {
-  min-height: 160px; border: 1px solid var(--border); border-radius: 6px;
-  background: #0f172a; display: flex; align-items: center; justify-content: center;
-  color: #94a3b8; overflow: hidden; font-size: 12px; text-align: center;
-}
-.sdk-preview img { max-width: 100%; max-height: 220px; object-fit: contain; }
 </style>
 
 <div class="rl-workbench">
@@ -239,7 +204,6 @@
   <div class="rl-title-bar">
     <h1>3D 料架定位工作台</h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button id="btn-sdk-debug" class="btn btn-secondary btn-sm" type="button">SDK 调试</button>
       <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-secondary btn-sm">🧩 配方管理</a>
       <a href="{% url 'vision:rack_location_history' %}" class="btn btn-secondary btn-sm">历史记录</a>
       <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
@@ -360,11 +324,11 @@
         </div>
         <div class="rl-actions">
           <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
-          <button id="btn-auto-align" class="btn btn-secondary">自动对齐</button>
-          <button id="btn-redraw" class="btn btn-secondary">重画 ROI</button>
-          <button id="btn-calculate" class="btn btn-success" style="background:var(--success);">🎯 计算偏差</button>
-          <button id="btn-save-roi" class="btn btn-secondary">保存 ROI</button>
-          <button id="btn-write-plc" class="btn btn-secondary">写入 PLC</button>
+          <button id="btn-auto-align" class="btn btn-secondary" disabled>自动对齐</button>
+          <button id="btn-redraw" class="btn btn-secondary" disabled>重画 ROI</button>
+          <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" disabled>🎯 计算偏差</button>
+          <button id="btn-save-roi" class="btn btn-secondary" disabled>保存 ROI</button>
+          <button id="btn-write-plc" class="btn btn-secondary" disabled>写入 PLC</button>
         </div>
         <span class="rl-source-chip" id="rl-source">数据源 —</span>
         <p class="rl-status" id="rl-status">先选择配方，再采集点云。</p>
@@ -445,59 +409,6 @@
 
 </div>
 
-<div id="sdk-drawer-backdrop" class="sdk-drawer-backdrop"></div>
-<aside id="sdk-debug-drawer" class="sdk-debug-drawer" aria-label="SDK 调试侧边栏">
-  <div class="sdk-drawer-head">
-    <h2>SDK 调试</h2>
-    <button id="btn-sdk-close" class="btn btn-secondary btn-sm" type="button">关闭</button>
-  </div>
-  <div class="sdk-drawer-body">
-    <div class="sdk-section">
-      <h3>设备控制</h3>
-      <div class="sdk-actions">
-        <button id="btn-sdk-find-devices" class="btn btn-secondary" type="button">查找设备</button>
-        <button id="btn-sdk-connect" class="btn btn-secondary" type="button">连接</button>
-        <button id="btn-sdk-disconnect" class="btn btn-secondary" type="button">断开</button>
-      </div>
-      <div class="sdk-actions" style="margin-top:8px;">
-        <button id="btn-sdk-start-stream" class="btn btn-secondary" type="button">开启数据流</button>
-        <button id="btn-sdk-stop-stream" class="btn btn-secondary" type="button">停止数据流</button>
-      </div>
-      <div id="sdk-device-list" class="sdk-device-list" style="margin-top:10px;">未查找设备</div>
-    </div>
-
-    <div class="sdk-section">
-      <h3>当前全局配置</h3>
-      <div class="sdk-grid">
-        <div class="sdk-field"><label for="sdk-config-name">配置名称</label><input id="sdk-config-name" value="3D料架定位SDK"></div>
-        <div class="sdk-field"><label for="sdk-device-sn">设备序列号</label><input id="sdk-device-sn" placeholder="留空使用第一台设备"></div>
-        <div class="sdk-field"><label for="sdk-frame-rate">帧率</label><input id="sdk-frame-rate" type="number" min="1" value="10"></div>
-        <div class="sdk-field"><label for="sdk-exposure-time">曝光时间(us)</label><input id="sdk-exposure-time" type="number" min="1" value="1000"></div>
-        <div class="sdk-field"><label for="sdk-trigger-mode">触发模式</label><select id="sdk-trigger-mode"><option value="ACTIVE">主动模式</option><option value="SOFT">软触发</option><option value="HARD">硬触发</option></select></div>
-        <div class="sdk-field"><label for="sdk-frame-type">测试采集类型</label><select id="sdk-frame-type"><option value="POINTCLOUD">点云</option><option value="DEPTH">深度图</option><option value="IR">IR 图</option></select></div>
-        <div class="sdk-field"><label for="sdk-confidence-threshold">置信度阈值</label><input id="sdk-confidence-threshold" type="number" min="0" value="15"></div>
-        <div class="sdk-field"><label for="sdk-flying-pixels-threshold">飞点阈值</label><input id="sdk-flying-pixels-threshold" type="number" min="0" value="5"></div>
-        <div class="sdk-field"><label for="sdk-spatial-threshold">空间滤波阈值</label><input id="sdk-spatial-threshold" type="number" min="0" value="5"></div>
-        <div class="sdk-field"><label for="sdk-save-record">测试保存记录</label><select id="sdk-save-record"><option value="true">保存</option><option value="false">不保存</option></select></div>
-      </div>
-      <div class="sdk-actions" style="margin-top:10px;">
-        <button id="btn-sdk-load-config" class="btn btn-secondary" type="button">读取当前配置</button>
-        <button id="btn-sdk-save-config" class="btn" type="button">保存为当前配置</button>
-      </div>
-    </div>
-
-    <div class="sdk-section">
-      <h3>测试采集</h3>
-      <div class="sdk-actions">
-        <button id="btn-sdk-capture" class="btn btn-secondary" type="button">测试采集</button>
-      </div>
-      <div id="sdk-preview" class="sdk-preview" style="margin-top:10px;">暂无预览</div>
-    </div>
-
-    <div id="sdk-status" class="sdk-status">打开后先读取当前配置，调好后保存为当前配置。</div>
-  </div>
-</aside>
-
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
 <script>
@@ -559,22 +470,17 @@ window.rackLocatorConfig = {
   captureUrl: '{% url "vision:api_vision_3d_capture" %}',
   autoAlignUrl: '{% url "vision:api_vision_3d_auto_align" %}',
   testLocateUrl: '{% url "vision:api_vision_3d_test_locate" %}',
+  currentRecipeUrl: '{% url "vision:api_vision_3d_recipe_current" %}',
+  locateUrl: '{% url "vision:api_vision_3d_locate" %}',
   saveRoiUrl: '{% url "vision:api_vision_3d_rois" %}',
   writePlcUrl: '{% url "vision:api_vision_3d_write_plc" %}',
+  results3dUrl: '{% url "vision:api_vision_3d_results" %}',
+  resultsLatestUrl: '{% url "vision:api_vision_3d_results_latest" %}',
   legacyCaptureUrl: '{% url "vision:api_rack_location_workbench_capture" %}',
   legacyCalculateUrl: '{% url "vision:api_rack_location_workbench_calculate" %}',
   legacySaveUrl: '{% url "vision:api_rack_location_workbench_save" %}',
   triggerUrl: '{% url "vision:api_rack_location_trigger" %}',
   resultsUrl: '{% url "vision:api_rack_location_results" %}',
-  apiSdkFindDevicesUrl: '/dm-camera/api/devices/find/',
-  apiSdkConnectUrl: '/dm-camera/api/connect/',
-  apiSdkDisconnectUrl: '/dm-camera/api/disconnect/',
-  apiSdkStartStreamUrl: '/dm-camera/api/stream/start/',
-  apiSdkStopStreamUrl: '/dm-camera/api/stream/stop/',
-  apiSdkCaptureUrl: '/dm-camera/api/capture/',
-  apiSdkStatusUrl: '/dm-camera/api/status/',
-  apiSdkConfigsUrl: '/dm-camera/api/configs/',
-  apiSdkCreateConfigUrl: '/dm-camera/api/configs/create/',
 };
 </script>
 <script src="{% static 'vision/js/rack_locator_workbench.js' %}"></script>

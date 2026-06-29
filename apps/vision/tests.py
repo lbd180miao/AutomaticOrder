@@ -10,7 +10,7 @@ from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase, override_settings
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 
 from apps.core.constants import ResultStatus, VisionTaskType
 from apps.production.models import Product, Rack, RackRecipe
@@ -505,6 +505,40 @@ class Rack3DPlcSafetyTests(TestCase):
         self.assertEqual(payload['plc_payload']['layer_index'], 1)
         self.assertEqual(payload['plc_payload']['offset_z'], 33.0)
         self.assertTrue(payload['plc_payload']['compensation_valid'])
+
+
+class Rack3DWorkbenchStateSourceTests(SimpleTestCase):
+    def test_javascript_contains_semantic_state_machine_controls(self):
+        script_path = Path(settings.BASE_DIR) / 'static' / 'vision' / 'js' / 'rack_locator_workbench.js'
+        script = script_path.read_text(encoding='utf-8')
+
+        for marker in (
+            'alignmentToken',
+            'lastResultOk',
+            'function currentLocateType()',
+            'function currentLayerIndex()',
+            'function refreshActionState()',
+            'locate_type: currentLocateType()',
+            'layer_index: currentLayerIndex()',
+            'alignment_token: state.alignmentToken',
+            'aligned_pointcloud_token',
+            'CFG.currentRecipeUrl',
+            'CFG.locateUrl',
+            'CFG.results3dUrl',
+        ):
+            self.assertIn(marker, script)
+
+    def test_template_exposes_formal_3d_workbench_urls(self):
+        template_path = Path(settings.BASE_DIR) / 'templates' / 'vision' / 'rack_locator_panel.html'
+        template = template_path.read_text(encoding='utf-8')
+
+        for marker in (
+            'api_vision_3d_recipe_current',
+            'api_vision_3d_locate',
+            'api_vision_3d_results',
+            'api_vision_3d_results_latest',
+        ):
+            self.assertIn(marker, template)
 
 
 class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
@@ -1743,6 +1777,37 @@ class DMCameraRackFrameProviderTests(TestCase):
         self.assertEqual(payload['source'], 'sample_forced')
         self.assertIn('raw_data_path', payload)
 
+    def test_provider_propagates_dm_camera_configuration_error(self):
+        from apps.dm_camera.sdk_wrapper import DMCameraConfigurationError
+        from apps.vision.rack_location import DMCameraRackFrameProvider
+
+        class MisconfiguredDMCameraService:
+            is_connected = False
+            is_streaming = False
+
+            def connect(self, device_sn=None, config_id=None):
+                raise DMCameraConfigurationError('tofconfig JSON error')
+
+        with patch('apps.dm_camera.services.DMCameraService', MisconfiguredDMCameraService):
+            with self.assertRaisesRegex(DMCameraConfigurationError, 'tofconfig JSON error'):
+                DMCameraRackFrameProvider().capture(self._recipe('Bad-Config'), 1, 1)
+
+    def test_provider_still_falls_back_for_non_configuration_error(self):
+        from apps.vision.rack_location import DMCameraRackFrameProvider
+
+        class OfflineDMCameraService:
+            is_connected = False
+            is_streaming = False
+
+            def connect(self, device_sn=None, config_id=None):
+                raise RuntimeError('camera offline')
+
+        with patch('apps.dm_camera.services.DMCameraService', OfflineDMCameraService):
+            payload = DMCameraRackFrameProvider().capture(self._recipe('Offline'), 1, 1)
+
+        self.assertEqual(payload['source'], 'sample_fallback')
+        self.assertEqual(payload['fallback_reason'], 'camera offline')
+
 
 class RackLocationRecipe3DModelTests(TestCase):
     def test_position_recipe_matches_enabled_position_and_layer_without_side_split(self):
@@ -2023,17 +2088,37 @@ class RackLocation3DViewTests(TestCase):
         self.assertContains(response, 'btn-auto-align')
         self.assertContains(response, 'btn-save-roi')
         self.assertContains(response, 'btn-write-plc')
-        self.assertContains(response, 'btn-sdk-debug')
-        self.assertContains(response, 'sdk-debug-drawer')
-        self.assertContains(response, 'sdk-frame-rate')
-        self.assertContains(response, 'sdk-exposure-time')
-        self.assertContains(response, 'sdk-trigger-mode')
-        self.assertContains(response, 'sdk-confidence-threshold')
-        self.assertContains(response, 'btn-sdk-save-config')
-        self.assertContains(response, 'apiSdkFindDevicesUrl')
-        self.assertContains(response, 'apiSdkCreateConfigUrl')
+        self.assertNotContains(response, 'btn-sdk-debug')
+        self.assertNotContains(response, 'sdk-debug-drawer')
+        self.assertNotContains(response, 'sdk-frame-rate')
+        self.assertNotContains(response, 'sdk-exposure-time')
+        self.assertNotContains(response, 'sdk-trigger-mode')
+        self.assertNotContains(response, 'sdk-confidence-threshold')
+        self.assertNotContains(response, 'btn-sdk-save-config')
+        self.assertNotContains(response, 'btn-sdk-save-test')
+        self.assertNotContains(response, 'btn-sdk-test-capture')
+        self.assertNotContains(response, 'btn-sdk-open-demo')
+        self.assertNotContains(response, 'sdk-console-strip')
+        self.assertNotContains(response, 'sdk-drawer-shell')
+        self.assertNotContains(response, 'sdk-device-panel')
+        self.assertNotContains(response, 'sdk-params-panel')
+        self.assertNotContains(response, 'sdk-test-panel')
+        self.assertNotContains(response, 'sdk-preview-panel')
+        self.assertNotContains(response, 'sdk-status-camera')
+        self.assertNotContains(response, 'sdk-status-config')
+        self.assertNotContains(response, 'sdk-status-source')
+        self.assertNotContains(response, 'btn-sdk-recover')
+        self.assertNotContains(response, 'sdk-action-primary')
+        self.assertNotContains(response, 'apiSdkFindDevicesUrl')
+        self.assertNotContains(response, 'sdkConfigUrl')
+        self.assertNotContains(response, 'apiSdkDiagnosticsUrl')
+        self.assertNotContains(response, 'apiSdkRecoverUrl')
         self.assertContains(response, 'api_vision_3d_capture')
         self.assertContains(response, 'api_vision_3d_test_locate')
+        self.assertNotContains(response, 'btn-sdk-connect')
+        self.assertNotContains(response, 'btn-sdk-start-stream')
+        self.assertNotContains(response, 'apiSdkConnectUrl')
+        self.assertNotContains(response, 'apiSdkCaptureUrl')
 
     def test_workbench_javascript_preserves_unified_api_success_flag(self):
         script_path = Path(settings.BASE_DIR) / 'static' / 'vision' / 'js' / 'rack_locator_workbench.js'
@@ -2041,6 +2126,17 @@ class RackLocation3DViewTests(TestCase):
 
         self.assertIn('success: data.success', script)
         self.assertIn("error: data.error || ''", script)
+        for sdk_marker in (
+            'sdkConfigId',
+            'loadSdkConfig',
+            'saveSdkConfig',
+            'refreshSdkDiagnostics',
+            'runSdkCaptureTest',
+            'btn-sdk-',
+            'apiSdk',
+            'sdkConfigUrl',
+        ):
+            self.assertNotIn(sdk_marker, script)
 
     def test_recipe_create_page_contains_depth_image_roi_teaching_ui(self):
         response = self.client.get(reverse('vision:rack_location_recipe_create'))
@@ -2260,6 +2356,19 @@ class RackLocationWorkbenchTests(TestCase):
         self.assertEqual(payload['source'], 'sample')
         self.assertTrue((Path(settings.MEDIA_ROOT) / payload['pointcloud_token']).exists())
 
+    def test_capture_workbench_propagates_dm_camera_configuration_error(self):
+        from apps.dm_camera.sdk_wrapper import DMCameraConfigurationError
+        from apps.vision.rack_location import RackLocationService
+
+        class MisconfiguredProvider:
+            def capture(self, recipe, position_no, layer_no):
+                raise DMCameraConfigurationError('tofconfig missing')
+
+        with self.assertRaisesRegex(DMCameraConfigurationError, 'tofconfig missing'):
+            RackLocationService(frame_provider=MisconfiguredProvider()).capture_workbench(
+                recipe_id=self.recipe.id
+            )
+
     def test_calculate_workbench_crops_persisted_cloud_without_db_write(self):
         service = self._service()
         captured = service.capture_workbench(recipe_id=self.recipe.id)
@@ -2444,6 +2553,18 @@ class Rack3DLocatorServiceTests(TestCase):
         self.assertIn('raw_depth_image_url', payload)
         self.assertEqual(payload['source'], 'dm_camera')
 
+    def test_capture_propagates_dm_camera_configuration_error(self):
+        from apps.dm_camera.sdk_wrapper import DMCameraConfigurationError
+        from apps.vision.rack_location import Rack3DLocator
+
+        class MisconfiguredProvider:
+            def capture(self, recipe, position_no, layer_no):
+                raise DMCameraConfigurationError('tofconfig invalid')
+
+        locator = Rack3DLocator(frame_provider=MisconfiguredProvider())
+        with self.assertRaisesRegex(DMCameraConfigurationError, 'tofconfig invalid'):
+            locator.capture(recipe_id=self.recipe.id)
+
     def test_auto_align_returns_rack_coordinate_system_and_corrected_views(self):
         captured = self._locator().capture(recipe_id=self.recipe.id)
 
@@ -2515,6 +2636,33 @@ class Rack3DLocatorApiTests(TestCase):
             confidence_threshold=0.1,
             hand_eye_config={'matrix': 'identity'},
         )
+
+    def test_vision_3d_sdk_config_url_is_not_exposed(self):
+        with self.assertRaises(NoReverseMatch):
+            reverse('vision:api_vision_3d_sdk_config')
+
+    @override_settings(VISION_RACK_LOCATION_FORCE_SAMPLE=False)
+    def test_vision_3d_capture_reports_configuration_error_without_sample_data(self):
+        from apps.dm_camera.sdk_wrapper import DMCameraConfigurationError
+        from apps.vision.rack_location import DMCameraRackFrameProvider
+
+        with patch.object(
+            DMCameraRackFrameProvider,
+            'capture',
+            side_effect=DMCameraConfigurationError('tofconfig invalid JSON'),
+        ):
+            response = self.client.post(
+                reverse('vision:api_vision_3d_capture'),
+                data=json.dumps({'recipe_id': self.recipe.id}),
+                content_type='application/json',
+            )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.json()
+        self.assertFalse(payload['success'])
+        self.assertIn('tofconfig invalid JSON', payload['error'])
+        self.assertNotIn('sample', json.dumps(payload).lower())
+        self.assertNotIn('pointcloud_token', json.dumps(payload))
 
     def test_vision_3d_recipe_crud_uses_unified_response(self):
         create = self.client.post(

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Remove the two 3D camera SDK development UIs and configure formal camera capture from `3d_SDK/tofconfig` while retaining backend camera APIs.
+**Goal:** Remove the rack-location SDK debug drawer and configure formal camera capture from `3d_SDK/tofconfig` while retaining the independent camera development page and backend camera APIs.
 
-**Architecture:** Add a focused decoder/validator that converts the vendor's XOR-encoded JSON into the existing camera SDK arguments. `DMCameraService` consumes this file at connection time; the rack-location business page keeps only production controls, and the `/dm-camera/` root development page is removed without removing `/dm-camera/api/*` routes.
+**Architecture:** Add a focused decoder/validator that converts the vendor's XOR-encoded JSON into the existing camera SDK arguments. `DMCameraService` consumes this file at connection time, while the rack-location business page keeps only production controls. The independent `/dm-camera/` development page, its view and template, and all `/dm-camera/api/*` routes remain intact.
 
 **Tech Stack:** Python 3, Django 6, `unittest`, Django test client, vanilla JavaScript, Django templates
 
@@ -346,53 +346,37 @@ git add templates/vision/rack_locator_panel.html static/vision/js/rack_locator_w
 git commit -m "refactor: remove 3d sdk controls from workbench"
 ```
 
-### Task 4: Remove the independent camera development page
+### Task 4: Verify the independent camera development page remains
+
+> **Scope update:** The user cancelled the former Task 4 that removed the independent camera page. Do not delete or alter the root demo route, `views.demo_page`, `templates/dm_camera_demo.html`, or any `/dm-camera/api/*` route as part of this work.
 
 **Files:**
-- Delete: `templates/dm_camera_demo.html`
-- Modify: `apps/dm_camera/urls.py`
-- Modify: `apps/dm_camera/views.py`
-- Modify: `apps/dm_camera/tests.py`
+- Verify: `apps/dm_camera/urls.py`
+- Verify: `apps/dm_camera/views.py`
+- Verify: `templates/dm_camera_demo.html`
+- Test: `apps/dm_camera/tests.py`
 
-- [ ] **Step 1: Replace the template test with routing boundary tests**
+- [ ] **Step 1: Verify the route, view, template, and APIs remain**
 
-Delete `DMCameraDemoTemplateTests` and add:
-
-```python
-class DMCameraRoutingTests(TestCase):
-    def test_development_page_is_not_routed(self):
-        response = self.client.get('/dm-camera/')
-        self.assertEqual(response.status_code, 404)
-
-    def test_backend_camera_api_remains_routed(self):
-        with patch.object(DMCameraService, 'find_devices', return_value=[]):
-            response = self.client.get(reverse('dm_camera:find_devices'))
-        self.assertEqual(response.status_code, 200)
-```
-
-- [ ] **Step 2: Run routing tests and verify the development page test fails**
-
-Run: `.\.venv\Scripts\python.exe manage.py test apps.dm_camera.tests.DMCameraRoutingTests`
-
-Expected: `test_development_page_is_not_routed` fails with status 200 while the API test passes.
-
-- [ ] **Step 3: Delete the page route, view, and template**
-
-Delete `path('', views.demo_page, name='demo')` from `apps/dm_camera/urls.py`, delete `demo_page` from `apps/dm_camera/views.py`, remove the now-unused `render` import there, and delete `templates/dm_camera_demo.html`. Do not remove any path beginning with `api/`.
-
-- [ ] **Step 4: Run camera routing and API tests**
-
-Run: `.\.venv\Scripts\python.exe manage.py test apps.dm_camera.tests.DMCameraRoutingTests apps.dm_camera.tests.DMCameraApiDiagnosticsTests`
-
-Expected: all tests pass.
-
-- [ ] **Step 5: Commit the development page removal**
+Run:
 
 ```powershell
-git add apps/dm_camera/urls.py apps/dm_camera/views.py apps/dm_camera/tests.py
-git add -u templates/dm_camera_demo.html
-git commit -m "refactor: remove 3d camera development page"
+Test-Path templates/dm_camera_demo.html
+rg -n "path\('', views\.demo_page|path\('api/" apps/dm_camera/urls.py
+rg -n "def demo_page" apps/dm_camera/views.py
 ```
+
+Expected: `Test-Path` returns `True`; the root route resolves to `views.demo_page`; `demo_page` remains defined; API routes are listed.
+
+- [ ] **Step 2: Run the existing demo-page and API tests**
+
+Run: `.\.venv\Scripts\python.exe manage.py test apps.dm_camera`
+
+Expected: the suite passes, including coverage that `/dm-camera/` returns HTTP 200 (or equivalent route-resolution coverage) and retained API routes still work.
+
+- [ ] **Step 3: Treat any removal as a regression**
+
+If the root demo route, view, template, or any `/dm-camera/api/*` route is missing, stop and restore it before completing the frontend cleanup. Do not execute the cancelled page-removal task.
 
 ### Task 5: Verify the retained production surface
 
@@ -401,15 +385,15 @@ git commit -m "refactor: remove 3d camera development page"
 
 - [ ] **Step 1: Scan for removed frontend markers**
 
-Run: `rg -n "btn-sdk-debug|sdk-debug-drawer|sdkConfigUrl|btn-sdk-open-demo|dm_camera_demo" templates static apps`
+Run: `rg -n "btn-sdk-debug|sdk-debug-drawer|sdkConfigUrl|apiSdk" templates/vision/rack_locator_panel.html static/vision/js/rack_locator_workbench.js`
 
-Expected: no production code matches; historical migration or documentation matches are acceptable only outside these directories.
+Expected: no matches in the rack-location template or JavaScript. `templates/dm_camera_demo.html` is intentionally retained and is not part of this removal scan.
 
 - [ ] **Step 2: Verify required backend routes remain**
 
-Run: `rg -n "api/devices/find|api/connect|api/capture|api/status" apps/dm_camera/urls.py`
+Run: `rg -n "path\('', views\.demo_page|api/devices/find|api/connect|api/capture|api/status" apps/dm_camera/urls.py`
 
-Expected: all four API routes are present.
+Expected: the root demo route and all four representative API routes are present.
 
 - [ ] **Step 3: Run Django system checks**
 

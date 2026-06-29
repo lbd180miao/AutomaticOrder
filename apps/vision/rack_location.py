@@ -27,6 +27,7 @@ from apps.core.constants import (
 from apps.alarms.services import AlarmService
 from apps.devices.services import DeviceService, get_device_adapter
 from apps.dm_camera.models import DMCameraConfig
+from apps.dm_camera.sdk_wrapper import DMCameraConfigurationError
 
 from .algorithms import image_io
 from .models import RackLocationROI3D, RackLocationRecipe, RackLocationResult, VisionImage, VisionTask
@@ -610,6 +611,8 @@ class DMCameraRackFrameProvider:
                 else:
                     result['pointcloud'] = arr
             return result
+        except DMCameraConfigurationError:
+            raise
         except Exception as exc:  # noqa: BLE001 - hardware fallback is intentional
             frame = self.fallback_provider.capture(recipe, position_no, layer_no)
             frame['source'] = 'sample_fallback'
@@ -842,6 +845,8 @@ class Rack3DLocator:
                 if arr.ndim == 3 and arr.shape[2] == 3:
                     pointcloud = arr
                     source = frame.get('source', 'dm_camera')
+        except DMCameraConfigurationError:
+            raise
         except Exception as exc:  # noqa: BLE001
             fallback_reason = str(exc)
 
@@ -1281,7 +1286,9 @@ class RackLocationService:
                 if arr.ndim == 3 and arr.shape[2] == 3:
                     pointcloud = arr
                     source = frame.get('source', 'dm_camera')
-        except Exception as exc:  # noqa: BLE001 - 任何相机异常都回退到模拟点云
+        except DMCameraConfigurationError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - 任何非配置相机异常都回退到模拟点云
             pointcloud = None
             fallback_reason = str(exc)
 

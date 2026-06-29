@@ -208,6 +208,26 @@
         .capture-info-value {
             color: #333;
         }
+
+        .diagnostic-panel {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 5px;
+            margin-top: 15px;
+            padding: 12px;
+        }
+
+        .diagnostic-panel pre {
+            color: #374151;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            margin-top: 8px;
+            max-height: 260px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
         
         @media (max-width: 768px) {
             .main-content {
@@ -233,6 +253,8 @@
                 <div class="button-group">
                     <button id="btnFindDevices" class="btn btn-info">🔍 查找设备</button>
                     <button id="btnConnect" class="btn btn-success">🔌 连接设备</button>
+                    <button id="btnDiagnostics" class="btn btn-info">🧪 SDK诊断</button>
+                    <button id="btnRecoverConnect" class="btn btn-primary">♻️ 一键恢复连接</button>
                     <button id="btnDisconnect" class="btn btn-danger" disabled>🔌 断开设备</button>
                     <button id="btnStartStream" class="btn btn-primary" disabled>▶️ 开启数据流</button>
                     <button id="btnStopStream" class="btn btn-danger" disabled>⏸️ 停止数据流</button>
@@ -243,6 +265,11 @@
                     <button id="btnCaptureDepth" class="btn btn-primary" disabled>📸 捕获深度图</button>
                     <button id="btnCaptureIR" class="btn btn-primary" disabled>📸 捕获IR图</button>
                     <button id="btnBatchCapture" class="btn btn-info" disabled>🎬 批量采集(10帧)</button>
+                </div>
+
+                <div class="diagnostic-panel" id="diagnosticPanel">
+                    <strong>SDK诊断</strong>
+                    <pre id="diagnosticContent">点击“SDK诊断”查看DLL、连接状态、设备枚举和SDK错误建议。</pre>
                 </div>
                 
                 <div class="log-area" id="logArea"></div>
@@ -283,6 +310,8 @@
         // 状态
         let isConnected = false;
         let isStreaming = false;
+        let isBusy = false;
+        let selectedDeviceSn = null;
         
         // DOM元素
         const statusConnected = document.getElementById('statusConnected');
@@ -291,10 +320,14 @@
         const logArea = document.getElementById('logArea');
         const previewArea = document.getElementById('previewArea');
         const captureInfo = document.getElementById('captureInfo');
+        const diagnosticPanel = document.getElementById('diagnosticPanel');
+        const diagnosticContent = document.getElementById('diagnosticContent');
         
         // 按钮
         const btnFindDevices = document.getElementById('btnFindDevices');
         const btnConnect = document.getElementById('btnConnect');
+        const btnDiagnostics = document.getElementById('btnDiagnostics');
+        const btnRecoverConnect = document.getElementById('btnRecoverConnect');
         const btnDisconnect = document.getElementById('btnDisconnect');
         const btnStartStream = document.getElementById('btnStartStream');
         const btnStopStream = document.getElementById('btnStopStream');
@@ -334,7 +367,10 @@
                 const result = await response.json();
                 
                 if (!result.success) {
-                    throw new Error(result.error);
+                    const suggestion = result.error_detail?.suggestion;
+                    const error = new Error(suggestion ? `${result.error}；${suggestion}` : result.error);
+                    error.detail = result.error_detail || null;
+                    throw error;
                 }
                 
                 return result.data;
@@ -352,46 +388,171 @@
             statusStreaming.textContent = isStreaming ? '采集中' : '未采集';
             statusStreaming.className = isStreaming ? 'status-item status-streaming' : 'status-item status-idle';
             
-            btnConnect.disabled = isConnected;
-            btnDisconnect.disabled = !isConnected;
-            btnStartStream.disabled = !isConnected || isStreaming;
-            btnStopStream.disabled = !isStreaming;
-            btnCaptureDepth.disabled = !isStreaming;
-            btnCaptureIR.disabled = !isStreaming;
-            btnBatchCapture.disabled = !isStreaming;
+            btnFindDevices.disabled = isBusy;
+            btnDiagnostics.disabled = isBusy;
+            btnRecoverConnect.disabled = isBusy;
+            btnConnect.disabled = isBusy || isConnected;
+            btnDisconnect.disabled = isBusy || !isConnected;
+            btnStartStream.disabled = isBusy || !isConnected || isStreaming;
+            btnStopStream.disabled = isBusy || !isStreaming;
+            btnCaptureDepth.disabled = isBusy || !isStreaming;
+            btnCaptureIR.disabled = isBusy || !isStreaming;
+            btnBatchCapture.disabled = isBusy || !isStreaming;
         }
+
+        function setBusy(busy) {
+            isBusy = busy;
+            updateUI();
+        }
+
+        async function syncStatus() {
+            try {
+                const data = await apiRequest('/status/');
+                isConnected = !!data.connected;
+                isStreaming = !!data.streaming;
+                if (data.session) {
+                    selectedDeviceSn = data.session.device_sn || selectedDeviceSn;
+                    deviceInfo.textContent = `${data.session.device_sn} (${data.session.device_ip || '-'})`;
+                } else {
+                    deviceInfo.textContent = '设备信息';
+                }
+                updateUI();
+            } catch (error) {
+                log('读取相机状态失败', 'error');
+            }
+        }
+
+        function renderDiagnostics(data) {
+            const status = data.status || {};
+            const devices = data.devices || [];
+            const lines = [
+                `DLL: ${data.sdk?.dll_exists ? 'OK' : 'MISSING'}`,
+                `DLL路径: ${data.sdk?.dll_path || '-'}`,
+                `连接: ${status.connected ? '已连接' : '未连接'} / 数据流: ${status.streaming ? '运行中' : '未运行'}`,
+                `会话: ${status.session?.device_sn || '-'}`,
+                `发现设备: ${devices.length}`,
+            ];
+
+            devices.forEach((device, index) => {
+                lines.push(`  ${index + 1}. SN=${device.sn || '-'} IP=${device.ip || '-'} TYPE=${device.type || '-'}`);
+            });
+
+            if (data.device_error) {
+                lines.push('');
+                lines.push(`SDK错误: ${data.device_error.name || '-'} (${data.device_error.code ?? '-'})`);
+                lines.push(`消息: ${data.device_error.message || '-'}`);
+                lines.push(`建议: ${data.device_error.suggestion || '-'}`);
+            }
+
+            if (data.status_error) {
+                lines.push('');
+                lines.push(`状态错误: ${data.status_error}`);
+            }
+
+            diagnosticContent.textContent = lines.join('\n');
+        }
+
+        btnDiagnostics.onclick = async () => {
+            if (isBusy) return;
+            setBusy(true);
+            log('正在执行SDK诊断...', 'info');
+            try {
+                const data = await apiRequest('/diagnostics/');
+                renderDiagnostics(data);
+                log(`SDK诊断完成，发现 ${data.devices.length} 台设备`, 'success');
+                if (data.devices.length > 0) {
+                    selectedDeviceSn = selectedDeviceSn || data.devices[0].sn || null;
+                }
+                await syncStatus();
+            } catch (error) {
+                log(`SDK诊断失败：${error.message}`, 'error');
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        btnRecoverConnect.onclick = async () => {
+            if (isBusy) return;
+            setBusy(true);
+            log('正在恢复连接：断开旧会话、重新枚举、重新连接...', 'info');
+            try {
+                const data = await apiRequest('/recover/', 'POST', {
+                    device_sn: selectedDeviceSn,
+                    start_stream: false,
+                });
+                renderDiagnostics({
+                    sdk: {dll_exists: true, dll_path: '已由后端SDK加载'},
+                    status: data.status,
+                    devices: data.devices || [],
+                });
+                selectedDeviceSn = data.connection?.device_sn || selectedDeviceSn;
+                isConnected = !!data.status?.connected;
+                isStreaming = !!data.status?.streaming;
+                if (data.connection) {
+                    deviceInfo.textContent = `${data.connection.device_sn || '-'} (${data.connection.device_ip || '-'})`;
+                }
+                log('恢复连接成功，可以继续开启数据流或采集', 'success');
+                updateUI();
+            } catch (error) {
+                if (error.detail) {
+                    diagnosticContent.textContent = [
+                        `SDK错误: ${error.detail.name || '-'} (${error.detail.code ?? '-'})`,
+                        `消息: ${error.detail.message || '-'}`,
+                        `建议: ${error.detail.suggestion || '-'}`,
+                    ].join('\n');
+                }
+                log(`恢复连接失败：${error.message}`, 'error');
+            } finally {
+                setBusy(false);
+            }
+        };
         
         // 查找设备
         btnFindDevices.onclick = async () => {
+            if (isBusy) return;
+            setBusy(true);
             log('正在查找设备...', 'info');
             try {
                 const data = await apiRequest('/devices/find/');
                 const devices = data.devices;
                 log(`找到 ${devices.length} 个设备`, 'success');
+                selectedDeviceSn = devices[0]?.sn || null;
                 devices.forEach((device, index) => {
-                    log(`设备${index + 1}: ${device.sn} (${device.ip})`, 'info');
+                    log(`设备${index + 1}: ${device.sn} (${device.ip})${index === 0 ? '，已设为默认连接设备' : ''}`, 'info');
                 });
             } catch (error) {
                 log('查找设备失败', 'error');
+            } finally {
+                setBusy(false);
             }
         };
         
         // 连接设备
         btnConnect.onclick = async () => {
+            if (isBusy) return;
+            setBusy(true);
             log('正在连接设备...', 'info');
             try {
-                const data = await apiRequest('/connect/', 'POST');
+                const data = await apiRequest('/connect/', 'POST', {
+                    device_sn: selectedDeviceSn,
+                });
                 log(`连接成功: ${data.device_sn}`, 'success');
+                selectedDeviceSn = data.device_sn;
                 deviceInfo.textContent = `${data.device_type} (${data.device_ip})`;
                 isConnected = true;
+                isStreaming = false;
                 updateUI();
             } catch (error) {
-                log('连接失败', 'error');
+                log(`连接失败：${error.message}`, 'error');
+            } finally {
+                setBusy(false);
             }
         };
         
         // 断开设备
         btnDisconnect.onclick = async () => {
+            if (isBusy) return;
+            setBusy(true);
             log('正在断开设备...', 'info');
             try {
                 await apiRequest('/disconnect/', 'POST');
@@ -402,11 +563,15 @@
                 updateUI();
             } catch (error) {
                 log('断开失败', 'error');
+            } finally {
+                setBusy(false);
             }
         };
         
         // 开启数据流
         btnStartStream.onclick = async () => {
+            if (isBusy) return;
+            setBusy(true);
             log('正在开启数据流...', 'info');
             try {
                 await apiRequest('/stream/start/', 'POST');
@@ -415,11 +580,15 @@
                 updateUI();
             } catch (error) {
                 log('开启数据流失败', 'error');
+            } finally {
+                setBusy(false);
             }
         };
         
         // 停止数据流
         btnStopStream.onclick = async () => {
+            if (isBusy) return;
+            setBusy(true);
             log('正在停止数据流...', 'info');
             try {
                 await apiRequest('/stream/stop/', 'POST');
@@ -428,6 +597,8 @@
                 updateUI();
             } catch (error) {
                 log('停止数据流失败', 'error');
+            } finally {
+                setBusy(false);
             }
         };
         
@@ -455,6 +626,8 @@
         
         // 捕获深度图
         btnCaptureDepth.onclick = async () => {
+            if (isBusy) return;
+            setBusy(true);
             log('正在捕获深度图...', 'info');
             try {
                 const data = await apiRequest('/capture/', 'POST', {
@@ -465,11 +638,15 @@
                 showCapture(data);
             } catch (error) {
                 log('捕获深度图失败', 'error');
+            } finally {
+                setBusy(false);
             }
         };
         
         // 捕获IR图
         btnCaptureIR.onclick = async () => {
+            if (isBusy) return;
+            setBusy(true);
             log('正在捕获IR图...', 'info');
             try {
                 const data = await apiRequest('/capture/', 'POST', {
@@ -480,15 +657,18 @@
                 showCapture(data);
             } catch (error) {
                 log('捕获IR图失败', 'error');
+            } finally {
+                setBusy(false);
             }
         };
         
         // 批量采集
         btnBatchCapture.onclick = async () => {
+            if (isBusy) return;
             const count = 10;
             log(`开始批量采集 ${count} 帧...`, 'info');
             
-            btnBatchCapture.disabled = true;
+            setBusy(true);
             
             for (let i = 0; i < count; i++) {
                 try {
@@ -510,12 +690,13 @@
             }
             
             log(`批量采集完成`, 'success');
-            btnBatchCapture.disabled = false;
+            setBusy(false);
         };
         
         // 初始化
         log('DM 3D深度相机控制台已就绪', 'success');
         updateUI();
+        syncStatus();
     </script>
 </body>
 </html>

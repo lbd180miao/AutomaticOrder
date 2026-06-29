@@ -13,6 +13,8 @@ urlpatterns = [
     # 设备控制
     path('api/devices/find/', views.find_devices, name='find_devices'),
     path('api/connect/', views.connect_camera, name='connect'),
+    path('api/diagnostics/', views.diagnostics, name='diagnostics'),
+    path('api/recover/', views.recover_camera, name='recover'),
     path('api/disconnect/', views.disconnect_camera, name='disconnect'),
     path('api/stream/start/', views.start_stream, name='start_stream'),
     path('api/stream/stop/', views.stop_stream, name='stop_stream'),
