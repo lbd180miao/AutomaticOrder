@@ -826,6 +826,19 @@ def _serialize_3d_roi(roi):
     return payload
 
 
+@require_http_methods(['GET'])
+def api_vision_3d_recipe_current(request):
+    try:
+        recipe = Rack3DLocator().get_current_recipe(
+            locate_type=request.GET.get('locate_type') or 'LAYER',
+            layer_index=request.GET.get('layer_index') or request.GET.get('layer_no') or 1,
+            rack_type=request.GET.get('rack_type') or None,
+        )
+        return _api3d_success({'recipe': _serialize_3d_recipe(recipe) if recipe else None})
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
+
+
 def rack_location_workbench(request):
     return redirect('vision:rack_locator_panel')
 
@@ -1080,6 +1093,28 @@ def api_vision_3d_rois(request):
 
     try:
         data = _request_data(request)
+        if data.get('locate_type') or data.get('layer_index') is not None:
+            roi = Rack3DLocator().save_roi(
+                recipe_id=data.get('recipe_id'),
+                locate_type=data.get('locate_type') or 'LAYER',
+                layer_index=(
+                    data.get('layer_index')
+                    if data.get('layer_index') is not None
+                    else data.get('layer_no')
+                ),
+                alignment_token=data.get('alignment_token') or data.get('aligned_pointcloud_token'),
+                roi_name=data.get('roi_name') or data.get('name') or '3D ROI',
+                roi_3d={
+                    'x_min': data.get('x_min'),
+                    'x_max': data.get('x_max'),
+                    'y_min': data.get('y_min'),
+                    'y_max': data.get('y_max'),
+                    'z_min': data.get('z_min'),
+                    'z_max': data.get('z_max'),
+                },
+                enabled=_as_bool(data.get('enabled'), True),
+            )
+            return _api3d_success({'roi': _serialize_3d_roi(roi)})
         roi = RackLocationROI3D.objects.create(
             recipe_id=data.get('recipe_id'),
             roi_name=data.get('roi_name') or '3D ROI',
