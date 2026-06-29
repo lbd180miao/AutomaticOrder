@@ -36,6 +36,57 @@ def _decimal(value: Any, places: str = '0.001') -> Decimal:
     return Decimal(str(value or 0)).quantize(Decimal(places))
 
 
+LOCATE_TYPE_GLOBAL = 'GLOBAL'
+LOCATE_TYPE_LAYER = 'LAYER'
+
+
+def normalize_locate_type(value: Any = None) -> str:
+    locate_type = str(value or LOCATE_TYPE_LAYER).strip().upper()
+    if locate_type not in {LOCATE_TYPE_GLOBAL, LOCATE_TYPE_LAYER}:
+        raise ValueError('locate_type must be GLOBAL or LAYER')
+    return locate_type
+
+
+def normalize_layer_index(value: Any = None, locate_type: Any = None) -> int:
+    normalized_type = normalize_locate_type(locate_type)
+    if value in (None, ''):
+        layer_index = 0 if normalized_type == LOCATE_TYPE_GLOBAL else 1
+    else:
+        try:
+            layer_index = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError('layer_index must be an integer') from exc
+
+    if normalized_type == LOCATE_TYPE_GLOBAL and layer_index != 0:
+        raise ValueError('GLOBAL locate_type requires layer_index=0')
+    if normalized_type == LOCATE_TYPE_LAYER and layer_index not in {1, 2, 3}:
+        raise ValueError('LAYER locate_type requires layer_index 1, 2, or 3')
+    return layer_index
+
+
+def locate_semantics(*, locate_type: Any = None, layer_index: Any = None,
+                     layer_no: Any = None, mode: Any = None) -> dict:
+    if locate_type is None and mode:
+        locate_type = (
+            LOCATE_TYPE_GLOBAL
+            if str(mode).lower() == RackLocationROI3D.MODE_GLOBAL
+            else LOCATE_TYPE_LAYER
+        )
+    normalized_type = normalize_locate_type(locate_type)
+    index_value = layer_index if layer_index not in (None, '') else layer_no
+    normalized_index = normalize_layer_index(index_value, normalized_type)
+    return {
+        'locate_type': normalized_type,
+        'layer_index': normalized_index,
+        'roi_mode': (
+            RackLocationROI3D.MODE_GLOBAL
+            if normalized_type == LOCATE_TYPE_GLOBAL
+            else RackLocationROI3D.MODE_LOCAL
+        ),
+        'layer_no': normalized_index,
+    }
+
+
 def roi3d_to_dict(roi: RackLocationROI3D | dict) -> dict:
     if isinstance(roi, dict):
         return {

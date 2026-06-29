@@ -30,6 +30,43 @@ from apps.vision.recipe_utils import (
 from apps.vision.services import VisionService
 
 
+class Rack3DSemanticMappingTests(SimpleTestCase):
+    def test_normalize_locate_type_accepts_global_and_layer(self):
+        from apps.vision.rack_location import normalize_locate_type
+
+        self.assertEqual(normalize_locate_type('global'), 'GLOBAL')
+        self.assertEqual(normalize_locate_type('LAYER'), 'LAYER')
+
+    def test_normalize_locate_type_rejects_unknown_values(self):
+        from apps.vision.rack_location import normalize_locate_type
+
+        with self.assertRaisesMessage(ValueError, 'locate_type must be GLOBAL or LAYER'):
+            normalize_locate_type('SIDE')
+
+    def test_normalize_layer_index_enforces_global_zero_and_layers_one_to_three(self):
+        from apps.vision.rack_location import normalize_layer_index
+
+        self.assertEqual(normalize_layer_index(0, 'GLOBAL'), 0)
+        self.assertEqual(normalize_layer_index('3', 'LAYER'), 3)
+
+        with self.assertRaisesMessage(ValueError, 'GLOBAL locate_type requires layer_index=0'):
+            normalize_layer_index(1, 'GLOBAL')
+        with self.assertRaisesMessage(ValueError, 'LAYER locate_type requires layer_index 1, 2, or 3'):
+            normalize_layer_index(0, 'LAYER')
+
+    def test_locate_semantics_map_to_existing_roi_fields(self):
+        from apps.vision.rack_location import locate_semantics
+
+        self.assertEqual(
+            locate_semantics(locate_type='GLOBAL', layer_index=0),
+            {'locate_type': 'GLOBAL', 'layer_index': 0, 'roi_mode': 'global', 'layer_no': 0},
+        )
+        self.assertEqual(
+            locate_semantics(locate_type='LAYER', layer_index=2),
+            {'locate_type': 'LAYER', 'layer_index': 2, 'roi_mode': 'local', 'layer_no': 2},
+        )
+
+
 class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
     def _template_source(self):
         template_path = Path(settings.BASE_DIR) / 'templates' / 'vision' / 'foam_inspector_interactive.html'
