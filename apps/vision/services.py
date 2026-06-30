@@ -343,6 +343,8 @@ class VisionService:
                 is_passed=data['is_passed'],
                 offset_x_px=data.get('offset_x_px', 0),
                 offset_y_px=data.get('offset_y_px', 0),
+                offset_x_mm=data.get('offset_x_mm', 0),
+                offset_y_mm=data.get('offset_y_mm', 0),
                 coverage_ratio=data.get('coverage_ratio', 0),
                 defect_type=data.get('defect_type', 'NONE'),
                 result_data=data.get('result_data', {}),

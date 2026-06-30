@@ -242,6 +242,8 @@ def annotate_foam(img, roi, foam, result):
     # 左下角：详细状态行
     ox = result.get('offset_x_px', 0)
     oy = result.get('offset_y_px', 0)
+    ox_mm = result.get('offset_x_mm', 0)
+    oy_mm = result.get('offset_y_mm', 0)
     cov = result.get('coverage_ratio', 0)
     _put_label(
         out,
@@ -250,9 +252,13 @@ def annotate_foam(img, roi, foam, result):
         f"起翘:{'NG' if result.get('has_lifted_edge') else 'OK'}",
         (12, h - 32), COLOR_TEXT, scale=0.45,
     )
+    offset_str = f'偏移 X={ox:+.0f}px Y={oy:+.0f}px'
+    if ox_mm or oy_mm:
+        offset_str += f' ({ox_mm:+.2f}mm {oy_mm:+.2f}mm)'
+    offset_str += f'  覆盖率={cov:.1%}'
     _put_label(
         out,
-        f'偏移 X={ox:+.0f}px Y={oy:+.0f}px  覆盖率={cov:.1%}',
+        offset_str,
         (12, h - 14), COLOR_TEXT, scale=0.45,
     )
     return out

@@ -117,8 +117,8 @@
     </thead>
     <tbody>
       <tr>
-        <td>{{ foam_result.offset_x_px }} px</td>
-        <td>{{ foam_result.offset_y_px }} px</td>
+        <td>{{ foam_result.offset_x_px }} px{% if foam_result.offset_x_mm %} ({{ foam_result.offset_x_mm }} mm){% endif %}</td>
+        <td>{{ foam_result.offset_y_px }} px{% if foam_result.offset_y_mm %} ({{ foam_result.offset_y_mm }} mm){% endif %}</td>
         <td>{{ foam_result.coverage_ratio|floatformat:4 }}</td>
       </tr>
     </tbody>
