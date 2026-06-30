@@ -515,15 +515,33 @@ def _detect_foam_side(image, roi, cfg):
     mask = prepare_mask(cv2.bitwise_or(strict_mask, foam_candidate_mask))
 
     best_for_coverage = find_best(mask)
+
+    # 标准面积比模式：以标定面积为基准衡量覆盖率
+    # standard_foam_area_ratio = 泡棉标准面积 / ROI面积（标定阶段记录）
+    # coverage = detected_area / standard_area → 1.0 完美匹配
+    standard_ratio = float(cfg.get('standard_foam_area_ratio', 0) or 0)
+    using_standard_area = standard_ratio > 0
+
     if best_for_coverage:
         _, _, bw, bh, area = best_for_coverage
         envelope_coverage = round((bw * bh) / roi_area, 4)
         contour_coverage = round(area / roi_area, 4)
-        pixel_coverage = max(white_pixel_coverage, contour_coverage)
+
+        if using_standard_area:
+            standard_area = standard_ratio * roi_area
+            white_area_cov = round(white_pixel_count / max(standard_area, 1), 4)
+            contour_area_cov = round(area / max(standard_area, 1), 4)
+            pixel_coverage = max(white_area_cov, contour_area_cov)
+        else:
+            pixel_coverage = max(white_pixel_coverage, contour_coverage)
     else:
         envelope_coverage = 0.0
         contour_coverage = 0.0
-        pixel_coverage = white_pixel_coverage
+        if using_standard_area:
+            standard_area = standard_ratio * roi_area
+            pixel_coverage = round(white_pixel_count / max(standard_area, 1), 4)
+        else:
+            pixel_coverage = white_pixel_coverage
 
     # 核心判定：覆盖率必须达到阈值才认为有泡棉
     if pixel_coverage < coverage_threshold:
@@ -634,7 +652,8 @@ def _detect_foam_side(image, roi, cfg):
         'white_pixel_coverage': white_pixel_coverage,
         'envelope_coverage': envelope_coverage,
         'contour_coverage': contour_coverage,
-        'coverage_source': 'foam_region_envelope',
+        'coverage_source': 'standard_area_ratio' if using_standard_area else 'foam_region_envelope',
+        'standard_foam_area_ratio': standard_ratio if using_standard_area else 0.0,
         'offset_x_px': offset_x,
         'offset_y_px': offset_y,
         'offset_x_mm': _mm_x,
