@@ -1,4 +1,5 @@
 import json
+from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory, mkdtemp
 from unittest.mock import patch
@@ -8,17 +9,20 @@ import numpy as np
 from django.conf import settings
 from django.apps import apps
 from django.core.exceptions import ValidationError
+from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.utils import timezone
 from django.urls import NoReverseMatch, reverse
 
-from apps.core.constants import ResultStatus, VisionTaskType
+from apps.core.constants import ResultStatus, VisionImageType, VisionTaskType
 from apps.production.models import Product, Rack, RackRecipe
 from apps.vision.algorithms.foam_inspector import FoamDefectType, FoamInspector
 from apps.vision.models import (
     CalibrationProfile,
     FoamInspectionResult,
     RackLocationResult,
+    VisionImage,
     VisionRecipe,
     VisionTask,
 )
@@ -1512,6 +1516,67 @@ class FoamRoiCaptureViewTests(TestCase):
         self.assertRedirects(response, reverse('vision:task_list'))
         self.assertFalse(VisionTask.objects.filter(pk=task.pk).exists())
         self.assertEqual(FoamInspectionResult.objects.count(), 0)
+
+    def create_task_with_related_records(self, *, created_at, position_index):
+        task = VisionTask.objects.create(
+            task_type=VisionTaskType.FOAM_INSPECTION,
+            status=ResultStatus.SUCCESS,
+        )
+        VisionTask.objects.filter(pk=task.pk).update(created_at=created_at)
+        FoamInspectionResult.objects.create(
+            vision_task=task,
+            position_index=position_index,
+            is_present=True,
+            is_aligned=True,
+            has_lifted_edge=False,
+            score=0.96,
+            is_passed=True,
+        )
+        VisionImage.objects.create(
+            vision_task=task,
+            image_type=VisionImageType.RESULT,
+            file=f'vision/result-{position_index}.jpg',
+            width=100,
+            height=80,
+        )
+        return task
+
+    def test_clean_vision_records_dry_run_reports_cleanup_without_deleting_records(self):
+        base_time = timezone.now()
+        self.create_task_with_related_records(
+            created_at=base_time - timezone.timedelta(minutes=2),
+            position_index=1,
+        )
+        self.create_task_with_related_records(
+            created_at=base_time,
+            position_index=2,
+        )
+
+        output = StringIO()
+        call_command('clean_vision_records', '--dry-run', '--keep=1', stdout=output)
+
+        self.assertEqual(VisionTask.objects.count(), 2)
+        self.assertEqual(FoamInspectionResult.objects.count(), 2)
+        self.assertEqual(VisionImage.objects.count(), 2)
+        self.assertIn('VisionTask', output.getvalue())
+
+    def test_clean_vision_records_deletes_old_tasks_and_cascaded_records(self):
+        base_time = timezone.now()
+        old_task = self.create_task_with_related_records(
+            created_at=base_time - timezone.timedelta(minutes=2),
+            position_index=1,
+        )
+        latest_task = self.create_task_with_related_records(
+            created_at=base_time,
+            position_index=2,
+        )
+
+        call_command('clean_vision_records', '--keep=1', stdout=StringIO())
+
+        self.assertFalse(VisionTask.objects.filter(pk=old_task.pk).exists())
+        self.assertTrue(VisionTask.objects.filter(pk=latest_task.pk).exists())
+        self.assertEqual(FoamInspectionResult.objects.count(), 1)
+        self.assertEqual(VisionImage.objects.count(), 1)
 
     def test_foam_interactive_page_exposes_roi_calibration_controls(self):
         response = self.client.get(reverse('vision:foam_inspector_interactive'))

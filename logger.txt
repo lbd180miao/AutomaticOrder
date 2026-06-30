@@ -411,3 +411,6 @@
 2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetSpatialFilterParams 3638 <2512ABDM60008>, Value: [0, 5]
 2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::SetDataReceiveType 2950 <2512ABDM60008>, Type: 7
 2026-06-29 14:23:14 INFO LWDMApi.cpp ljhNS::DeviceHandle::StartStream 2883 <2512ABDM60008>
+2026-06-30 11:58:56 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-06-30 11:58:56 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-06-30 11:58:59 INFO LWDMApi.cpp LWCleanupResources 5743 
