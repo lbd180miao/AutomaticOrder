@@ -24,6 +24,20 @@ from django.db import models
 from . import image_io
 
 
+def _offsets_mm(offset_x_px, offset_y_px, cfg):
+    """Convert pixel offsets to millimetres using calibration factors.
+
+    Returns (offset_x_mm, offset_y_mm). Both are 0.0 when the camera has not
+    been calibrated (mm_per_pixel_x/y == 0).
+    """
+    mm_px = float(cfg.get('mm_per_pixel_x', 0) or 0)
+    mm_py = float(cfg.get('mm_per_pixel_y', 0) or 0)
+    return (
+        round(float(offset_x_px) * mm_px, 3) if mm_px > 0 else 0.0,
+        round(float(offset_y_px) * mm_py, 3) if mm_py > 0 else 0.0,
+    )
+
+
 def _resolve_side_roi_config(cfg, position_index):
     """从配置中解析当前位置的左右ROI比例配置。
     
@@ -535,6 +549,8 @@ def _detect_foam_side(image, roi, cfg):
             'score': round(pixel_coverage / max(coverage_threshold, 0.01), 3),
             'reason': 'coverage_below_threshold',
             'coverage_threshold': coverage_threshold,
+            'offset_x_mm': _offsets_mm(0.0, 0.0, cfg)[0],
+            'offset_y_mm': _offsets_mm(0.0, 0.0, cfg)[1],
         }
 
     best = find_best(mask)
@@ -569,6 +585,8 @@ def _detect_foam_side(image, roi, cfg):
                 'score': 0.0,
                 'reason': 'low_light_coverage_below_threshold',
                 'coverage_threshold': coverage_threshold,
+                'offset_x_mm': _offsets_mm(0.0, 0.0, cfg)[0],
+                'offset_y_mm': _offsets_mm(0.0, 0.0, cfg)[1],
             }
         best = find_best(mask)
 
@@ -581,17 +599,28 @@ def _detect_foam_side(image, roi, cfg):
             'coverage_ratio': pixel_coverage,
             'offset_x_px': 0.0,
             'offset_y_px': 0.0,
+            'offset_x_mm': 0.0,
+            'offset_y_mm': 0.0,
             'score': 0.0,
         }
 
     bx, by, bw, bh, area = best
     box = (x1 + bx, y1 + by, x1 + bx + bw, y1 + by + bh)
+
+    # Centroid via image moments for sub-bbox accuracy on irregular foam
+    _moments = cv2.moments(mask)
+    if _moments['m00'] > 0:
+        foam_cx = x1 + round(_moments['m10'] / _moments['m00'], 1)
+        foam_cy = y1 + round(_moments['m01'] / _moments['m00'], 1)
+    else:
+        foam_cx = (box[0] + box[2]) / 2
+        foam_cy = (box[1] + box[3]) / 2
+
     roi_cx = (x1 + x2) / 2
     roi_cy = (y1 + y2) / 2
-    foam_cx = (box[0] + box[2]) / 2
-    foam_cy = (box[1] + box[3]) / 2
     offset_x = round(foam_cx - roi_cx, 1)
     offset_y = round(foam_cy - roi_cy, 1)
+    _mm_x, _mm_y = _offsets_mm(offset_x, offset_y, cfg)
     # 使用像素级覆盖率（白色像素数 / ROI 总面积），而非轮廓边界框面积比
     coverage_ratio = pixel_coverage
     is_aligned = True
@@ -608,6 +637,8 @@ def _detect_foam_side(image, roi, cfg):
         'coverage_source': 'foam_region_envelope',
         'offset_x_px': offset_x,
         'offset_y_px': offset_y,
+        'offset_x_mm': _mm_x,
+        'offset_y_mm': _mm_y,
         'score': score,
     }
 
@@ -661,6 +692,8 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
     coverage = [data['coverage_ratio'] for data in sides.values()]
     offsets_x = [data['offset_x_px'] for data in sides.values()]
     offsets_y = [data['offset_y_px'] for data in sides.values()]
+    offsets_x_mm = [data.get('offset_x_mm', 0.0) for data in sides.values()]
+    offsets_y_mm = [data.get('offset_y_mm', 0.0) for data in sides.values()]
     result = {
         'is_present': not missing,
         'is_aligned': not missing,
@@ -669,6 +702,8 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
         'score': round(min(scores) if scores else 0.0, 3),
         'offset_x_px': round(max(offsets_x, key=abs) if offsets_x else 0.0, 1),
         'offset_y_px': round(max(offsets_y, key=abs) if offsets_y else 0.0, 1),
+        'offset_x_mm': round(max(offsets_x_mm, key=abs) if offsets_x_mm else 0.0, 3),
+        'offset_y_mm': round(max(offsets_y_mm, key=abs) if offsets_y_mm else 0.0, 3),
         'coverage_ratio': round(min(coverage) if coverage else 0.0, 4),
         'is_passed': is_passed,
     }
@@ -853,15 +888,18 @@ class FoamInspector:
             inter_area = max(0, inter_x2 - inter_x1) * max(0, inter_y2 - inter_y1)
             coverage_ratio = round(inter_area / roi_area, 4)
 
-        # 计算偏移量（像素）
+        # 计算偏移量（像素 + 毫米）
         offset_x_px = round(foam_cx - roi_cx, 1)
         offset_y_px = round(foam_cy - roi_cy, 1)
+        offset_x_mm, offset_y_mm = _offsets_mm(offset_x_px, offset_y_px, cfg)
 
         # 判定结果
         result = _build_result(
             defect_type=defect_type,
             offset_x_px=offset_x_px,
             offset_y_px=offset_y_px,
+            offset_x_mm=offset_x_mm,
+            offset_y_mm=offset_y_mm,
             coverage_ratio=coverage_ratio,
             score_threshold=score_threshold,
             coverage_threshold=coverage_threshold,
@@ -896,6 +934,8 @@ class FoamInspector:
                 'foam_box': foam,
                 'offset_x_px': offset_x_px,
                 'offset_y_px': offset_y_px,
+                'offset_x_mm': offset_x_mm,
+                'offset_y_mm': offset_y_mm,
                 'coverage_ratio': coverage_ratio,
                 'score_threshold': score_threshold,
                 'coverage_threshold': coverage_threshold,
@@ -909,7 +949,8 @@ class FoamInspector:
         return result
 
 
-def _build_result(*, defect_type, offset_x_px, offset_y_px, coverage_ratio,
+def _build_result(*, defect_type, offset_x_px, offset_y_px, offset_x_mm=0.0,
+                  offset_y_mm=0.0, coverage_ratio,
                   score_threshold, coverage_threshold, max_offset_px):
     """根据缺陷类型和量化指标构建判定结果。
     
@@ -927,6 +968,8 @@ def _build_result(*, defect_type, offset_x_px, offset_y_px, coverage_ratio,
             'score': 0.0,
             'offset_x_px': 0.0,
             'offset_y_px': 0.0,
+            'offset_x_mm': 0.0,
+            'offset_y_mm': 0.0,
             'coverage_ratio': 0.0,
             'is_passed': False,
         }
@@ -940,6 +983,8 @@ def _build_result(*, defect_type, offset_x_px, offset_y_px, coverage_ratio,
         'score': 0.96,
         'offset_x_px': offset_x_px,
         'offset_y_px': offset_y_px,
+        'offset_x_mm': offset_x_mm,
+        'offset_y_mm': offset_y_mm,
         'coverage_ratio': coverage_ratio,
         'is_passed': True,
     }

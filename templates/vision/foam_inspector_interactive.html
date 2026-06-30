@@ -1007,8 +1007,8 @@ function renderResult(r) {
   document.getElementById('d-recipe').textContent = r.recipe?.name || currentDetectionRecipe()?.name || '默认配置';
   document.getElementById('d-score').textContent = Number(r.score).toFixed(3);
   document.getElementById('d-cov').textContent   = (Number(r.coverage_ratio) * 100).toFixed(1) + '%';
-  document.getElementById('d-ox').textContent    = (r.offset_x_px > 0 ? '+' : '') + Number(r.offset_x_px).toFixed(1) + ' px';
-  document.getElementById('d-oy').textContent    = (r.offset_y_px > 0 ? '+' : '') + Number(r.offset_y_px).toFixed(1) + ' px';
+  document.getElementById('d-ox').textContent    = (r.offset_x_px > 0 ? '+' : '') + Number(r.offset_x_px).toFixed(1) + ' px' + (r.offset_x_mm ? ' (' + (r.offset_x_mm > 0 ? '+' : '') + Number(r.offset_x_mm).toFixed(2) + ' mm)' : '');
+  document.getElementById('d-oy').textContent    = (r.offset_y_px > 0 ? '+' : '') + Number(r.offset_y_px).toFixed(1) + ' px' + (r.offset_y_mm ? ' (' + (r.offset_y_mm > 0 ? '+' : '') + Number(r.offset_y_mm).toFixed(2) + ' mm)' : '');
   document.getElementById('detail-row').style.display = 'flex';
   if (!r.is_passed && r.defect_type) {
     document.getElementById('d-defect').textContent = formatDefect(r.defect_type);

@@ -8,6 +8,11 @@ DEFAULT_THRESHOLD_CONFIG = {
     'maxOffsetX': 30,
     'maxOffsetY': 30,
     'minScore': 0.8,
+    # mm_per_pixel 标定系数（0 表示未标定，不输出 mm 偏移）
+    'mmPerPixelX': 0,
+    'mmPerPixelY': 0,
+    # 标准泡棉面积占 ROI 面积的比例（0 表示不启用 mask 面积比）
+    'standardFoamAreaRatio': 0,
 }
 
 DEFAULT_FOAM_2D_RECIPES = [
@@ -123,6 +128,17 @@ def build_foam_inspection_config(recipe):
     max_offset = thresholds.get('max_offset_px')
     max_offset_x = int(_threshold_value(thresholds, ('max_offset_x', 'maxOffsetX'), 30))
     max_offset_y = int(_threshold_value(thresholds, ('max_offset_y', 'maxOffsetY'), 30))
+    # mm_per_pixel 标定系数（0 表示未标定，跳过 mm 换算）
+    mm_per_pixel_x = float(
+        _threshold_value(thresholds, ('mm_per_pixel_x', 'mmPerPixelX'), 0)
+    )
+    mm_per_pixel_y = float(
+        _threshold_value(thresholds, ('mm_per_pixel_y', 'mmPerPixelY'), 0)
+    )
+    # 标准泡棉面积比（0 表示不启用）
+    standard_foam_area_ratio = float(
+        _threshold_value(thresholds, ('standard_foam_area_ratio', 'standardFoamAreaRatio'), 0)
+    )
     return {
         'foam_rois': {
             str(recipe.pos): {
@@ -137,4 +153,7 @@ def build_foam_inspection_config(recipe):
             _threshold_value(thresholds, ('score_threshold', 'minScore'), 0.8)
         ),
         'max_offset_px': int(max_offset) if max_offset is not None else max(max_offset_x, max_offset_y),
+        'mm_per_pixel_x': mm_per_pixel_x,
+        'mm_per_pixel_y': mm_per_pixel_y,
+        'standard_foam_area_ratio': standard_foam_area_ratio,
     }
