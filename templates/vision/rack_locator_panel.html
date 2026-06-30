@@ -268,22 +268,33 @@
     <!-- 手动覆盖 POS / 层号 -->
     <div class="rl-manual-bar">
       <span class="ctrl-label">🔢 手动调整：</span>
+      <span class="ctrl-label" style="color:var(--text);">定位类型</span>
+      <select id="locate-type" aria-label="定位类型">
+        <option value="GLOBAL">整体定位</option>
+        <option value="LAYER" selected>层定位</option>
+      </select>
+      <span class="ctrl-label" style="color:var(--text);">layer_index</span>
+      <select id="layer-index" aria-label="定位层号">
+        <option value="0">0 · 整体</option>
+        <option value="1" selected>1 · 第1层</option>
+        <option value="2">2 · 第2层</option>
+        <option value="3">3 · 第3层</option>
+      </select>
       <span class="ctrl-label" style="color:var(--text);">POS</span>
       <input id="position-no" type="number" min="1" value="{{ latest.position_no|default:1 }}">
-      <span class="ctrl-label" style="color:var(--text);">层号</span>
-      <input id="layer-no" type="number" min="1" value="{{ latest.layer_no|default:1 }}">
-      <select id="layer-no-select" aria-label="层号选择">
-        <option value="1" {% if latest.layer_no|default:1 == 1 %}selected{% endif %}>1 层</option>
-        <option value="2" {% if latest.layer_no == 2 %}selected{% endif %}>2 层</option>
-        <option value="3" {% if latest.layer_no == 3 %}selected{% endif %}>3 层</option>
-      </select>
       <span class="ctrl-label" style="color:var(--text);">料架</span>
       <select id="rack-side" aria-label="料架侧">
         <option value="LEFT">左料架</option>
         <option value="RIGHT">右料架</option>
       </select>
-      <span class="ctrl-label" style="color:var(--text);">模式</span>
-      <select id="locate-mode" aria-label="定位模式">
+      <!-- 保留旧控件用于兼容 -->
+      <input id="layer-no" type="number" min="1" value="{{ latest.layer_no|default:1 }}" style="display:none;">
+      <select id="layer-no-select" aria-label="层号选择" style="display:none;">
+        <option value="1" {% if latest.layer_no|default:1 == 1 %}selected{% endif %}>1 层</option>
+        <option value="2" {% if latest.layer_no == 2 %}selected{% endif %}>2 层</option>
+        <option value="3" {% if latest.layer_no == 3 %}selected{% endif %}>3 层</option>
+      </select>
+      <select id="locate-mode" aria-label="定位模式" style="display:none;">
         <option value="local">局部定位</option>
         <option value="global">全局定位</option>
       </select>
