@@ -77,11 +77,44 @@
   }
 
   function currentLocateType() {
+    const typeControl = $('locate-type');
+    if (typeControl) {
+      return typeControl.value || 'LAYER';
+    }
     return String(currentMode()).toLowerCase() === 'global' ? 'GLOBAL' : 'LAYER';
   }
 
   function currentLayerIndex() {
+    const indexControl = $('layer-index');
+    if (indexControl) {
+      return Number(indexControl.value) || 1;
+    }
     return currentLocateType() === 'GLOBAL' ? 0 : currentLayerNo();
+  }
+
+  // 同步新旧控件
+  function syncControls() {
+    const locateType = currentLocateType();
+    const layerIndex = currentLayerIndex();
+    
+    // 同步到旧控件
+    if ($('locate-mode')) {
+      $('locate-mode').value = locateType === 'GLOBAL' ? 'global' : 'local';
+    }
+    if ($('layer-no')) {
+      $('layer-no').value = layerIndex;
+    }
+    if ($('layer-no-select')) {
+      $('layer-no-select').value = layerIndex;
+    }
+    
+    // 同步到新控件
+    if ($('locate-type')) {
+      $('locate-type').value = locateType;
+    }
+    if ($('layer-index')) {
+      $('layer-index').value = layerIndex;
+    }
   }
 
   function semanticPayload(extra) {
@@ -516,8 +549,11 @@
   $('btn-refresh-history').addEventListener('click', loadHistory);
   window.addEventListener('resize', resizeCanvas);
   image.addEventListener('load', resizeCanvas);
-  ['locate-mode', 'layer-no-select', 'layer-no'].forEach((id) => {
+  
+  // 监听新旧控件变化并同步
+  ['locate-mode', 'layer-no-select', 'layer-no', 'locate-type', 'layer-index'].forEach((id) => {
     $(id)?.addEventListener('change', async () => {
+      syncControls();
       state.alignmentToken = null;
       state.lastResultId = null;
       state.lastResultOk = false;
@@ -528,11 +564,13 @@
   });
 
   document.addEventListener('DOMContentLoaded', async () => {
+    syncControls();
     refreshActionState();
     await refreshCurrentRecipe();
     loadHistory();
   });
   if (document.readyState !== 'loading') {
+    syncControls();
     refreshActionState();
     refreshCurrentRecipe().finally(loadHistory);
   }
