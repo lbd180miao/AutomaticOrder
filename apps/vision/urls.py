@@ -72,6 +72,9 @@ urlpatterns = [
     # API — 料架定位（新增）
     path('api/rack/locate/', views.api_rack_locate, name='api_rack_locate'),
     path('api/rack/results/', views.api_rack_results, name='api_rack_results'),
+    path('api/rack/offline-test/', views.api_rack_locator_offline_test, name='api_rack_locator_offline_test'),
+    path('api/rack/import-npy/', views.api_rack_locator_import_npy, name='api_rack_locator_import_npy'),
+    path('api/rack/load-latest/', views.api_rack_locator_load_latest, name='api_rack_locator_load_latest'),
     path('api/vision/3d/recipes/', views.api_vision_3d_recipes, name='api_vision_3d_recipes'),
     path('api/vision/3d/recipes/current/', views.api_vision_3d_recipe_current, name='api_vision_3d_recipe_current'),
     path('api/vision/3d/recipes/<int:recipe_id>/', views.api_vision_3d_recipe_detail, name='api_vision_3d_recipe_detail'),

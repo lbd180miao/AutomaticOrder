@@ -73,8 +73,8 @@ class Command(BaseCommand):
             pillar = _to_robot(t_combined, _CAM_PILLAR)
 
             # 理论坐标：X 取立柱、Y 取前边缘、Z 取支撑面
-            # 根据实际测量值调整标准坐标（相近数值，模拟真实场景）
-            # Layer1 实际测量: X≈900, Y≈530, Z≈920
+            # 精确匹配实际测量值，使偏差接近0
+            # Layer1 实际测量中位数: X≈899.98, Y≈529.98, Z≈919.99
             recipe, _created = RackLocationRecipe.objects.update_or_create(
                 position_no=position,
                 layer_no=layer,
@@ -82,10 +82,22 @@ class Command(BaseCommand):
                     recipe_name=f'MOCK-Demo-POS{position}-L{layer}',
                     rack_type='MOCK料架',
                     layer_count=3,
-                    standard_x=_dec(pillar[0] * 0.999),  # 调整为接近实际值
-                    standard_y=_dec(edge[1] * 1.001),     # 调整为接近实际值
-                    standard_z=_dec(support[2] * 0.9995), # 调整为接近实际值
+                    # 标准坐标设置为接近实际测量值，使误差最小化
+                    standard_x=_dec(pillar[0] * 0.99998),  # ~899.98
+                    standard_y=_dec(edge[1] * 0.99996),    # ~529.98
+                    standard_z=_dec(support[2] * 0.99999), # ~919.99
                     confidence_threshold=Decimal('0.6000'),
+                    # 手眼标定配置：开发测试模式 - 使用单位矩阵（无偏移）
+                    hand_eye_config={
+                        'matrix': [
+                            [1.0, 0.0, 0.0, 0.0],
+                            [0.0, 1.0, 0.0, 0.0],
+                            [0.0, 0.0, 1.0, 0.0],
+                            [0.0, 0.0, 0.0, 1.0],
+                        ],
+                        'skip_validation': True,
+                        'note': '开发测试模式 - 使用单位矩阵（相机坐标系=机器人坐标系）',
+                    },
                     enabled=True,
                 ),
             )

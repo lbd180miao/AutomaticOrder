@@ -273,12 +273,13 @@
         <div class="recipe-info-title" id="recipe-card-name">{{ recipes.0.recipe_name }}</div>
         <span class="recipe-badge" id="recipe-badge">POS{{ recipes.0.position_no }} · L{{ recipes.0.layer_no }}</span>
       </div>
-      <div class="recipe-info-body">
+    <div class="recipe-info-body">
         <div class="recipe-info-row"><strong>标准 X:</strong> <span id="recipe-card-sx">{{ recipes.0.standard_x }}</span> mm</div>
         <div class="recipe-info-row"><strong>标准 Y:</strong> <span id="recipe-card-sy">{{ recipes.0.standard_y }}</span> mm</div>
         <div class="recipe-info-row"><strong>标准 Z:</strong> <span id="recipe-card-sz">{{ recipes.0.standard_z }}</span> mm</div>
         <div class="recipe-info-row"><strong>料架侧:</strong> <span id="recipe-card-side">{{ recipes.0.rack_side }}</span></div>
       </div>
+      <div style="padding: 6px 0 0; font-size: 11px; color: #1e40af; opacity: 0.75;">📐 以上坐标为机器人基坐标系（mm），画 ROI 时相机坐标自动转换为机器人坐标</div>
     </div>
     {% else %}
     <div class="rl-no-recipe-bar">暂无已启用的 3D 配方，请先<a href="{% url 'vision:rack_location_recipes' %}">前往配方管理</a>新增配方。</div>
@@ -312,7 +313,7 @@
     <div class="rl-panel">
       <div class="rl-panel-head">
         <h2>3D 点云 · 拖拽绘制 ROI</h2>
-        <span class="badge badge-muted">深度伪彩</span>
+        <span class="badge badge-muted" style="font-size:11px;">相机坐标→机器人坐标</span>
       </div>
       <div class="rl-panel-body">
         <div class="rl-image-stage" id="rl-stage">
@@ -326,6 +327,7 @@
         </div>
         <div class="rl-actions">
           <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
+          <button id="btn-import" class="btn" style="background:var(--warn);">📂 导入数据</button>
           <button id="btn-redraw" class="btn btn-secondary" disabled>重画 ROI</button>
           <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" disabled>🎯 计算偏差</button>
         </div>
@@ -338,6 +340,7 @@
     <div class="rl-panel">
       <div class="rl-panel-head">
         <h2>计算结果 · 坐标偏差</h2>
+        <span class="badge badge-muted" style="font-size:11px;">机器人坐标 mm</span>
       </div>
       <div class="rl-panel-body">
         <div class="rl-verdict idle" id="rl-verdict">
@@ -355,6 +358,43 @@
           <div class="rl-offset-cell" id="cell-rz"><div class="rl-offset-axis">Rz</div><div class="rl-offset-val" id="off-rz">—</div><div class="rl-offset-unit">deg</div></div>
         </div>
 
+        <!-- 标准值 vs 实测值对比 -->
+        <div id="rl-compare-table" style="display:none; margin-bottom:12px; border-radius:6px; overflow:hidden; border:1px solid var(--border); font-size:12px;">
+          <div style="background:var(--surface-2); padding:6px 12px; font-weight:700; color:#374151; display:flex; align-items:center; gap:6px;">
+            📊 机器人坐标对比 <span style="font-weight:400;color:var(--text-muted);">（单位：mm，机器人基坐标系）</span>
+          </div>
+          <table style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="background:#f3f4f6;">
+                <th style="padding:5px 10px; text-align:left; color:#6b7280; font-weight:600;">轴</th>
+                <th style="padding:5px 10px; text-align:right; color:#1e40af; font-weight:600;">配方标准值</th>
+                <th style="padding:5px 10px; text-align:right; color:#059669; font-weight:600;">实测值</th>
+                <th style="padding:5px 10px; text-align:right; color:#d97706; font-weight:600;">偏差</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-top:1px solid var(--border);">
+                <td style="padding:5px 10px; font-weight:700;">X</td>
+                <td style="padding:5px 10px; text-align:right; font-variant-numeric:tabular-nums;" id="cmp-std-x">—</td>
+                <td style="padding:5px 10px; text-align:right; font-variant-numeric:tabular-nums;" id="cmp-act-x">—</td>
+                <td style="padding:5px 10px; text-align:right; font-variant-numeric:tabular-nums; font-weight:700;" id="cmp-off-x">—</td>
+              </tr>
+              <tr style="border-top:1px solid var(--border);">
+                <td style="padding:5px 10px; font-weight:700;">Y</td>
+                <td style="padding:5px 10px; text-align:right; font-variant-numeric:tabular-nums;" id="cmp-std-y">—</td>
+                <td style="padding:5px 10px; text-align:right; font-variant-numeric:tabular-nums;" id="cmp-act-y">—</td>
+                <td style="padding:5px 10px; text-align:right; font-variant-numeric:tabular-nums; font-weight:700;" id="cmp-off-y">—</td>
+              </tr>
+              <tr style="border-top:1px solid var(--border);">
+                <td style="padding:5px 10px; font-weight:700;">Z</td>
+                <td style="padding:5px 10px; text-align:right; font-variant-numeric:tabular-nums;" id="cmp-std-z">—</td>
+                <td style="padding:5px 10px; text-align:right; font-variant-numeric:tabular-nums;" id="cmp-act-z">—</td>
+                <td style="padding:5px 10px; text-align:right; font-variant-numeric:tabular-nums; font-weight:700;" id="cmp-off-z">—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
         <div class="rl-conf-row">
           <span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">置信度</span>
           <div class="rl-conf-track"><div class="rl-conf-fill" id="conf-bar"></div></div>
@@ -367,9 +407,9 @@
         </div>
 
         <div class="rl-detail-row" id="rl-detail" style="display:none;">
-          <div class="rl-chip">实测 X <strong id="d-ax">—</strong></div>
-          <div class="rl-chip">实测 Y <strong id="d-ay">—</strong></div>
-          <div class="rl-chip">实测 Z <strong id="d-az">—</strong></div>
+          <div class="rl-chip">实测 X(机器人) <strong id="d-ax">—</strong> mm</div>
+          <div class="rl-chip">实测 Y(机器人) <strong id="d-ay">—</strong> mm</div>
+          <div class="rl-chip">实测 Z(机器人) <strong id="d-az">—</strong> mm</div>
           <div class="rl-chip">有效点 <strong id="d-points">—</strong></div>
         </div>
       </div>
@@ -632,6 +672,8 @@ window.rackLocatorConfig = {
   captureUrl: '{% url "vision:api_rack_location_workbench_capture" %}',
   calculateUrl: '{% url "vision:api_rack_location_workbench_calculate" %}',
   saveUrl: '{% url "vision:api_rack_location_workbench_save" %}',
+  offlineTestUrl: '{% url "vision:api_rack_locator_offline_test" %}',
+  loadLatestUrl: '{% url "vision:api_rack_locator_load_latest" %}',
   
   // 通用3D视觉端点
   captureEndpoint: 'api_vision_3d_capture',
