@@ -163,6 +163,10 @@ class CoordinateWorkbenchService:
     def save(self, draft):
         config = self._normalise(draft)
         recipe = self._find_recipe(config['layer_no'], config.get('recipe_id'))
+        if config.get('recipe_id') and recipe is None:
+            raise CoordinateWorkbenchError(
+                'RECIPE_NOT_FOUND', '指定的坐标配方不存在或层号不匹配', 404
+            )
         if recipe is None:
             name = f"COORD-L{config['layer_no']}"
             if RackLocationRecipe.objects.filter(recipe_name=name).exists():
