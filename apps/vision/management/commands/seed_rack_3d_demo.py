@@ -73,6 +73,8 @@ class Command(BaseCommand):
             pillar = _to_robot(t_combined, _CAM_PILLAR)
 
             # 理论坐标：X 取立柱、Y 取前边缘、Z 取支撑面
+            # 根据实际测量值调整标准坐标（相近数值，模拟真实场景）
+            # Layer1 实际测量: X≈900, Y≈530, Z≈920
             recipe, _created = RackLocationRecipe.objects.update_or_create(
                 position_no=position,
                 layer_no=layer,
@@ -80,9 +82,9 @@ class Command(BaseCommand):
                     recipe_name=f'MOCK-Demo-POS{position}-L{layer}',
                     rack_type='MOCK料架',
                     layer_count=3,
-                    standard_x=_dec(pillar[0]),
-                    standard_y=_dec(edge[1]),
-                    standard_z=_dec(support[2]),
+                    standard_x=_dec(pillar[0] * 0.999),  # 调整为接近实际值
+                    standard_y=_dec(edge[1] * 1.001),     # 调整为接近实际值
+                    standard_z=_dec(support[2] * 0.9995), # 调整为接近实际值
                     confidence_threshold=Decimal('0.6000'),
                     enabled=True,
                 ),

@@ -45,6 +45,20 @@ def api_save(request):
         return _failure(exc)
 
 
+@require_POST
+def api_transform_roi(request):
+    try:
+        payload = _json_body(request)
+        data = CoordinateWorkbenchService().transform_camera_roi(
+            layer_no=payload.get('layer_no'),
+            camera_roi=payload.get('camera_roi'),
+            recipe_id=payload.get('recipe_id'),
+        )
+        return _success(data)
+    except Exception as exc:
+        return _failure(exc)
+
+
 def _json_body(request):
     try:
         value = json.loads(request.body.decode('utf-8'))

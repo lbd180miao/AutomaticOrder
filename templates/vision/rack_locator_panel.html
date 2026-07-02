@@ -253,10 +253,6 @@
                 data-sx="{{ recipe.standard_x }}"
                 data-sy="{{ recipe.standard_y }}"
                 data-sz="{{ recipe.standard_z }}"
-                data-mox="{{ recipe.max_offset_x }}"
-                data-moy="{{ recipe.max_offset_y }}"
-                data-moz="{{ recipe.max_offset_z }}"
-                data-conf="{{ recipe.confidence_threshold }}"
                 data-name="{{ recipe.recipe_name }}"
                 data-side="{{ recipe.rack_side }}"
                 {% if forloop.first %}selected{% endif %}>
@@ -282,70 +278,32 @@
         <div class="recipe-info-row"><strong>标准 Y:</strong> <span id="recipe-card-sy">{{ recipes.0.standard_y }}</span> mm</div>
         <div class="recipe-info-row"><strong>标准 Z:</strong> <span id="recipe-card-sz">{{ recipes.0.standard_z }}</span> mm</div>
         <div class="recipe-info-row"><strong>料架侧:</strong> <span id="recipe-card-side">{{ recipes.0.rack_side }}</span></div>
-        <div class="recipe-info-row"><strong>允许偏差 X:</strong> <span id="recipe-card-mox">{{ recipes.0.max_offset_x }}</span> mm</div>
-        <div class="recipe-info-row"><strong>允许偏差 Y:</strong> <span id="recipe-card-moy">{{ recipes.0.max_offset_y }}</span> mm</div>
-        <div class="recipe-info-row"><strong>允许偏差 Z:</strong> <span id="recipe-card-moz">{{ recipes.0.max_offset_z }}</span> mm</div>
-        <div class="recipe-info-row"><strong>置信度阈值:</strong> <span id="recipe-card-conf">{{ recipes.0.confidence_threshold }}</span></div>
       </div>
     </div>
     {% else %}
     <div class="rl-no-recipe-bar">暂无已启用的 3D 配方，请先<a href="{% url 'vision:rack_location_recipes' %}">前往配方管理</a>新增配方。</div>
     {% endif %}
-
-    <!-- 高级选项（可折叠） -->
-    <div class="rl-advanced-options">
-      <button type="button" class="advanced-toggle" onclick="toggleAdvancedOptions()">
-        <span id="advanced-toggle-icon">▶</span> 高级选项
-      </button>
-      <div class="advanced-content" id="advanced-content" style="display:none;">
-        <div class="rl-manual-bar">
-          <span class="ctrl-label">定位类型:</span>
-          <select id="locate-type" aria-label="定位类型">
-            <option value="GLOBAL">整体定位</option>
-            <option value="LAYER" selected>层定位</option>
-          </select>
-          <span class="ctrl-label">Layer Index:</span>
-          <select id="layer-index" aria-label="定位层号">
-            <option value="0">0 · 整体</option>
-            <option value="1" selected>1 · 第1层</option>
-            <option value="2">2 · 第2层</option>
-            <option value="3">3 · 第3层</option>
-          </select>
-          <span class="ctrl-label">POS:</span>
-          <input id="position-no" type="number" min="1" value="{{ latest.position_no|default:1 }}">
-          <span class="ctrl-label">料架:</span>
-          <select id="rack-side" aria-label="料架侧">
-            <option value="LEFT">左料架</option>
-            <option value="RIGHT">右料架</option>
-          </select>
-          <!-- 保留旧控件用于兼容 -->
-          <input id="layer-no" type="number" min="1" value="{{ latest.layer_no|default:1 }}" style="display:none;">
-          <select id="layer-no-select" aria-label="层号选择" style="display:none;">
-            <option value="1" {% if latest.layer_no|default:1 == 1 %}selected{% endif %}>1 层</option>
-            <option value="2" {% if latest.layer_no == 2 %}selected{% endif %}>2 层</option>
-            <option value="3" {% if latest.layer_no == 3 %}selected{% endif %}>3 层</option>
-          </select>
-          <select id="locate-mode" aria-label="定位模式" style="display:none;">
-            <option value="local">局部定位</option>
-            <option value="global">全局定位</option>
-          </select>
-          <div class="sep"></div>
-          <span id="last-time" style="font-size:12px;color:var(--text-faint);">—</span>
-          <div class="rl-roi3d-grid" aria-label="3D ROI 参数">
-            <div class="rl-roi3d-field"><label for="roi-x-min">X Min</label><input id="roi-x-min" type="number" step="0.001" value="-100"></div>
-            <div class="rl-roi3d-field"><label for="roi-x-max">X Max</label><input id="roi-x-max" type="number" step="0.001" value="100"></div>
-            <div class="rl-roi3d-field"><label for="roi-y-min">Y Min</label><input id="roi-y-min" type="number" step="0.001" value="-100"></div>
-            <div class="rl-roi3d-field"><label for="roi-y-max">Y Max</label><input id="roi-y-max" type="number" step="0.001" value="100"></div>
-            <div class="rl-roi3d-field"><label for="roi-z-min">Z Min</label><input id="roi-z-min" type="number" step="0.001" value="-100"></div>
-            <div class="rl-roi3d-field"><label for="roi-z-max">Z Max</label><input id="roi-z-max" type="number" step="0.001" value="100"></div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <!-- 隐藏的 recipe-id 字段（供 JS 读取） -->
   <input type="hidden" id="recipe-id" value="{% if recipes %}{{ recipes.0.id }}{% endif %}">
+  
+  <!-- 隐藏的默认参数（从配方自动获取，无需用户手动输入） -->
+  <input type="hidden" id="position-no" value="{{ latest.position_no|default:1 }}">
+  <input type="hidden" id="layer-no" value="{{ latest.layer_no|default:1 }}">
+  <input type="hidden" id="rack-side" value="LEFT">
+  <input type="hidden" id="locate-type" value="LAYER">
+  <input type="hidden" id="layer-index" value="1">
+  <input type="hidden" id="locate-mode" value="local">
+  <input type="hidden" id="layer-no-select" value="1">
+  
+  <!-- 隐藏的3D ROI参数（从配方自动获取） -->
+  <input type="hidden" id="roi-x-min" value="-100">
+  <input type="hidden" id="roi-x-max" value="100">
+  <input type="hidden" id="roi-y-min" value="-100">
+  <input type="hidden" id="roi-y-max" value="100">
+  <input type="hidden" id="roi-z-min" value="-100">
+  <input type="hidden" id="roi-z-max" value="100">
 
   <!-- 双栏主体 -->
   <div class="rl-main">
@@ -368,11 +326,8 @@
         </div>
         <div class="rl-actions">
           <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
-          <button id="btn-auto-align" class="btn btn-secondary" disabled>自动对齐</button>
           <button id="btn-redraw" class="btn btn-secondary" disabled>重画 ROI</button>
           <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" disabled>🎯 计算偏差</button>
-          <button id="btn-save-roi" class="btn btn-secondary" disabled>保存 ROI</button>
-          <button id="btn-write-plc" class="btn btn-secondary" disabled>写入 PLC</button>
         </div>
         <span class="rl-source-chip" id="rl-source">数据源 —</span>
         <p class="rl-status" id="rl-status">先选择配方，再采集点云。</p>
@@ -383,7 +338,6 @@
     <div class="rl-panel">
       <div class="rl-panel-head">
         <h2>计算结果 · 坐标偏差</h2>
-        <button id="btn-save" class="btn btn-sm" style="background:var(--primary);" disabled>💾 保存结果到数据库</button>
       </div>
       <div class="rl-panel-body">
         <div class="rl-verdict idle" id="rl-verdict">
@@ -423,55 +377,13 @@
 
   </div>
 
-  <!-- 次级区块：自动触发 -->
-  <div class="rl-panel rl-secondary">
-    <div class="rl-panel-head">
-      <h2>自动按 POS / 层号拍照计算（后续接 PLC）</h2>
-    </div>
-    <div class="rl-auto-bar">
-      <span class="ctrl-label" style="color:var(--text);">使用配方保存的 ROI 直接定位：</span>
-      <button id="btn-auto-trigger" class="btn btn-secondary">⚙️ 自动拍照计算</button>
-      <span class="rl-status" id="rl-auto-status" style="margin-top:0;"></span>
-    </div>
-  </div>
-
-  <!-- 最近定位记录 -->
-  <div class="rl-panel rl-secondary">
-    <div class="rl-panel-head">
-      <h2>最近定位记录</h2>
-      <button id="btn-refresh-history" class="btn btn-secondary btn-sm">刷新</button>
-    </div>
-    <div style="overflow-x:auto;">
-      <table class="data-table">
-        <thead>
-          <tr><th>时间</th><th>POS</th><th>层号</th><th>X 偏差</th><th>Y 偏差</th><th>Z 偏差</th><th>Rz</th><th>置信度</th><th>状态</th></tr>
-        </thead>
-        <tbody id="history-tbody"><tr><td colspan="9" class="empty">加载中...</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-
 </div>
 
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
 <script>
-// ── 配方下拉选择 ────────────────────────────────────
+// ── 配方下拉选择（简化版）────────────────────────────────────
 let selectedRecipeData = null;
-
-// 切换高级选项
-function toggleAdvancedOptions() {
-  const content = document.getElementById('advanced-content');
-  const icon = document.getElementById('advanced-toggle-icon');
-  
-  if (content.style.display === 'none') {
-    content.style.display = 'block';
-    icon.textContent = '▼';
-  } else {
-    content.style.display = 'none';
-    icon.textContent = '▶';
-  }
-}
 
 // 更新配方信息卡片
 function updateRecipeInfoCard(option) {
@@ -484,10 +396,6 @@ function updateRecipeInfoCard(option) {
   const sy = option.dataset.sy || '0';
   const sz = option.dataset.sz || '0';
   const side = option.dataset.side || 'BOTH';
-  const mox = option.dataset.mox || '20';
-  const moy = option.dataset.moy || '20';
-  const moz = option.dataset.moz || '20';
-  const conf = option.dataset.conf || '0.7';
   
   // 格式化料架侧显示
   const sideText = side === 'LEFT' ? '左料架' : side === 'RIGHT' ? '右料架' : '左右料架';
@@ -499,10 +407,6 @@ function updateRecipeInfoCard(option) {
   document.getElementById('recipe-card-sy').textContent = sy;
   document.getElementById('recipe-card-sz').textContent = sz;
   document.getElementById('recipe-card-side').textContent = sideText;
-  document.getElementById('recipe-card-mox').textContent = mox;
-  document.getElementById('recipe-card-moy').textContent = moy;
-  document.getElementById('recipe-card-moz').textContent = moz;
-  document.getElementById('recipe-card-conf').textContent = conf;
 }
 
 // 应用选中的配方
@@ -519,7 +423,7 @@ function applyRecipeFromDropdown() {
   const sy = option.dataset.sy || '0';
   const sz = option.dataset.sz || '0';
   const name = option.dataset.name || '';
-  const conf = option.dataset.conf || '0.7';
+  const conf = '0.7';  // 默认值，不再从配方读取
   const side = option.dataset.side || 'BOTH';
 
   // 填充隐藏输入和手动调整框
@@ -724,9 +628,14 @@ function showRoiOnCanvas(targetRoi) {
 
 // ── 工作台配置传入 ─────────────────────────────────
 window.rackLocatorConfig = {
+  // 工作台专用端点（优先使用）
+  captureUrl: '{% url "vision:api_rack_location_workbench_capture" %}',
+  calculateUrl: '{% url "vision:api_rack_location_workbench_calculate" %}',
+  saveUrl: '{% url "vision:api_rack_location_workbench_save" %}',
+  
+  // 通用3D视觉端点
   captureEndpoint: 'api_vision_3d_capture',
   testLocateEndpoint: 'api_vision_3d_test_locate',
-  captureUrl: '{% url "vision:api_vision_3d_capture" %}',
   autoAlignUrl: '{% url "vision:api_vision_3d_auto_align" %}',
   testLocateUrl: '{% url "vision:api_vision_3d_test_locate" %}',
   currentRecipeUrl: '{% url "vision:api_vision_3d_recipe_current" %}',
@@ -735,12 +644,14 @@ window.rackLocatorConfig = {
   writePlcUrl: '{% url "vision:api_vision_3d_write_plc" %}',
   results3dUrl: '{% url "vision:api_vision_3d_results" %}',
   resultsLatestUrl: '{% url "vision:api_vision_3d_results_latest" %}',
-  legacyCaptureUrl: '{% url "vision:api_rack_location_workbench_capture" %}',
-  legacyCalculateUrl: '{% url "vision:api_rack_location_workbench_calculate" %}',
+  
+  // 兼容旧配置
+  legacyCaptureUrl: '{% url "vision:api_vision_3d_capture" %}',
+  legacyCalculateUrl: '{% url "vision:api_vision_3d_test_locate" %}',
   legacySaveUrl: '{% url "vision:api_rack_location_workbench_save" %}',
   triggerUrl: '{% url "vision:api_rack_location_trigger" %}',
   resultsUrl: '{% url "vision:api_rack_location_results" %}',
-};
+  };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}"></script>
+<script src="{% static 'vision/js/rack_locator_workbench_simple.js' %}"></script>
 {% endblock %}

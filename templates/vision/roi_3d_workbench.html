@@ -422,6 +422,46 @@ function initEventHandlers() {
     $('#btnSave').click(saveROI);
 }
 
+// 自动保存ROI（画完框后自动触发）
+function autoSaveROI() {
+    if (!currentRecipe) return;
+    
+    const roi = {
+        recipe_id: currentRecipe.id,
+        layer_no: currentLayer,
+        roi_type: currentRoiType,
+        x_min: parseFloat($('#xMin').val()),
+        x_max: parseFloat($('#xMax').val()),
+        y_min: parseFloat($('#yMin').val()),
+        y_max: parseFloat($('#yMax').val()),
+        z_min: parseFloat($('#zMin').val()),
+        z_max: parseFloat($('#zMax').val()),
+        coordinate_system: 'ROBOT',
+        name: `${currentRecipe.recipe_name}_L${currentLayer}_${currentRoiType}`
+    };
+    
+    // 验证数据
+    if (isNaN(roi.x_min) || isNaN(roi.x_max) || isNaN(roi.y_min) || isNaN(roi.y_max)) return;
+    if (roi.x_min >= roi.x_max || roi.y_min >= roi.y_max) return;
+    if (roi.z_min >= roi.z_max) return;
+    
+    // 显示自动保存状态
+    $('#canvasInfo').text('🔄 自动保存ROI中...');
+    
+    $.post('/vision/api/roi-3d/create/', roi, function(data) {
+        if (data.success) {
+            $('#canvasInfo').text('✅ ROI已自动保存');
+            setTimeout(() => {
+                $('#canvasInfo').text('点击并拖动绘制ROI框');
+            }, 2000);
+        } else {
+            $('#canvasInfo').text('❌ 自动保存失败: ' + (data.error || '未知错误'));
+        }
+    }).fail(function() {
+        $('#canvasInfo').text('❌ 自动保存失败，请检查网络连接');
+    });
+}
+
 // 加载配方详情
 function loadRecipeDetail(recipeId) {
     $.get(`/vision/api/roi-3d/recipes/${recipeId}/`, function(data) {
@@ -441,14 +481,17 @@ function loadRecipeDetail(recipeId) {
             }
             
             currentLayer = 1;
-            loadLayerROI();
+            loadLayerROI();  // 自动加载已保存的ROI坐标
         }
     });
 }
 
-// 加载指定层的ROI
+// 加载指定层的ROI（自动读取已保存的坐标并显示在页面和画布上）
 function loadLayerROI() {
     if (!currentRecipe) return;
+    
+    // 显示加载状态
+    $('#canvasInfo').text('🔄 加载ROI坐标中...');
     
     $.get('/vision/api/roi-3d/list/', {
         recipe_id: currentRecipe.id,
@@ -457,6 +500,7 @@ function loadLayerROI() {
     }, function(data) {
         if (data.success && data.data.rois && data.data.rois.length > 0) {
             const roi = data.data.rois[0];
+            // 自动填充表单
             $('#xMin').val(roi.x_min);
             $('#xMax').val(roi.x_max);
             $('#yMin').val(roi.y_min);
@@ -464,9 +508,15 @@ function loadLayerROI() {
             $('#zMin').val(roi.z_min);
             $('#zMax').val(roi.z_max);
             
+            // 在画布上显示ROI框
             drawROI();
+            $('#canvasInfo').text('✅ 已加载第' + currentLayer + '层 ' + currentRoiType + ' ROI坐标');
+            setTimeout(() => {
+                $('#canvasInfo').text('点击并拖动绘制ROI框');
+            }, 2000);
         } else {
             resetROI();
+            $('#canvasInfo').text('该层暂无ROI配置，请绘制');
         }
     });
 }
@@ -510,6 +560,9 @@ function stopDrawing(e) {
     
     // 将像素坐标转换为ROI坐标
     convertCanvasToROI(roiStartX, roiStartY, endX, endY);
+    
+    // 自动保存ROI坐标（画完框后自动保存）
+    autoSaveROI();
 }
 
 function convertCanvasToROI(x1, y1, x2, y2) {

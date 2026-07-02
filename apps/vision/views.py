@@ -1,4 +1,5 @@
 import json
+import logging
 import tempfile
 from pathlib import Path
 
@@ -40,6 +41,8 @@ from .rack_location import (
     roi3d_to_dict,
     sample_scene_median_xyz,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def task_list(request):
@@ -845,6 +848,7 @@ def rack_location_workbench(request):
 
 
 def rack_location_recipes(request):
+    """3D配方管理页面 - 独立页面"""
     recipes = RackLocationRecipe.objects.order_by('position_no', 'layer_no', '-updated_at')
     return render(request, 'vision/rack_location_recipes.html', {'recipes': recipes})
 
@@ -852,14 +856,26 @@ def rack_location_recipes(request):
 def _rack_location_recipe_form_context(recipe=None, prefill: dict | None = None):
     sample = RackLocationService().capture_standard_image(recipe_id=getattr(recipe, 'id', None))
     devices = Device.objects.filter(enabled=True).order_by('code')
-    # 默认 ROI 落在标准场景的平整支撑面上；标准坐标直接取该 ROI 在
-    # 同源点云中的中位数，保证新建配方默认状态下补偿≈0、置信度健康，
-    # 移动 ROI 才会产生真实偏差。
-    default_target_roi = {'x': 250, 'y': 180, 'w': 140, 'h': 90, 'feature_type': 'rack_reference'}
+    
+    # 默认3D ROI坐标（机器人基坐标系，单位：mm）
+    # 例如第2层的参考范围
+    default_roi_3d = {
+        'x_min': 900,
+        'x_max': 1300,
+        'y_min': 400,
+        'y_max': 850,
+        'z_min': 700,
+        'z_max': 880,
+    }
+    
+    # 尝试从默认ROI计算标准坐标的中心点
     try:
-        seed_x, seed_y, seed_z = sample_scene_median_xyz(default_target_roi)
-    except Exception:  # noqa: BLE001 - 兜底，避免场景生成异常阻塞表单
+        seed_x = (default_roi_3d['x_min'] + default_roi_3d['x_max']) / 2
+        seed_y = (default_roi_3d['y_min'] + default_roi_3d['y_max']) / 2
+        seed_z = (default_roi_3d['z_min'] + default_roi_3d['z_max']) / 2
+    except Exception:  # noqa: BLE001
         seed_x, seed_y, seed_z = 0.0, 0.0, 1090.0
+    
     defaults = {
         'recipe_name': '3D-POS-1-L1',
         'rack_type': '',
@@ -873,24 +889,37 @@ def _rack_location_recipe_form_context(recipe=None, prefill: dict | None = None)
         'standard_z': round(seed_z, 3),
         'standard_rz': 0,
         'roi_config': {
-            'target_roi': default_target_roi,
+            'coordinate_system': 'robot',
+            **default_roi_3d,
         },
         'reference_feature_config': {},
         'hand_eye_config': {
             'matrix': 'identity',
-            'skip_validation': True,  # 开发模式：跳过手眼标定验证
+            'skip_validation': True,
             'note': '开发测试模式 - 使用单位矩阵（相机坐标系=机器人坐标系）',
         },
-        'max_offset_x': 20,
-        'max_offset_y': 20,
-        'max_offset_z': 20,
-        'max_offset_rz': 5,
-        'confidence_threshold': 0.7,
         'enabled': True,
     }
+    
+    # 从recipe对象提取ROI 3D坐标
+    roi_defaults = default_roi_3d.copy()
     if recipe:
-        for key in defaults:
+        for key in ['recipe_name', 'rack_type', 'rack_side', 'position_no', 'layer_count', 
+                    'layer_no', 'capture_pose_name', 'standard_x', 'standard_y', 'standard_z', 
+                    'standard_rz', 'reference_feature_config', 'hand_eye_config', 'enabled']:
             defaults[key] = getattr(recipe, key)
+        
+        # 从roi_config中提取3D坐标
+        if recipe.roi_config:
+            roi_defaults = {
+                'x_min': recipe.roi_config.get('x_min', default_roi_3d['x_min']),
+                'x_max': recipe.roi_config.get('x_max', default_roi_3d['x_max']),
+                'y_min': recipe.roi_config.get('y_min', default_roi_3d['y_min']),
+                'y_max': recipe.roi_config.get('y_max', default_roi_3d['y_max']),
+                'z_min': recipe.roi_config.get('z_min', default_roi_3d['z_min']),
+                'z_max': recipe.roi_config.get('z_max', default_roi_3d['z_max']),
+            }
+    
     # 支持从 GET 参数预填（配方管理页 Modal 弹窗跳转时使用）
     if prefill:
         for k, v in prefill.items():
@@ -906,12 +935,15 @@ def _rack_location_recipe_form_context(recipe=None, prefill: dict | None = None)
                         defaults[k] = v
                 except (ValueError, TypeError):
                     pass
+    
     return {
         'recipe': recipe,
         'recipe_defaults': defaults,
+        'roi_defaults': roi_defaults,  # 3D ROI坐标
         'roi_config_json': json.dumps(defaults['roi_config'], ensure_ascii=False),
         'reference_feature_config_json': json.dumps(defaults['reference_feature_config'], ensure_ascii=False),
         'hand_eye_config_json': json.dumps(defaults['hand_eye_config'], ensure_ascii=False),
+        'capture_pose_json': json.dumps(getattr(recipe, 'capture_pose', {}) or {}, ensure_ascii=False),
         'devices': devices,
         'sample_preview': sample,
     }
@@ -931,14 +963,32 @@ def _save_rack_location_recipe_from_request(request, recipe=None):
     recipe.standard_y = _as_float(data.get('standard_y'), 0)
     recipe.standard_z = _as_float(data.get('standard_z'), 0)
     recipe.standard_rz = _as_float(data.get('standard_rz'), 0)
-    recipe.roi_config = _json_config(data.get('roi_config'), {})
+    
+    # 保存3D ROI坐标到roi_config（机器人基坐标系）
+    roi_config = {
+        'coordinate_system': 'robot',  # 机器人基坐标系
+        'x_min': _as_float(data.get('roi_x_min'), 0),
+        'x_max': _as_float(data.get('roi_x_max'), 0),
+        'y_min': _as_float(data.get('roi_y_min'), 0),
+        'y_max': _as_float(data.get('roi_y_max'), 0),
+        'z_min': _as_float(data.get('roi_z_min'), 0),
+        'z_max': _as_float(data.get('roi_z_max'), 0),
+    }
+    camera_roi_fields = {
+        key: data.get(f'camera_roi_{key}')
+        for key in ('x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max')
+    }
+    if all(value not in (None, '') for value in camera_roi_fields.values()):
+        roi_config['camera_roi'] = {
+            key: _as_float(value) for key, value in camera_roi_fields.items()
+        }
+    recipe.roi_config = roi_config
+    
     recipe.reference_feature_config = _json_config(data.get('reference_feature_config'), {})
     recipe.hand_eye_config = _json_config(data.get('hand_eye_config'), {'matrix': 'identity'})
-    recipe.max_offset_x = _as_float(data.get('max_offset_x'), 20)
-    recipe.max_offset_y = _as_float(data.get('max_offset_y'), 20)
-    recipe.max_offset_z = _as_float(data.get('max_offset_z'), 20)
-    recipe.max_offset_rz = _as_float(data.get('max_offset_rz'), 5)
-    recipe.confidence_threshold = _as_float(data.get('confidence_threshold'), 0.8)
+    recipe.capture_pose = _json_config(data.get('capture_pose'), recipe.capture_pose or {})
+    
+    # 允许偏差字段保留默认值，不再从表单读取（保留用于数据库兼容性）
     recipe.enabled = _as_bool(data.get('enabled'), True)
     camera_device_id = data.get('camera_device') or data.get('camera_device_id') or None
     recipe.camera_device_id = camera_device_id or None
@@ -1028,34 +1078,96 @@ def rack_location_preview_calculate(request):
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
-@require_http_methods(['GET', 'POST'])
+@require_http_methods(['GET', 'POST', 'PATCH', 'DELETE'])
 def api_vision_3d_recipes(request):
     if request.method == 'GET':
-        qs = RackLocationRecipe.objects.all().order_by('rack_side', 'position_no', 'layer_no')
-        rack_side = request.GET.get('rack_side')
+        qs = RackLocationRecipe.objects.all().order_by('layer_no', '-updated_at')
+        recipe_id = request.GET.get('id')
         layer_no = request.GET.get('layer_no')
         enabled = request.GET.get('enabled')
-        if rack_side:
-            qs = qs.filter(rack_side=rack_side)
+        if recipe_id:
+            qs = qs.filter(id=recipe_id)
         if layer_no not in (None, ''):
             qs = qs.filter(layer_no=int(layer_no))
         if enabled not in (None, ''):
             qs = qs.filter(enabled=_as_bool(enabled))
-        return _api3d_success({'recipes': [_serialize_3d_recipe(recipe) for recipe in qs]})
+        return JsonResponse({
+            'success': True,
+            'recipes': [_serialize_3d_recipe(recipe) for recipe in qs],
+        })
 
+    if request.method == 'PATCH':
+        try:
+            data = _request_data(request)
+            recipe_id = data.get('id')
+            if not recipe_id:
+                return JsonResponse({'success': False, 'error': '缺少配方ID'}, status=400)
+            recipe = get_object_or_404(RackLocationRecipe, pk=recipe_id)
+            
+            # 更新字段
+            if 'recipe_name' in data:
+                recipe.recipe_name = data['recipe_name']
+            if 'layer_no' in data:
+                recipe.layer_no = _as_int(data['layer_no'], recipe.layer_no)
+            if 'standard_x' in data:
+                recipe.standard_x = _as_float(data['standard_x'], recipe.standard_x)
+            if 'standard_y' in data:
+                recipe.standard_y = _as_float(data['standard_y'], recipe.standard_y)
+            if 'standard_z' in data:
+                recipe.standard_z = _as_float(data['standard_z'], recipe.standard_z)
+            if 'standard_rz' in data:
+                recipe.standard_rz = _as_float(data['standard_rz'], recipe.standard_rz)
+            if 'roi_config' in data:
+                recipe.roi_config = data['roi_config']
+            if data.get('hand_eye_config'):
+                recipe.hand_eye_config = data['hand_eye_config']
+            if data.get('capture_pose'):
+                recipe.capture_pose = data['capture_pose']
+            if 'enabled' in data:
+                recipe.enabled = _as_bool(data['enabled'])
+            
+            recipe.position_no = 1  # 固定
+            recipe.rack_side = 'BOTH'  # 固定
+            recipe.save()
+            return JsonResponse({
+                'success': True,
+                'recipe': _serialize_3d_recipe(recipe),
+            })
+        except Exception as exc:  # noqa: BLE001
+            return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+    if request.method == 'DELETE':
+        try:
+            data = _request_data(request)
+            recipe_id = data.get('id')
+            if not recipe_id:
+                return JsonResponse({'success': False, 'error': '缺少配方ID'}, status=400)
+            recipe = get_object_or_404(RackLocationRecipe, pk=recipe_id)
+            recipe_name = recipe.recipe_name
+            recipe.delete()
+            return JsonResponse({
+                'success': True,
+                'message': f'配方「{recipe_name}」已删除',
+            })
+        except Exception as exc:  # noqa: BLE001
+            return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+    # POST - 创建新配方
     try:
         data = _request_data(request)
         recipe = RackLocationRecipe.objects.create(
-            recipe_name=data.get('recipe_name') or f"3D-{data.get('rack_side', 'LEFT')}-L{data.get('layer_no', 1)}",
-            rack_side=data.get('rack_side') or 'LEFT',
-            rack_type=data.get('rack_type') or '',
-            position_no=_as_int(data.get('position_no'), 1),
+            recipe_name=data.get('recipe_name') or f"3D-L{data.get('layer_no', 1)}",
+            rack_side='BOTH',  # 固定
+            rack_type='',
+            position_no=1,  # 固定
             layer_no=_as_int(data.get('layer_no'), 1),
-            layer_count=_as_int(data.get('layer_count'), 3),
+            layer_count=3,  # 固定
             standard_x=_as_float(data.get('standard_x'), 0),
             standard_y=_as_float(data.get('standard_y'), 0),
             standard_z=_as_float(data.get('standard_z'), 0),
             standard_rz=_as_float(data.get('standard_rz'), 0),
+            roi_config=data.get('roi_config') or {},
+            capture_pose=data.get('capture_pose') or {},
             hand_eye_config=data.get('hand_eye_config') or {
                 'matrix': 'identity',
                 'skip_validation': True,
@@ -1063,9 +1175,12 @@ def api_vision_3d_recipes(request):
             },
             enabled=_as_bool(data.get('enabled'), True),
         )
-        return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
+        return JsonResponse({
+            'success': True,
+            'recipe': _serialize_3d_recipe(recipe),
+        })
     except Exception as exc:  # noqa: BLE001
-        return _api3d_error(exc)
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
 @require_http_methods(['GET', 'PUT'])
@@ -1325,13 +1440,28 @@ def api_rack_location_workbench_capture(request):
 
 @require_POST
 def api_rack_location_workbench_calculate(request):
-    """工作台「计算偏差」：按绘制的 ROI 裁剪持久化点云，仅预览不写库。"""
+    """工作台「计算偏差」：按绘制的 ROI 裁剪持久化点云，仅预览不写库。
+    
+    优化：自动加载配方中保存的ROI坐标（如果有），避免每次都需要重新绘制。
+    """
     try:
         data = _request_data(request)
+        recipe_id = data.get('recipe_id') or None
+        roi_config = data.get('roi_config') or {}
+        
+        # 优化：如果前端没有传入ROI配置，尝试从配方中加载已保存的ROI
+        if recipe_id and not roi_config.get('target_roi'):
+            recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first()
+            if recipe and recipe.roi_config:
+                saved_target_roi = recipe.roi_config.get('target_roi')
+                if saved_target_roi:
+                    roi_config['target_roi'] = saved_target_roi
+                    logger.info(f"自动加载配方 {recipe_id} 的已保存ROI坐标")
+        
         payload = RackLocationService().calculate_workbench(
             token=data.get('pointcloud_token'),
-            roi_config=data.get('roi_config') or {},
-            recipe_id=data.get('recipe_id') or None,
+            roi_config=roi_config,
+            recipe_id=recipe_id,
             recipe_data=data.get('recipe_data') or None,
             layer_no=_as_int(data.get('layer_no'), 1),
             roi_3d=data.get('roi_3d') or data.get('roi'),
@@ -1344,16 +1474,42 @@ def api_rack_location_workbench_calculate(request):
 
 @require_POST
 def api_rack_location_workbench_save(request):
-    """工作台「保存结果到数据库」：重新确定性计算后写入一条 RackLocationResult。"""
+    """工作台「保存结果到数据库」：重新确定性计算后写入一条 RackLocationResult。
+    
+    简化版：只需传layer_no
+    优化：自动保存ROI坐标到配方，实现首次绘制自动保存，下次自动复用。
+    """
     try:
         data = _request_data(request)
+        roi_config = data.get('roi_config') or {}
+        recipe_id = data.get('recipe_id') or None
+        layer_no = _as_int(data.get('layer_no'), 1)
+        
+        # 优化：将工作台上的 roi_config 保存回配方中，实现ROI坐标的持久化
+        # 这样下次调用配方时，可以自动加载已保存的ROI，无需重新绘制
+        if recipe_id and roi_config:
+            recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first()
+            if recipe and 'target_roi' in roi_config:
+                current_config = recipe.roi_config or {}
+                target_roi = roi_config['target_roi']
+                
+                # 保存ROI坐标（这些坐标已经是机器人基坐标系）
+                current_config['target_roi'] = target_roi
+                
+                # 同时保存一个时间戳，方便追踪最后更新时间
+                from django.utils import timezone
+                current_config['target_roi_updated_at'] = timezone.now().isoformat()
+                
+                recipe.roi_config = current_config
+                recipe.save(update_fields=['roi_config'])
+                logger.info(f"已保存配方 {recipe_id} 的ROI坐标: {target_roi}")
+        
         result = RackLocationService().save_workbench_result(
             token=data.get('pointcloud_token'),
-            roi_config=data.get('roi_config') or {},
-            recipe_id=data.get('recipe_id') or None,
+            roi_config=roi_config,
+            recipe_id=recipe_id,
             recipe_data=data.get('recipe_data') or None,
-            position_no=_as_int(data.get('position_no'), 1),
-            layer_no=_as_int(data.get('layer_no'), 1),
+            layer_no=layer_no,
         )
         return JsonResponse({'success': True, 'result': rack_location_result_payload(result)})
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
@@ -1362,28 +1518,19 @@ def api_rack_location_workbench_save(request):
 
 @require_POST
 def api_rack_location_trigger(request):
+    """触发3D定位（简化版：只需传layer_no）"""
     try:
         data = _request_data(request)
-        position_no = _as_int(data.get('position_no'), 1)
         layer_no = _as_int(data.get('layer_no'), 1)
         recipe_id = data.get('recipe_id') or None
         write_plc = _as_bool(data.get('write_plc'), False)
-        rack_side = data.get('rack_side') or 'BOTH'
-        if data.get('rack_side') or data.get('use_3d_roi'):
-            result = Rack3DLocator().locate(
-                rack_side=rack_side,
-                layer_no=layer_no,
-                recipe_id=recipe_id,
-                write_plc=write_plc,
-            )
-        else:
-            result = RackLocationService().trigger(
-                position_no=position_no,
-                layer_no=layer_no,
-                recipe_id=recipe_id,
-                rack_side='BOTH',
-                write_plc=write_plc,
-            )
+        
+        # 使用简化的服务
+        result = RackLocationService().trigger(
+            layer_no=layer_no,
+            recipe_id=recipe_id,
+            write_plc=write_plc,
+        )
         return JsonResponse({'success': True, 'result': rack_location_result_payload(result)})
     except RackLocationRecipe.DoesNotExist:
         return JsonResponse({'success': False, 'error': '未找到启用的3D料架定位配方'}, status=404)
@@ -1424,27 +1571,27 @@ def api_rack_location_recipes(request):
             qs = qs.filter(enabled=_as_bool(enabled))
         return JsonResponse({
             'success': True,
-            'recipes': [_serialize_rack_location_recipe(recipe) for recipe in qs.order_by('position_no', 'layer_no')],
+            'recipes': [_serialize_rack_location_recipe(recipe) for recipe in qs.order_by('layer_no', '-updated_at')],
         })
 
     try:
         data = _request_data(request)
-        position_no = _as_int(data.get('position_no'), 1)
         layer_no = _as_int(data.get('layer_no'), 1)
         enabled = _as_bool(data.get('enabled'), True)
-        # 唯一性校验：同一 position_no + layer_no 下只允许一个启用配方
+        position_no = 1  # 固定为1
+        # 唯一性校验：同一层下只允许一个启用配方
         if enabled and RackLocationRecipe.objects.filter(
-            position_no=position_no, layer_no=layer_no, enabled=True,
+            position_no=1, layer_no=layer_no, enabled=True,
         ).exists():
             return JsonResponse({
                 'success': False,
-                'error': f'POS {position_no} / 层号 {layer_no} 已存在启用的配方，请先禁用或编辑现有配方',
+                'error': f'层号 {layer_no} 已存在启用的配方，请先禁用或编辑现有配方',
             }, status=400)
         recipe = RackLocationRecipe.objects.create(
-            recipe_name=data.get('recipe_name') or f"3D-POS-{position_no}-L{layer_no}",
+            recipe_name=data.get('recipe_name') or f"3D-L{layer_no}",
             rack_type=data.get('rack_type') or '',
             rack_side='BOTH',
-            position_no=position_no,
+            position_no=1,
             layer_count=_as_int(data.get('layer_count'), 3),
             layer_no=layer_no,
             capture_pose_name=data.get('capture_pose_name') or '',
@@ -1482,8 +1629,8 @@ def api_rack_location_recipe_update(request, recipe_id):
         for field in updatable:
             if field in data:
                 setattr(recipe, field, _as_bool(data[field]) if field == 'enabled' else data[field])
-        if 'position_no' in data:
-            recipe.position_no = _as_int(data.get('position_no'), recipe.position_no)
+        # 固定position_no=1
+        recipe.position_no = 1
         if 'layer_no' in data:
             recipe.layer_no = _as_int(data.get('layer_no'), recipe.layer_no)
         if 'layer_count' in data:
@@ -1493,6 +1640,34 @@ def api_rack_location_recipe_update(request, recipe_id):
         return JsonResponse({'success': True, 'recipe': _serialize_rack_location_recipe(recipe)})
     except Exception as exc:  # noqa: BLE001
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@require_http_methods(['GET'])
+def api_rack_location_recipe_detail(request, recipe_id):
+    """获取配方详情，包含已保存的ROI坐标"""
+    try:
+        recipe = get_object_or_404(RackLocationRecipe, pk=recipe_id)
+        serialized = _serialize_rack_location_recipe(recipe)
+        
+        # 提取ROI坐标信息，方便前端使用
+        roi_info = {
+            'has_saved_roi': False,
+            'target_roi': None,
+            'roi_updated_at': None,
+        }
+        
+        if recipe.roi_config:
+            target_roi = recipe.roi_config.get('target_roi')
+            if target_roi:
+                roi_info['has_saved_roi'] = True
+                roi_info['target_roi'] = target_roi
+                roi_info['roi_updated_at'] = recipe.roi_config.get('target_roi_updated_at')
+        
+        serialized['roi_info'] = roi_info
+        
+        return JsonResponse({'success': True, 'recipe': serialized})
+    except Exception as exc:  # noqa: BLE001
+        return JsonResponse({'success': False, 'error': str(exc)}, status=404)
 
 
 @require_http_methods(['GET'])

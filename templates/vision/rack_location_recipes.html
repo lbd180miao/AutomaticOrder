@@ -1,98 +1,143 @@
 {% extends "base.html" %}
-{% block title %}视觉配方模块 - AutomaticOrder{% endblock %}
+{% load static %}
+{% block title %}3D配方管理 - AutomaticOrder{% endblock %}
 {% block content %}
 
 <style>
-/* ========== 视觉配方管理（含3D料架） ========== */
-.recipe-page { display: flex; flex-direction: column; gap: 0; }
+/* ========== 3D配方管理页面样式（统一卡片设计） ========== */
+.recipe-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
 
 /* 标题栏 */
 .recipe-title-bar {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 18px; flex-wrap: wrap; gap: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
-.recipe-title-bar h1 { margin: 0; font-size: 22px; font-weight: 700; }
+.recipe-title-bar h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
 .recipe-title-bar h1::before {
-  content: ""; display: inline-block; width: 4px; height: 20px;
-  background: var(--info); border-radius: 3px; margin-right: 10px; vertical-align: -3px;
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 20px;
+  background: var(--primary);
+  border-radius: 3px;
+  margin-right: 10px;
+  vertical-align: -3px;
 }
-
-/* 选项卡 */
-.recipe-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
-.recipe-tab {
-  border: 1px solid var(--border); background: var(--surface-2);
-  border-radius: 999px; padding: 10px 20px; cursor: pointer;
-  font-weight: 700; font-size: 14px; transition: all 0.2s;
-  text-decoration: none; color: var(--text);
-}
-.recipe-tab:hover { background: var(--primary-soft); }
-.recipe-tab.active { background: var(--info); color: #fff; border-color: var(--info); }
 
 /* 配方内容区 */
 .recipe-content {
-  background: #fff; border: 1px solid var(--border);
-  border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 20px 24px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 20px 24px;
 }
-
-/* 当前提示 */
-.recipe-current-hint {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px; border-radius: 999px; font-size: 13px;
-  background: var(--surface-2); border: 1px solid var(--border);
-  color: var(--text-muted); margin-bottom: 16px;
-}
-.recipe-current-hint strong { color: var(--info); font-weight: 700; }
 
 /* 配方卡片列表 */
-#rack3d-recipe-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+#recipe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
 
 /* 配方卡片 */
 .recipe-card {
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 14px 16px; background: var(--surface-2); transition: all 0.2s;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  background: var(--surface-2);
+  transition: all 0.2s;
 }
-.recipe-card:hover { box-shadow: var(--shadow-sm); }
-.recipe-card.active { border-color: var(--info); background: #eff8ff; }
-.recipe-card.disabled { opacity: 0.6; }
-.recipe-card h3 { margin: 0 0 10px; font-size: 15px; font-weight: 700; color: #1f2937; display: flex; align-items: center; gap: 8px; }
+.recipe-card:hover {
+  box-shadow: var(--shadow-sm);
+}
+.recipe-card.disabled {
+  opacity: 0.6;
+  background: #f9fafb;
+}
+.recipe-card h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.recipe-card h3 .layer-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  min-width: 50px;
+}
+.recipe-card h3 .status-badge {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.recipe-card h3 .status-badge.enabled {
+  background: #d1fae5;
+  color: #065f46;
+}
+.recipe-card h3 .status-badge.disabled {
+  background: #f1f5f9;
+  color: #64748b;
+}
 .recipe-card-row {
-  font-size: 13px; color: var(--text-muted); margin: 4px 0;
-  display: flex; align-items: center; gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.recipe-card-row strong { color: var(--text); }
-.recipe-card-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
-.recipe-chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 10px; border-radius: 999px; font-size: 12px;
-  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted);
+.recipe-card-row strong {
+  color: var(--text);
 }
-.recipe-chip strong { color: var(--text); }
-.recipe-chip.info { background: #eff8ff; border-color: var(--info); color: var(--info); }
-.recipe-card-actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
-
-/* 启用徽章 */
-.enabled-badge {
-  display: inline-flex; align-items: center; gap: 4px; font-size: 12px;
-  font-weight: 700; padding: 3px 10px; border-radius: 4px; cursor: pointer;
-  border: none; transition: background 0.2s;
+.recipe-card-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
 }
-.enabled-badge.on { background: var(--success-soft); color: var(--success); }
-.enabled-badge.off { background: var(--surface-2); color: var(--text-faint); border: 1px solid var(--border); }
-.enabled-badge:hover { opacity: 0.8; }
 
 /* 空状态 */
 .recipe-empty {
-  padding: 40px 28px; color: var(--text-muted); text-align: center;
-  border: 1px dashed var(--border); border-radius: var(--radius-sm);
-  background: var(--surface-2); font-size: 14px;
+  padding: 40px 28px;
+  color: var(--text-muted);
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 14px;
 }
 
 /* Toast */
 .toast {
   position: fixed; top: 20px; right: 20px; background: #fff;
-  border-radius: var(--radius); padding: 16px 24px;
+  border-radius: 8px; padding: 16px 20px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000;
-  display: flex; align-items: center; gap: 12px; min-width: 280px;
+  display: flex; align-items: center; gap: 12px; min-width: 300px;
   animation: slideInRight 0.3s ease;
 }
 @keyframes slideInRight { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -100,42 +145,102 @@
 .toast.success { border-left: 4px solid #10b981; }
 .toast.error   { border-left: 4px solid #ef4444; }
 .toast.info    { border-left: 4px solid #3b82f6; }
-.toast-icon { font-size: 24px; line-height: 1; }
+.toast-icon { font-size: 24px; }
 .toast-content { flex: 1; }
-.toast-title { font-weight: 600; font-size: 14px; margin: 0 0 4px; color: var(--text); }
-.toast-message { font-size: 13px; color: var(--text-muted); margin: 0; }
+.toast-title { font-weight: 600; font-size: 14px; margin: 0 0 4px; }
+.toast-message { font-size: 13px; color: #64748b; margin: 0; }
 
 /* Modal */
 .modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  position: fixed; inset: 0; background: rgba(15,23,42,0.7);
   display: flex; align-items: center; justify-content: center;
-  z-index: 10000; backdrop-filter: blur(3px); animation: fadeIn 0.2s ease;
+  z-index: 10000; backdrop-filter: blur(4px); animation: fadeIn 0.2s ease;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .modal-content {
-  background: #fff; border-radius: var(--radius); box-shadow: var(--shadow-lg);
-  width: 90%; max-width: 480px; max-height: 80vh; overflow-y: auto;
+  background: #fff; border-radius: 12px; box-shadow: 0 20px 25px rgba(0,0,0,0.15);
+  width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto;
   animation: slideUp 0.3s ease;
 }
-@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .modal-header {
-  padding: 20px 24px; border-bottom: 1px solid var(--border);
+  padding: 20px 24px; border-bottom: 1px solid #e2e8f0;
   display: flex; align-items: center; justify-content: space-between;
 }
-.modal-header h3 { margin: 0; font-size: 18px; font-weight: 700; }
-.modal-close { background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1; }
-.modal-close:hover { color: var(--text); }
-.modal-body { padding: 24px; }
-.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
-.form-group { margin-bottom: 16px; }
-.form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
-.form-group input, .form-group select, .form-group textarea {
-  width: 100%; padding: 8px 12px; border: 1px solid var(--border);
-  border-radius: var(--radius-sm); font-size: 14px;
+.modal-header h3 { margin: 0; font-size: 18px; font-weight: 700; color: #0f172a; }
+.modal-close { 
+  background: none; border: none; font-size: 24px; 
+  color: #94a3b8; cursor: pointer; padding: 0; line-height: 1; 
 }
-.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--info); }
-.form-group small { display: block; margin-top: 4px; font-size: 12px; color: var(--text-muted); }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-close:hover { color: #64748b; }
+.modal-body { padding: 24px; }
+.modal-footer { 
+  padding: 16px 24px; border-top: 1px solid #e2e8f0; 
+  display: flex; gap: 8px; justify-content: flex-end; 
+}
+
+/* 表单样式 */
+.form-group {
+  margin-bottom: 16px;
+}
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.form-group small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+.form-section {
+  margin: 20px 0;
+  padding: 18px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.form-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #475569;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.form-section-title::before {
+  content: "▸";
+  color: #3b82f6;
+}
 </style>
 
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
@@ -143,117 +248,191 @@
 <div class="recipe-page">
   <!-- 标题栏 -->
   <div class="recipe-title-bar">
-    <h1>视觉配方模块</h1>
+    <h1>3D配方管理</h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button id="btn-create-recipe" class="btn btn-sm" style="background:var(--success);" type="button">
-        ➕ 新增 3D 配方
+      <button id="btn-create-recipe" class="btn btn-sm" style="background:#10b981;color:#fff;" type="button">
+        ➕ 新增配方
       </button>
-      <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-secondary btn-sm">料架定位工作台</a>
-      <a href="{% url 'vision:rack_location_history' %}" class="btn btn-secondary btn-sm">历史结果</a>
-      <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
+      <a href="{% url 'vision:roi_3d_workbench' %}" class="btn btn-sm" style="background:#3b82f6;color:#fff;">🎨 ROI工作台</a>
+      <a href="{% url 'vision:hand_eye_page' %}" class="btn btn-secondary btn-sm">🔄 手眼标定</a>
+      <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-secondary btn-sm">定位工作台</a>
     </div>
-  </div>
-
-  <!-- 选项卡 -->
-  <div class="recipe-tabs">
-    <a href="{% url 'vision:recipe_management' %}" class="recipe-tab">泡棉检测配方（2D）</a>
-    <span class="recipe-tab active">料架定位配方（3D）</span>
   </div>
 
   <!-- 配方内容区 -->
   <div class="recipe-content">
-    <div class="recipe-current-hint">
-      共 <strong id="recipe-count">{{ recipes|length }}</strong> 个 3D 配方 &nbsp;·&nbsp; 点击「编辑」可修改 ROI 和标准坐标
-    </div>
-
-    <!-- 配方卡片列表 -->
-    <div id="rack3d-recipe-list">
+    {% if recipes %}
+    <div id="recipe-list">
       {% for recipe in recipes %}
-      <div class="recipe-card {% if recipe.enabled %}active{% else %}disabled{% endif %}" id="recipe-card-{{ recipe.id }}">
+      <div class="recipe-card {% if not recipe.enabled %}disabled{% endif %}" id="recipe-row-{{ recipe.id }}" data-id="{{ recipe.id }}">
         <h3>
+          <span class="layer-badge">第{{ recipe.layer_no }}层</span>
           {{ recipe.recipe_name }}
-          <span class="recipe-chip info" style="font-size:11px;">POS {{ recipe.position_no }} · 层{{ recipe.layer_no }}</span>
-          {% if not recipe.enabled %}<span style="font-size:11px;color:var(--text-faint);">已禁用</span>{% endif %}
+          <span class="status-badge {% if recipe.enabled %}enabled{% else %}disabled{% endif %}" id="status-{{ recipe.id }}">
+            {% if recipe.enabled %}✔ 已启用{% else %}✕ 已禁用{% endif %}
+          </span>
         </h3>
-        <div class="recipe-card-meta">
-          <span class="recipe-chip">标准X <strong>{{ recipe.standard_x }}</strong></span>
-          <span class="recipe-chip">标准Y <strong>{{ recipe.standard_y }}</strong></span>
-          <span class="recipe-chip">标准Z <strong>{{ recipe.standard_z }}</strong></span>
-          <span class="recipe-chip">Rz <strong>{{ recipe.standard_rz|default:"0" }}</strong></span>
+        <div class="recipe-card-row">
+          <strong>标准坐标（mm）：</strong>
+          X: {{ recipe.standard_x }}, Y: {{ recipe.standard_y }}, Z: {{ recipe.standard_z }}, Rz: {{ recipe.standard_rz|default:"0" }}
         </div>
-        <div class="recipe-card-meta">
-          <span class="recipe-chip">最大偏差 X≤{{ recipe.max_offset_x }} Y≤{{ recipe.max_offset_y }} Z≤{{ recipe.max_offset_z }}</span>
-          <span class="recipe-chip">置信度≥{{ recipe.confidence_threshold }}</span>
-          {% if recipe.capture_pose_name %}<span class="recipe-chip">拍照位 <strong>{{ recipe.capture_pose_name }}</strong></span>{% endif %}
+        <div class="recipe-card-row">
+          <strong>ROI范围（mm）：</strong>
+          {% if recipe.roi_config.x_min != None %}
+          <span title="机器人基坐标系">机器人基坐标：</span>
+          X({{ recipe.roi_config.x_min|default:"-" }} ~ {{ recipe.roi_config.x_max|default:"-" }})
+          Y({{ recipe.roi_config.y_min|default:"-" }} ~ {{ recipe.roi_config.y_max|default:"-" }})
+          Z({{ recipe.roi_config.z_min|default:"-" }} ~ {{ recipe.roi_config.z_max|default:"-" }})
+          {% elif recipe.roi_config.target_roi %}
+          X({{ recipe.roi_config.target_roi.x_min|default:"-" }} ~ {{ recipe.roi_config.target_roi.x_max|default:"-" }})
+          Y({{ recipe.roi_config.target_roi.y_min|default:"-" }} ~ {{ recipe.roi_config.target_roi.y_max|default:"-" }})
+          Z({{ recipe.roi_config.target_roi.z_min|default:"-" }} ~ {{ recipe.roi_config.target_roi.z_max|default:"-" }})
+          {% else %}
+          <span style="color:#cbd5e1;">未配置</span>
+          {% endif %}
         </div>
         <div class="recipe-card-actions">
-          <a class="btn btn-sm" href="{% url 'vision:rack_location_recipe_edit' recipe.id %}">✏️ 编辑</a>
-          <button class="enabled-badge {% if recipe.enabled %}on{% else %}off{% endif %}"
-                  data-recipe-id="{{ recipe.id }}"
-                  data-enabled="{{ recipe.enabled|yesno:'true,false' }}"
-                  onclick="toggleEnabled(this)"
-                  title="点击切换启用/禁用">
-            {% if recipe.enabled %}✔ 已启用{% else %}✕ 已禁用{% endif %}
+          <button class="btn btn-sm" onclick="editRecipe({{ recipe.id }})">编辑</button>
+          <button class="btn btn-secondary btn-sm" onclick="toggleEnabled({{ recipe.id }}, {{ recipe.enabled|yesno:'true,false' }})">
+            {% if recipe.enabled %}禁用{% else %}启用{% endif %}
           </button>
+          <button class="btn btn-sm" style="background:#ef4444;" onclick="deleteRecipe({{ recipe.id }}, '{{ recipe.recipe_name }}')">删除</button>
         </div>
-      </div>
-      {% empty %}
-      <div class="recipe-empty" id="empty-hint">
-        暂无 3D 料架定位配方，请点击上方「➕ 新增 3D 配方」按钮新增。
       </div>
       {% endfor %}
     </div>
+    {% else %}
+    <div class="recipe-empty">
+      暂无配方数据，请点击「新增配方」创建第一个3D料架定位配方
+    </div>
+    {% endif %}
   </div>
 </div>
 
-<!-- 新增配方 Modal -->
+<!-- 新增/编辑配方 Modal -->
 <div id="recipe-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>新增 3D 料架定位配方</h3>
-      <button class="modal-close" onclick="closeModal()">&#times;</button>
+      <h3 id="modal-title">新增配方</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div class="modal-body">
+      <input type="hidden" id="modal-id">
+      
       <div class="form-group">
         <label>配方名称 <span style="color:red;">*</span></label>
-        <input type="text" id="modal-name" placeholder="例如：3D-POS-1-L1">
-        <small>建议命名规则：3D-POS-{位置号}-L{层号}</small>
+        <input type="text" id="modal-name" placeholder="例如：3D-L1" required>
+        <small>建议格式：3D-L{层号}</small>
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>POS 位置号 <span style="color:red;">*</span></label>
-          <input type="number" id="modal-pos" min="1" value="1" placeholder="1">
-        </div>
-        <div class="form-group">
-          <label>层号 <span style="color:red;">*</span></label>
-          <input type="number" id="modal-layer" min="1" value="1" placeholder="1">
-        </div>
-      </div>
+      
       <div class="form-group">
-        <label>拍照位名称</label>
-        <input type="text" id="modal-pose" placeholder="例如：POSE-POS-1-L1">
-        <small>机器人到达此位置后触发拍照</small>
+        <label>适用层号 <span style="color:red;">*</span></label>
+        <input type="number" id="modal-layer" min="1" max="3" value="1" placeholder="1" required>
+        <small>坐标模块支持第 1/2/3 层</small>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">相机坐标 ROI（mm）</div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;"><label>X Min</label><input type="number" id="modal-camera-roi-x-min" step="0.1"></div>
+          <div class="form-group" style="margin-bottom:0;"><label>X Max</label><input type="number" id="modal-camera-roi-x-max" step="0.1"></div><div></div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;"><label>Y Min</label><input type="number" id="modal-camera-roi-y-min" step="0.1"></div>
+          <div class="form-group" style="margin-bottom:0;"><label>Y Max</label><input type="number" id="modal-camera-roi-y-max" step="0.1"></div><div></div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;"><label>Z Min</label><input type="number" id="modal-camera-roi-z-min" step="0.1"></div>
+          <div class="form-group" style="margin-bottom:0;"><label>Z Max</label><input type="number" id="modal-camera-roi-z-max" step="0.1"></div><div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px;">
+          <button type="button" id="btn-modal-transform-roi" class="btn btn-secondary btn-sm">相机 → 机器人坐标</button>
+          <small id="modal-roi-transform-status">填写完整后自动换算，参数取自“坐标”模块。</small>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">3D ROI 配方坐标（机器人基坐标系 mm）</div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>X Min</label>
+            <input type="number" id="modal-roi-x-min" step="0.1" placeholder="自动计算" readonly>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>X Max</label>
+            <input type="number" id="modal-roi-x-max" step="0.1" placeholder="自动计算" readonly>
+          </div>
+          <div></div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Y Min</label>
+            <input type="number" id="modal-roi-y-min" step="0.1" placeholder="自动计算" readonly>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Y Max</label>
+            <input type="number" id="modal-roi-y-max" step="0.1" placeholder="自动计算" readonly>
+          </div>
+          <div></div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Z Min</label>
+            <input type="number" id="modal-roi-z-min" step="0.1" placeholder="自动计算" readonly>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Z Max</label>
+            <input type="number" id="modal-roi-z-max" step="0.1" placeholder="自动计算" readonly>
+          </div>
+          <div></div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">标准坐标（mm）</div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标准 X</label>
+            <input type="number" id="modal-std-x" step="0.001" placeholder="100.000" value="0">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标准 Y</label>
+            <input type="number" id="modal-std-y" step="0.001" placeholder="200.000" value="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标准 Z</label>
+            <input type="number" id="modal-std-z" step="0.001" placeholder="800.000" value="0">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标准 Rz</label>
+            <input type="number" id="modal-std-rz" step="0.001" placeholder="0.000" value="0">
+          </div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" onclick="closeModal()">取消</button>
-      <button class="btn btn-sm" style="background:var(--info);" onclick="submitModal()">前往配置</button>
+      <button class="btn btn-sm" style="background:#3b82f6;color:#fff;" onclick="saveRecipe()">保存</button>
     </div>
   </div>
 </div>
 
 <script>
 // ============================================================
-//  3D 配方管理页面 · 前端逻辑
+//  3D 配方管理 · 增删改查逻辑
 // ============================================================
-const API_TOGGLE = '{% url "vision:api_rack_location_recipes" %}';
-const CREATE_URL = '{% url "vision:rack_location_recipe_create" %}';
+const API_URL = '{% url "vision:api_vision_3d_recipes" %}';
+window.roiCoordinateConfig = {
+  transformRoiUrl: '{% url "coordinates:api_transform_roi" %}',
+};
 
 function getCsrf() {
   return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
 }
 
-function showToast(message, type = 'success', duration = 2500) {
+function showToast(message, type = 'success', duration = 2000) {
   const icons = { success: '✅', error: '❌', info: 'ℹ️' };
   const titles = { success: '操作成功', error: '操作失败', info: '提示' };
   const toast = document.createElement('div');
@@ -272,77 +451,240 @@ function showToast(message, type = 'success', duration = 2500) {
   }, duration);
 }
 
-// ── 启用/禁用切换 ─────────────────────────────────
-async function toggleEnabled(btn) {
-  const id = btn.dataset.recipeId;
-  const currentlyEnabled = btn.dataset.enabled === 'true';
-  const newEnabled = !currentlyEnabled;
+// ── 新增配方 ──────────────────────────────────────
+document.getElementById('btn-create-recipe').addEventListener('click', () => {
+  window.lastRoiTransform = null;
+  document.getElementById('modal-title').textContent = '新增配方';
+  document.getElementById('modal-id').value = '';
+  document.getElementById('modal-name').value = '';
+  document.getElementById('modal-layer').value = '1';
+  ['x-min', 'x-max', 'y-min', 'y-max', 'z-min', 'z-max'].forEach(key => {
+    document.getElementById('modal-camera-roi-' + key).value = '';
+  });
+  document.getElementById('modal-roi-x-min').value = '';
+  document.getElementById('modal-roi-x-max').value = '';
+  document.getElementById('modal-roi-y-min').value = '';
+  document.getElementById('modal-roi-y-max').value = '';
+  document.getElementById('modal-roi-z-min').value = '';
+  document.getElementById('modal-roi-z-max').value = '';
+  document.getElementById('modal-std-x').value = '0';
+  document.getElementById('modal-std-y').value = '0';
+  document.getElementById('modal-std-z').value = '0';
+  document.getElementById('modal-std-rz').value = '0';
+  document.getElementById('recipe-modal').style.display = 'flex';
+});
+
+// ── 编辑配方 ──────────────────────────────────────
+async function editRecipe(id) {
   try {
-    const res = await fetch(API_TOGGLE, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
-      body: JSON.stringify({ id: Number(id), enabled: newEnabled }),
-    });
+    window.lastRoiTransform = null;
+    const res = await fetch(`${API_URL}?id=${id}`);
     const data = await res.json();
-    if (data.success) {
-      btn.dataset.enabled = String(newEnabled);
-      btn.className = 'enabled-badge ' + (newEnabled ? 'on' : 'off');
-      btn.textContent = newEnabled ? '✔ 已启用' : '✕ 已禁用';
-      const card = document.getElementById('recipe-card-' + id);
-      if (card) {
-        card.classList.toggle('active', newEnabled);
-        card.classList.toggle('disabled', !newEnabled);
-      }
-      showToast(newEnabled ? '配方已启用' : '配方已禁用', 'success');
-    } else {
-      showToast('切换失败：' + (data.error || '未知错误'), 'error');
+    if (!data.success) {
+      showToast('获取配方失败：' + (data.error || '未知错误'), 'error');
+      return;
     }
+    
+    if (!data.recipes || data.recipes.length === 0) {
+      showToast('配方不存在', 'error');
+      return;
+    }
+    
+    const recipe = data.recipes[0];
+    document.getElementById('modal-title').textContent = '编辑配方';
+    document.getElementById('modal-id').value = recipe.id;
+    document.getElementById('modal-name').value = recipe.recipe_name || '';
+    document.getElementById('modal-layer').value = recipe.layer_no || 1;
+    
+    // ROI参数
+    const roiConfig = recipe.roi_config || {};
+    const roi = roiConfig.x_min != null ? roiConfig : (roiConfig.target_roi || {});
+    ['x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max'].forEach(key => {
+      document.getElementById('modal-roi-' + key.replace('_', '-')).value = roi[key] ?? '';
+      document.getElementById('modal-camera-roi-' + key.replace('_', '-')).value = roiConfig.camera_roi?.[key] ?? '';
+    });
+    
+    // 标准坐标
+    document.getElementById('modal-std-x').value = recipe.standard_x || 0;
+    document.getElementById('modal-std-y').value = recipe.standard_y || 0;
+    document.getElementById('modal-std-z').value = recipe.standard_z || 0;
+    document.getElementById('modal-std-rz').value = recipe.standard_rz || 0;
+    
+    document.getElementById('recipe-modal').style.display = 'flex';
   } catch (e) {
+    console.error('编辑配方失败:', e);
     showToast('网络请求失败：' + e.message, 'error');
   }
 }
 
-// ── Modal ─────────────────────────────────────────
-document.getElementById('btn-create-recipe').addEventListener('click', () => {
-  document.getElementById('modal-name').value = '';
-  document.getElementById('modal-pos').value = '1';
-  document.getElementById('modal-layer').value = '1';
-  document.getElementById('modal-pose').value = '';
-  document.getElementById('recipe-modal').style.display = 'flex';
-});
+// ── 保存配方 ──────────────────────────────────────
+async function saveRecipe() {
+  const id = document.getElementById('modal-id').value;
+  const name = document.getElementById('modal-name').value.trim();
+  const layer = document.getElementById('modal-layer').value.trim();
+  
+  // 表单验证
+  if (!name) { 
+    showToast('请填写配方名称', 'error'); 
+    document.getElementById('modal-name').focus();
+    return; 
+  }
+  if (!layer || Number(layer) < 1) { 
+    showToast('层号至少为 1', 'error'); 
+    document.getElementById('modal-layer').focus();
+    return; 
+  }
 
+  const roiKeys = ['x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max'];
+  const robotRoi = {};
+  const cameraRoi = {};
+  for (const key of roiKeys) {
+    const suffix = key.replace('_', '-');
+    robotRoi[key] = Number(document.getElementById('modal-roi-' + suffix).value);
+    const cameraValue = document.getElementById('modal-camera-roi-' + suffix).value.trim();
+    cameraRoi[key] = cameraValue === '' ? null : Number(cameraValue);
+  }
+  if (!roiKeys.every(key => Number.isFinite(robotRoi[key]))) {
+    showToast('请先填写相机 ROI，并完成机器人坐标换算', 'error');
+    return;
+  }
+  for (const axis of ['x', 'y', 'z']) {
+    if (robotRoi[axis + '_min'] >= robotRoi[axis + '_max']) {
+      showToast(`${axis.toUpperCase()} Min 必须小于 Max`, 'error');
+      return;
+    }
+  }
+
+  const payload = {
+    recipe_name: name,
+    layer_no: Number(layer),
+    standard_x: Number(document.getElementById('modal-std-x').value) || 0,
+    standard_y: Number(document.getElementById('modal-std-y').value) || 0,
+    standard_z: Number(document.getElementById('modal-std-z').value) || 0,
+    standard_rz: Number(document.getElementById('modal-std-rz').value) || 0,
+    roi_config: {
+      coordinate_system: 'robot',
+      ...robotRoi,
+      target_roi: robotRoi,
+      camera_roi: roiKeys.every(key => Number.isFinite(cameraRoi[key])) ? cameraRoi : null,
+      transform_snapshot: window.lastRoiTransform?.base_camera_matrix || null,
+    },
+    hand_eye_config: window.lastRoiTransform?.hand_eye_matrix
+      ? {matrix: window.lastRoiTransform.hand_eye_matrix} : undefined,
+    capture_pose: window.lastRoiTransform?.robot_pose || undefined,
+    enabled: true,
+  };
+
+  if (id) {
+    payload.id = Number(id);
+  }
+
+  try {
+    const res = await fetch(API_URL, {
+      method: id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    
+    const data = await res.json();
+    
+    if (data.success) {
+      showToast(id ? '配方已更新' : '配方已创建', 'success');
+      closeModal();
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast('保存失败：' + (data.error || '未知错误'), 'error');
+    }
+  } catch (e) {
+    console.error('保存配方失败:', e);
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+}
+
+// ── 启用/禁用切换 ─────────────────────────────────
+async function toggleEnabled(id, currentlyEnabled) {
+  const newEnabled = !currentlyEnabled;
+  try {
+    const res = await fetch(API_URL, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({ id: Number(id), enabled: newEnabled }),
+    });
+    
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    
+    const data = await res.json();
+    
+    if (data.success) {
+      const card = document.getElementById('recipe-row-' + id);
+      const badge = document.getElementById('status-' + id);
+      if (newEnabled) {
+        card.classList.remove('disabled');
+        badge.className = 'status-badge enabled';
+        badge.textContent = '✔ 已启用';
+      } else {
+        card.classList.add('disabled');
+        badge.className = 'status-badge disabled';
+        badge.textContent = '✕ 已禁用';
+      }
+      showToast(newEnabled ? '配方已启用' : '配方已禁用', 'success');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast('操作失败：' + (data.error || '未知错误'), 'error');
+    }
+  } catch (e) {
+    console.error('切换状态失败:', e);
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+}
+
+// ── 删除配方 ──────────────────────────────────────
+async function deleteRecipe(id, name) {
+  if (!confirm(`确定要删除配方「${name}」吗？\n\n此操作不可恢复！`)) return;
+  
+  try {
+    const res = await fetch(API_URL, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({ id: Number(id) }),
+    });
+    
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    
+    const data = await res.json();
+    
+    if (data.success) {
+      showToast('配方已删除', 'success');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast('删除失败：' + (data.error || '未知错误'), 'error');
+    }
+  } catch (e) {
+    console.error('删除配方失败:', e);
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+}
+
+// ── Modal 控制 ────────────────────────────────────
 function closeModal() {
   document.getElementById('recipe-modal').style.display = 'none';
 }
 
-function submitModal() {
-  const name = document.getElementById('modal-name').value.trim();
-  const pos  = document.getElementById('modal-pos').value.trim();
-  const layer = document.getElementById('modal-layer').value.trim();
-  const pose = document.getElementById('modal-pose').value.trim();
-
-  if (!name) { showToast('请填写配方名称', 'error'); return; }
-  if (!pos || Number(pos) < 1) { showToast('POS 位置号至少为 1', 'error'); return; }
-  if (!layer || Number(layer) < 1) { showToast('层号至少为 1', 'error'); return; }
-
-  // 构造跳转 URL，携带预填参数
-  const params = new URLSearchParams({
-    recipe_name: name,
-    position_no: pos,
-    layer_no: layer,
-    capture_pose_name: pose,
-  });
-  window.location.href = CREATE_URL + '?' + params.toString();
-}
-
-// 点击遮罩关闭
 document.getElementById('recipe-modal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
 
-// ESC 关闭
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeModal();
 });
 </script>
+<script src="{% static 'vision/js/roi_coordinate_transform.js' %}"></script>
 {% endblock %}

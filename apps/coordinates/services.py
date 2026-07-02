@@ -69,10 +69,14 @@ class CoordinateWorkbenchService:
         }
         return draft
 
-    def get_config(self, layer_no):
+    def get_config(self, layer_no, recipe_id=None):
         layer_no = self._layer(layer_no)
         config = self.default_draft(layer_no)
-        recipe = self._find_recipe(layer_no)
+        recipe = self._find_recipe(layer_no, recipe_id)
+        if recipe_id and recipe is None:
+            raise CoordinateWorkbenchError(
+                'RECIPE_NOT_FOUND', '指定的坐标配方不存在或层号不匹配', 404
+            )
         if recipe is None:
             return config
 
@@ -102,6 +106,55 @@ class CoordinateWorkbenchService:
         if all(key in roi for key in roi_keys):
             config['roi'] = {key: float(roi[key]) for key in roi_keys}
         return config
+
+    def transform_camera_roi(self, layer_no, camera_roi, recipe_id=None):
+        """Convert an axis-aligned camera ROI into a robot-base AABB.
+
+        All eight corners are transformed because a rotated coordinate chain
+        cannot be represented correctly by transforming only the min/max pair.
+        """
+        layer_no = self._layer(layer_no)
+        roi = self._numbers(
+            camera_roi, ('x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max')
+        )
+        for axis in ('x', 'y', 'z'):
+            if roi[f'{axis}_min'] >= roi[f'{axis}_max']:
+                raise CoordinateWorkbenchError(
+                    'INVALID_ROI', f'{axis.upper()} Min 必须小于 Max', 400,
+                    {f'camera_roi.{axis}_min': '必须小于最大值'},
+                )
+
+        config = self.get_config(layer_no, recipe_id)
+        corners = np.array([
+            [x, y, z]
+            for x in (roi['x_min'], roi['x_max'])
+            for y in (roi['y_min'], roi['y_max'])
+            for z in (roi['z_min'], roi['z_max'])
+        ], dtype=np.float64)
+        robot_corners = self.transform_points(corners, config)
+        lower, upper = robot_corners.min(axis=0), robot_corners.max(axis=0)
+        robot_roi = {
+            'x_min': float(lower[0]), 'x_max': float(upper[0]),
+            'y_min': float(lower[1]), 'y_max': float(upper[1]),
+            'z_min': float(lower[2]), 'z_max': float(upper[2]),
+        }
+
+        hand_eye = self._matrix(config['hand_eye_matrix'])
+        pose = config['robot_pose']
+        base_flange = self.transform_service.pose_to_matrix(
+            pose['x'], pose['y'], pose['z'], pose['rx'], pose['ry'], pose['rz']
+        )
+        return {
+            'layer_no': layer_no,
+            'recipe_id': config.get('recipe_id'),
+            'camera_roi': roi,
+            'robot_roi': robot_roi,
+            'coordinate_system': 'robot',
+            'coordinate_source': config['hand_eye_source'],
+            'hand_eye_matrix': hand_eye.tolist(),
+            'robot_pose': pose,
+            'base_camera_matrix': (base_flange @ hand_eye).tolist(),
+        }
 
     def get_workbench(self, layer_no):
         return self.preview(self.get_config(layer_no))

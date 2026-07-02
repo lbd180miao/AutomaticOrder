@@ -1,37 +1,27 @@
 /* ============================================================
- *  3D 料架定位工作台 · 交互逻辑
- *  采集点云 → 画 ROI → 计算偏差 → 保存到数据库
- *  次级：按 POS/层号自动拍照计算 + 历史记录
+ *  3D 料架定位工作台 · 简化版
+ *  简单流程：选配方 → 采集点云 → 绘制ROI → 计算偏差
  * ============================================================ */
 (function () {
   const CFG = window.rackLocatorConfig || {};
   const $ = (id) => document.getElementById(id);
   const csrf = () => document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
 
-  // ── 配置完整性校验 ──────────────────────────────────────
-  if (!window.rackLocatorConfig || !CFG.captureUrl) {
-    console.error('[rack_locator_workbench] rackLocatorConfig 未定义或 captureUrl 缺失！请检查模板中的 <script> 是否有语法错误。');
-  }
-
   // ── 工作台状态 ──────────────────────────────────────────
   const state = {
     token: null,         // 持久化点云 token
     roi: null,           // 真实图像像素 ROI {x,y,w,h}
-    alignmentToken: null,
     drawing: false,
     start: null,
     displayRoi: null,
-    lastResultId: null,
-    lastResultOk: false,
     currentRecipe: null,
-    pendingRoi: null,    // 待应用的 ROI（在采集点云前加载）
+    pendingRoi: null,    // 待应用的 ROI
   };
 
   // ── 暴露设置 ROI 的接口供外部调用 ────────────────────────
   window.rackLocatorSetRoi = function(targetRoi) {
     if (!targetRoi) return;
     
-    // 如果已经有点云图像，立即应用
     if (state.token && image.style.display !== 'none') {
       state.roi = {
         x: targetRoi.x,
@@ -41,7 +31,6 @@
         feature_type: targetRoi.feature_type || 'rack_reference'
       };
       
-      // 转换为显示坐标
       const nat = naturalDims();
       const scaleX = canvas.width / nat.w;
       const scaleY = canvas.height / nat.h;
@@ -55,14 +44,10 @@
       draw();
       setReadout();
       setStatus('已加载配方 ROI，可直接点击「计算偏差」。');
-      console.log('ROI 已应用到画布');
     } else {
-      // 如果还没有点云，保存到待应用状态
       state.pendingRoi = targetRoi;
-      console.log('ROI 已保存，等待点云采集后应用');
     }
   };
-
 
   // ── Loading 遮罩 ─────────────────────────────────────────
   function showLoading(msg) {
@@ -76,7 +61,7 @@
 
   async function postJson(url, body) {
     if (!url || typeof url !== 'string' || !url.startsWith('/')) {
-      throw new Error(`API URL 未正确配置 (值为: ${url})。请刷新页面重试，或检查浏览器控制台是否有JS语法错误。`);
+      throw new Error(`API URL 未正确配置 (值为: ${url})。请刷新页面重试。`);
     }
     const res = await fetch(url, {
       method: 'POST',
@@ -84,27 +69,17 @@
       body: JSON.stringify(body || {}),
     });
     
-    // 检查响应的Content-Type
     const contentType = res.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      // 如果不是JSON响应，读取文本内容用于调试
       const text = await res.text();
-      console.error('服务器返回非JSON响应:', {
-        status: res.status,
-        statusText: res.statusText,
-        contentType: contentType,
-        responseText: text.substring(0, 500) // 只记录前500字符
-      });
+      console.error('服务器返回非JSON响应:', { status: res.status, statusText: res.statusText, responseText: text.substring(0, 500) });
       
-      // 如果是4xx或5xx错误，提供更有用的错误信息
       if (!res.ok) {
-        throw new Error(`服务器错误 (${res.status}): ${res.statusText}。可能是URL路径错误或权限问题。`);
+        throw new Error(`服务器错误 (${res.status}): ${res.statusText}`);
       }
-      
-      throw new Error('服务器返回了HTML页面而不是JSON数据。请检查API URL配置是否正确。');
+      throw new Error('服务器返回了HTML页面而不是JSON数据');
     }
     
-    // 正常解析JSON
     return res.json();
   }
 
@@ -113,116 +88,15 @@
   function apiPayload(data) {
     if (!data || !data.data) return data || {};
     if (typeof data.data === 'object' && !Array.isArray(data.data)) {
-      return {
-        success: data.success,
-        error: data.error || '',
-        ...data.data,
-      };
+      return { success: data.success, error: data.error || '', ...data.data };
     }
-    return {
-      success: data.success,
-      error: data.error || '',
-      data: data.data,
-    };
+    return { success: data.success, error: data.error || '', data: data.data };
   }
 
   function numberInput(id, fallback) {
     const node = $(id);
     const value = node ? Number(node.value) : NaN;
     return Number.isFinite(value) ? value : fallback;
-  }
-
-  function currentRackSide() {
-    return $('rack-side')?.value || 'LEFT';
-  }
-
-  function currentLayerNo() {
-    return numberInput('layer-no-select', numberInput('layer-no', 1));
-  }
-
-  function currentMode() {
-    return $('locate-mode')?.value || 'local';
-  }
-
-  function currentLocateType() {
-    const typeControl = $('locate-type');
-    if (typeControl) {
-      return typeControl.value || 'LAYER';
-    }
-    return String(currentMode()).toLowerCase() === 'global' ? 'GLOBAL' : 'LAYER';
-  }
-
-  function currentLayerIndex() {
-    const indexControl = $('layer-index');
-    if (indexControl) {
-      return Number(indexControl.value) || 1;
-    }
-    return currentLocateType() === 'GLOBAL' ? 0 : currentLayerNo();
-  }
-
-  // 同步新旧控件
-  function syncControls() {
-    const locateType = currentLocateType();
-    const layerIndex = currentLayerIndex();
-    
-    // 同步到旧控件
-    if ($('locate-mode')) {
-      $('locate-mode').value = locateType === 'GLOBAL' ? 'global' : 'local';
-    }
-    if ($('layer-no')) {
-      $('layer-no').value = layerIndex;
-    }
-    if ($('layer-no-select')) {
-      $('layer-no-select').value = layerIndex;
-    }
-    
-    // 同步到新控件
-    if ($('locate-type')) {
-      $('locate-type').value = locateType;
-    }
-    if ($('layer-index')) {
-      $('layer-index').value = layerIndex;
-    }
-  }
-
-  function semanticPayload(extra) {
-    return {
-      locate_type: currentLocateType(),
-      layer_index: currentLayerIndex(),
-      layer_no: currentLayerIndex(),
-      ...(extra || {}),
-    };
-  }
-
-  function setButton(id, enabled) {
-    const node = $(id);
-    if (node) node.disabled = !enabled;
-  }
-
-  function refreshActionState() {
-    // 简化版：只控制三个主要按钮
-    setButton('btn-capture', true);  // 采集点云始终可用
-    setButton('btn-redraw', Boolean(state.token));  // 有点云后可以重画ROI
-    setButton('btn-calculate', Boolean(state.token));  // 有点云后可以计算
-  }
-
-  async function refreshCurrentRecipe() {
-    if (!CFG.currentRecipeUrl) return;
-    try {
-      const query = new URLSearchParams({
-        locate_type: currentLocateType(),
-        layer_index: String(currentLayerIndex()),
-      });
-      const res = await fetch(`${CFG.currentRecipeUrl}?${query.toString()}`);
-      const data = apiPayload(await res.json());
-      const recipe = data.recipe || null;
-      state.currentRecipe = recipe;
-      if (recipe && recipe.id && $('recipe-id')) {
-        $('recipe-id').value = recipe.id;
-      }
-    } catch (e) {
-      state.currentRecipe = null;
-    }
   }
 
   function currentRoi3D() {
@@ -236,21 +110,31 @@
     };
   }
 
-  // ── 选中配方的参数（标准坐标） ───────────
-  // 新方案：配方选择改为卡片点击，数据存放在 .rl-recipe-card.selected 的 dataset 上
-  function selectedCardData() {
-    const card = document.querySelector('.rl-recipe-card.selected');
-    return card ? card.dataset : null;
-  }
   function currentRecipeData() {
-    const d = selectedCardData();
-    const data = { layer_no: currentLayerIndex(), locate_type: currentLocateType(), layer_index: currentLayerIndex() };
-    if (d) {
-      data.standard_x = Number(d.sx || 0);
-      data.standard_y = Number(d.sy || 0);
-      data.standard_z = Number(d.sz || 0);
-    }
-    return data;
+    const select = $('recipe-select');
+    if (!select) return {};
+    
+    const option = select.options[select.selectedIndex];
+    if (!option || !option.value) return {};
+    
+    return {
+      standard_x: Number(option.dataset.sx || 0),
+      standard_y: Number(option.dataset.sy || 0),
+      standard_z: Number(option.dataset.sz || 0),
+      layer_no: Number(option.dataset.layer || 1),
+      position_no: Number(option.dataset.pos || 1),
+    };
+  }
+
+  function setButton(id, enabled) {
+    const node = $(id);
+    if (node) node.disabled = !enabled;
+  }
+
+  function refreshActionState() {
+    setButton('btn-capture', true);
+    setButton('btn-redraw', Boolean(state.token));
+    setButton('btn-calculate', Boolean(state.token));
   }
 
   // ── 画布 / ROI ───────────────────────────────────────────
@@ -289,17 +173,20 @@
       y: Math.max(0, Math.min(canvas.height, e.clientY - rect.top)),
     };
   }
+  
   function naturalDims() {
     return {
       w: image.naturalWidth || Number(image.dataset.naturalWidth) || canvas.width,
       h: image.naturalHeight || Number(image.dataset.naturalHeight) || canvas.height,
     };
   }
+  
   function displayToReal(d) {
     const n = naturalDims();
     const sx = n.w / canvas.width, sy = n.h / canvas.height;
     return { x: Math.round(d.x * sx), y: Math.round(d.y * sy), w: Math.round(d.w * sx), h: Math.round(d.h * sy) };
   }
+  
   function setReadout() {
     const n = $('rl-roi-readout');
     if (!n) return;
@@ -315,6 +202,7 @@
     state.displayRoi = { x: state.start.x, y: state.start.y, w: 0, h: 0 };
     draw();
   });
+  
   canvas.addEventListener('mousemove', (e) => {
     if (!state.drawing || !state.start) return;
     const c = pointerToCanvas(e);
@@ -324,11 +212,16 @@
     };
     draw();
   });
+  
   window.addEventListener('mouseup', () => {
     if (!state.drawing || !state.displayRoi) return;
     state.drawing = false;
     state.start = null;
-    if (state.displayRoi.w < 3 || state.displayRoi.h < 3) { state.displayRoi = null; draw(); return; }
+    if (state.displayRoi.w < 3 || state.displayRoi.h < 3) { 
+      state.displayRoi = null; 
+      draw(); 
+      return; 
+    }
     const real = displayToReal(state.displayRoi);
     state.roi = { x: real.x, y: real.y, w: real.w, h: real.h, feature_type: 'rack_reference' };
     setReadout();
@@ -339,21 +232,25 @@
   $('btn-capture').addEventListener('click', async () => {
     showLoading('3D 相机采集中...');
     try {
-      // 优先使用工作台专用端点
-      const captureApiUrl = CFG.captureUrl || CFG.legacyCaptureUrl || '/vision/api/rack-location/workbench/capture/';
+      const captureApiUrl = CFG.captureUrl || '/vision/api/rack-location/workbench/capture/';
       console.log('[采集点云] 使用API端点:', captureApiUrl);
       
-      const raw = await postJson(captureApiUrl, semanticPayload({
+      const recipeData = currentRecipeData();
+      const raw = await postJson(captureApiUrl, {
         recipe_id: $('recipe-id').value || null,
-        rack_side: currentRackSide(),
-      }));
+        rack_side: $('rack-side').value || 'LEFT',
+        layer_no: recipeData.layer_no || 1,
+        locate_type: 'LAYER',
+        layer_index: recipeData.layer_no || 1,
+      });
+      
       const data = apiPayload(raw);
       if (!data.success) { setStatus(data.error || '采集失败'); return; }
+      
       state.token = data.pointcloud_token;
-      state.alignmentToken = null;
-      state.lastResultId = null;
-      state.lastResultOk = false;
-      state.roi = null; state.displayRoi = null;
+      state.roi = null; 
+      state.displayRoi = null;
+      
       const previewUrl = data.pointcloud_preview_url || data.preview_image_url;
       if (previewUrl) image.src = previewUrl + '?t=' + Date.now();
       image.dataset.naturalWidth = data.image_width;
@@ -368,21 +265,18 @@
       // 如果有待应用的 ROI，在点云加载后自动应用
       if (state.pendingRoi || window.tempPendingRoi) {
         const pendingRoi = state.pendingRoi || window.tempPendingRoi;
-        // 等待图像加载完成
         image.onload = function() {
           resizeCanvas();
           window.rackLocatorSetRoi(pendingRoi);
-          state.pendingRoi = null; // 清除待应用状态
+          state.pendingRoi = null;
           window.tempPendingRoi = null;
         };
       }
       
       if (data.source && data.source.indexOf('sample') === 0) {
-        setStatus('⚠ 未取到真实相机数据，已回退模拟点云'
-          + (data.fallback_reason ? '：' + data.fallback_reason : '（相机未连接）')
-          + '。请检查相机连接后重试。');
+        setStatus('⚠ 未取到真实相机数据，已回退模拟点云。请检查相机连接后重试。');
       } else {
-        setStatus(state.pendingRoi ? '点云已采集，配方 ROI 已自动显示。' : '点云已采集（真实相机），请在图上拖拽绘制 ROI。');
+        setStatus(state.pendingRoi ? '点云已采集，配方 ROI 已自动显示。' : '点云已采集，请在图上拖拽绘制 ROI。');
       }
     } catch (e) {
       setStatus('网络请求失败：' + e.message);
@@ -390,9 +284,10 @@
   });
 
   $('btn-redraw').addEventListener('click', () => {
-    state.roi = null; state.displayRoi = null;
-    state.alignmentToken = null;
-    draw(); setReadout();
+    state.roi = null; 
+    state.displayRoi = null;
+    draw(); 
+    setReadout();
     setStatus('请重新拖拽绘制 ROI。');
     refreshActionState();
   });
@@ -400,48 +295,50 @@
   // ── 计算偏差 ─────────────────────────────────────────────
   $('btn-calculate').addEventListener('click', async () => {
     if (!state.token) { setStatus('请先采集点云。'); return; }
+    if (!state.roi) { setStatus('请先绘制 ROI。'); return; }
+    
     showLoading('计算坐标偏差中...');
     try {
-      // 优先使用工作台专用端点
-      const calculateApiUrl = CFG.calculateUrl || CFG.legacyCalculateUrl || CFG.testLocateUrl || '/vision/api/rack-location/workbench/calculate/';
+      const calculateApiUrl = CFG.calculateUrl || '/vision/api/rack-location/workbench/calculate/';
       console.log('[计算偏差] 使用API端点:', calculateApiUrl);
       
-      const raw = await postJson(calculateApiUrl, semanticPayload({
+      const recipeData = currentRecipeData();
+      const raw = await postJson(calculateApiUrl, {
         pointcloud_token: state.token,
         roi: currentRoi3D(),
         roi_config: { target_roi: state.roi },
-        rack_side: currentRackSide(),
+        rack_side: $('rack-side').value || 'LEFT',
         recipe_id: $('recipe-id').value || null,
-        recipe_data: currentRecipeData(),
-      }));
+        recipe_data: recipeData,
+        layer_no: recipeData.layer_no || 1,
+      });
+      
       const data = apiPayload(raw);
       if (!data.success) { setStatus(data.error || '计算失败'); return; }
+      
       renderResult(data.result);
-      $('btn-save').disabled = false;
-      $('last-time').textContent = '上次计算：' + new Date().toLocaleString('zh-CN', { hour12: false });
       setStatus(data.result.locate_ok ? '计算完成：定位 OK。' : ('计算完成：定位 NG · ' + (data.result.error_message || data.result.error_code || '')));
       
       // 计算完成后自动选中下一个配方
       selectNextRecipe();
     } catch (e) {
       setStatus('网络请求失败：' + e.message);
+      console.error('[计算偏差] 错误:', e);
     } finally { hideLoading(); }
   });
   
   // ── 自动选中下一个配方 ──────────────────────────────────
   function selectNextRecipe() {
-    const select = document.getElementById('recipe-select');
+    const select = $('recipe-select');
     if (!select || select.options.length === 0) return;
     
     const currentIndex = select.selectedIndex;
     let nextIndex = currentIndex + 1;
     
-    // 如果已经是最后一个，循环回到第一个
     if (nextIndex >= select.options.length) {
       nextIndex = 0;
     }
     
-    // 跳过空选项（如果有的话）
     while (nextIndex < select.options.length && !select.options[nextIndex].value) {
       nextIndex++;
       if (nextIndex >= select.options.length) {
@@ -450,25 +347,15 @@
       }
     }
     
-    // 更新下拉框选择
     if (select.options[nextIndex] && select.options[nextIndex].value) {
       select.selectedIndex = nextIndex;
-      // 触发change事件以应用配方
       select.dispatchEvent(new Event('change'));
-      
       console.log(`已自动选中下一个配方：${select.options[nextIndex].text}`);
     }
   }
 
-  // ── 保存结果到数据库 ─────────────────────────────────────
-  // 移除保存功能，简化工作台为纯计算预览工具
-
-  // ── 移除不需要的高级功能 ──────────────────────────────────
-  // 移除：自动对齐、保存ROI、写入PLC、自动触发、历史记录等复杂功能
-
   // ── 渲染结果 ─────────────────────────────────────────────
   function renderResult(r) {
-    // 简化版：只显示计算结果，不保存状态用于其他操作
     const ok = r.locate_ok ?? r.is_success;
     const v = $('rl-verdict');
     v.className = 'rl-verdict ' + (ok ? 'ok' : 'fail');
@@ -514,92 +401,15 @@
     else cell.classList.add('negative');
   }
 
-  // ── 自动按 POS/层号触发（沿用既有 trigger） ───────────────
-  $('btn-auto-trigger').addEventListener('click', async () => {
-    showLoading('自动拍照计算中...');
-    try {
-      const raw = await postJson(CFG.locateUrl || CFG.triggerUrl, semanticPayload({
-        position_no: Number($('position-no').value || 1),
-        rack_side: currentRackSide(),
-        recipe_id: $('recipe-id').value || null,
-        write_plc: false,
-      }));
-      const data = apiPayload(raw);
-      const status = $('rl-auto-status');
-      if (!data.success) { status.textContent = '失败：' + (data.error || '未知错误'); return; }
-      renderResult(data.result);
-      status.textContent = data.result.locate_ok ? '自动定位 OK，已入库。' : '自动定位 NG，已入库。';
-      loadHistory();
-    } catch (e) {
-      $('rl-auto-status').textContent = '网络请求失败：' + e.message;
-    } finally { hideLoading(); }
-  });
-
-  // ── 历史记录 ─────────────────────────────────────────────
-  async function loadHistory() {
-    try {
-      const query = new URLSearchParams({
-        position_no: $('position-no').value || '',
-        layer_index: String(currentLayerIndex()),
-        locate_type: currentLocateType(),
-      });
-      const res = await fetch(`${CFG.results3dUrl || CFG.resultsUrl}?${query.toString()}`);
-      const data = apiPayload(await res.json());
-      const tbody = $('history-tbody');
-      if (!data.results || !data.results.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty">暂无定位记录</td></tr>';
-        return;
-      }
-      tbody.innerHTML = data.results.map((r) => `
-        <tr>
-          <td>${(r.created_at || '').replace('T', ' ').slice(0, 19) || '—'}</td>
-          <td>${r.position_no ?? '—'}</td>
-          <td>${r.layer_no ?? '—'}</td>
-          <td>${fmt(r.offset_x)}</td>
-          <td>${fmt(r.offset_y)}</td>
-          <td>${fmt(r.offset_z)}</td>
-          <td>${fmt(r.offset_rz, '°')}</td>
-          <td>${r.confidence != null ? (r.confidence * 100).toFixed(1) + '%' : '—'}</td>
-          <td>${(r.locate_ok ?? r.is_success) ? '<span class="badge badge-ok">OK</span>' : '<span class="badge badge-fail">NG</span>'}</td>
-        </tr>`).join('');
-    } catch (e) {
-      $('history-tbody').innerHTML = `<tr><td colspan="9" class="empty">加载失败：${e.message}</td></tr>`;
-    }
-  }
-  function fmt(v, unit = 'mm') {
-    const n = parseFloat(v);
-    return isNaN(n) ? '—' : (n > 0 ? '+' : '') + n.toFixed(3) + ' ' + unit;
-  }
-
-  // ── 配方卡片选择联动 POS/层号（已由 HTML 层 selectRecipeCard() 处理，此处仅保留历史兼容） ──
-  // $('recipe-id').addEventListener('change', ...) 已迁移到 HTML 内联 onclick
-
-  $('btn-refresh-history').addEventListener('click', loadHistory);
+  // ── 初始化 ───────────────────────────────────────────────
   window.addEventListener('resize', resizeCanvas);
   image.addEventListener('load', resizeCanvas);
-  
-  // 监听新旧控件变化并同步
-  ['locate-mode', 'layer-no-select', 'layer-no', 'locate-type', 'layer-index'].forEach((id) => {
-    $(id)?.addEventListener('change', async () => {
-      syncControls();
-      state.alignmentToken = null;
-      state.lastResultId = null;
-      state.lastResultOk = false;
-      refreshActionState();
-      await refreshCurrentRecipe();
-      loadHistory();
-    });
-  });
 
-  document.addEventListener('DOMContentLoaded', async () => {
-    syncControls();
+  document.addEventListener('DOMContentLoaded', () => {
     refreshActionState();
-    await refreshCurrentRecipe();
-    loadHistory();
   });
+  
   if (document.readyState !== 'loading') {
-    syncControls();
     refreshActionState();
-    refreshCurrentRecipe().finally(loadHistory);
   }
 }());
