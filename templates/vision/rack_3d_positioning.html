@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}3D料架定位工作台{% endblock %}
+
+{% block content %}
+<style>
+  .r3d-wrap { padding: 12px; font-size: 14px; }
+  .r3d-top { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:10px; }
+  .r3d-badge { padding:3px 10px; border-radius:12px; font-weight:600; color:#fff; }
+  .r3d-badge.mock { background:#e67e22; }
+  .r3d-badge.real { background:#27ae60; }
+  .r3d-layers button { margin-right:4px; }
+  .r3d-layers button.active { background:#2c7be5; color:#fff; }
+  .r3d-main { display:flex; gap:12px; flex-wrap:wrap; }
+  .r3d-col { flex:1; min-width:360px; border:1px solid #ddd; border-radius:6px; padding:10px; }
+  .r3d-col h4 { margin:0 0 8px; }
+  canvas { border:1px solid #ccc; background:#0d1117; width:100%; height:auto; cursor:crosshair; }
+  .r3d-roi-inputs { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; margin-top:8px; }
+  .r3d-roi-inputs label { font-size:12px; color:#555; }
+  .r3d-roi-inputs input { width:100%; box-sizing:border-box; }
+  .r3d-actions { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; }
+  .r3d-result { line-height:1.9; }
+  .r3d-result .val { font-weight:600; font-family:monospace; }
+  .ok { color:#27ae60; } .bad { color:#e74c3c; }
+  .r3d-legend { font-size:12px; color:#666; margin-top:4px; }
+  #r3dStatus { margin-left:auto; color:#888; }
+  .swatch { display:inline-block; width:10px; height:10px; margin-right:3px; border-radius:2px; }
+</style>
+
+<div class="r3d-wrap">
+  <div class="r3d-top">
+    <h3 style="margin:0;">3D 料架定位工作台</h3>
+    <span id="r3dMode" class="r3d-badge {{ mode|lower }}">当前模式：{{ mode }}{% if mode == 'MOCK' %} 调试模式{% else %} 生产模式{% endif %}</span>
+    <label>配方：<select id="r3dRecipe"></select></label>
+    <span class="r3d-layers">层号：
+      <button data-layer="1" class="btn btn-sm btn-outline-primary active">第1层</button>
+      <button data-layer="2" class="btn btn-sm btn-outline-primary">第2层</button>
+      <button data-layer="3" class="btn btn-sm btn-outline-primary">第3层</button>
+    </span>
+    <label>ROI类型：
+      <select id="r3dRoiType">
+        <option value="SUPPORT_PLANE">支撑面(算Z)</option>
+        <option value="FRONT_EDGE">前边缘(算Y)</option>
+        <option value="PILLAR">立柱(算X)</option>
+        <option value="MAIN">主定位</option>
+      </select>
+    </label>
+    <span id="r3dStatus">就绪</span>
+  </div>
+
+  <div class="r3d-main">
+    <!-- 左：点云 + ROI 绘制 -->
+    <div class="r3d-col">
+      <h4>点云 / ROI 绘制（俯视 X-Y 投影，颜色=高度Z）</h4>
+      <canvas id="r3dCanvas" width="520" height="440"></canvas>
+      <div class="r3d-legend">
+        <span class="swatch" style="background:#39d353"></span>支撑面
+        <span class="swatch" style="background:#f7b731"></span>前边缘
+        <span class="swatch" style="background:#4b9fff"></span>立柱
+        <span class="swatch" style="background:#e056fd"></span>主定位
+        ｜ 在画布上拖拽绘制 ROI 框（自动填充 X/Y，Z 手动输入）
+      </div>
+      <div class="r3d-roi-inputs">
+        <div><label>X min</label><input id="in_x_min" type="number" step="0.1"></div>
+        <div><label>X max</label><input id="in_x_max" type="number" step="0.1"></div>
+        <div><label>Y min</label><input id="in_y_min" type="number" step="0.1"></div>
+        <div><label>Y max</label><input id="in_y_max" type="number" step="0.1"></div>
+        <div><label>Z min</label><input id="in_z_min" type="number" step="0.1"></div>
+        <div><label>Z max</label><input id="in_z_max" type="number" step="0.1"></div>
+      </div>
+      <div class="r3d-actions">
+        <button id="btnCapture" class="btn btn-sm btn-primary">采集点云</button>
+        <button id="btnSaveRoi" class="btn btn-sm btn-success">保存ROI</button>
+        <button id="btnLoadRoi" class="btn btn-sm btn-secondary">加载ROI</button>
+        <button id="btnAutoFill" class="btn btn-sm btn-outline-secondary">自动填充</button>
+      </div>
+    </div>
+
+    <!-- 右：结果 -->
+    <div class="r3d-col">
+      <h4>定位结果</h4>
+      <div class="r3d-actions">
+        <button id="btnCalc" class="btn btn-sm btn-primary">计算偏差</button>
+        <button id="btnCalcSave" class="btn btn-sm btn-warning">计算并保存</button>
+      </div>
+      <div id="r3dResult" class="r3d-result" style="margin-top:10px;">尚无结果。请先「采集点云」并配置好三类 ROI，再「计算偏差」。</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const API = '/vision/rack-3d/';
+  const canvas = document.getElementById('r3dCanvas');
+  const ctx = canvas.getContext('2d');
+  let layer = 1, cloud = [], bounds = null, rois = [];
+  let drag = null;
+  const $ = id => document.getElementById(id);
+  const ROI_COLORS = { SUPPORT_PLANE:'#39d353', FRONT_EDGE:'#f7b731', PILLAR:'#4b9fff', MAIN:'#e056fd' };
+  const PAD = 30;
+
+  const status = (msg, err) => { const s=$('r3dStatus'); s.textContent=msg; s.style.color=err?'#e74c3c':'#888'; };
+  const recipeId = () => $('r3dRecipe').value;
+
+  async function jget(url){ const r=await fetch(url); return r.json(); }
+  async function jpost(url,body){
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    return r.json();
+  }
+
+  // ---- 坐标映射 world(X,Y) <-> canvas(px) ----
+  function view(){
+    let b = bounds;
+    if(!b || b.x_min===undefined){
+      // 无点云时用 ROI 范围兜底
+      const xs=[], ys=[];
+      rois.forEach(r=>{xs.push(r.x_min,r.x_max);ys.push(r.y_min,r.y_max);});
+      if(!xs.length) return null;
+      b={x_min:Math.min(...xs),x_max:Math.max(...xs),y_min:Math.min(...ys),y_max:Math.max(...ys)};
+    }
+    const w=canvas.width-2*PAD, h=canvas.height-2*PAD;
+    const sx=w/Math.max(1,(b.x_max-b.x_min)), sy=h/Math.max(1,(b.y_max-b.y_min));
+    const s=Math.min(sx,sy);
+    return {b,s};
+  }
+  function w2c(x,y,v){ return [PAD+(x-v.b.x_min)*v.s, canvas.height-PAD-(y-v.b.y_min)*v.s]; }
+  function c2w(px,py,v){ return [(px-PAD)/v.s+v.b.x_min, (canvas.height-PAD-py)/v.s+v.b.y_min]; }
+
+  function zColor(z,zmin,zmax){
+    const t=zmax>zmin?(z-zmin)/(zmax-zmin):0.5;
+    const r=Math.round(40+t*180), g=Math.round(120+(1-t)*80), b=Math.round(220-t*120);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function render(){
+    ctx.fillStyle='#0d1117'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    const v=view();
+    if(!v){ ctx.fillStyle='#666'; ctx.fillText('无点云/ROI 数据',20,24); return; }
+    // 点云
+    if(cloud.length){
+      const zs=cloud.map(p=>p[2]); const zmin=Math.min(...zs), zmax=Math.max(...zs);
+      cloud.forEach(p=>{ const [cx,cy]=w2c(p[0],p[1],v); ctx.fillStyle=zColor(p[2],zmin,zmax); ctx.fillRect(cx,cy,2,2); });
+    }
+    // 已保存 ROI
+    rois.forEach(r=>{
+      const [x1,y1]=w2c(r.x_min,r.y_max,v), [x2,y2]=w2c(r.x_max,r.y_min,v);
+      ctx.strokeStyle=ROI_COLORS[r.roi_type]||'#fff'; ctx.lineWidth=1.5;
+      ctx.strokeRect(x1,y1,x2-x1,y2-y1);
+      ctx.fillStyle=ctx.strokeStyle; ctx.font='11px sans-serif';
+      ctx.fillText(r.roi_type, x1+2, y1+12);
+    });
+    // 正在绘制
+    if(drag){ ctx.strokeStyle='#fff'; ctx.setLineDash([4,3]);
+      ctx.strokeRect(drag.x0,drag.y0,drag.x1-drag.x0,drag.y1-drag.y0); ctx.setLineDash([]); }
+  }
+
+  // ---- 拖拽画 ROI ----
+  canvas.addEventListener('mousedown',e=>{ const r=canvas.getBoundingClientRect();
+    const sx=canvas.width/r.width, sy=canvas.height/r.height;
+    drag={x0:(e.clientX-r.left)*sx,y0:(e.clientY-r.top)*sy,x1:0,y1:0}; });
+  canvas.addEventListener('mousemove',e=>{ if(!drag)return; const r=canvas.getBoundingClientRect();
+    const sx=canvas.width/r.width, sy=canvas.height/r.height;
+    drag.x1=(e.clientX-r.left)*sx; drag.y1=(e.clientY-r.top)*sy; render(); });
+  canvas.addEventListener('mouseup',()=>{ if(!drag)return; const v=view();
+    if(v){ const [wx0,wy0]=c2w(drag.x0,drag.y0,v), [wx1,wy1]=c2w(drag.x1,drag.y1,v);
+      $('in_x_min').value=Math.min(wx0,wx1).toFixed(1); $('in_x_max').value=Math.max(wx0,wx1).toFixed(1);
+      $('in_y_min').value=Math.min(wy0,wy1).toFixed(1); $('in_y_max').value=Math.max(wy0,wy1).toFixed(1);
+      if(!$('in_z_min').value && bounds){ $('in_z_min').value=bounds.z_min.toFixed(1); $('in_z_max').value=bounds.z_max.toFixed(1); }
+    }
+    drag=null; render(); });
+
+  // ---- 数据加载 ----
+  async function loadRecipes(){
+    const res=await jget(API+'recipes/');
+    const sel=$('r3dRecipe'); sel.innerHTML='';
+    (res.data||[]).forEach(r=>{ const o=document.createElement('option');
+      o.value=r.id; o.textContent=`${r.recipe_name} (POS${r.position_no}·L${r.layer_no})`; sel.appendChild(o); });
+    if(res.data&&res.data.length) await loadRois();
+  }
+  async function loadRois(){
+    if(!recipeId())return;
+    const res=await jget(`${API}recipes/${recipeId()}/rois/?layer_no=${layer}`);
+    rois=res.data||[]; render();
+    status(`已加载 ${rois.length} 个 ROI`);
+  }
+
+  // ---- 按钮 ----
+  $('btnCapture').onclick=async()=>{ status('采集中…');
+    const res=await jpost(API+'capture/',{recipe_id:+recipeId(),layer_no:layer});
+    if(!res.success){ status(res.error.message,true); return; }
+    cloud=res.data.preview_points; bounds=res.data.bounds; render();
+    status(`采集完成：${res.data.point_count} 点 (${res.data.mode})`); };
+
+  $('btnLoadRoi').onclick=loadRois;
+
+  $('btnAutoFill').onclick=()=>{ if(!bounds){status('请先采集点云',true);return;}
+    $('in_x_min').value=bounds.x_min.toFixed(1); $('in_x_max').value=bounds.x_max.toFixed(1);
+    $('in_y_min').value=bounds.y_min.toFixed(1); $('in_y_max').value=bounds.y_max.toFixed(1);
+    $('in_z_min').value=bounds.z_min.toFixed(1); $('in_z_max').value=bounds.z_max.toFixed(1); };
+
+  $('btnSaveRoi').onclick=async()=>{
+    const b={recipe_id:+recipeId(),layer_no:layer,roi_type:$('r3dRoiType').value};
+    for(const f of ['x_min','x_max','y_min','y_max','z_min','z_max']){
+      const val=$('in_'+f).value; if(val===''){status('请填写完整 ROI 边界',true);return;} b[f]=+val; }
+    const res=await jpost(API+'rois/',b);
+    if(!res.success){ status('保存失败：'+res.error.message,true); return; }
+    status('ROI 已保存'); await loadRois(); };
+
+  async function doCalc(save){ status('计算中…');
+    const res=await jpost(API+'calculate/',{recipe_id:+recipeId(),layer_no:layer,save:save});
+    if(!res.success){ $('r3dResult').innerHTML=`<span class="bad">计算失败 [${res.error.code}]：${res.error.message}</span>`;
+      status(res.error.message,true); return; }
+    renderResult(res.data); status(save?'已计算并保存':'计算完成'); }
+  $('btnCalc').onclick=()=>doCalc(false);
+  $('btnCalcSave').onclick=()=>doCalc(true);
+
+  function offRow(name,v,ok){ const sign=v>=0?'+':''; return `${name}: <span class="val ${ok?'ok':'bad'}">${sign}${v.toFixed(3)} mm</span>`; }
+  function renderResult(d){
+    const okAll=d.is_success;
+    const conf=(d.confidence*100).toFixed(1);
+    const grade=d.confidence>=0.9?'优秀':d.confidence>=0.7?'良好':'较低';
+    $('r3dResult').innerHTML=`
+      <div>状态：<span class="val ${okAll?'ok':'bad'}">${okAll?'定位成功':'定位失败'}</span>
+        ${d.error_message?`<span class="bad">（${d.error_message}）</span>`:''}</div>
+      <hr style="margin:6px 0">
+      <div><b>实际坐标</b></div>
+      <div>X: <span class="val">${d.actual_x.toFixed(3)}</span> ｜ Y: <span class="val">${d.actual_y.toFixed(3)}</span> ｜ Z: <span class="val">${d.actual_z.toFixed(3)}</span> mm</div>
+      <div style="margin-top:6px"><b>补偿值（=实际−理论）</b></div>
+      <div>${offRow('ΔX',d.offset_x,true)}</div>
+      <div>${offRow('ΔY',d.offset_y,true)}</div>
+      <div>${offRow('ΔZ',d.offset_z,true)}</div>
+      <div style="margin-top:6px">置信度：<span class="val ${okAll?'ok':'bad'}">${conf}%（${grade}）</span></div>
+      <div>有效点数：<span class="val">${d.point_count}</span>${d.result_id?` ｜ 记录ID：${d.result_id}`:''}</div>`;
+  }
+
+  // 事件绑定
+  $('r3dRecipe').onchange=loadRois;
+  document.querySelectorAll('.r3d-layers button').forEach(btn=>{
+    btn.onclick=()=>{ document.querySelectorAll('.r3d-layers button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active'); layer=+btn.dataset.layer; cloud=[]; bounds=null; loadRois(); };
+  });
+
+  loadRecipes();
+})();
+</script>
+{% endblock %}

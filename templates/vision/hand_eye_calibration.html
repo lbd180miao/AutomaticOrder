@@ -1,0 +1,552 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}手眼标定管理{% endblock %}
+
+{% block extra_css %}
+<style>
+    .hand-eye-container {
+        padding: 20px;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    
+    .section-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #e0e0e0;
+    }
+    
+    .section-title {
+        font-size: 20px;
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .btn-group {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+    
+    .btn-primary {
+        background: #1976d2;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background: #1565c0;
+    }
+    
+    .btn-success {
+        background: #4caf50;
+        color: white;
+    }
+    
+    .btn-success:hover {
+        background: #45a049;
+    }
+    
+    .btn-danger {
+        background: #f44336;
+        color: white;
+    }
+    
+    .btn-danger:hover {
+        background: #da190b;
+    }
+    
+    .btn-secondary {
+        background: #757575;
+        color: white;
+    }
+    
+    .btn-secondary:hover {
+        background: #616161;
+    }
+    
+    .calibration-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    
+    .calibration-table th,
+    .calibration-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .calibration-table th {
+        background: #f5f5f5;
+        font-weight: bold;
+        color: #666;
+    }
+    
+    .calibration-table tr:hover {
+        background: #f9f9f9;
+    }
+    
+    .badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    
+    .badge-active {
+        background: #4caf50;
+        color: white;
+    }
+    
+    .badge-inactive {
+        background: #9e9e9e;
+        color: white;
+    }
+    
+    .badge-verified {
+        background: #2196f3;
+        color: white;
+    }
+    
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .form-group label {
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #555;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .form-group textarea {
+        resize: vertical;
+        min-height: 60px;
+    }
+    
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .modal.show {
+        display: flex;
+    }
+    
+    .modal-content {
+        background: white;
+        border-radius: 8px;
+        padding: 30px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+    
+    .modal-header {
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 20px;
+        color: #333;
+    }
+    
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 20px;
+    }
+    
+    .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+    
+    .status-dot.active {
+        background: #4caf50;
+    }
+    
+    .status-dot.inactive {
+        background: #9e9e9e;
+    }
+    
+    .error-display {
+        color: #666;
+        font-size: 12px;
+    }
+    
+    .error-low {
+        color: #4caf50;
+    }
+    
+    .error-medium {
+        color: #ff9800;
+    }
+    
+    .error-high {
+        color: #f44336;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: #999;
+    }
+    
+    .sample-count {
+        color: #666;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hand-eye-container">
+    <h1>手眼标定管理</h1>
+    <p style="color: #666; margin-bottom: 20px;">
+        管理3D深度相机与机器人之间的坐标转换关系（T_flange_camera）
+    </p>
+    
+    <!-- 标定列表 -->
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">标定配置列表</div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="showCreateModal()">
+                    ➕ 新建标定
+                </button>
+                <button class="btn btn-secondary" onclick="loadCalibrations()">
+                    🔄 刷新
+                </button>
+            </div>
+        </div>
+        
+        <table class="calibration-table" id="calibrationTable">
+            <thead>
+                <tr>
+                    <th>名称</th>
+                    <th>机器人</th>
+                    <th>相机</th>
+                    <th>样本数</th>
+                    <th>标定误差</th>
+                    <th>方法</th>
+                    <th>状态</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="calibrationTableBody">
+                <tr>
+                    <td colspan="9" class="empty-state">加载中...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 创建标定模态框 -->
+<div class="modal" id="createModal">
+    <div class="modal-content">
+        <div class="modal-header">创建新标定任务</div>
+        <form id="createForm">
+            <div class="form-group">
+                <label for="calibrationName">标定名称 *</label>
+                <input type="text" id="calibrationName" placeholder="例如：装箱机器人-DM相机-20260101" required>
+            </div>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="robotDevice">机器人设备 *</label>
+                    <select id="robotDevice" required>
+                        <option value="">请选择...</option>
+                        {% for robot in robots %}
+                        <option value="{{ robot.id }}">{{ robot.name }} ({{ robot.code }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="cameraDevice">相机设备 *</label>
+                    <select id="cameraDevice" required>
+                        <option value="">请选择...</option>
+                        {% for camera in cameras %}
+                        <option value="{{ camera.id }}">{{ camera.name }} ({{ camera.code }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="operator">操作员</label>
+                <input type="text" id="operator" placeholder="操作员姓名">
+            </div>
+            
+            <div class="form-group">
+                <label for="description">描述</label>
+                <textarea id="description" placeholder="标定任务描述..."></textarea>
+            </div>
+        </form>
+        
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="hideCreateModal()">取消</button>
+            <button class="btn btn-primary" onclick="createCalibration()">创建</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// 全局状态
+let calibrations = [];
+
+// 页面加载时获取标定列表
+document.addEventListener('DOMContentLoaded', function() {
+    loadCalibrations();
+});
+
+// 加载标定列表
+function loadCalibrations() {
+    fetch('/vision/api/hand-eye/calibrations/')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                calibrations = data.data.calibrations;
+                renderCalibrationTable();
+            } else {
+                alert('加载失败: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('加载标定列表失败:', error);
+            alert('加载失败，请检查网络连接');
+        });
+}
+
+// 渲染标定表格
+function renderCalibrationTable() {
+    const tbody = document.getElementById('calibrationTableBody');
+    
+    if (calibrations.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">暂无标定配置，点击"新建标定"开始</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = calibrations.map(cal => `
+        <tr>
+            <td><strong>${cal.name}</strong></td>
+            <td>${cal.robot_device.name}</td>
+            <td>${cal.camera_device.name}</td>
+            <td class="sample-count">${cal.sample_count} 个</td>
+            <td>
+                <span class="error-display ${getErrorClass(cal.calibration_error)}">
+                    ${cal.calibration_error.toFixed(4)} mm
+                </span>
+            </td>
+            <td>${getMethodName(cal.calibration_method)}</td>
+            <td>
+                <div class="status-indicator">
+                    <span class="status-dot ${cal.is_active ? 'active' : 'inactive'}"></span>
+                    <span class="badge ${cal.is_active ? 'badge-active' : 'badge-inactive'}">
+                        ${cal.is_active ? '激活' : '未激活'}
+                    </span>
+                    ${cal.verified_at ? '<span class="badge badge-verified">已验证</span>' : ''}
+                </div>
+            </td>
+            <td>${formatDate(cal.created_at)}</td>
+            <td>
+                <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" 
+                        onclick="viewDetails(${cal.id})">
+                    详情
+                </button>
+                ${!cal.is_active ? `
+                <button class="btn btn-success" style="padding: 4px 8px; font-size: 12px;" 
+                        onclick="activateCalibration(${cal.id})">
+                    激活
+                </button>
+                ` : ''}
+                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" 
+                        onclick="deleteCalibration(${cal.id})">
+                    删除
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// 显示创建模态框
+function showCreateModal() {
+    document.getElementById('createModal').classList.add('show');
+}
+
+// 隐藏创建模态框
+function hideCreateModal() {
+    document.getElementById('createModal').classList.remove('show');
+    document.getElementById('createForm').reset();
+}
+
+// 创建标定
+function createCalibration() {
+    const name = document.getElementById('calibrationName').value;
+    const robotId = document.getElementById('robotDevice').value;
+    const cameraId = document.getElementById('cameraDevice').value;
+    const operator = document.getElementById('operator').value;
+    const description = document.getElementById('description').value;
+    
+    if (!name || !robotId || !cameraId) {
+        alert('请填写必填字段');
+        return;
+    }
+    
+    fetch('/vision/api/hand-eye/calibrations/create/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name: name,
+            robot_device_id: parseInt(robotId),
+            camera_device_id: parseInt(cameraId),
+            operator: operator,
+            description: description
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('标定任务创建成功！');
+            hideCreateModal();
+            loadCalibrations();
+        } else {
+            alert('创建失败: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('创建标定失败:', error);
+        alert('创建失败，请检查网络连接');
+    });
+}
+
+// 激活标定
+function activateCalibration(id) {
+    if (!confirm('确定要激活此标定配置吗？')) return;
+    
+    fetch(`/vision/api/hand-eye/calibrations/${id}/activate/`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('标定已激活！');
+            loadCalibrations();
+        } else {
+            alert('激活失败: ' + data.error);
+        }
+    });
+}
+
+// 删除标定
+function deleteCalibration(id) {
+    if (!confirm('确定要删除此标定配置吗？此操作无法撤销！')) return;
+    
+    fetch(`/vision/api/hand-eye/calibrations/${id}/delete/`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('标定已删除');
+            loadCalibrations();
+        } else {
+            alert('删除失败: ' + data.error);
+        }
+    });
+}
+
+// 查看详情（跳转到详情页面）
+function viewDetails(id) {
+    // TODO: 实现详情页面
+    alert('详情页面开发中，标定ID: ' + id);
+}
+
+// 辅助函数
+function getErrorClass(error) {
+    if (error < 1) return 'error-low';
+    if (error < 3) return 'error-medium';
+    return 'error-high';
+}
+
+function getMethodName(method) {
+    const methods = {
+        'OPENCV_TSAI': 'Tsai',
+        'OPENCV_PARK': 'Park',
+        'OPENCV_HORAUD': 'Horaud',
+        'OPENCV_ANDREFF': 'Andreff',
+        'OPENCV_DANIILIDIS': 'Daniilidis',
+        'MANUAL': '手动',
+        'VENDOR_TOOL': '厂商工具'
+    };
+    return methods[method] || method;
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+</script>
+{% endblock %}

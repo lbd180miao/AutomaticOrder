@@ -1,4 +1,5 @@
-from django.urls import path
+from django.urls import path, include
+from django.shortcuts import render
 
 from . import views
 
@@ -17,9 +18,36 @@ urlpatterns = [
     # 视觉配方管理（独立页面）
     path('recipes/', views.recipe_management, name='recipe_management'),
 
+    # 手眼标定模块
+    path('', include('apps.vision.urls_hand_eye')),
+    
+    # 3D ROI配方模块
+    path('', include('apps.vision.urls_roi_3d')),
+
+    # 3D 料架定位（rack_3d 包，Provider 模式，MOCK/REAL）
+    path('rack-3d/', include('apps.vision.rack_3d.urls')),
+    
+    # 料架定位算法模块
+    path('rack-positioning/', include('apps.vision.urls_rack_positioning')),
+    
+    # 补偿值计算模块
+    path('compensation/', include('apps.vision.urls_compensation')),
+    
+    # PLC补偿值写入模块
+    path('plc/', include('apps.vision.urls_plc_writer')),
+    
+    # 3D ROI裁剪工作台（前端页面）
+    path('roi-3d-workbench/', views.roi_3d_workbench, name='roi_3d_workbench'),
+
     # 料架定位工作台（新增）
     path('rack-locator/', views.rack_locator_panel, name='rack_locator_panel'),
     path('rack-location/', views.rack_location_workbench, name='rack_location_workbench'),
+    
+    # API调试工具
+    path('test-capture-debug/', lambda request: render(request, 'vision/test_capture_debug.html'), name='test_capture_debug'),
+    path('simple-capture-test/', lambda request: render(request, 'vision/simple_capture_test.html'), name='simple_capture_test'),
+    path('minimal-test/', lambda request: render(request, 'vision/minimal_test.html'), name='minimal_test'),
+    
     path('rack-location/recipes/', views.rack_location_recipes, name='rack_location_recipes'),
     path('rack-location/recipes/create/', views.rack_location_recipe_create, name='rack_location_recipe_create'),
     path('rack-location/recipes/<int:recipe_id>/edit/', views.rack_location_recipe_edit, name='rack_location_recipe_edit'),

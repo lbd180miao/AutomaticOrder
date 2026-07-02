@@ -9,6 +9,22 @@ class PLCAdapter(BaseDeviceAdapter):
 
     def write_signal(self, signal_name, value):
         raise NotImplementedError
+    
+    def read_robot_pose(self, robot_code: str = 'ROBOT-01') -> dict:
+        """
+        从PLC读取机器人当前位姿（T_base_flange）
+        
+        Args:
+            robot_code: 机器人设备代码
+            
+        Returns:
+            机器人位姿字典 {
+                'success': bool,
+                'pose': {'x': float, 'y': float, 'z': float, 'rx': float, 'ry': float, 'rz': float},
+                'timestamp': str
+            }
+        """
+        raise NotImplementedError
 
     def send_rack_offsets(self, payload: dict) -> dict:
         """下发料架三轴补偿数据到 PLC。

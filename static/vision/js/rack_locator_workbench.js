@@ -8,7 +8,12 @@
   const $ = (id) => document.getElementById(id);
   const csrf = () => document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
 
-  // 工作台状态
+  // ── 配置完整性校验 ──────────────────────────────────────
+  if (!window.rackLocatorConfig || !CFG.captureUrl) {
+    console.error('[rack_locator_workbench] rackLocatorConfig 未定义或 captureUrl 缺失！请检查模板中的 <script> 是否有语法错误。');
+  }
+
+  // ── 工作台状态 ──────────────────────────────────────────
   const state = {
     token: null,         // 持久化点云 token
     roi: null,           // 真实图像像素 ROI {x,y,w,h}
@@ -19,7 +24,45 @@
     lastResultId: null,
     lastResultOk: false,
     currentRecipe: null,
+    pendingRoi: null,    // 待应用的 ROI（在采集点云前加载）
   };
+
+  // ── 暴露设置 ROI 的接口供外部调用 ────────────────────────
+  window.rackLocatorSetRoi = function(targetRoi) {
+    if (!targetRoi) return;
+    
+    // 如果已经有点云图像，立即应用
+    if (state.token && image.style.display !== 'none') {
+      state.roi = {
+        x: targetRoi.x,
+        y: targetRoi.y,
+        w: targetRoi.w,
+        h: targetRoi.h,
+        feature_type: targetRoi.feature_type || 'rack_reference'
+      };
+      
+      // 转换为显示坐标
+      const nat = naturalDims();
+      const scaleX = canvas.width / nat.w;
+      const scaleY = canvas.height / nat.h;
+      state.displayRoi = {
+        x: state.roi.x * scaleX,
+        y: state.roi.y * scaleY,
+        w: state.roi.w * scaleX,
+        h: state.roi.h * scaleY,
+      };
+      
+      draw();
+      setReadout();
+      setStatus('已加载配方 ROI，可直接点击「计算偏差」。');
+      console.log('ROI 已应用到画布');
+    } else {
+      // 如果还没有点云，保存到待应用状态
+      state.pendingRoi = targetRoi;
+      console.log('ROI 已保存，等待点云采集后应用');
+    }
+  };
+
 
   // ── Loading 遮罩 ─────────────────────────────────────────
   function showLoading(msg) {
@@ -32,11 +75,36 @@
   function hideLoading() { $('rl-loading')?.remove(); }
 
   async function postJson(url, body) {
+    if (!url || typeof url !== 'string' || !url.startsWith('/')) {
+      throw new Error(`API URL 未正确配置 (值为: ${url})。请刷新页面重试，或检查浏览器控制台是否有JS语法错误。`);
+    }
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
       body: JSON.stringify(body || {}),
     });
+    
+    // 检查响应的Content-Type
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // 如果不是JSON响应，读取文本内容用于调试
+      const text = await res.text();
+      console.error('服务器返回非JSON响应:', {
+        status: res.status,
+        statusText: res.statusText,
+        contentType: contentType,
+        responseText: text.substring(0, 500) // 只记录前500字符
+      });
+      
+      // 如果是4xx或5xx错误，提供更有用的错误信息
+      if (!res.ok) {
+        throw new Error(`服务器错误 (${res.status}): ${res.statusText}。可能是URL路径错误或权限问题。`);
+      }
+      
+      throw new Error('服务器返回了HTML页面而不是JSON数据。请检查API URL配置是否正确。');
+    }
+    
+    // 正常解析JSON
     return res.json();
   }
 
@@ -132,6 +200,8 @@
   }
 
   function refreshActionState() {
+    // 采集点云按钮：始终可用（只要页面正常加载）
+    setButton('btn-capture', true);
     setButton('btn-auto-align', Boolean(state.token));
     setButton('btn-redraw', Boolean(state.token));
     setButton('btn-calculate', Boolean(state.token));
@@ -305,12 +375,25 @@
       $('rl-roi-readout').style.display = 'block';
       $('rl-source').textContent = '数据源 ' + (data.source || '—');
       setReadout();
+      
+      // 如果有待应用的 ROI，在点云加载后自动应用
+      if (state.pendingRoi || window.tempPendingRoi) {
+        const pendingRoi = state.pendingRoi || window.tempPendingRoi;
+        // 等待图像加载完成
+        image.onload = function() {
+          resizeCanvas();
+          window.rackLocatorSetRoi(pendingRoi);
+          state.pendingRoi = null; // 清除待应用状态
+          window.tempPendingRoi = null;
+        };
+      }
+      
       if (data.source && data.source.indexOf('sample') === 0) {
         setStatus('⚠ 未取到真实相机数据，已回退模拟点云'
           + (data.fallback_reason ? '：' + data.fallback_reason : '（相机未连接）')
           + '。请检查相机连接后重试。');
       } else {
-        setStatus('点云已采集（真实相机），请在图上拖拽绘制 ROI。');
+        setStatus(state.pendingRoi ? '点云已采集，配方 ROI 已自动显示。' : '点云已采集（真实相机），请在图上拖拽绘制 ROI。');
       }
     } catch (e) {
       setStatus('网络请求失败：' + e.message);
@@ -344,10 +427,45 @@
       $('btn-save').disabled = false;
       $('last-time').textContent = '上次计算：' + new Date().toLocaleString('zh-CN', { hour12: false });
       setStatus(data.result.locate_ok ? '计算完成：定位 OK。' : ('计算完成：定位 NG · ' + (data.result.error_message || data.result.error_code || '')));
+      
+      // 计算完成后自动选中下一个配方
+      selectNextRecipe();
     } catch (e) {
       setStatus('网络请求失败：' + e.message);
     } finally { hideLoading(); }
   });
+  
+  // ── 自动选中下一个配方 ──────────────────────────────────
+  function selectNextRecipe() {
+    const select = document.getElementById('recipe-select');
+    if (!select || select.options.length === 0) return;
+    
+    const currentIndex = select.selectedIndex;
+    let nextIndex = currentIndex + 1;
+    
+    // 如果已经是最后一个，循环回到第一个
+    if (nextIndex >= select.options.length) {
+      nextIndex = 0;
+    }
+    
+    // 跳过空选项（如果有的话）
+    while (nextIndex < select.options.length && !select.options[nextIndex].value) {
+      nextIndex++;
+      if (nextIndex >= select.options.length) {
+        nextIndex = 0;
+        break;
+      }
+    }
+    
+    // 更新下拉框选择
+    if (select.options[nextIndex] && select.options[nextIndex].value) {
+      select.selectedIndex = nextIndex;
+      // 触发change事件以应用配方
+      select.dispatchEvent(new Event('change'));
+      
+      console.log(`已自动选中下一个配方：${select.options[nextIndex].text}`);
+    }
+  }
 
   // ── 保存结果到数据库 ─────────────────────────────────────
   $('btn-save').addEventListener('click', async () => {

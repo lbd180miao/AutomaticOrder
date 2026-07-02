@@ -3,6 +3,21 @@ from django.db import models
 from apps.core.constants import RackSide, ResultStatus, VisionImageType, VisionTaskType
 from apps.core.models import TimeStampedModel
 
+# 导入手眼标定模型
+from .models_hand_eye import (
+    HandEyeCalibration,
+    HandEyeCalibrationSample,
+    HandEyeVerificationResult,
+)
+
+# 导入3D ROI模型
+from .models_3d_roi import (
+    RackLocationROI3DEnhanced,
+    ROI3DTemplate,
+    ROI3DType,
+    ROI3DCoordinateSystem,
+)
+
 
 class VisionTask(TimeStampedModel):
     task_type = models.CharField(max_length=64, choices=VisionTaskType.choices)
@@ -50,13 +65,40 @@ class RackLocationRecipe(TimeStampedModel):
         related_name='rack_location_recipes',
     )
     capture_pose_name = models.CharField(max_length=128, blank=True)
+    
+    # 手眼标定配置（外键关联）
+    hand_eye_calibration = models.ForeignKey(
+        'vision.HandEyeCalibration',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='rack_location_recipes',
+        help_text='关联的手眼标定配置，用于坐标转换'
+    )
+    
+    # 标准位姿（理论值）- 用于计算补偿
     standard_x = models.DecimalField(max_digits=10, decimal_places=3, default=0)
     standard_y = models.DecimalField(max_digits=10, decimal_places=3, default=0)
     standard_z = models.DecimalField(max_digits=10, decimal_places=3, default=0)
     standard_rz = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    
+    # 机器人拍照位姿（T_base_flange）- 用于坐标转换
+    capture_pose = models.JSONField(
+        default=dict, 
+        blank=True,
+        help_text='机器人拍照位姿 {"x": 0, "y": 0, "z": 0, "rx": 0, "ry": 0, "rz": 0}'
+    )
+    
     roi_config = models.JSONField(default=dict, blank=True)
     reference_feature_config = models.JSONField(default=dict, blank=True)
-    hand_eye_config = models.JSONField(default=dict, blank=True)
+    
+    # 保留旧字段用于向后兼容
+    hand_eye_config = models.JSONField(
+        default=dict, 
+        blank=True,
+        help_text='已废弃，请使用hand_eye_calibration外键'
+    )
+    
     max_offset_x = models.DecimalField(max_digits=10, decimal_places=3, default=10)
     max_offset_y = models.DecimalField(max_digits=10, decimal_places=3, default=10)
     max_offset_z = models.DecimalField(max_digits=10, decimal_places=3, default=10)
