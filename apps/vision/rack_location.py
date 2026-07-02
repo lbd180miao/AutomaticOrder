@@ -368,7 +368,29 @@ class RackPoseEstimator:
         position_no = int(getattr(recipe, 'position_no', pointcloud_or_depth.get('position_no', 1)) or 1)
         layer_no = int(layer_no)
 
-        if not recipe.hand_eye_config:
+        # 验证手眼标定配置
+        hand_eye_config = recipe.hand_eye_config or {}
+        
+        # 检查是否有有效的手眼标定矩阵
+        has_valid_calibration = False
+        skip_calibration_check = hand_eye_config.get('skip_validation', False)  # 开发模式：跳过验证
+        
+        if hand_eye_config:
+            matrix_type = hand_eye_config.get('matrix')
+            if matrix_type and matrix_type != 'identity':
+                # 有具体的标定矩阵（如 'T_flange_camera'）或者有 calibration_id
+                has_valid_calibration = True
+            elif 'calibration_id' in hand_eye_config:
+                # 配置了标定ID
+                has_valid_calibration = True
+            elif 'T_flange_camera' in hand_eye_config:
+                # 直接包含变换矩阵
+                has_valid_calibration = True
+            elif matrix_type == 'identity' and skip_calibration_check:
+                # 开发模式：允许使用单位矩阵（相机坐标系 = 机器人坐标系）
+                has_valid_calibration = True
+        
+        if not has_valid_calibration and not skip_calibration_check:
             return RackLocationOutput(
                 rack_side=rack_side,
                 position_no=position_no,
@@ -382,7 +404,7 @@ class RackPoseEstimator:
                 offset_z=0.0,
                 confidence=0.0,
                 error_code='MISSING_HAND_EYE',
-                error_message='3D料架定位配方缺少手眼标定参数',
+                error_message='3D料架定位配方缺少手眼标定参数。请在配方管理中配置手眼标定，或在hand_eye_config中添加"skip_validation": true进行开发测试。',
                 raw_data_path=pointcloud_or_depth.get('raw_data_path', ''),
                 result_image_path=pointcloud_or_depth.get('result_image_path', ''),
             )

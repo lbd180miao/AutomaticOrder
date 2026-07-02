@@ -1,0 +1,829 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}3D ROI裁剪工作台{% endblock %}
+
+{% block extra_css %}
+<style>
+    .roi-workbench {
+        display: flex;
+        height: calc(100vh - 100px);
+        gap: 10px;
+        padding: 10px;
+    }
+    
+    .left-panel {
+        width: 35%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .right-panel {
+        width: 65%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .panel-section {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 15px;
+    }
+    
+    .section-title {
+        font-weight: bold;
+        margin-bottom: 10px;
+        padding-bottom: 5px;
+        border-bottom: 2px solid #007bff;
+    }
+    
+    .layer-selector {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+    }
+    
+    .layer-btn {
+        flex: 1;
+        min-width: 80px;
+    }
+    
+    .layer-btn.active {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .roi-canvas-container {
+        position: relative;
+        width: 100%;
+        height: 400px;
+        background: #f5f5f5;
+        border: 1px solid #ccc;
+        overflow: hidden;
+    }
+    
+    #roiCanvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        cursor: crosshair;
+    }
+    
+    .roi-params {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .param-group {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .param-group label {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 2px;
+    }
+    
+    .param-group input {
+        padding: 5px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+    }
+    
+    .btn-toolbar {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+    }
+    
+    .result-preview {
+        background: #f9f9f9;
+        padding: 10px;
+        border-radius: 4px;
+        margin-top: 10px;
+    }
+    
+    .result-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 5px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .result-item:last-child {
+        border-bottom: none;
+    }
+    
+    .status-ok {
+        color: #28a745;
+        font-weight: bold;
+    }
+    
+    .status-warn {
+        color: #ffc107;
+        font-weight: bold;
+    }
+    
+    .status-error {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    
+    .roi-type-tabs {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 10px;
+    }
+    
+    .roi-type-tab {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ddd;
+        background: #f8f9fa;
+        cursor: pointer;
+        text-align: center;
+        border-radius: 4px;
+    }
+    
+    .roi-type-tab.active {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2>3D ROI裁剪工作台</h2>
+    
+    <div class="roi-workbench">
+        <!-- 左侧面板 -->
+        <div class="left-panel">
+            <!-- 1. 层号选择区 -->
+            <div class="panel-section">
+                <div class="section-title">📋 配方信息</div>
+                
+                <div class="form-group">
+                    <label>当前配方</label>
+                    <select class="form-control" id="recipeSelect">
+                        <option value="">-- 选择配方 --</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>料架型号</label>
+                    <input type="text" class="form-control" id="rackType" readonly>
+                </div>
+                
+                <div class="form-group">
+                    <label>当前层号</label>
+                    <div class="layer-selector" id="layerSelector">
+                        <!-- 动态生成层号按钮 -->
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>ROI类型</label>
+                    <div class="roi-type-tabs" id="roiTypeTabs">
+                        <div class="roi-type-tab active" data-type="MAIN">主ROI</div>
+                        <div class="roi-type-tab" data-type="SUPPORT">支撑面</div>
+                        <div class="roi-type-tab" data-type="EDGE">前边缘</div>
+                        <div class="roi-type-tab" data-type="PILLAR">立柱</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 2. ROI参数输入区 -->
+            <div class="panel-section" style="flex: 1; overflow-y: auto;">
+                <div class="section-title">🔧 ROI参数</div>
+                
+                <div class="roi-params">
+                    <div class="param-group">
+                        <label>X Min (mm)</label>
+                        <input type="number" class="form-control" id="xMin" step="0.1">
+                    </div>
+                    <div class="param-group">
+                        <label>X Max (mm)</label>
+                        <input type="number" class="form-control" id="xMax" step="0.1">
+                    </div>
+                    <div class="param-group">
+                        <label>Y Min (mm)</label>
+                        <input type="number" class="form-control" id="yMin" step="0.1">
+                    </div>
+                    <div class="param-group">
+                        <label>Y Max (mm)</label>
+                        <input type="number" class="form-control" id="yMax" step="0.1">
+                    </div>
+                    <div class="param-group">
+                        <label>Z Min (mm)</label>
+                        <input type="number" class="form-control" id="zMin" step="0.1">
+                    </div>
+                    <div class="param-group">
+                        <label>Z Max (mm)</label>
+                        <input type="number" class="form-control" id="zMax" step="0.1">
+                    </div>
+                </div>
+                
+                <div class="btn-toolbar mt-3">
+                    <button class="btn btn-primary btn-sm" id="btnCapture">📷 采集点云</button>
+                    <button class="btn btn-info btn-sm" id="btnAutoFill">🤖 自动填充</button>
+                    <button class="btn btn-success btn-sm" id="btnPreview">👁️ 预览裁剪</button>
+                    <button class="btn btn-warning btn-sm" id="btnCopyPrev">📋 复制上层</button>
+                    <button class="btn btn-danger btn-sm" id="btnReset">🔄 重置</button>
+                    <button class="btn btn-primary" id="btnSave">💾 保存ROI</button>
+                </div>
+                
+                <!-- 裁剪结果预览区 -->
+                <div class="result-preview mt-3">
+                    <div class="section-title">📊 裁剪结果预览</div>
+                    <div id="previewResults">
+                        <div class="result-item">
+                            <span>ROI内有效点:</span>
+                            <span id="validPoints">--</span>
+                        </div>
+                        <div class="result-item">
+                            <span>支撑面点数量:</span>
+                            <span id="supportPoints">--</span>
+                        </div>
+                        <div class="result-item">
+                            <span>边缘点数量:</span>
+                            <span id="edgePoints">--</span>
+                        </div>
+                        <div class="result-item">
+                            <span>立柱点数量:</span>
+                            <span id="pillarPoints">--</span>
+                        </div>
+                        <div class="result-item">
+                            <span>点云占比:</span>
+                            <span id="pointRatio">--</span>
+                        </div>
+                        <div class="result-item">
+                            <span>裁剪状态:</span>
+                            <span id="cropStatus" class="status-ok">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 右侧面板 -->
+        <div class="right-panel">
+            <!-- 3. 点云显示区 -->
+            <div class="panel-section" style="flex: 1;">
+                <div class="section-title">
+                    🖼️ 点云显示区
+                    <div class="btn-group btn-group-sm float-right">
+                        <button class="btn btn-outline-secondary btn-sm" data-view="original">原始点云</button>
+                        <button class="btn btn-outline-secondary btn-sm active" data-view="robot">机器人坐标</button>
+                        <button class="btn btn-outline-secondary btn-sm" data-view="roi">ROI预览</button>
+                    </div>
+                </div>
+                
+                <div class="roi-canvas-container">
+                    <canvas id="roiCanvas" width="800" height="600"></canvas>
+                    <div id="canvasInfo" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px; border-radius: 3px; font-size: 12px;">
+                        点击并拖动绘制ROI框
+                    </div>
+                </div>
+                
+                <div class="mt-2">
+                    <small class="text-muted">
+                        💡 提示：在点云视图上点击并拖动鼠标可以绘制ROI框，绘制完成后自动填充参数
+                    </small>
+                </div>
+            </div>
+            
+            <!-- 4. 计算结果显示区 -->
+            <div class="panel-section">
+                <div class="section-title">📈 定位结果（实时）</div>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h6>X轴补偿</h6>
+                                <h3 id="compensationX" class="text-primary">--</h3>
+                                <small class="text-muted">mm</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h6>Y轴补偿</h6>
+                                <h3 id="compensationY" class="text-success">--</h3>
+                                <small class="text-muted">mm</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h6>Z轴补偿</h6>
+                                <h3 id="compensationZ" class="text-warning">--</h3>
+                                <small class="text-muted">mm</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h6>置信度</h6>
+                                <h3 id="confidence" class="text-info">--</h3>
+                                <small class="text-muted">%</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 全局变量
+let currentRecipe = null;
+let currentLayer = 1;
+let currentRoiType = 'MAIN';
+let pointcloudData = null;
+let roiDrawing = false;
+let roiStartX = 0;
+let roiStartY = 0;
+let canvas = null;
+let ctx = null;
+
+// 初始化
+$(document).ready(function() {
+    canvas = document.getElementById('roiCanvas');
+    ctx = canvas.getContext('2d');
+    
+    loadRecipes();
+    initEventHandlers();
+});
+
+// 加载配方列表
+function loadRecipes() {
+    $.get('/vision/api/roi-3d/recipes/', function(data) {
+        const select = $('#recipeSelect');
+        select.empty().append('<option value="">-- 选择配方 --</option>');
+        
+        if (data.success && data.data && data.data.recipes) {
+            data.data.recipes.forEach(recipe => {
+                select.append(`<option value="${recipe.id}">${recipe.recipe_name}</option>`);
+            });
+        }
+    });
+}
+
+// 初始化事件处理
+function initEventHandlers() {
+    // 配方选择
+    $('#recipeSelect').change(function() {
+        const recipeId = $(this).val();
+        if (recipeId) {
+            loadRecipeDetail(recipeId);
+        }
+    });
+    
+    // 层号选择
+    $(document).on('click', '.layer-btn', function() {
+        $('.layer-btn').removeClass('active');
+        $(this).addClass('active');
+        currentLayer = parseInt($(this).data('layer'));
+        loadLayerROI();
+    });
+    
+    // ROI类型选择
+    $('.roi-type-tab').click(function() {
+        $('.roi-type-tab').removeClass('active');
+        $(this).addClass('active');
+        currentRoiType = $(this).data('type');
+        loadLayerROI();
+    });
+    
+    // Canvas绘制
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    
+    // 按钮事件
+    $('#btnCapture').click(capturePointcloud);
+    $('#btnAutoFill').click(autoFillROI);
+    $('#btnPreview').click(previewCrop);
+    $('#btnCopyPrev').click(copyPreviousLayer);
+    $('#btnReset').click(resetROI);
+    $('#btnSave').click(saveROI);
+}
+
+// 加载配方详情
+function loadRecipeDetail(recipeId) {
+    $.get(`/vision/api/roi-3d/recipes/${recipeId}/`, function(data) {
+        if (data.success && data.data && data.data.recipe) {
+            currentRecipe = data.data.recipe;
+            $('#rackType').val(currentRecipe.rack_type);
+            
+            // 生成层号按钮
+            const layerSelector = $('#layerSelector');
+            layerSelector.empty();
+            for (let i = 1; i <= currentRecipe.layer_count; i++) {
+                const activeClass = i === 1 ? 'active' : '';
+                layerSelector.append(`
+                    <button class="btn btn-outline-primary layer-btn ${activeClass}" 
+                            data-layer="${i}">第${i}层</button>
+                `);
+            }
+            
+            currentLayer = 1;
+            loadLayerROI();
+        }
+    });
+}
+
+// 加载指定层的ROI
+function loadLayerROI() {
+    if (!currentRecipe) return;
+    
+    $.get('/vision/api/roi-3d/list/', {
+        recipe_id: currentRecipe.id,
+        layer_no: currentLayer,
+        roi_type: currentRoiType
+    }, function(data) {
+        if (data.success && data.data.rois && data.data.rois.length > 0) {
+            const roi = data.data.rois[0];
+            $('#xMin').val(roi.x_min);
+            $('#xMax').val(roi.x_max);
+            $('#yMin').val(roi.y_min);
+            $('#yMax').val(roi.y_max);
+            $('#zMin').val(roi.z_min);
+            $('#zMax').val(roi.z_max);
+            
+            drawROI();
+        } else {
+            resetROI();
+        }
+    });
+}
+
+// Canvas绘制相关函数
+function startDrawing(e) {
+    roiDrawing = true;
+    const rect = canvas.getBoundingClientRect();
+    roiStartX = e.clientX - rect.left;
+    roiStartY = e.clientY - rect.top;
+}
+
+function draw(e) {
+    if (!roiDrawing) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // 清空画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 绘制点云（如果有）
+    if (pointcloudData) {
+        drawPointcloud();
+    }
+    
+    // 绘制ROI框
+    ctx.strokeStyle = '#007bff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(roiStartX, roiStartY, x - roiStartX, y - roiStartY);
+}
+
+function stopDrawing(e) {
+    if (!roiDrawing) return;
+    
+    roiDrawing = false;
+    const rect = canvas.getBoundingClientRect();
+    const endX = e.clientX - rect.left;
+    const endY = e.clientY - rect.top;
+    
+    // 将像素坐标转换为ROI坐标
+    convertCanvasToROI(roiStartX, roiStartY, endX, endY);
+}
+
+function convertCanvasToROI(x1, y1, x2, y2) {
+    // 简化版本：假设点云范围为-500到500mm
+    const xMin = Math.min(x1, x2) / canvas.width * 1000 - 500;
+    const xMax = Math.max(x1, x2) / canvas.width * 1000 - 500;
+    const yMin = Math.min(y1, y2) / canvas.height * 1000 - 500;
+    const yMax = Math.max(y1, y2) / canvas.height * 1000 - 500;
+    
+    $('#xMin').val(xMin.toFixed(1));
+    $('#xMax').val(xMax.toFixed(1));
+    $('#yMin').val(yMin.toFixed(1));
+    $('#yMax').val(yMax.toFixed(1));
+}
+
+function drawPointcloud() {
+    if (!pointcloudData || !pointcloudData.points) return;
+    
+    ctx.fillStyle = '#333';
+    pointcloudData.points.forEach(point => {
+        // 将3D点投影到2D画布（简化版）
+        const x = (point.x + 500) / 1000 * canvas.width;
+        const y = (point.y + 500) / 1000 * canvas.height;
+        ctx.fillRect(x, y, 2, 2);
+    });
+}
+
+function drawROI() {
+    const xMin = parseFloat($('#xMin').val());
+    const xMax = parseFloat($('#xMax').val());
+    const yMin = parseFloat($('#yMin').val());
+    const yMax = parseFloat($('#yMax').val());
+    
+    if (isNaN(xMin) || isNaN(xMax) || isNaN(yMin) || isNaN(yMax)) return;
+    
+    // 清空画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 绘制点云
+    if (pointcloudData) {
+        drawPointcloud();
+    }
+    
+    // 绘制ROI框
+    const x1 = (xMin + 500) / 1000 * canvas.width;
+    const x2 = (xMax + 500) / 1000 * canvas.width;
+    const y1 = (yMin + 500) / 1000 * canvas.height;
+    const y2 = (yMax + 500) / 1000 * canvas.height;
+    
+    ctx.strokeStyle = '#28a745';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    
+    // 显示ROI标签
+    ctx.fillStyle = '#28a745';
+    ctx.font = '14px Arial';
+    ctx.fillText(currentRoiType, x1 + 5, y1 + 20);
+}
+
+// 采集点云
+function capturePointcloud() {
+    if (!currentRecipe) {
+        alert('请先选择配方');
+        return;
+    }
+    
+    $('#btnCapture').prop('disabled', true).text('采集中...');
+    
+    $.post('/vision/api/vision/3d/capture/', {
+        recipe_id: currentRecipe.id,
+        layer_no: currentLayer
+    }, function(data) {
+        if (data.success) {
+            pointcloudData = data.data.pointcloud;
+            alert('点云采集成功');
+            drawPointcloud();
+        } else {
+            alert('采集失败: ' + data.error);
+        }
+    }).fail(function() {
+        alert('采集失败，请检查相机连接');
+    }).always(function() {
+        $('#btnCapture').prop('disabled', false).text('📷 采集点云');
+    });
+}
+
+// 自动填充ROI
+function autoFillROI() {
+    if (!currentRecipe || !pointcloudData) {
+        alert('请先采集点云');
+        return;
+    }
+    
+    $('#btnAutoFill').prop('disabled', true).text('计算中...');
+    
+    $.post('/vision/api/roi-3d/auto-fill/', {
+        recipe_id: currentRecipe.id,
+        layer_no: currentLayer,
+        roi_type: currentRoiType,
+        pointcloud: pointcloudData
+    }, function(data) {
+        if (data.success && data.data.roi) {
+            const roi = data.data.roi;
+            $('#xMin').val(roi.x_min.toFixed(1));
+            $('#xMax').val(roi.x_max.toFixed(1));
+            $('#yMin').val(roi.y_min.toFixed(1));
+            $('#yMax').val(roi.y_max.toFixed(1));
+            $('#zMin').val(roi.z_min.toFixed(1));
+            $('#zMax').val(roi.z_max.toFixed(1));
+            
+            drawROI();
+            alert('ROI自动填充完成');
+        } else {
+            alert('自动填充失败: ' + data.error);
+        }
+    }).always(function() {
+        $('#btnAutoFill').prop('disabled', false).text('🤖 自动填充');
+    });
+}
+
+// 预览裁剪
+function previewCrop() {
+    const roi = {
+        x_min: parseFloat($('#xMin').val()),
+        x_max: parseFloat($('#xMax').val()),
+        y_min: parseFloat($('#yMin').val()),
+        y_max: parseFloat($('#yMax').val()),
+        z_min: parseFloat($('#zMin').val()),
+        z_max: parseFloat($('#zMax').val())
+    };
+    
+    if (!pointcloudData) {
+        alert('请先采集点云');
+        return;
+    }
+    
+    $('#btnPreview').prop('disabled', true).text('计算中...');
+    
+    $.post('/vision/api/roi-3d/preview/', {
+        roi: roi,
+        pointcloud: pointcloudData
+    }, function(data) {
+        if (data.success && data.data) {
+            const result = data.data;
+            
+            $('#validPoints').text(result.valid_points || 0);
+            $('#supportPoints').text(result.support_points || 0);
+            $('#edgePoints').text(result.edge_points || 0);
+            $('#pillarPoints').text(result.pillar_points || 0);
+            $('#pointRatio').text((result.point_ratio * 100).toFixed(1) + '%');
+            
+            // 状态判断
+            let status = '✅ OK';
+            let statusClass = 'status-ok';
+            
+            if (result.valid_points < 1000) {
+                status = '⚠️ 点数过少';
+                statusClass = 'status-warn';
+            } else if (result.valid_points > 100000) {
+                status = '⚠️ 点数过多';
+                statusClass = 'status-warn';
+            }
+            
+            if (result.point_ratio < 0.01) {
+                status = '❌ ROI过小';
+                statusClass = 'status-error';
+            }
+            
+            $('#cropStatus').text(status).attr('class', statusClass);
+            
+            // 触发定位计算
+            calculateCompensation(result.cropped_pointcloud);
+        } else {
+            alert('预览失败: ' + data.error);
+        }
+    }).always(function() {
+        $('#btnPreview').prop('disabled', false).text('👁️ 预览裁剪');
+    });
+}
+
+// 计算补偿值（实时显示）
+function calculateCompensation(croppedPointcloud) {
+    if (!currentRecipe) return;
+    
+    $.post('/vision/rack-positioning/process-layer/', {
+        recipe_id: currentRecipe.id,
+        layer_no: currentLayer,
+        pointcloud: croppedPointcloud,
+        coordinate_system: 'ROBOT'
+    }, function(data) {
+        if (data.success && data.data.result) {
+            const result = data.data.result;
+            
+            // 显示补偿值
+            $('#compensationX').text(result.offset_x.toFixed(2));
+            $('#compensationY').text(result.offset_y.toFixed(2));
+            $('#compensationZ').text(result.offset_z.toFixed(2));
+            $('#confidence').text((result.confidence * 100).toFixed(1));
+            
+            // 根据补偿值设置颜色
+            setCompensationColor('#compensationX', result.offset_x);
+            setCompensationColor('#compensationY', result.offset_y);
+            setCompensationColor('#compensationZ', result.offset_z);
+        }
+    });
+}
+
+function setCompensationColor(selector, value) {
+    const absValue = Math.abs(value);
+    if (absValue < 1) {
+        $(selector).removeClass('text-warning text-danger').addClass('text-success');
+    } else if (absValue < 5) {
+        $(selector).removeClass('text-success text-danger').addClass('text-warning');
+    } else {
+        $(selector).removeClass('text-success text-warning').addClass('text-danger');
+    }
+}
+
+// 复制上一层ROI
+function copyPreviousLayer() {
+    if (currentLayer <= 1) {
+        alert('已经是第一层，无法复制');
+        return;
+    }
+    
+    $.get('/vision/api/roi-3d/list/', {
+        recipe_id: currentRecipe.id,
+        layer_no: currentLayer - 1,
+        roi_type: currentRoiType
+    }, function(data) {
+        if (data.success && data.data.rois && data.data.rois.length > 0) {
+            const roi = data.data.rois[0];
+            $('#xMin').val(roi.x_min);
+            $('#xMax').val(roi.x_max);
+            $('#yMin').val(roi.y_min);
+            $('#yMax').val(roi.y_max);
+            $('#zMin').val(roi.z_min);
+            $('#zMax').val(roi.z_max);
+            
+            drawROI();
+            alert('已复制第' + (currentLayer - 1) + '层ROI');
+        } else {
+            alert('上一层没有ROI配置');
+        }
+    });
+}
+
+// 重置ROI
+function resetROI() {
+    $('#xMin').val(-100);
+    $('#xMax').val(100);
+    $('#yMin').val(-100);
+    $('#yMax').val(100);
+    $('#zMin').val(0);
+    $('#zMax').val(100);
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 重置预览结果
+    $('#validPoints').text('--');
+    $('#supportPoints').text('--');
+    $('#edgePoints').text('--');
+    $('#pillarPoints').text('--');
+    $('#pointRatio').text('--');
+    $('#cropStatus').text('--').attr('class', 'status-ok');
+    
+    // 重置补偿值
+    $('#compensationX').text('--');
+    $('#compensationY').text('--');
+    $('#compensationZ').text('--');
+    $('#confidence').text('--');
+}
+
+// 保存ROI
+function saveROI() {
+    if (!currentRecipe) {
+        alert('请先选择配方');
+        return;
+    }
+    
+    const roi = {
+        recipe_id: currentRecipe.id,
+        layer_no: currentLayer,
+        roi_type: currentRoiType,
+        x_min: parseFloat($('#xMin').val()),
+        x_max: parseFloat($('#xMax').val()),
+        y_min: parseFloat($('#yMin').val()),
+        y_max: parseFloat($('#yMax').val()),
+        z_min: parseFloat($('#zMin').val()),
+        z_max: parseFloat($('#zMax').val()),
+        coordinate_system: 'ROBOT',
+        name: `${currentRecipe.recipe_name}_L${currentLayer}_${currentRoiType}`
+    };
+    
+    // 验证数据
+    if (roi.x_min >= roi.x_max || roi.y_min >= roi.y_max || roi.z_min >= roi.z_max) {
+        alert('ROI参数错误：Min值必须小于Max值');
+        return;
+    }
+    
+    $('#btnSave').prop('disabled', true).text('保存中...');
+    
+    $.post('/vision/api/roi-3d/create/', roi, function(data) {
+        if (data.success) {
+            alert('ROI保存成功');
+        } else {
+            alert('保存失败: ' + data.error);
+        }
+    }).fail(function() {
+        alert('保存失败，请检查网络连接');
+    }).always(function() {
+        $('#btnSave').prop('disabled', false).text('💾 保存ROI');
+    });
+}
+
+</script>
+{% endblock %}

@@ -118,3 +118,27 @@ class SimulatedDeviceAdapter(BaseDeviceAdapter):
     # --- 泡棉供料台距离传感器 ---
     def read_foam_height(self):
         return {'success': True, 'height_mm': 35.0}
+    
+    # --- 机器人位姿读取 ---
+    def read_robot_pose(self, robot_code: str = 'ROBOT-01') -> dict:
+        """
+        模拟从PLC读取机器人当前位姿
+        
+        返回模拟的机器人位姿数据
+        """
+        from django.utils import timezone
+        
+        # 模拟不同机器人的不同位姿
+        mock_poses = {
+            'ROBOT-01': {'x': 500.0, 'y': 200.0, 'z': 850.0, 'rx': 0.0, 'ry': 0.0, 'rz': 0.0},
+            'ROBOT-02': {'x': 600.0, 'y': 300.0, 'z': 900.0, 'rx': 0.0, 'ry': 0.0, 'rz': 90.0},
+        }
+        
+        pose = mock_poses.get(robot_code, {'x': 0.0, 'y': 0.0, 'z': 0.0, 'rx': 0.0, 'ry': 0.0, 'rz': 0.0})
+        
+        return {
+            'success': True,
+            'pose': pose,
+            'robot_code': robot_code,
+            'timestamp': timezone.now().isoformat()
+        }

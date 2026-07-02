@@ -17,7 +17,7 @@
   background: var(--info); border-radius: 3px; margin-right: 10px; vertical-align: -3px;
 }
 
-/* ── 配方选择卡片区（仿2D配方管理风格）── */
+/* ── 配方选择区（下拉选择，仿2D风格）── */
 .rl-recipe-section {
   background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
   box-shadow: var(--shadow-sm); margin-bottom: 18px; overflow: hidden;
@@ -31,54 +31,75 @@
   display: flex; align-items: center; gap: 8px;
 }
 .rl-recipe-section-head h2::before { content:""; width:3px; height:14px; background:var(--info); border-radius:2px; }
-.rl-recipe-cards {
-  display: flex; flex-direction: row; flex-wrap: wrap; gap: 10px;
-  padding: 14px 18px;
+
+/* 配方下拉选择器 */
+.rl-recipe-selector {
+  display: flex; align-items: center; gap: 12px; padding: 14px 18px;
+  border-bottom: 1px solid var(--border); background: #f9fafb;
 }
-.rl-recipe-card {
-  border: 2px solid var(--border); border-radius: var(--radius-sm);
-  padding: 11px 14px; background: var(--surface-2); cursor: pointer;
-  transition: all 0.18s; min-width: 160px; flex: 1; max-width: 220px;
-  user-select: none;
+.rl-recipe-selector .selector-label {
+  font-weight: 700; font-size: 14px; color: #374151; white-space: nowrap;
 }
-.rl-recipe-card:hover { border-color: var(--info); box-shadow: var(--shadow-sm); }
-.rl-recipe-card.selected {
-  border-color: var(--info); background: #eff8ff;
-  box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+.rl-recipe-selector .recipe-dropdown {
+  flex: 1; padding: 8px 12px; font-size: 14px; min-width: 300px;
+  border: 2px solid #d1d5db; border-radius: 6px; background: #fff;
+  transition: all 0.2s;
 }
-.rl-recipe-card.disabled-card { opacity: 0.5; cursor: not-allowed; }
-.rl-recipe-card-name { font-size: 13px; font-weight: 700; color: #1f2937; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rl-recipe-card-meta { font-size: 11px; color: var(--text-muted); line-height: 1.6; }
-.rl-recipe-card-badge {
-  display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px;
-  font-weight: 700; background: var(--info); color: #fff; margin-bottom: 4px;
-}
-.rl-recipe-empty-hint {
-  padding: 18px; color: var(--text-muted); font-size: 13px; width: 100%;
-  text-align: center; border: 1px dashed var(--border); border-radius: var(--radius-sm);
-}
-/* 当前选中配方信息条 */
-.rl-selected-bar {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
-  padding: 10px 18px; border-top: 1px solid var(--border); background: #f0f9ff;
-  font-size: 13px;
-}
-.rl-selected-bar .sel-label { font-weight: 700; color: var(--info); }
-.rl-sel-chip {
-  display: inline-flex; align-items: center; gap: 3px; padding: 2px 9px;
-  border-radius: 999px; font-size: 12px; background: #fff;
-  border: 1px solid var(--border); color: var(--text-muted);
-}
-.rl-sel-chip strong { color: var(--text); }
-.rl-no-recipe-bar {
-  padding: 10px 18px; border-top: 1px solid var(--border);
-  font-size: 13px; color: var(--text-faint); background: var(--surface-2);
+.rl-recipe-selector .recipe-dropdown:focus {
+  border-color: var(--info); outline: none;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
 }
 
-/* 手动输入区 */
+/* 配方信息卡片 */
+.rl-recipe-info-card {
+  background: linear-gradient(135deg, #dbeafe 0%, #e0f2fe 100%);
+  border-bottom: 2px solid #0284c7; padding: 14px 18px;
+  box-shadow: inset 0 1px 3px rgba(2, 132, 199, 0.1);
+}
+.recipe-info-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.recipe-info-icon { font-size: 18px; }
+.recipe-info-title {
+  font-weight: 700; font-size: 15px; color: #0c4a6e; flex: 1;
+}
+.recipe-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; background: #0284c7; color: #fff;
+}
+.recipe-info-body {
+  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 8px; font-size: 12px;
+}
+.recipe-info-row {
+  color: #1e40af; line-height: 1.6;
+}
+.recipe-info-row strong {
+  font-weight: 700; margin-right: 4px;
+}
+
+/* 高级选项（可折叠） */
+.rl-advanced-options {
+  border-top: 1px solid var(--border);
+}
+.advanced-toggle {
+  width: 100%; padding: 12px 18px; background: var(--surface-2);
+  border: none; text-align: left; font-size: 13px; font-weight: 600;
+  color: #6b7280; cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; gap: 8px;
+}
+.advanced-toggle:hover {
+  background: #e5e7eb; color: #374151;
+}
+.advanced-toggle #advanced-toggle-icon {
+  transition: transform 0.2s; display: inline-block;
+}
+.advanced-content {
+  background: #fff;
+}
 .rl-manual-bar {
   display: flex; align-items: center; gap: 12px; padding: 12px 18px;
-  border-top: 1px solid var(--border); flex-wrap: wrap; background: #fff;
+  flex-wrap: wrap; background: #fff;
 }
 .rl-manual-bar .ctrl-label { font-weight: 700; font-size: 13px; white-space: nowrap; color: var(--text-muted); }
 .rl-manual-bar input[type=number] { width: 80px; padding: 6px 10px; }
@@ -92,6 +113,10 @@
 .rl-roi3d-field label { font-size: 11px; font-weight: 700; color: var(--text-muted); }
 .rl-roi3d-field input { width: 100%; padding: 6px 8px; }
 @media (max-width: 900px) { .rl-roi3d-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); } }
+
+.rl-no-recipe-bar {
+  padding: 18px; text-align: center; color: var(--text-muted); font-size: 13px;
+}
 
 /* 主体双栏 */
 .rl-main { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
@@ -210,103 +235,111 @@
     </div>
   </div>
 
-  <!-- ── 配方选择区（卡片式，仿2D风格）── -->
+  <!-- ── 配方选择区（下拉选择，仿2D风格）── -->
   <div class="rl-recipe-section">
     <div class="rl-recipe-section-head">
       <h2>选择配方</h2>
       <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-secondary btn-sm" style="font-size:12px;">管理配方 →</a>
     </div>
 
-    <div class="rl-recipe-cards" id="recipe-card-container">
-      {% for recipe in recipes %}
-      <div class="rl-recipe-card{% if forloop.first %} selected{% endif %}"
-           id="rcard-{{ recipe.id }}"
-           data-recipe-id="{{ recipe.id }}"
-           data-pos="{{ recipe.position_no }}"
-           data-layer="{{ recipe.layer_no }}"
-           data-sx="{{ recipe.standard_x }}"
-           data-sy="{{ recipe.standard_y }}"
-           data-sz="{{ recipe.standard_z }}"
-           data-mox="{{ recipe.max_offset_x }}"
-           data-moy="{{ recipe.max_offset_y }}"
-           data-moz="{{ recipe.max_offset_z }}"
-           data-conf="{{ recipe.confidence_threshold }}"
-           data-name="{{ recipe.recipe_name }}"
-           onclick="selectRecipeCard(this)">
-        <div class="rl-recipe-card-badge">POS{{ recipe.position_no }}·L{{ recipe.layer_no }}</div>
-        <div class="rl-recipe-card-name" title="{{ recipe.recipe_name }}">{{ recipe.recipe_name }}</div>
-        <div class="rl-recipe-card-meta">
-          X:{{ recipe.standard_x }} Y:{{ recipe.standard_y }}<br>
-          Z:{{ recipe.standard_z }}
-        </div>
-      </div>
-      {% empty %}
-      <div class="rl-recipe-empty-hint">
-        暂无已启用的 3D 配方，请先
-        <a href="{% url 'vision:rack_location_recipes' %}">前往配方管理</a>
-        新增配方。
-      </div>
-      {% endfor %}
+    <!-- 配方下拉选择器 -->
+    <div class="rl-recipe-selector">
+      <label for="recipe-select" class="selector-label">当前配方：</label>
+      <select id="recipe-select" class="recipe-dropdown">
+        {% for recipe in recipes %}
+        <option value="{{ recipe.id }}" 
+                data-pos="{{ recipe.position_no }}"
+                data-layer="{{ recipe.layer_no }}"
+                data-sx="{{ recipe.standard_x }}"
+                data-sy="{{ recipe.standard_y }}"
+                data-sz="{{ recipe.standard_z }}"
+                data-mox="{{ recipe.max_offset_x }}"
+                data-moy="{{ recipe.max_offset_y }}"
+                data-moz="{{ recipe.max_offset_z }}"
+                data-conf="{{ recipe.confidence_threshold }}"
+                data-name="{{ recipe.recipe_name }}"
+                data-side="{{ recipe.rack_side }}"
+                {% if forloop.first %}selected{% endif %}>
+          POS{{ recipe.position_no }} · L{{ recipe.layer_no }} - {{ recipe.recipe_name }}
+        </option>
+        {% empty %}
+        <option value="">暂无配方</option>
+        {% endfor %}
+      </select>
+      <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-sm" style="background:var(--success);">➕ 新建配方</a>
     </div>
 
-    <!-- 当前选中配方信息条 -->
+    <!-- 当前配方信息卡片 -->
     {% if recipes %}
-    <div class="rl-selected-bar" id="selected-recipe-bar">
-      <span class="sel-label">当前配方：</span>
-      <span id="sel-name" style="font-weight:700;color:#1f2937;">{{ recipes.0.recipe_name }}</span>
-      <span class="rl-sel-chip">POS <strong id="sel-pos">{{ recipes.0.position_no }}</strong></span>
-      <span class="rl-sel-chip">层号 <strong id="sel-layer">{{ recipes.0.layer_no }}</strong></span>
-      <span class="rl-sel-chip">标准X <strong id="sel-sx">{{ recipes.0.standard_x }}</strong></span>
-      <span class="rl-sel-chip">标准Y <strong id="sel-sy">{{ recipes.0.standard_y }}</strong></span>
-      <span class="rl-sel-chip">标准Z <strong id="sel-sz">{{ recipes.0.standard_z }}</strong></span>
-      <span class="rl-sel-chip">置信度≥ <strong id="sel-conf">{{ recipes.0.confidence_threshold }}</strong></span>
+    <div class="rl-recipe-info-card" id="recipe-info-card">
+      <div class="recipe-info-header">
+        <span class="recipe-info-icon">🎯</span>
+        <div class="recipe-info-title" id="recipe-card-name">{{ recipes.0.recipe_name }}</div>
+        <span class="recipe-badge" id="recipe-badge">POS{{ recipes.0.position_no }} · L{{ recipes.0.layer_no }}</span>
+      </div>
+      <div class="recipe-info-body">
+        <div class="recipe-info-row"><strong>标准 X:</strong> <span id="recipe-card-sx">{{ recipes.0.standard_x }}</span> mm</div>
+        <div class="recipe-info-row"><strong>标准 Y:</strong> <span id="recipe-card-sy">{{ recipes.0.standard_y }}</span> mm</div>
+        <div class="recipe-info-row"><strong>标准 Z:</strong> <span id="recipe-card-sz">{{ recipes.0.standard_z }}</span> mm</div>
+        <div class="recipe-info-row"><strong>料架侧:</strong> <span id="recipe-card-side">{{ recipes.0.rack_side }}</span></div>
+        <div class="recipe-info-row"><strong>允许偏差 X:</strong> <span id="recipe-card-mox">{{ recipes.0.max_offset_x }}</span> mm</div>
+        <div class="recipe-info-row"><strong>允许偏差 Y:</strong> <span id="recipe-card-moy">{{ recipes.0.max_offset_y }}</span> mm</div>
+        <div class="recipe-info-row"><strong>允许偏差 Z:</strong> <span id="recipe-card-moz">{{ recipes.0.max_offset_z }}</span> mm</div>
+        <div class="recipe-info-row"><strong>置信度阈值:</strong> <span id="recipe-card-conf">{{ recipes.0.confidence_threshold }}</span></div>
+      </div>
     </div>
     {% else %}
-    <div class="rl-no-recipe-bar">未选中配方，将使用手动输入的 POS / 层号计算</div>
+    <div class="rl-no-recipe-bar">暂无已启用的 3D 配方，请先<a href="{% url 'vision:rack_location_recipes' %}">前往配方管理</a>新增配方。</div>
     {% endif %}
 
-    <!-- 手动覆盖 POS / 层号 -->
-    <div class="rl-manual-bar">
-      <span class="ctrl-label">🔢 手动调整：</span>
-      <span class="ctrl-label" style="color:var(--text);">定位类型</span>
-      <select id="locate-type" aria-label="定位类型">
-        <option value="GLOBAL">整体定位</option>
-        <option value="LAYER" selected>层定位</option>
-      </select>
-      <span class="ctrl-label" style="color:var(--text);">layer_index</span>
-      <select id="layer-index" aria-label="定位层号">
-        <option value="0">0 · 整体</option>
-        <option value="1" selected>1 · 第1层</option>
-        <option value="2">2 · 第2层</option>
-        <option value="3">3 · 第3层</option>
-      </select>
-      <span class="ctrl-label" style="color:var(--text);">POS</span>
-      <input id="position-no" type="number" min="1" value="{{ latest.position_no|default:1 }}">
-      <span class="ctrl-label" style="color:var(--text);">料架</span>
-      <select id="rack-side" aria-label="料架侧">
-        <option value="LEFT">左料架</option>
-        <option value="RIGHT">右料架</option>
-      </select>
-      <!-- 保留旧控件用于兼容 -->
-      <input id="layer-no" type="number" min="1" value="{{ latest.layer_no|default:1 }}" style="display:none;">
-      <select id="layer-no-select" aria-label="层号选择" style="display:none;">
-        <option value="1" {% if latest.layer_no|default:1 == 1 %}selected{% endif %}>1 层</option>
-        <option value="2" {% if latest.layer_no == 2 %}selected{% endif %}>2 层</option>
-        <option value="3" {% if latest.layer_no == 3 %}selected{% endif %}>3 层</option>
-      </select>
-      <select id="locate-mode" aria-label="定位模式" style="display:none;">
-        <option value="local">局部定位</option>
-        <option value="global">全局定位</option>
-      </select>
-      <div class="sep"></div>
-      <span id="last-time" style="font-size:12px;color:var(--text-faint);">—</span>
-      <div class="rl-roi3d-grid" aria-label="3D ROI 参数">
-        <div class="rl-roi3d-field"><label for="roi-x-min">X Min</label><input id="roi-x-min" type="number" step="0.001" value="-100"></div>
-        <div class="rl-roi3d-field"><label for="roi-x-max">X Max</label><input id="roi-x-max" type="number" step="0.001" value="100"></div>
-        <div class="rl-roi3d-field"><label for="roi-y-min">Y Min</label><input id="roi-y-min" type="number" step="0.001" value="-100"></div>
-        <div class="rl-roi3d-field"><label for="roi-y-max">Y Max</label><input id="roi-y-max" type="number" step="0.001" value="100"></div>
-        <div class="rl-roi3d-field"><label for="roi-z-min">Z Min</label><input id="roi-z-min" type="number" step="0.001" value="-100"></div>
-        <div class="rl-roi3d-field"><label for="roi-z-max">Z Max</label><input id="roi-z-max" type="number" step="0.001" value="100"></div>
+    <!-- 高级选项（可折叠） -->
+    <div class="rl-advanced-options">
+      <button type="button" class="advanced-toggle" onclick="toggleAdvancedOptions()">
+        <span id="advanced-toggle-icon">▶</span> 高级选项
+      </button>
+      <div class="advanced-content" id="advanced-content" style="display:none;">
+        <div class="rl-manual-bar">
+          <span class="ctrl-label">定位类型:</span>
+          <select id="locate-type" aria-label="定位类型">
+            <option value="GLOBAL">整体定位</option>
+            <option value="LAYER" selected>层定位</option>
+          </select>
+          <span class="ctrl-label">Layer Index:</span>
+          <select id="layer-index" aria-label="定位层号">
+            <option value="0">0 · 整体</option>
+            <option value="1" selected>1 · 第1层</option>
+            <option value="2">2 · 第2层</option>
+            <option value="3">3 · 第3层</option>
+          </select>
+          <span class="ctrl-label">POS:</span>
+          <input id="position-no" type="number" min="1" value="{{ latest.position_no|default:1 }}">
+          <span class="ctrl-label">料架:</span>
+          <select id="rack-side" aria-label="料架侧">
+            <option value="LEFT">左料架</option>
+            <option value="RIGHT">右料架</option>
+          </select>
+          <!-- 保留旧控件用于兼容 -->
+          <input id="layer-no" type="number" min="1" value="{{ latest.layer_no|default:1 }}" style="display:none;">
+          <select id="layer-no-select" aria-label="层号选择" style="display:none;">
+            <option value="1" {% if latest.layer_no|default:1 == 1 %}selected{% endif %}>1 层</option>
+            <option value="2" {% if latest.layer_no == 2 %}selected{% endif %}>2 层</option>
+            <option value="3" {% if latest.layer_no == 3 %}selected{% endif %}>3 层</option>
+          </select>
+          <select id="locate-mode" aria-label="定位模式" style="display:none;">
+            <option value="local">局部定位</option>
+            <option value="global">全局定位</option>
+          </select>
+          <div class="sep"></div>
+          <span id="last-time" style="font-size:12px;color:var(--text-faint);">—</span>
+          <div class="rl-roi3d-grid" aria-label="3D ROI 参数">
+            <div class="rl-roi3d-field"><label for="roi-x-min">X Min</label><input id="roi-x-min" type="number" step="0.001" value="-100"></div>
+            <div class="rl-roi3d-field"><label for="roi-x-max">X Max</label><input id="roi-x-max" type="number" step="0.001" value="100"></div>
+            <div class="rl-roi3d-field"><label for="roi-y-min">Y Min</label><input id="roi-y-min" type="number" step="0.001" value="-100"></div>
+            <div class="rl-roi3d-field"><label for="roi-y-max">Y Max</label><input id="roi-y-max" type="number" step="0.001" value="100"></div>
+            <div class="rl-roi3d-field"><label for="roi-z-min">Z Min</label><input id="roi-z-min" type="number" step="0.001" value="-100"></div>
+            <div class="rl-roi3d-field"><label for="roi-z-max">Z Max</label><input id="roi-z-max" type="number" step="0.001" value="100"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -423,55 +456,270 @@
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
 <script>
-// ── 配方卡片选择 ────────────────────────────────────
+// ── 配方下拉选择 ────────────────────────────────────
 let selectedRecipeData = null;
 
-// 初始化：预选第一个配方
-(function initFirstRecipe() {
-  const first = document.querySelector('.rl-recipe-card.selected');
-  if (first) applyRecipeCard(first);
-})();
-
-function selectRecipeCard(el) {
-  if (el.classList.contains('disabled-card')) return;
-  // 清除旧选中
-  document.querySelectorAll('.rl-recipe-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  applyRecipeCard(el);
+// 切换高级选项
+function toggleAdvancedOptions() {
+  const content = document.getElementById('advanced-content');
+  const icon = document.getElementById('advanced-toggle-icon');
+  
+  if (content.style.display === 'none') {
+    content.style.display = 'block';
+    icon.textContent = '▼';
+  } else {
+    content.style.display = 'none';
+    icon.textContent = '▶';
+  }
 }
 
-function applyRecipeCard(el) {
-  const id    = el.dataset.recipeId || '';
-  const pos   = el.dataset.pos   || '1';
-  const layer = el.dataset.layer || '1';
-  const sx    = el.dataset.sx    || '0';
-  const sy    = el.dataset.sy    || '0';
-  const sz    = el.dataset.sz    || '0';
-  const name  = el.dataset.name  || '';
-  const conf  = el.dataset.conf  || '0.7';
+// 更新配方信息卡片
+function updateRecipeInfoCard(option) {
+  if (!option) return;
+  
+  const name = option.dataset.name || '';
+  const pos = option.dataset.pos || '1';
+  const layer = option.dataset.layer || '1';
+  const sx = option.dataset.sx || '0';
+  const sy = option.dataset.sy || '0';
+  const sz = option.dataset.sz || '0';
+  const side = option.dataset.side || 'BOTH';
+  const mox = option.dataset.mox || '20';
+  const moy = option.dataset.moy || '20';
+  const moz = option.dataset.moz || '20';
+  const conf = option.dataset.conf || '0.7';
+  
+  // 格式化料架侧显示
+  const sideText = side === 'LEFT' ? '左料架' : side === 'RIGHT' ? '右料架' : '左右料架';
+  
+  // 更新卡片显示
+  document.getElementById('recipe-card-name').textContent = name;
+  document.getElementById('recipe-badge').textContent = `POS${pos} · L${layer}`;
+  document.getElementById('recipe-card-sx').textContent = sx;
+  document.getElementById('recipe-card-sy').textContent = sy;
+  document.getElementById('recipe-card-sz').textContent = sz;
+  document.getElementById('recipe-card-side').textContent = sideText;
+  document.getElementById('recipe-card-mox').textContent = mox;
+  document.getElementById('recipe-card-moy').textContent = moy;
+  document.getElementById('recipe-card-moz').textContent = moz;
+  document.getElementById('recipe-card-conf').textContent = conf;
+}
+
+// 应用选中的配方
+function applyRecipeFromDropdown() {
+  const select = document.getElementById('recipe-select');
+  const option = select.options[select.selectedIndex];
+  
+  if (!option || !option.value) return;
+  
+  const id = option.value;
+  const pos = option.dataset.pos || '1';
+  const layer = option.dataset.layer || '1';
+  const sx = option.dataset.sx || '0';
+  const sy = option.dataset.sy || '0';
+  const sz = option.dataset.sz || '0';
+  const name = option.dataset.name || '';
+  const conf = option.dataset.conf || '0.7';
+  const side = option.dataset.side || 'BOTH';
 
   // 填充隐藏输入和手动调整框
-  document.getElementById('recipe-id').value   = id;
+  document.getElementById('recipe-id').value = id;
   document.getElementById('position-no').value = pos;
-  document.getElementById('layer-no').value    = layer;
+  document.getElementById('layer-no').value = layer;
   const layerSelect = document.getElementById('layer-no-select');
   if (layerSelect) layerSelect.value = layer;
-
-  // 更新信息条
-  const bar = document.getElementById('selected-recipe-bar');
-  if (bar) {
-    document.getElementById('sel-name').textContent  = name;
-    document.getElementById('sel-pos').textContent   = pos;
-    document.getElementById('sel-layer').textContent = layer;
-    document.getElementById('sel-sx').textContent    = sx;
-    document.getElementById('sel-sy').textContent    = sy;
-    document.getElementById('sel-sz').textContent    = sz;
-    document.getElementById('sel-conf').textContent  = conf;
+  
+  // 同步料架侧选择
+  const rackSideSelect = document.getElementById('rack-side');
+  if (rackSideSelect && side !== 'BOTH') {
+    rackSideSelect.value = side;
   }
 
-  selectedRecipeData = { id, pos, layer, sx, sy, sz, conf };
+  // 更新配方信息卡片
+  updateRecipeInfoCard(option);
+
+  selectedRecipeData = { id, pos, layer, sx, sy, sz, conf, side };
   document.getElementById('rl-status').textContent =
     `已选配方：${name}（POS${pos} 层${layer}），可采集点云。`;
+  
+  // 自动加载该配方保存的 ROI 并显示在画布上
+  loadRecipeRoi(id);
+}
+
+// 监听配方下拉框变化
+document.getElementById('recipe-select')?.addEventListener('change', applyRecipeFromDropdown);
+
+// 初始化：应用第一个配方
+document.addEventListener('DOMContentLoaded', function() {
+  const select = document.getElementById('recipe-select');
+  if (select && select.options.length > 0 && select.options[0].value) {
+    applyRecipeFromDropdown();
+  }
+});
+
+// 兼容性：保留旧的selectRecipeCard函数（供外部调用）
+function selectRecipeCard(el) {
+  // 不再使用，但保留以免破坏外部引用
+  console.warn('selectRecipeCard is deprecated, use dropdown instead');
+}
+window.selectRecipeCard = selectRecipeCard;
+
+// ── 加载配方保存的 ROI 并显示在画布上 ──────────────────────
+async function loadRecipeRoi(recipeId) {
+  if (!recipeId) return;
+  
+  try {
+    // 1. 首先从配方的 dataset 中获取 ROI（如果配方卡片中包含）
+    const card = document.querySelector(`.rl-recipe-card[data-recipe-id="${recipeId}"]`);
+    
+    // 2. 查询该配方保存的 3D ROI 参数
+    const query = new URLSearchParams({ recipe_id: recipeId });
+    const res = await fetch(`{% url "vision:api_vision_3d_rois" %}?${query.toString()}`);
+    const data = await res.json();
+    
+    if (data.success && data.data && data.data.rois && data.data.rois.length > 0) {
+      // 使用第一个匹配的 ROI
+      const roi = data.data.rois[0];
+      
+      // 更新 3D ROI 输入框
+      const roiFields = {
+        'roi-x-min': roi.x_min,
+        'roi-x-max': roi.x_max,
+        'roi-y-min': roi.y_min,
+        'roi-y-max': roi.y_max,
+        'roi-z-min': roi.z_min,
+        'roi-z-max': roi.z_max,
+      };
+      
+      Object.entries(roiFields).forEach(([id, value]) => {
+        const input = document.getElementById(id);
+        if (input && value != null) {
+          input.value = Number(value).toFixed(3);
+        }
+      });
+      
+      console.log('已加载配方 3D ROI 参数');
+    }
+    
+    // 3. 尝试获取完整配方信息（包含 roi_config 中的 2D ROI）
+    // 构建查询参数：按recipe_id过滤
+    const recipeQuery = new URLSearchParams();
+    // 注意：后端API可能不支持通过id查询，尝试通过recipe_id路由
+    const recipeDetailRes = await fetch(`{% url "vision:api_vision_3d_recipes" %}${recipeId}/`);
+    const recipeDetailData = await recipeDetailRes.json();
+    
+    if (recipeDetailData.success && recipeDetailData.data && recipeDetailData.data.recipe) {
+      const recipe = recipeDetailData.data.recipe;
+      const roiConfig = recipe.roi_config || {};
+      const targetRoi = roiConfig.target_roi;
+      
+      // 如果配方中保存了 2D target_roi，在画布上显示
+      if (targetRoi && targetRoi.x != null && targetRoi.y != null && targetRoi.w != null && targetRoi.h != null) {
+        console.log('找到配方的 2D ROI:', targetRoi);
+        showRoiOnCanvas(targetRoi);
+      }
+    }
+    
+  } catch (e) {
+    // 静默失败，不影响用户操作
+    console.warn('加载配方 ROI 失败：', e);
+  }
+}
+
+// ── 在画布上显示 ROI 框（即使没有点云图像）──────────────────
+function showRoiOnCanvas(targetRoi) {
+  const image = document.getElementById('rl-depth-image');
+  const canvas = document.getElementById('rl-canvas');
+  const placeholder = document.getElementById('rl-placeholder');
+  const roiReadout = document.getElementById('rl-roi-readout');
+  
+  // 如果已经有点云图像，直接在上面绘制
+  if (image && image.style.display !== 'none' && image.src) {
+    // 使用外部 JS 的状态管理
+    if (window.rackLocatorSetRoi) {
+      window.rackLocatorSetRoi(targetRoi);
+    }
+    console.log('在现有点云上显示 ROI');
+  } else {
+    // 没有点云图像时，创建一个占位画布显示 ROI 框
+    const stage = document.getElementById('rl-stage');
+    if (!stage) return;
+    
+    // 隐藏占位符，显示画布
+    if (placeholder) placeholder.style.display = 'none';
+    
+    // 设置画布大小（使用默认尺寸）
+    const defaultWidth = 640;
+    const defaultHeight = 480;
+    canvas.width = defaultWidth;
+    canvas.height = defaultHeight;
+    canvas.style.display = 'block';
+    
+    // 设置图像元素（虽然没有src，但需要设置尺寸用于坐标计算）
+    image.dataset.naturalWidth = defaultWidth;
+    image.dataset.naturalHeight = defaultHeight;
+    
+    // 在画布上绘制提示和 ROI 框
+    const ctx = canvas.getContext('2d');
+    
+    // 绘制深色背景
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // 绘制中央提示文字
+    ctx.fillStyle = '#64748b';
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('配方 ROI 预览（采集点云后将显示实际图像）', canvas.width / 2, 40);
+    
+    // 计算 ROI 在画布上的位置（假设 targetRoi 是像素坐标）
+    const scale = Math.min(canvas.width / defaultWidth, canvas.height / defaultHeight);
+    const roiX = (targetRoi.x || 0) * scale;
+    const roiY = (targetRoi.y || 0) * scale;
+    const roiW = (targetRoi.w || 100) * scale;
+    const roiH = (targetRoi.h || 100) * scale;
+    
+    // 绘制 ROI 框（绿色）
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 4]);
+    ctx.strokeRect(roiX, roiY, roiW, roiH);
+    
+    // 填充半透明绿色
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.16)';
+    ctx.fillRect(roiX, roiY, roiW, roiH);
+    
+    // 绘制 ROI 标签
+    ctx.fillStyle = '#22c55e';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.setLineDash([]);
+    ctx.fillText('target ROI', roiX + 8, Math.max(roiY + 18, 18));
+    
+    // 更新 ROI 读数显示
+    if (roiReadout) {
+      roiReadout.textContent = `配方 ROI: x=${targetRoi.x} y=${targetRoi.y} w=${targetRoi.w} h=${targetRoi.h}`;
+      roiReadout.style.display = 'block';
+    }
+    
+    // 保存到待应用状态（采集点云后自动应用）
+    // 将 ROI 保存到全局状态，以便采集点云后自动应用
+    if (typeof state !== 'undefined') {
+      state.pendingRoi = targetRoi;
+    } else if (window.state) {
+      window.state.pendingRoi = targetRoi;
+    } else {
+      // 创建临时全局状态
+      window.tempPendingRoi = targetRoi;
+    }
+    
+    const status = document.getElementById('rl-status');
+    if (status) {
+      status.textContent = `已加载配方 ROI (${targetRoi.w}×${targetRoi.h})，采集点云后将自动显示框选区域。`;
+    }
+    
+    console.log('配方 ROI 已绘制在占位画布上');
+  }
 }
 
 // ── 工作台配置传入 ─────────────────────────────────

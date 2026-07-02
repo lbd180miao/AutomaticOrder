@@ -136,6 +136,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# 3D 深度相机料架定位运行模式：'MOCK'（模拟，无需硬件）/ 'REAL'（真实相机+机器人）
+RACK_3D_POSITIONING_MODE = 'MOCK'
+
 AUTOMATIC_ORDER = {
     'USE_SIMULATED_DEVICES': False,
     'MES_BASE_URL': '',

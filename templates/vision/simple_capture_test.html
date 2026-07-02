@@ -1,0 +1,126 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>简单采集测试</title>
+    <style>
+        body { font-family: monospace; margin: 20px; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; cursor: pointer; }
+        pre { background: #f0f0f0; padding: 10px; overflow-x: auto; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>🧪 简单采集点云测试</h1>
+    
+    <div id="config"></div>
+    
+    <button onclick="testCapture1()">测试 API 1 (api_vision_3d_capture)</button>
+    <button onclick="testCapture2()">测试 API 2 (api_rack_location_workbench_capture)</button>
+    <button onclick="clearLog()">清空日志</button>
+    
+    <h3>日志:</h3>
+    <div id="log"></div>
+    
+    {% csrf_token %}
+    
+    <script>
+        // 获取CSRF token
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        // 配置
+        const config = {
+            url1: '{% url "vision:api_vision_3d_capture" %}',
+            url2: '{% url "vision:api_rack_location_workbench_capture" %}',
+        };
+        
+        // 显示配置
+        document.getElementById('config').innerHTML = `
+            <h3>URL配置:</h3>
+            <pre>
+URL 1 (api_vision_3d_capture): ${config.url1}
+URL 2 (api_rack_location_workbench_capture): ${config.url2}
+CSRF Token: ${csrftoken.substring(0, 20)}...
+            </pre>
+        `;
+        
+        function log(msg, isError = false) {
+            const div = document.getElementById('log');
+            const p = document.createElement('p');
+            p.className = isError ? 'error' : 'success';
+            p.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            div.insertBefore(p, div.firstChild);
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        async function testCapture1() {
+            log('开始测试 API 1...');
+            await testCapture(config.url1, 'API 1');
+        }
+        
+        async function testCapture2() {
+            log('开始测试 API 2...');
+            await testCapture(config.url2, 'API 2');
+        }
+        
+        async function testCapture(url, name) {
+            try {
+                log(`发送POST请求到: ${url}`);
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken,
+                    },
+                    body: JSON.stringify({
+                        recipe_id: null,
+                        rack_side: 'LEFT',
+                        layer_no: 1
+                    })
+                });
+                
+                log(`${name} - HTTP状态: ${response.status} ${response.statusText}`);
+                log(`${name} - Content-Type: ${response.headers.get('content-type')}`);
+                
+                const contentType = response.headers.get('content-type');
+                
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    log(`${name} - ✓ 成功收到JSON响应`);
+                    log(`${name} - success: ${data.success}`);
+                    
+                    if (data.success || (data.data && data.data.pointcloud_token)) {
+                        log(`${name} - ✓✓✓ API调用成功！`, false);
+                    } else {
+                        log(`${name} - ⚠ API返回错误: ${data.error || '未知'}`, true);
+                    }
+                } else {
+                    const text = await response.text();
+                    log(`${name} - ✗ 收到非JSON响应`, true);
+                    log(`${name} - 响应内容前100字符: ${text.substring(0, 100)}`, true);
+                    
+                    if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+                        log(`${name} - ✗✗✗ 这是HTML页面，不是JSON！`, true);
+                    }
+                }
+                
+            } catch (error) {
+                log(`${name} - ✗✗✗ 请求失败: ${error.message}`, true);
+                console.error('详细错误:', error);
+            }
+        }
+        
+        // 页面加载完成后自动显示配置
+        window.addEventListener('load', () => {
+            log('页面加载完成，配置已显示在上方');
+            log('CSRF Token长度: ' + csrftoken.length);
+        });
+    </script>
+</body>
+</html>

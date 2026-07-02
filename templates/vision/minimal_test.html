@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>最小化测试</title>
+</head>
+<body>
+    <h1>最小化采集点云测试</h1>
+    <button onclick="test()">点击测试</button>
+    <pre id="result"></pre>
+    
+    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+    
+    <script>
+        async function test() {
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = '正在测试...\n';
+            
+            const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const url = '/vision/api/rack-location/workbench/capture/';
+            
+            resultEl.textContent += `CSRF Token: ${csrf.substring(0, 20)}...\n`;
+            resultEl.textContent += `URL: ${url}\n`;
+            resultEl.textContent += `发送请求...\n`;
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrf
+                    },
+                    body: JSON.stringify({
+                        recipe_id: null
+                    })
+                });
+                
+                resultEl.textContent += `状态码: ${response.status}\n`;
+                resultEl.textContent += `Content-Type: ${response.headers.get('content-type')}\n`;
+                
+                const text = await response.text();
+                resultEl.textContent += `响应长度: ${text.length}\n`;
+                resultEl.textContent += `响应前200字符:\n${text.substring(0, 200)}\n`;
+                
+                // 尝试解析JSON
+                try {
+                    const json = JSON.parse(text);
+                    resultEl.textContent += `\n✓ JSON解析成功!\n`;
+                    resultEl.textContent += JSON.stringify(json, null, 2);
+                } catch (e) {
+                    resultEl.textContent += `\n✗ JSON解析失败: ${e.message}\n`;
+                }
+                
+            } catch (error) {
+                resultEl.textContent += `\n✗ 请求失败: ${error.message}\n`;
+            }
+        }
+    </script>
+</body>
+</html>

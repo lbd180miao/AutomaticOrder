@@ -876,7 +876,11 @@ def _rack_location_recipe_form_context(recipe=None, prefill: dict | None = None)
             'target_roi': default_target_roi,
         },
         'reference_feature_config': {},
-        'hand_eye_config': {'matrix': 'identity'},
+        'hand_eye_config': {
+            'matrix': 'identity',
+            'skip_validation': True,  # 开发模式：跳过手眼标定验证
+            'note': '开发测试模式 - 使用单位矩阵（相机坐标系=机器人坐标系）',
+        },
         'max_offset_x': 20,
         'max_offset_y': 20,
         'max_offset_z': 20,
@@ -1052,7 +1056,11 @@ def api_vision_3d_recipes(request):
             standard_y=_as_float(data.get('standard_y'), 0),
             standard_z=_as_float(data.get('standard_z'), 0),
             standard_rz=_as_float(data.get('standard_rz'), 0),
-            hand_eye_config=data.get('hand_eye_config') or {'matrix': 'identity'},
+            hand_eye_config=data.get('hand_eye_config') or {
+                'matrix': 'identity',
+                'skip_validation': True,
+                'note': '开发测试模式',
+            },
             enabled=_as_bool(data.get('enabled'), True),
         )
         return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
@@ -1154,6 +1162,7 @@ def api_vision_3d_roi_detail(request, roi_id):
 
 @require_POST
 def api_vision_3d_capture(request):
+    """3D视觉采集点云API"""
     try:
         data = _request_data(request)
         payload = Rack3DLocator().capture(
@@ -1162,7 +1171,16 @@ def api_vision_3d_capture(request):
             layer_no=_as_int(data.get('layer_no'), 1),
         )
         return _api3d_success(payload)
+    except json.JSONDecodeError as exc:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"JSON解析失败 in api_vision_3d_capture: {exc}")
+        return _api3d_error(f'请求数据格式错误: {exc}')
     except Exception as exc:  # noqa: BLE001
+        import logging
+        import traceback
+        logger = logging.getLogger(__name__)
+        logger.error(f"采集点云失败: {exc}\n{traceback.format_exc()}")
         return _api3d_error(exc)
 
 
@@ -1296,7 +1314,12 @@ def api_rack_location_workbench_capture(request):
         data = _request_data(request)
         payload = RackLocationService().capture_workbench(recipe_id=data.get('recipe_id') or None)
         return JsonResponse({'success': True, **payload})
+    except json.JSONDecodeError as exc:
+        return JsonResponse({'success': False, 'error': f'JSON解析失败: {exc}'}, status=400)
     except Exception as exc:  # noqa: BLE001
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"采集点云错误: {error_detail}")  # 输出到控制台便于调试
         return JsonResponse({'success': False, 'error': f'相机采集失败: {exc}'}, status=400)
 
 
@@ -1492,3 +1515,9 @@ def api_rack_location_results(request):
         'success': True,
         'results': [rack_location_result_payload(result) for result in qs[:100]],
     })
+
+
+
+def roi_3d_workbench(request):
+    """3D ROI裁剪工作台页面"""
+    return render(request, 'vision/roi_3d_workbench.html')

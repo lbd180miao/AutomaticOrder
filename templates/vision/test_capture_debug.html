@@ -1,0 +1,127 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>采集点云API调试工具</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+        .log { max-height: 400px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 采集点云API调试工具</h1>
+        
+        <div class="section">
+            <h3>1. URL配置检查</h3>
+            <table border="1" cellpadding="5">
+                <tr>
+                    <th>配置项</th>
+                    <th>URL</th>
+                </tr>
+                <tr>
+                    <td>captureUrl</td>
+                    <td id="url-capture">{% url 'vision:api_vision_3d_capture' %}</td>
+                </tr>
+                <tr>
+                    <td>legacyCaptureUrl</td>
+                    <td id="url-legacy">{% url 'vision:api_rack_location_workbench_capture' %}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="section">
+            <h3>2. API测试</h3>
+            <div>
+                <button onclick="testApi('capture')">测试 api_vision_3d_capture</button>
+                <button onclick="testApi('legacy')">测试 api_rack_location_workbench_capture</button>
+                <button onclick="clearLog()">清空日志</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>3. 请求/响应日志</h3>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        {% csrf_token %}
+        const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        const urls = {
+            capture: '{% url "vision:api_vision_3d_capture" %}',
+            legacy: '{% url "vision:api_rack_location_workbench_capture" %}'
+        };
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            logDiv.insertBefore(entry, logDiv.firstChild);
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        async function testApi(type) {
+            const url = urls[type];
+            log(`开始测试: ${type} → ${url}`);
+            
+            try {
+                log('发送POST请求...');
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrf
+                    },
+                    body: JSON.stringify({
+                        recipe_id: null,
+                        rack_side: 'LEFT',
+                        layer_no: 1
+                    })
+                });
+                
+                log(`HTTP状态: ${response.status} ${response.statusText}`);
+                log(`Content-Type: ${response.headers.get('content-type')}`);
+                
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    log(`<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+                    
+                    if (data.success || (data.data && data.data.pointcloud_token)) {
+                        log('✓ API调用成功！', 'success');
+                    } else {
+                        log(`⚠ API返回了错误: ${data.error || '未知错误'}`, 'error');
+                    }
+                } else {
+                    const text = await response.text();
+                    log(`✗ 服务器返回了非JSON响应:<pre>${text.substring(0, 500)}</pre>`, 'error');
+                }
+                
+            } catch (error) {
+                log(`✗ 请求失败: ${error.message}`, 'error');
+                console.error('详细错误:', error);
+            }
+        }
+        
+        // 页面加载时自动运行一次测试
+        window.addEventListener('load', () => {
+            log('页面加载完成，URL配置如下:');
+            log(`captureUrl = ${urls.capture}`);
+            log(`legacyCaptureUrl = ${urls.legacy}`);
+        });
+    </script>
+</body>
+</html>
