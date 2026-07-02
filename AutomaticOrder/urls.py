@@ -26,6 +26,7 @@ urlpatterns = [
     path('workflow/', include('apps.workflow.urls')),
     path('devices/', include('apps.devices.urls')),
     path('vision/', include('apps.vision.urls')),
+    path('coordinates/', include('apps.coordinates.urls')),
     path('mes/', include('apps.mes.urls')),
     path('alarms/', include('apps.alarms.urls')),
     path('traceability/', include('apps.traceability.urls')),

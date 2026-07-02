@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'apps.workflow',
     'apps.devices',
     'apps.vision',
+    'apps.coordinates',
     'apps.mes',
     'apps.alarms',
     'apps.traceability',
