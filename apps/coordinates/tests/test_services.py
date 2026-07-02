@@ -38,6 +38,38 @@ class CoordinateWorkbenchServiceTests(TestCase):
             [600.0, 900.0, 1200.0],
         )
 
+    def test_camera_roi_transforms_all_corners_to_robot_base_bounds(self):
+        result = self.service.transform_camera_roi(2, {
+            'x_min': -10, 'x_max': 20,
+            'y_min': -5, 'y_max': 15,
+            'z_min': 800, 'z_max': 820,
+        })
+
+        self.assertEqual(result['coordinate_system'], 'robot')
+        self.assertEqual(result['robot_roi'], {
+            'x_min': 1020.0, 'x_max': 1050.0,
+            'y_min': 435.0, 'y_max': 455.0,
+            'z_min': 1820.0, 'z_max': 1840.0,
+        })
+
+    def test_camera_roi_rotation_uses_all_eight_corners(self):
+        recipe = RackLocationRecipe.objects.create(
+            recipe_name='ROTATED-L1', position_no=1, layer_no=1,
+            layer_count=3, rack_side='BOTH', enabled=True,
+            hand_eye_config={'matrix': np.eye(4).tolist()},
+            capture_pose={'x': 0, 'y': 0, 'z': 0, 'rx': 0, 'ry': 0, 'rz': 90},
+        )
+
+        result = self.service.transform_camera_roi(1, {
+            'x_min': 1, 'x_max': 3, 'y_min': 10, 'y_max': 20,
+            'z_min': 100, 'z_max': 110,
+        }, recipe.id)
+
+        self.assertAlmostEqual(result['robot_roi']['x_min'], -20)
+        self.assertAlmostEqual(result['robot_roi']['x_max'], -10)
+        self.assertAlmostEqual(result['robot_roi']['y_min'], 1)
+        self.assertAlmostEqual(result['robot_roi']['y_max'], 3)
+
     def test_save_persists_existing_recipe_coordinate_fields(self):
         recipe = RackLocationRecipe.objects.create(
             recipe_name='COORD-L2', position_no=1, layer_no=2, layer_count=3,

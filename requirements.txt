@@ -1,5 +1,7 @@
 Django==6.0.6
 opencv-python
 numpy
+scipy
+open3d
 Pillow
 requests

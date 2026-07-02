@@ -446,15 +446,6 @@ class RackPoseEstimator:
             locate_ok = False
             error_code = 'LOW_CONFIDENCE'
             error_message = f'定位置信度不足: {confidence:.2%} < {float(recipe.confidence_threshold):.2%}'
-        elif (
-            abs(offset_x) > float(recipe.max_offset_x)
-            or abs(offset_y) > float(recipe.max_offset_y)
-            or abs(offset_z) > float(recipe.max_offset_z)
-            or abs(offset_rz) > float(recipe.max_offset_rz)
-        ):
-            locate_ok = False
-            error_code = 'OFFSET_OUT_OF_RANGE'
-            error_message = '3D定位补偿值超出配方允许范围'
 
         return RackLocationOutput(
             rack_side=rack_side,
@@ -658,15 +649,7 @@ class PlcVisionResultWriter:
         recipe = result.recipe
         if recipe is None:
             return ''  # 无配方时跳过二次校验
-        checks = [
-            ('X', abs(float(result.offset_x)), float(recipe.max_offset_x)),
-            ('Y', abs(float(result.offset_y)), float(recipe.max_offset_y)),
-            ('Z', abs(float(result.offset_z)), float(recipe.max_offset_z)),
-            ('Rz', abs(float(result.offset_rz)), float(recipe.max_offset_rz)),
-        ]
-        violations = [f'{axis}={val:.3f}>{limit:.3f}' for axis, val, limit in checks if val > limit]
-        if violations:
-            return f'补偿超限: {", ".join(violations)}'
+        # 只保留置信度检查
         if float(result.confidence) < float(recipe.confidence_threshold):
             return f'置信度不足: {float(result.confidence):.2%} < {float(recipe.confidence_threshold):.2%}'
         return ''
@@ -757,14 +740,12 @@ class Rack3DLocator:
         self.processor = processor or PointCloudProcessor()
         self.plc_writer = plc_writer or PlcVisionResultWriter()
 
-    def _select_recipe(self, *, recipe_id=None, rack_side=RackSide.LEFT, layer_no=1):
-        qs = RackLocationRecipe.objects.filter(enabled=True)
+    def _select_recipe(self, *, recipe_id=None, layer_no=1):
+        """选择配方（简化版：固定position_no=1, rack_side=BOTH）"""
+        qs = RackLocationRecipe.objects.filter(enabled=True, position_no=1)
         if recipe_id:
             return qs.get(pk=recipe_id)
-        recipe = qs.filter(rack_side=rack_side, layer_no=layer_no).order_by('position_no').first()
-        if recipe:
-            return recipe
-        return qs.get(rack_side=RackSide.BOTH, layer_no=layer_no)
+        return qs.get(layer_no=layer_no)
 
     def _select_roi(self, recipe: RackLocationRecipe, layer_no: int):
         local_roi = (
@@ -839,13 +820,13 @@ class Rack3DLocator:
             enabled=enabled,
         )
 
-    def capture(self, *, recipe_id=None, rack_side=RackSide.LEFT, layer_no=1) -> dict:
-        recipe = self._select_recipe(recipe_id=recipe_id, rack_side=rack_side, layer_no=layer_no) if recipe_id else None
-        position_no = int(getattr(recipe, 'position_no', 1) or 1)
+    def capture(self, *, recipe_id=None, layer_no=1) -> dict:
+        """采集点云数据（简化版：固定position_no=1, rack_side=BOTH）"""
+        recipe = self._select_recipe(recipe_id=recipe_id, layer_no=layer_no) if recipe_id else None
+        position_no = 1  # 固定为1
         layer_no = int(getattr(recipe, 'layer_no', layer_no) or layer_no)
         layer_count = int(getattr(recipe, 'layer_count', 3) or 3)
-        side = str(getattr(recipe, 'rack_side', rack_side) or rack_side).upper()
-        side_key = RackSide.RIGHT if side == RackSide.RIGHT else RackSide.LEFT
+        side_key = RackSide.LEFT  # 固定为LEFT用于显示
 
         pointcloud = None
         source = 'sample'
@@ -853,8 +834,8 @@ class Rack3DLocator:
         try:
             probe_recipe = recipe or RackLocationRecipe(
                 recipe_name='VISION-3D-CAPTURE',
-                rack_side=side_key,
-                position_no=position_no,
+                rack_side=RackSide.BOTH,
+                position_no=1,
                 layer_no=layer_no,
                 layer_count=layer_count,
                 hand_eye_config={'matrix': 'identity'},
@@ -1034,7 +1015,7 @@ class Rack3DLocator:
         }
 
     def test_locate(self, *, token, roi_3d, recipe_id=None, rack_side=RackSide.LEFT, layer_no=1) -> dict:
-        recipe = self._select_recipe(recipe_id=recipe_id, rack_side=rack_side, layer_no=layer_no)
+        recipe = self._select_recipe(recipe_id=recipe_id, layer_no=layer_no)  # ✅ 移除rack_side参数
         pointcloud = self._load_pointcloud(token)
         points = self.processor.crop_by_roi_3d(pointcloud, roi_3d)
         if points.shape[0] < self.processor.min_valid_points:
@@ -1155,11 +1136,12 @@ class RackLocationService:
         self.estimator = estimator or RackPoseEstimator()
         self.plc_writer = plc_writer or PlcVisionResultWriter()
 
-    def _select_recipe(self, *, recipe_id=None, position_no: int, layer_no: int) -> RackLocationRecipe:
-        qs = RackLocationRecipe.objects.filter(enabled=True)
+    def _select_recipe(self, *, recipe_id=None, layer_no: int) -> RackLocationRecipe:
+        """选择配方（简化版：固定position_no=1）"""
+        qs = RackLocationRecipe.objects.filter(enabled=True, position_no=1)
         if recipe_id:
             return qs.get(pk=recipe_id)
-        return qs.get(position_no=position_no, layer_no=layer_no)
+        return qs.get(layer_no=layer_no)
 
     def capture_standard_image(self, recipe_id=None) -> dict:
         recipe = None
@@ -1285,18 +1267,18 @@ class RackLocationService:
         """采集一帧用于工作台：真实 3D 相机优先，离线回退到模拟场景；
         持久化组织化点云并返回预览图与 token。"""
         recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first() if recipe_id else None
-        position_no = int(getattr(recipe, 'position_no', 1) or 1)
+        position_no = 1  # 固定为1
         layer_no = int(getattr(recipe, 'layer_no', 1) or 1)
         layer_count = int(getattr(recipe, 'layer_count', 3) or 3)
-        side = str(getattr(recipe, 'rack_side', RackSide.LEFT) or RackSide.LEFT).upper()
-        side_key = 'RIGHT' if side == 'RIGHT' else 'LEFT'
+        side = RackSide.LEFT  # 固定为LEFT用于显示
+        side_key = 'LEFT'
 
         pointcloud = None
         source = 'sample'
         fallback_reason = ''
         try:
             probe_recipe = recipe or RackLocationRecipe(
-                recipe_name='WORKBENCH', position_no=position_no, layer_no=layer_no,
+                recipe_name='WORKBENCH', position_no=1, layer_no=layer_no,
                 layer_count=layer_count, hand_eye_config={'matrix': 'identity'},
             )
             frame = self.frame_provider.capture(probe_recipe, position_no, layer_no)
@@ -1392,12 +1374,13 @@ class RackLocationService:
         return payload
 
     def save_workbench_result(self, *, token, roi_config, recipe_id=None, recipe_data=None,
-                              position_no=1, layer_no=1, rack=None, product=None) -> RackLocationResult:
+                              layer_no=1, rack=None, product=None) -> RackLocationResult:
         """工作台「保存结果到数据库」：用同一点云重新确定性计算后写入一条记录。
-
+        
+        简化版：固定position_no=1，只需传layer_no
         不调用 PLC（本期只做手动现场调试）。
         """
-        position_no = int(position_no)
+        position_no = 1  # 固定为1
         layer_no = int(layer_no)
         recipe = self._build_workbench_recipe(recipe_id, recipe_data)
         output, result_rel = self._compute_workbench(
@@ -1454,10 +1437,12 @@ class RackLocationService:
         )
         return result
 
-    def trigger(self, *, position_no: int, layer_no: int, recipe_id=None,
+    def trigger(self, *, layer_no: int, position_no: int = 1, recipe_id=None,
                 rack_side: str = RackSide.BOTH, write_plc: bool = False,
                 product=None, rack=None, workflow=None) -> RackLocationResult:
-        position_no = int(position_no)
+        """触发3D定位（简化版：只需传layer_no，position_no和rack_side固定）"""
+        position_no = 1  # 固定工位号为1
+        rack_side = RackSide.BOTH  # 固定为BOTH
         layer_no = int(layer_no)
         task = VisionTask.objects.create(
             task_type=VisionTaskType.RACK_LOCATING,

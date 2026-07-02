@@ -349,6 +349,74 @@
   font-size: 12px;
   color: var(--text-muted);
 }
+
+/* 3D配方表单专用样式 */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+.form-section {
+  margin: 20px 0;
+  padding: 18px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.form-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #475569;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.form-section-title::before {
+  content: "▸";
+  color: var(--primary);
+}
+
+/* 3D配方卡片专用徽章 */
+.layer-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  min-width: 50px;
+}
+.status-badge {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.status-badge.enabled {
+  background: #d1fae5;
+  color: #065f46;
+}
+.status-badge.disabled {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.recipe-card h3 .layer-badge {
+  margin-right: 6px;
+}
+.recipe-card.disabled {
+  opacity: 0.6;
+  background: #f9fafb;
+}
 </style>
 
 <div class="recipe-page">
@@ -359,8 +427,9 @@
       <button id="btn-create-recipe" class="btn btn-sm" style="background:var(--success);" type="button">
         ➕ 新增配方
       </button>
-      <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-secondary btn-sm">泡棉检测工作台</a>
-      <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-secondary btn-sm">料架定位工作台</a>
+      <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-secondary btn-sm" id="btn-foam-workbench">泡棉检测工作台</a>
+      <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-secondary btn-sm" id="btn-rack-workbench" style="display:none;">料架定位工作台</a>
+      <a href="{% url 'vision:roi_3d_workbench' %}" class="btn btn-secondary btn-sm" id="btn-roi-workbench" style="display:none;">ROI工作台</a>
       <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
     </div>
   </div>
@@ -403,111 +472,9 @@
       </div>
     </section>
 
-    <!-- 料架定位配方标签页 -->
+    <!-- 料架定位配方标签页（3D） -->
     <section id="recipe-tab-rack3d" style="display:none;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <div class="recipe-current-hint">
-          3D料架定位配方管理
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button id="btn-create-3d-recipe" class="btn btn-sm" style="background:var(--success);" type="button">
-            ➕ 新增3D配方
-          </button>
-          <a href="{% url 'vision:roi_3d_workbench' %}" class="btn btn-sm" style="background:var(--primary);" type="button">
-            🎨 ROI裁剪工作台
-          </a>
-          <a href="{% url 'vision:hand_eye_page' %}" class="btn btn-secondary btn-sm" type="button">
-            🔄 手眼标定
-          </a>
-        </div>
-      </div>
-      
-      <div id="rack-recipe-list"></div>
-      
-      <!-- 3D配方详情编辑器 -->
-      <div class="recipe-editor" id="rack-recipe-editor" style="display:none;">
-        <h3>3D配方详情 - <span id="edit-recipe-name"></span></h3>
-        <div class="recipe-card-row">
-          编辑料架定位配方的基本参数和理论值
-        </div>
-        
-        <div class="form-group">
-          <label>配方名称</label>
-          <input type="text" id="edit-recipe-name-input" class="form-control">
-        </div>
-        
-        <div class="form-group">
-          <label>料架型号</label>
-          <input type="text" id="edit-rack-type" class="form-control" placeholder="例如：标准料架A型">
-        </div>
-        
-        <div class="recipe-form-grid">
-          <div>
-            <label>层数</label>
-            <input type="number" id="edit-layer-count" min="1" max="10" value="3">
-          </div>
-          <div>
-            <label>位置号</label>
-            <input type="number" id="edit-position-no" min="1" value="1">
-          </div>
-        </div>
-        
-        <h4 style="margin-top:20px;margin-bottom:10px;">理论位姿（用于计算补偿值）</h4>
-        <div class="recipe-form-grid">
-          <div>
-            <label>理论X (mm)</label>
-            <input type="number" id="edit-standard-x" step="0.1" value="0">
-          </div>
-          <div>
-            <label>理论Y (mm)</label>
-            <input type="number" id="edit-standard-y" step="0.1" value="0">
-          </div>
-          <div>
-            <label>理论Z (mm)</label>
-            <input type="number" id="edit-standard-z" step="0.1" value="0">
-          </div>
-          <div>
-            <label>理论RZ (°)</label>
-            <input type="number" id="edit-standard-rz" step="0.1" value="0">
-          </div>
-        </div>
-        
-        <h4 style="margin-top:20px;margin-bottom:10px;">补偿阈值</h4>
-        <div class="recipe-form-grid">
-          <div>
-            <label>X轴最大偏移 (mm)</label>
-            <input type="number" id="edit-max-offset-x" step="0.1" value="50">
-          </div>
-          <div>
-            <label>Y轴最大偏移 (mm)</label>
-            <input type="number" id="edit-max-offset-y" step="0.1" value="50">
-          </div>
-          <div>
-            <label>Z轴最大偏移 (mm)</label>
-            <input type="number" id="edit-max-offset-z" step="0.1" value="30">
-          </div>
-          <div>
-            <label>RZ轴最大偏移 (°)</label>
-            <input type="number" id="edit-max-offset-rz" step="0.1" value="5">
-          </div>
-        </div>
-        
-        <div class="recipe-form-grid">
-          <div>
-            <label>最小置信度</label>
-            <input type="number" id="edit-confidence-threshold" step="0.01" min="0" max="1" value="0.3">
-          </div>
-        </div>
-        
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
-          <button id="btn-save-3d-recipe" class="btn btn-sm" style="background:var(--success);" type="button">
-            💾 保存配方
-          </button>
-          <button id="btn-cancel-edit-3d" class="btn btn-secondary btn-sm" type="button">
-            取消
-          </button>
-        </div>
-      </div>
+      <div id="rack3d-recipe-list"></div>
     </section>
   </div>
 </div>
@@ -537,6 +504,96 @@
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" onclick="closeModal()">取消</button>
       <button class="btn btn-sm" style="background:var(--success);" onclick="submitModal()">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3D配方新增/编辑弹窗 -->
+<div id="recipe-3d-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modal-3d-title">新增3D配方</h3>
+      <button class="modal-close" onclick="close3DModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="modal-3d-id">
+      
+      <div class="form-group">
+        <label>配方名称 <span style="color:red;">*</span></label>
+        <input type="text" id="modal-3d-name" placeholder="例如：3D-L1" required>
+        <small>建议格式：3D-L{层号}</small>
+      </div>
+      
+      <div class="form-group">
+        <label>适用层号 <span style="color:red;">*</span></label>
+        <input type="number" id="modal-3d-layer" min="1" max="10" value="1" placeholder="1" required>
+        <small>配置第几层的定位配方（1-10）</small>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">ROI 参数（机器人基坐标系 mm）</div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>X Min</label>
+            <input type="number" id="modal-3d-roi-x-min" step="0.1" placeholder="-100">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>X Max</label>
+            <input type="number" id="modal-3d-roi-x-max" step="0.1" placeholder="100">
+          </div>
+          <div></div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Y Min</label>
+            <input type="number" id="modal-3d-roi-y-min" step="0.1" placeholder="-100">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Y Max</label>
+            <input type="number" id="modal-3d-roi-y-max" step="0.1" placeholder="100">
+          </div>
+          <div></div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Z Min</label>
+            <input type="number" id="modal-3d-roi-z-min" step="0.1" placeholder="700">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Z Max</label>
+            <input type="number" id="modal-3d-roi-z-max" step="0.1" placeholder="900">
+          </div>
+          <div></div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">标准坐标（mm）</div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标准 X</label>
+            <input type="number" id="modal-3d-std-x" step="0.001" placeholder="100.000" value="0">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标准 Y</label>
+            <input type="number" id="modal-3d-std-y" step="0.001" placeholder="200.000" value="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标准 Z</label>
+            <input type="number" id="modal-3d-std-z" step="0.001" placeholder="800.000" value="0">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标准 Rz</label>
+            <input type="number" id="modal-3d-std-rz" step="0.001" placeholder="0.000" value="0">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="close3DModal()">取消</button>
+      <button class="btn btn-sm" style="background:var(--success);" onclick="submit3DModal()">保存</button>
     </div>
   </div>
 </div>
@@ -605,10 +662,8 @@ function hideLoading() {
 
 // ── 配方状态 ───────────────────────────────────────
 let foam2DRecipes = [];
-let rack3DRecipes = []; // 3D料架定位配方列表
 let manualSelectedRecipe = null;
 let selectedRecipeForEdit = null;
-let selected3DRecipeForEdit = null; // 当前编辑的3D配方
 let currentPosIndex = 0;
 let modalMode = 'create'; // 'create' or 'edit'
 let editingRecipeId = null;
@@ -850,6 +905,13 @@ async function resetDefaultRecipes() {
 
 // ── 新增配方 ────────────────────────────────────────
 window.openCreateModal = function() {
+  // 如果当前在3D配方标签页，打开3D Modal
+  if (currentTab === 'rack3d') {
+    create3DRecipe();
+    return;
+  }
+  
+  // 2D配方的新增逻辑
   modalMode = 'create';
   editingRecipeId = null;
   document.getElementById('modal-title').textContent = '新增配方';
@@ -939,36 +1001,68 @@ window.submitModal = async function() {
 };
 
 // ── 标签页切换 ──────────────────────────────────────
-document.querySelectorAll('.recipe-tab').forEach(tab => {
+let currentTab = 'foam2d'; // 当前激活的标签页
+
+document.querySelectorAll('.recipe-tab[data-recipe-tab]').forEach(tab => {
   tab.addEventListener('click', () => {
     const tabName = tab.dataset.recipeTab;
+    
+    // 切换激活状态
     document.querySelectorAll('.recipe-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     
+    // 切换显示内容
     document.querySelectorAll('[id^="recipe-tab-"]').forEach(section => {
       section.style.display = 'none';
     });
     document.getElementById(`recipe-tab-${tabName}`).style.display = '';
     
-    // 切换到3D配方标签页时加载3D配方
-    if (tabName === 'rack3d' && rack3DRecipes.length === 0) {
+    currentTab = tabName;
+    
+    // 根据标签页显示/隐藏相关按钮
+    updateWorkbenchButtons(tabName);
+    
+    // 如果切换到3D配方，加载3D配方列表
+    if (tabName === 'rack3d') {
       load3DRecipes();
     }
   });
 });
 
-// ========== 3D 料架定位配方管理 ==========
+// ── 更新工作台按钮显示 ─────────────────────────────
+function updateWorkbenchButtons(tabName) {
+  const foamBtn = document.getElementById('btn-foam-workbench');
+  const rackBtn = document.getElementById('btn-rack-workbench');
+  const roiBtn = document.getElementById('btn-roi-workbench');
+  
+  if (tabName === 'foam2d') {
+    // 2D配方标签页：显示泡棉检测工作台
+    foamBtn.style.display = '';
+    rackBtn.style.display = 'none';
+    roiBtn.style.display = 'none';
+  } else if (tabName === 'rack3d') {
+    // 3D配方标签页：显示料架定位工作台和ROI工作台
+    foamBtn.style.display = 'none';
+    rackBtn.style.display = '';
+    roiBtn.style.display = '';
+  }
+}
 
-// ── 加载3D配方列表 ──────────────────────────────────
+// ============================================================
+//  3D配方管理逻辑
+// ============================================================
+let rack3DRecipes = [];
+
+// ── 加载3D配方 ──────────────────────────────────────
 async function load3DRecipes() {
   try {
-    const res = await fetch(API.rack3dRecipes + '?enabled=true');
+    const res = await fetch('{% url "vision:api_vision_3d_recipes" %}');
     const data = await res.json();
     if (data.success) {
       rack3DRecipes = data.recipes || [];
       render3DRecipeCards();
     } else {
-      showToast('加载3D配方列表失败', 'error');
+      showToast('加载3D配方失败', 'error');
     }
   } catch (e) {
     console.error('加载3D配方失败：', e);
@@ -976,170 +1070,247 @@ async function load3DRecipes() {
   }
 }
 
-// ── 渲染3D配方卡片 ──────────────────────────────────
+// ── 渲染3D配方卡片 ─────────────────────────────────
 function render3DRecipeCards() {
-  const list = document.getElementById('rack-recipe-list');
+  const list = document.getElementById('rack3d-recipe-list');
   
   if (!rack3DRecipes.length) {
     list.innerHTML = `
       <div class="recipe-empty">
-        暂无3D料架定位配方。
-        <a href="${'{% url "vision:rack_location_recipes" %}'}" style="color:var(--primary);font-weight:700;">前往配方管理页面</a>
-        新增配方。
+        暂无3D配方数据，请点击「新增配方」创建第一个3D料架定位配方
+        <br><br>
+        <button onclick="create3DRecipe()" class="btn btn-sm" style="background:var(--success);">
+          ➕ 新增3D配方
+        </button>
       </div>
     `;
     return;
   }
 
   list.innerHTML = rack3DRecipes.map(recipe => {
-    const isSelected = selected3DRecipeForEdit?.id === recipe.id;
-    const classes = ['recipe-card'];
-    if (isSelected) classes.push('active');
-
+    const roi = recipe.roi_config?.target_roi || {};
+    const isDisabled = !recipe.enabled;
+    
     return `
-      <div class="${classes.join(' ')}">
-        <h3>${recipe.recipe_name || `POS${recipe.position_no}-L${recipe.layer_no}`}</h3>
+      <div class="recipe-card ${isDisabled ? 'disabled' : ''}" id="recipe-3d-${recipe.id}">
+        <h3>
+          <span class="layer-badge">第${recipe.layer_no}层</span>
+          ${recipe.recipe_name}
+          <span class="status-badge ${recipe.enabled ? 'enabled' : 'disabled'}">
+            ${recipe.enabled ? '✔ 已启用' : '✕ 已禁用'}
+          </span>
+        </h3>
         <div class="recipe-card-row">
-          <strong>POS ${recipe.position_no}</strong> · 层号 ${recipe.layer_no} · ${recipe.rack_side || 'BOTH'}
+          <strong>标准坐标（mm）：</strong>
+          X: ${recipe.standard_x}, Y: ${recipe.standard_y}, Z: ${recipe.standard_z}, Rz: ${recipe.standard_rz || 0}
         </div>
         <div class="recipe-card-row">
-          标准位姿: X=${recipe.standard_x} Y=${recipe.standard_y} Z=${recipe.standard_z} RZ=${recipe.standard_rz}°
-        </div>
-        <div class="recipe-card-row">
-          最大偏移: X≤${recipe.max_offset_x} Y≤${recipe.max_offset_y} Z≤${recipe.max_offset_z} RZ≤${recipe.max_offset_rz}°
-        </div>
-        <div class="recipe-card-row">
-          置信度阈值: ≥ ${recipe.confidence_threshold}
+          <strong>ROI范围（mm）：</strong>
+          ${roi.x_min !== null && roi.x_min !== undefined ? 
+            `X(${roi.x_min} ~ ${roi.x_max}) Y(${roi.y_min} ~ ${roi.y_max}) Z(${roi.z_min} ~ ${roi.z_max})` : 
+            '<span style="color:#cbd5e1;">未配置</span>'}
         </div>
         <div class="recipe-card-actions">
-          <button class="btn btn-sm" onclick="select3DRecipeForEdit(${recipe.id})">编辑</button>
-          <a href="${'{% url "vision:rack_locator_panel" %}'}?recipe_id=${recipe.id}" class="btn btn-sm" style="background:var(--info);">工作台中使用</a>
-          <button class="btn btn-sm" style="background:#ef4444;" onclick="disable3DRecipe(${recipe.id}, '${recipe.recipe_name}')">禁用</button>
+          <button class="btn btn-sm" onclick="edit3DRecipe(${recipe.id})">编辑</button>
+          <button class="btn btn-secondary btn-sm" onclick="toggle3DEnabled(${recipe.id}, ${recipe.enabled})">
+            ${recipe.enabled ? '禁用' : '启用'}
+          </button>
+          <button class="btn btn-sm" style="background:#ef4444;" onclick="delete3DRecipe(${recipe.id}, '${recipe.recipe_name}')">删除</button>
         </div>
       </div>
     `;
   }).join('');
 }
 
-// ── 选择3D配方进行编辑 ──────────────────────────────
-window.select3DRecipeForEdit = function(recipeId) {
-  selected3DRecipeForEdit = rack3DRecipes.find(r => r.id === recipeId);
-  if (!selected3DRecipeForEdit) return;
-  
-  // 显示编辑器
-  document.getElementById('rack-recipe-editor').style.display = 'block';
-  document.getElementById('edit-recipe-name').textContent = selected3DRecipeForEdit.recipe_name;
-  
-  // 填充表单
-  document.getElementById('edit-recipe-name-input').value = selected3DRecipeForEdit.recipe_name || '';
-  document.getElementById('edit-rack-type').value = selected3DRecipeForEdit.rack_type || '';
-  document.getElementById('edit-layer-count').value = selected3DRecipeForEdit.layer_count || 3;
-  document.getElementById('edit-position-no').value = selected3DRecipeForEdit.position_no || 1;
-  
-  document.getElementById('edit-standard-x').value = selected3DRecipeForEdit.standard_x || 0;
-  document.getElementById('edit-standard-y').value = selected3DRecipeForEdit.standard_y || 0;
-  document.getElementById('edit-standard-z').value = selected3DRecipeForEdit.standard_z || 0;
-  document.getElementById('edit-standard-rz').value = selected3DRecipeForEdit.standard_rz || 0;
-  
-  document.getElementById('edit-max-offset-x').value = selected3DRecipeForEdit.max_offset_x || 50;
-  document.getElementById('edit-max-offset-y').value = selected3DRecipeForEdit.max_offset_y || 50;
-  document.getElementById('edit-max-offset-z').value = selected3DRecipeForEdit.max_offset_z || 30;
-  document.getElementById('edit-max-offset-rz').value = selected3DRecipeForEdit.max_offset_rz || 5;
-  
-  document.getElementById('edit-confidence-threshold').value = selected3DRecipeForEdit.confidence_threshold || 0.3;
-  
-  render3DRecipeCards();
-  
-  // 滚动到编辑器
-  document.getElementById('rack-recipe-editor').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+// ── 新增3D配方 ──────────────────────────────────────
+window.create3DRecipe = function() {
+  document.getElementById('modal-3d-title').textContent = '新增3D配方';
+  document.getElementById('modal-3d-id').value = '';
+  document.getElementById('modal-3d-name').value = '';
+  document.getElementById('modal-3d-layer').value = '1';
+  document.getElementById('modal-3d-roi-x-min').value = '';
+  document.getElementById('modal-3d-roi-x-max').value = '';
+  document.getElementById('modal-3d-roi-y-min').value = '';
+  document.getElementById('modal-3d-roi-y-max').value = '';
+  document.getElementById('modal-3d-roi-z-min').value = '';
+  document.getElementById('modal-3d-roi-z-max').value = '';
+  document.getElementById('modal-3d-std-x').value = '0';
+  document.getElementById('modal-3d-std-y').value = '0';
+  document.getElementById('modal-3d-std-z').value = '0';
+  document.getElementById('modal-3d-std-rz').value = '0';
+  document.getElementById('recipe-3d-modal').style.display = 'flex';
 };
 
-// ── 保存3D配方 ──────────────────────────────────────
-window.save3DRecipe = async function() {
-  if (!selected3DRecipeForEdit) {
-    showToast('请先选择一个配方进行编辑', 'error');
+// ── 编辑3D配方 ──────────────────────────────────────
+window.edit3DRecipe = async function(id) {
+  try {
+    const res = await fetch(`{% url "vision:api_vision_3d_recipes" %}?id=${id}`);
+    const data = await res.json();
+    if (!data.success) {
+      showToast('获取配方失败：' + (data.error || '未知错误'), 'error');
+      return;
+    }
+    
+    if (!data.recipes || data.recipes.length === 0) {
+      showToast('配方不存在', 'error');
+      return;
+    }
+    
+    const recipe = data.recipes[0];
+    document.getElementById('modal-3d-title').textContent = '编辑3D配方';
+    document.getElementById('modal-3d-id').value = recipe.id;
+    document.getElementById('modal-3d-name').value = recipe.recipe_name || '';
+    document.getElementById('modal-3d-layer').value = recipe.layer_no || 1;
+    
+    // ROI参数
+    const roi = recipe.roi_config?.target_roi || {};
+    document.getElementById('modal-3d-roi-x-min').value = roi.x_min ?? '';
+    document.getElementById('modal-3d-roi-x-max').value = roi.x_max ?? '';
+    document.getElementById('modal-3d-roi-y-min').value = roi.y_min ?? '';
+    document.getElementById('modal-3d-roi-y-max').value = roi.y_max ?? '';
+    document.getElementById('modal-3d-roi-z-min').value = roi.z_min ?? '';
+    document.getElementById('modal-3d-roi-z-max').value = roi.z_max ?? '';
+    
+    // 标准坐标
+    document.getElementById('modal-3d-std-x').value = recipe.standard_x || 0;
+    document.getElementById('modal-3d-std-y').value = recipe.standard_y || 0;
+    document.getElementById('modal-3d-std-z').value = recipe.standard_z || 0;
+    document.getElementById('modal-3d-std-rz').value = recipe.standard_rz || 0;
+    
+    document.getElementById('recipe-3d-modal').style.display = 'flex';
+  } catch (e) {
+    console.error('编辑配方失败:', e);
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+};
+
+// ── 切换3D配方启用状态 ─────────────────────────────
+window.toggle3DEnabled = async function(id, currentEnabled) {
+  const newEnabled = !currentEnabled;
+  try {
+    const res = await fetch('{% url "vision:api_vision_3d_recipes" %}', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({ id: Number(id), enabled: newEnabled }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(newEnabled ? '配方已启用' : '配方已禁用', 'success');
+      await load3DRecipes();
+    } else {
+      showToast('操作失败：' + (data.error || '未知错误'), 'error');
+    }
+  } catch (e) {
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+};
+
+// ── 删除3D配方 ──────────────────────────────────────
+window.delete3DRecipe = async function(id, name) {
+  if (!confirm(`确定要删除配方「${name}」吗？\n\n此操作不可恢复！`)) return;
+  
+  try {
+    const res = await fetch('{% url "vision:api_vision_3d_recipes" %}', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({ id: Number(id) }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('配方已删除', 'success');
+      await load3DRecipes();
+    } else {
+      showToast('删除失败：' + (data.error || '未知错误'), 'error');
+    }
+  } catch (e) {
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+};
+
+// ── 关闭3D Modal ────────────────────────────────────
+window.close3DModal = function() {
+  document.getElementById('recipe-3d-modal').style.display = 'none';
+};
+
+// ── 提交3D Modal ────────────────────────────────────
+window.submit3DModal = async function() {
+  const id = document.getElementById('modal-3d-id').value;
+  const name = document.getElementById('modal-3d-name').value.trim();
+  const layer = document.getElementById('modal-3d-layer').value.trim();
+  
+  // 表单验证
+  if (!name) {
+    showToast('请填写配方名称', 'error');
+    document.getElementById('modal-3d-name').focus();
+    return;
+  }
+  if (!layer || Number(layer) < 1) {
+    showToast('层号至少为 1', 'error');
+    document.getElementById('modal-3d-layer').focus();
     return;
   }
 
-  const updateData = {
-    recipe_name: document.getElementById('edit-recipe-name-input').value.trim(),
-    rack_type: document.getElementById('edit-rack-type').value.trim(),
-    layer_count: Number(document.getElementById('edit-layer-count').value),
-    position_no: Number(document.getElementById('edit-position-no').value),
-    
-    standard_x: Number(document.getElementById('edit-standard-x').value),
-    standard_y: Number(document.getElementById('edit-standard-y').value),
-    standard_z: Number(document.getElementById('edit-standard-z').value),
-    standard_rz: Number(document.getElementById('edit-standard-rz').value),
-    
-    max_offset_x: Number(document.getElementById('edit-max-offset-x').value),
-    max_offset_y: Number(document.getElementById('edit-max-offset-y').value),
-    max_offset_z: Number(document.getElementById('edit-max-offset-z').value),
-    max_offset_rz: Number(document.getElementById('edit-max-offset-rz').value),
-    
-    confidence_threshold: Number(document.getElementById('edit-confidence-threshold').value),
+  const payload = {
+    recipe_name: name,
+    layer_no: Number(layer),
+    standard_x: Number(document.getElementById('modal-3d-std-x').value) || 0,
+    standard_y: Number(document.getElementById('modal-3d-std-y').value) || 0,
+    standard_z: Number(document.getElementById('modal-3d-std-z').value) || 0,
+    standard_rz: Number(document.getElementById('modal-3d-std-rz').value) || 0,
+    roi_config: {
+      target_roi: {
+        x_min: Number(document.getElementById('modal-3d-roi-x-min').value) || null,
+        x_max: Number(document.getElementById('modal-3d-roi-x-max').value) || null,
+        y_min: Number(document.getElementById('modal-3d-roi-y-min').value) || null,
+        y_max: Number(document.getElementById('modal-3d-roi-y-max').value) || null,
+        z_min: Number(document.getElementById('modal-3d-roi-z-min').value) || null,
+        z_max: Number(document.getElementById('modal-3d-roi-z-max').value) || null,
+      }
+    },
     enabled: true,
   };
 
-  if (!updateData.recipe_name) {
-    showToast('请输入配方名称', 'error');
-    return;
+  if (id) {
+    payload.id = Number(id);
   }
 
   try {
-    const res = await fetch(API.rack3dRecipeUpdate(selected3DRecipeForEdit.id), {
-      method: 'POST',
-      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(updateData),
+    const res = await fetch('{% url "vision:api_vision_3d_recipes" %}', {
+      method: id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(payload),
     });
+    
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    
     const data = await res.json();
+    
     if (data.success) {
-      showToast('3D配方保存成功', 'success');
+      showToast(id ? '配方已更新' : '配方已创建', 'success');
+      close3DModal();
       await load3DRecipes();
-      document.getElementById('rack-recipe-editor').style.display = 'none';
-      selected3DRecipeForEdit = null;
     } else {
-      showToast(data.error || '保存失败', 'error');
+      showToast('保存失败：' + (data.error || '未知错误'), 'error');
     }
   } catch (e) {
+    console.error('保存配方失败:', e);
     showToast('网络请求失败：' + e.message, 'error');
   }
 };
 
-// ── 取消编辑3D配方 ──────────────────────────────────
-window.cancel3DRecipeEdit = function() {
-  selected3DRecipeForEdit = null;
-  document.getElementById('rack-recipe-editor').style.display = 'none';
-  render3DRecipeCards();
-};
-
-// ── 禁用3D配方 ──────────────────────────────────────
-window.disable3DRecipe = async function(recipeId, recipeName) {
-  if (!confirm(`确定要禁用配方「${recipeName}」吗？`)) return;
-  
-  try {
-    const res = await fetch(API.rack3dRecipeUpdate(recipeId), {
-      method: 'POST',
-      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: false }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast('配方已禁用', 'success');
-      await load3DRecipes();
-    } else {
-      showToast(data.error || '禁用失败', 'error');
-    }
-  } catch (e) {
-    showToast('网络请求失败：' + e.message, 'error');
+// ── 3D Modal ESC键关闭 ──────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    close3DModal();
   }
-};
+});
 
-// ── 创建新3D配方 ────────────────────────────────────
-window.create3DRecipe = function() {
-  // 跳转到配方管理页面
-  window.location.href = '{% url "vision:rack_location_recipes" %}';
-};
+// ── 3D Modal 点击背景关闭 ───────────────────────────
+document.getElementById('recipe-3d-modal')?.addEventListener('click', function(e) {
+  if (e.target === this) close3DModal();
+});
 
 // ── 初始化 ───────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -1154,11 +1325,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-save-current-recipe')?.addEventListener('click', saveSelectedRecipe);
   document.getElementById('btn-reset-default-recipes')?.addEventListener('click', resetDefaultRecipes);
   document.getElementById('btn-create-recipe')?.addEventListener('click', openCreateModal);
-  
-  // 3D配方相关按钮
-  document.getElementById('btn-save-3d-recipe')?.addEventListener('click', save3DRecipe);
-  document.getElementById('btn-cancel-edit-3d')?.addEventListener('click', cancel3DRecipeEdit);
-  document.getElementById('btn-create-3d-recipe')?.addEventListener('click', create3DRecipe);
 
   loadRecipes();
 });

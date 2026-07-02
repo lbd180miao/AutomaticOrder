@@ -92,6 +92,7 @@ urlpatterns = [
     path('api/rack-location/trigger/', views.api_rack_location_trigger, name='api_rack_location_trigger'),
     path('api/rack-location/write-plc/', views.api_rack_location_write_plc, name='api_rack_location_write_plc'),
     path('api/rack-location/recipes/', views.api_rack_location_recipes, name='api_rack_location_recipes'),
+    path('api/rack-location/recipes/<int:recipe_id>/', views.api_rack_location_recipe_detail, name='api_rack_location_recipe_detail'),
     path('api/rack-location/recipes/<int:recipe_id>/update/', views.api_rack_location_recipe_update, name='api_rack_location_recipe_update'),
     path('api/rack-location/results/', views.api_rack_location_results, name='api_rack_location_results'),
 ]
