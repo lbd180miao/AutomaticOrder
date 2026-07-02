@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 def workbench(request):
-    return render(request, 'coordinates/workbench.html')
+    return render(request, 'coordinates/workbench.html', {
+        'pose_rotation_keys': ('rx', 'ry', 'rz'),
+    })
 
 
 @require_GET
