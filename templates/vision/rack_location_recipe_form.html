@@ -1,10 +1,10 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% load static %}
 {% block title %}3D 料架定位配方{% endblock %}
 {% block content %}
 <section class="page-header">
   <h1>3D 料架定位配方</h1>
-  <p class="page-hint">左侧示教深度图 ROI，右侧维护标准坐标与预计算结果。</p>
+  <p class="page-hint">左侧示教深度�?ROI，右侧维护标准坐标与预计算结果�?/p>
 </section>
 
 <form method="post" id="rack-location-recipe-form" class="rack-location-recipe-form">
@@ -17,22 +17,30 @@
   <div class="rack-location-layout">
     <section class="card rack-location-left">
       <div class="card-header">
-        <h2>3D 深度图 / 伪彩图</h2>
-        <p class="muted">当前配方的标准图像预览，ROI参数在右侧直接输入机器人基坐标系坐标（单位：mm）。</p>
+        <h2>3D 深度�?/ 伪彩�?/h2>
+        <p class="muted">当前配方的标准图像预览，ROI参数在右侧直接输入机器人基坐标系坐标（单位：mm）�?/p>
       </div>
       <div class="card-body">
         <div class="rack-location-image-stage">
           <img id="rack-location-depth-image"
                src="{{ sample_preview.preview_image_url }}"
-               alt="3D 深度图 / 伪彩图"
+               alt="3D 深度�?/ 伪彩�?
                data-natural-width="{{ sample_preview.image_width }}"
                data-natural-height="{{ sample_preview.image_height }}">
+          <!-- Canvas 绘制层（新增�?-->
+          <canvas id="rack-location-canvas" style="display: none;"></canvas>
+          <!-- ROI 坐标提示（新增） -->
+          <div id="roi-coordinate-hint" class="roi-hint">
+            <span class="hint-icon">🎯</span>
+            <span class="hint-text">拖拽鼠标绘制 ROI</span>
+          </div>
         </div>
         <div class="toolbar rack-location-actions">
-          <button type="button" id="btn-capture-standard" class="btn btn-secondary">采集标准图</button>
-          <button type="button" id="btn-preview-calculate" class="btn btn-primary">预计算标准坐标</button>
+          <button type="button" id="btn-capture-standard" class="btn btn-secondary">📡 采集标准�?/button>
+          <button type="button" id="btn-redraw-roi" class="btn btn-secondary">🔄 重画 ROI</button>
+          <button type="button" id="btn-preview-calculate" class="btn btn-primary">🎯 预计算标准坐�?/button>
         </div>
-        <p id="rack-location-ui-status" class="muted">ROI参数请在右侧直接输入3D坐标。</p>
+        <p id="rack-location-ui-status" class="muted">采集图像后，在图像上拖拽鼠标绘制 ROI 框，自动转换�?D坐标�?/p>
       </div>
     </section>
 
@@ -41,7 +49,7 @@
         <h2>{% if recipe %}编辑配方{% else %}新增配方{% endif %}</h2>
       </div>
       <div class="card-body rack-location-form-grid">
-        <!-- 隐藏字段：固定值 -->
+        <!-- 隐藏字段：固定�?-->
         <input type="hidden" name="rack_type" value="">
         <input type="hidden" name="rack_side" value="BOTH">
         <input type="hidden" name="position_no" value="1">
@@ -49,32 +57,32 @@
         <input type="hidden" name="camera_device" value="">
         <input type="hidden" name="capture_pose_name" value="">
         
-        <!-- 核心参数：只显示这4类 -->
+        <!-- 核心参数：只显示�?�?-->
         <label class="rack-location-wide">配方名称 <span style="color:red;">*</span>
           <input name="recipe_name" id="recipe-name" value="{{ recipe_defaults.recipe_name }}" required>
         </label>
         
         <label>适用层号 <span style="color:red;">*</span>
           <input name="layer_no" id="layer-no" type="number" min="1" max="3" value="{{ recipe_defaults.layer_no }}" required>
-          <small style="color:#64748b;font-size:11px;">坐标模块支持第 1/2/3 层</small>
+          <small style="color:#64748b;font-size:11px;">坐标模块支持�?1/2/3 �?/small>
         </label>
 
         <fieldset class="rack-location-fieldset">
-          <legend>相机坐标 ROI（mm）</legend>
-          <label>X Min <input name="camera_roi_x_min" id="camera-roi-x-min" type="number" step="0.1" value="{{ recipe_defaults.roi_config.camera_roi.x_min|default_if_none:'' }}"></label>
-          <label>X Max <input name="camera_roi_x_max" id="camera-roi-x-max" type="number" step="0.1" value="{{ recipe_defaults.roi_config.camera_roi.x_max|default_if_none:'' }}"></label>
-          <label>Y Min <input name="camera_roi_y_min" id="camera-roi-y-min" type="number" step="0.1" value="{{ recipe_defaults.roi_config.camera_roi.y_min|default_if_none:'' }}"></label>
-          <label>Y Max <input name="camera_roi_y_max" id="camera-roi-y-max" type="number" step="0.1" value="{{ recipe_defaults.roi_config.camera_roi.y_max|default_if_none:'' }}"></label>
-          <label>Z Min <input name="camera_roi_z_min" id="camera-roi-z-min" type="number" step="0.1" value="{{ recipe_defaults.roi_config.camera_roi.z_min|default_if_none:'' }}"></label>
-          <label>Z Max <input name="camera_roi_z_max" id="camera-roi-z-max" type="number" step="0.1" value="{{ recipe_defaults.roi_config.camera_roi.z_max|default_if_none:'' }}"></label>
+          <legend>相机坐标 ROI（mm�?/legend>
+          <label>X Min <input name="camera_roi_x_min" id="camera-roi-x-min" type="number" step="0.1" value="{{ recipe_defaults.roi_config.camera_roi.x_min|default_if_none:'' }}" readonly></label>
+          <label>X Max <input name="camera_roi_x_max" id="camera-roi-x-max" type="number" step="0.1" value="{{ recipe_defaults.roi_config.camera_roi.x_max|default_if_none:'' }}" readonly></label>
+          <label>Y Min <input name="camera_roi_y_min" id="camera-roi-y-min" type="number" step="0.1" value="{{ recipe_defaults.roi_config.camera_roi.y_min|default_if_none:'' }}" readonly></label>
+          <label>Y Max <input name="camera_roi_y_max" id="camera-roi-y-max" type="number" step="0.1" value="{{ recipe_defaults.roi_config.camera_roi.y_max|default_if_none:'' }}" readonly></label>
+          <label>Z Min <input name="camera_roi_z_min" id="camera-roi-z-min" type="number" step="0.1" value="{{ recipe_defaults.roi_config.camera_roi.z_min|default_if_none:'' }}" readonly></label>
+          <label>Z Max <input name="camera_roi_z_max" id="camera-roi-z-max" type="number" step="0.1" value="{{ recipe_defaults.roi_config.camera_roi.z_max|default_if_none:'' }}" readonly></label>
           <div class="toolbar rack-location-wide">
-            <button type="button" id="btn-transform-roi" class="btn btn-secondary">相机 → 机器人坐标</button>
-            <span id="roi-transform-status" class="muted">填写完整后自动换算，计算参数取自“坐标”模块。</span>
+            <button type="button" id="btn-transform-roi" class="btn btn-secondary">相机 �?机器人坐�?/button>
+            <span id="roi-transform-status" class="muted">填写完整后自动换算，计算参数取自“坐标”模块�?/span>
           </div>
         </fieldset>
 
         <fieldset class="rack-location-fieldset">
-          <legend>3D ROI 配方坐标（机器人基坐标系 mm）</legend>
+          <legend>3D ROI 配方坐标（机器人基坐标系 mm�?— Canvas自动填充</legend>
           <label>X Min <input name="roi_x_min" id="roi-x-min" type="number" step="0.1" value="{{ roi_defaults.x_min }}" readonly></label>
           <label>X Max <input name="roi_x_max" id="roi-x-max" type="number" step="0.1" value="{{ roi_defaults.x_max }}" readonly></label>
           <label>Y Min <input name="roi_y_min" id="roi-y-min" type="number" step="0.1" value="{{ roi_defaults.y_min }}" readonly></label>
@@ -84,20 +92,20 @@
         </fieldset>
 
         <fieldset class="rack-location-fieldset">
-          <legend>标准坐标（mm）</legend>
-          <label>X <input name="standard_x" id="standard-x" type="number" step="0.001" value="{{ recipe_defaults.standard_x }}" placeholder="例：100.000"></label>
-          <label>Y <input name="standard_y" id="standard-y" type="number" step="0.001" value="{{ recipe_defaults.standard_y }}" placeholder="例：200.000"></label>
-          <label>Z <input name="standard_z" id="standard-z" type="number" step="0.001" value="{{ recipe_defaults.standard_z }}" placeholder="例：800.000"></label>
+          <legend>标准坐标（mm�?— 机器人基坐标系</legend>
+          <label>X <input name="standard_x" id="standard-x" type="number" step="0.001" value="{{ recipe_defaults.standard_x }}" placeholder="例：900.000"></label>
+          <label>Y <input name="standard_y" id="standard-y" type="number" step="0.001" value="{{ recipe_defaults.standard_y }}" placeholder="例：530.000"></label>
+          <label>Z <input name="standard_z" id="standard-z" type="number" step="0.001" value="{{ recipe_defaults.standard_z }}" placeholder="例：920.000"></label>
           <label>Rz <input name="standard_rz" id="standard-rz" type="number" step="0.001" value="{{ recipe_defaults.standard_rz }}" placeholder="例：0.000"></label>
         </fieldset>
 
         <fieldset class="rack-location-fieldset rack-location-result">
-          <legend>预计算结果（实际测量坐标）</legend>
+          <legend>预计算结果（实际测量坐标�?/legend>
           <div class="rl-result-head rack-location-wide">
             <span id="locate-badge" class="badge badge-muted">未预计算</span>
-            <span id="rl-confidence-chip" class="rl-chip">置信度 —</span>
-            <span id="rl-points-chip" class="rl-chip">有效点 —</span>
-            <span id="rl-source-chip" class="rl-chip">数据源 —</span>
+            <span id="rl-confidence-chip" class="rl-chip">置信�?�?/span>
+            <span id="rl-points-chip" class="rl-chip">有效�?�?/span>
+            <span id="rl-source-chip" class="rl-chip">数据�?�?/span>
           </div>
           <label>actual_x <input id="actual-x" readonly></label>
           <label>actual_y <input id="actual-y" readonly></label>
@@ -110,7 +118,7 @@
         </fieldset>
 
         <div class="toolbar rack-location-wide">
-          <button type="button" id="btn-save-standard" class="btn btn-secondary">保存为标准位置</button>
+          <button type="button" id="btn-save-standard" class="btn btn-secondary">保存为标准位�?/button>
           <button type="submit" class="btn btn-primary">保存配方</button>
           <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-secondary">返回列表</a>
         </div>
@@ -127,8 +135,9 @@ window.rackLocationRecipeConfig = {
   transformRoiUrl: '{% url "coordinates:api_transform_roi" %}',
 };
 </script>
-<script src="{% static 'vision/js/rack_location_roi.js' %}"></script>
-<script src="{% static 'vision/js/roi_coordinate_transform.js' %}"></script>
+<script src="{% static 'vision/js/rack_location_roi.js' %}?v=2"></script>
+<script src="{% static 'vision/js/roi_coordinate_transform.js' %}?v=2"></script>
+<script src="{% static 'vision/js/rack_location_canvas_roi.js' %}?v=1"></script>
 
 <style>
 .rack-location-layout {
@@ -157,6 +166,27 @@ window.rackLocationRecipeConfig = {
   height: 100%;
   cursor: crosshair;
 }
+.roi-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 12px 20px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  font: 600 14px/1.4 system-ui, sans-serif;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(226, 232, 240, 0.1);
+  transition: opacity 0.3s ease;
+}
+.roi-hint .hint-icon {
+  font-size: 20px;
+}
 .rl-roi-readout {
   position: absolute;
   left: 8px;
@@ -170,6 +200,16 @@ window.rackLocationRecipeConfig = {
 }
 .rack-location-actions {
   margin-top: 12px;
+}
+.rack-location-ui-status.error {
+  color: #dc2626;
+}
+.rack-location-ui-status.success {
+  color: #16a34a;
+}
+#roi-transform-status.success {
+  color: #16a34a;
+  font-weight: 600;
 }
 .rl-result-head {
   display: flex;
@@ -224,3 +264,4 @@ window.rackLocationRecipeConfig = {
 }
 </style>
 {% endblock %}
+

@@ -738,6 +738,258 @@ def api_rack_results(request):
         return JsonResponse({'success': False, 'error': str(exc)})
 
 
+@require_POST
+@csrf_exempt
+def api_rack_locator_offline_test(request):
+    """
+    3D料架定位离线测试：导入数据并保存到指定路径
+    保存深度数据(.npy)和2D图片(.png)到 C:\\Users\\11410\\Desktop\\pic
+    """
+    import os
+    import numpy as np
+    from PIL import Image
+    from datetime import datetime
+    
+    try:
+        data = json.loads(request.body)
+        
+        # 获取上传的点云数据
+        pointcloud_data = data.get('pointcloud')
+        if not pointcloud_data:
+            return JsonResponse({'success': False, 'error': '缺少点云数据'}, status=400)
+        
+        # 获取2D图片数据（base64或URL）
+        image_data = data.get('image')
+        image_width = data.get('image_width', 640)
+        image_height = data.get('image_height', 480)
+        
+        # 创建保存目录
+        save_dir = r'C:\Users\11410\Desktop\pic'
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # 生成时间戳文件名
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
+        
+        # 1. 保存深度数据为.npy文件
+        pointcloud = np.array(pointcloud_data, dtype=np.float32)
+        depth_file = os.path.join(save_dir, f'depth_{timestamp}.npy')
+        np.save(depth_file, pointcloud)
+        
+        # 2. 保存2D图片
+        image_file = os.path.join(save_dir, f'image_{timestamp}.png')
+        
+        if image_data:
+            # 如果提供了图片数据
+            if image_data.startswith('data:image'):
+                # Base64格式
+                import base64
+                header, encoded = image_data.split(',', 1)
+                image_bytes = base64.b64decode(encoded)
+                with open(image_file, 'wb') as f:
+                    f.write(image_bytes)
+            elif os.path.exists(image_data):
+                # 文件路径
+                import shutil
+                shutil.copy(image_data, image_file)
+        else:
+            # 如果没有提供图片，从深度数据生成伪彩色图
+            # 将点云转换为深度图
+            if pointcloud.shape[1] >= 3:
+                z_values = pointcloud[:, 2]
+                # 归一化深度值
+                z_min, z_max = z_values.min(), z_values.max()
+                if z_max > z_min:
+                    z_normalized = ((z_values - z_min) / (z_max - z_min) * 255).astype(np.uint8)
+                else:
+                    z_normalized = np.zeros(len(z_values), dtype=np.uint8)
+                
+                # 重塑为图像（假设点云是规则网格）
+                # 如果没有宽高信息，尝试推断
+                total_points = len(z_values)
+                if image_width * image_height == total_points:
+                    depth_image = z_normalized.reshape(image_height, image_width)
+                else:
+                    # 使用默认尺寸
+                    side = int(np.sqrt(total_points))
+                    if side * side == total_points:
+                        depth_image = z_normalized.reshape(side, side)
+                    else:
+                        # 无法重塑，创建一个简单的可视化
+                        depth_image = np.zeros((image_height, image_width), dtype=np.uint8)
+                
+                # 应用简单的伪彩色映射（蓝->绿->红）
+                # 创建RGB图像
+                colored = np.zeros((depth_image.shape[0], depth_image.shape[1], 3), dtype=np.uint8)
+                
+                # 蓝色通道：深度值越小越蓝
+                colored[:, :, 2] = 255 - depth_image
+                # 绿色通道：中间值为绿
+                colored[:, :, 1] = 255 - np.abs(depth_image - 128) * 2
+                # 红色通道：深度值越大越红
+                colored[:, :, 0] = depth_image
+                
+                img = Image.fromarray(colored)
+                img.save(image_file)
+        
+        logger.info(f'离线测试数据已保存: {depth_file}, {image_file}')
+        
+        return JsonResponse({
+            'success': True,
+            'message': '数据保存成功',
+            'files': {
+                'depth': depth_file,
+                'image': image_file
+            },
+            'pointcloud_shape': pointcloud.shape,
+            'timestamp': timestamp
+        })
+        
+    except Exception as e:
+        logger.exception("离线测试保存失败")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@require_POST
+@csrf_exempt
+def api_rack_locator_load_latest(request):
+    """
+    加载最新的离线测试数据（从保存目录读取）
+    用于"导入数据"功能 - 加载上一次的数据进行测试
+    """
+    import os
+    import glob
+    import numpy as np
+    from django.conf import settings
+    import shutil
+    
+    try:
+        # 从保存目录读取最新的文件
+        save_dir = r'C:\Users\11410\Desktop\pic'
+        
+        if not os.path.exists(save_dir):
+            return JsonResponse({
+                'success': False,
+                'error': f'保存目录不存在: {save_dir}'
+            }, status=404)
+        
+        # 查找最新的.npy文件
+        depth_files = glob.glob(os.path.join(save_dir, 'depth_*.npy'))
+        
+        if not depth_files:
+            return JsonResponse({
+                'success': False,
+                'error': '未找到保存的点云数据文件'
+            }, status=404)
+        
+        # 按修改时间排序，获取最新的
+        latest_depth_file = max(depth_files, key=os.path.getmtime)
+        
+        # 尝试找对应的图片文件
+        timestamp = os.path.basename(latest_depth_file).replace('depth_', '').replace('.npy', '')
+        image_file = os.path.join(save_dir, f'image_{timestamp}.png')
+        
+        logger.info(f'加载最新数据: {latest_depth_file}')
+        
+        # 加载点云数据
+        pointcloud = np.load(latest_depth_file)
+        
+        # 将点云保存到工作台的临时目录（模拟采集过程）
+        # 使用与采集点云相同的存储机制
+        workbench_dir = os.path.join(settings.MEDIA_ROOT, 'vision/rack_workbench')
+        os.makedirs(workbench_dir, exist_ok=True)
+        
+        # 生成临时token
+        from datetime import datetime
+        temp_token_name = f'imported_{datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]}.npy'
+        temp_token_path = os.path.join(workbench_dir, temp_token_name)
+        
+        # 保存到临时位置
+        np.save(temp_token_path, pointcloud)
+        
+        # 生成token（相对路径）
+        token = os.path.join('vision/rack_workbench', temp_token_name)
+        
+        # 生成预览图（伪彩色深度图）
+        from apps.vision.algorithms import image_io
+        preview = image_io.pointcloud_to_preview(pointcloud)
+        preview_rel, _, _ = image_io.save_image(
+            preview, 'imported_preview', rel_dir='vision/rack_workbench'
+        )
+        
+        logger.info(f'已加载点云: {pointcloud.shape}, token={token}')
+        
+        return JsonResponse({
+            'success': True,
+            'message': '成功加载上一次的数据',
+            'pointcloud_token': token,
+            'pointcloud_preview_url': settings.MEDIA_URL + preview_rel,
+            'preview_image_url': settings.MEDIA_URL + preview_rel,
+            'image_width': 640,  # 默认值
+            'image_height': 480,
+            'source': f'imported from {os.path.basename(latest_depth_file)}',
+            'source_file': latest_depth_file,
+            'pointcloud_shape': list(pointcloud.shape),
+            'file_timestamp': timestamp,
+        })
+        
+    except Exception as e:
+        logger.exception("加载最新数据失败")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@require_POST
+@csrf_exempt
+def api_rack_locator_import_npy(request):
+    """
+    解析上传的.npy文件并返回点云数据
+    """
+    import numpy as np
+    import tempfile
+    
+    try:
+        if 'file' not in request.FILES:
+            return JsonResponse({'success': False, 'error': '未上传文件'}, status=400)
+        
+        uploaded_file = request.FILES['file']
+        
+        # 保存到临时文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.npy') as tmp_file:
+            for chunk in uploaded_file.chunks():
+                tmp_file.write(chunk)
+            tmp_path = tmp_file.name
+        
+        try:
+            # 加载.npy文件
+            pointcloud = np.load(tmp_path)
+            
+            # 确保是2D数组且至少有3列
+            if pointcloud.ndim != 2 or pointcloud.shape[1] < 3:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'点云格式错误：期望 (N, 3)，实际 {pointcloud.shape}'
+                }, status=400)
+            
+            # 转换为列表格式
+            pointcloud_list = pointcloud[:, :3].tolist()
+            
+            return JsonResponse({
+                'success': True,
+                'pointcloud': pointcloud_list,
+                'shape': pointcloud.shape,
+                'point_count': len(pointcloud_list)
+            })
+            
+        finally:
+            # 清理临时文件
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+        
+    except Exception as e:
+        logger.exception("解析.npy文件失败")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
 # ------------------------------------------------------------------
 # 3D 深度相机料架定位：按配方位置/层号单次拍照补偿
 # ------------------------------------------------------------------
