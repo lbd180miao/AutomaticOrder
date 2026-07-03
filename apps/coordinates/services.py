@@ -71,6 +71,7 @@ class CoordinateWorkbenchService:
 
     def get_config(self, layer_no, recipe_id=None):
         layer_no = self._layer(layer_no)
+        # default_draft 包含基于 MOCK 变换正确计算的 ROI 与理论值
         config = self.default_draft(layer_no)
         recipe = self._find_recipe(layer_no, recipe_id)
         if recipe_id and recipe is None:
@@ -91,20 +92,48 @@ class CoordinateWorkbenchService:
                 config['hand_eye_matrix'] = self._matrix(recipe.hand_eye_config).tolist()
                 config['hand_eye_source'] = '配方手动矩阵'
             except (TypeError, ValueError):
-                pass
+                pass  # 保留 MOCK 默认矩阵（hand_eye_config = {"matrix": "identity"} 等情形）
 
         if recipe.capture_pose:
             config['robot_pose'].update({
                 key: float(recipe.capture_pose.get(key, config['robot_pose'][key]))
                 for key in config['robot_pose']
             })
+
         standards = [float(recipe.standard_x), float(recipe.standard_y), float(recipe.standard_z)]
         if any(abs(value) > 1e-9 for value in standards):
             config['theoretical'] = dict(zip(('x', 'y', 'z'), standards))
+
+        # 加载配方中已保存的 ROI——但先验证其与当前变换后的点云是否重叠
+        # 若 ROI 内无点（常见于坐标系不匹配情形），自动回退到包围盒 ROI
         roi = recipe.roi_config or {}
         roi_keys = ('x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max')
         if all(key in roi for key in roi_keys):
-            config['roi'] = {key: float(roi[key]) for key in roi_keys}
+            candidate_roi = {key: float(roi[key]) for key in roi_keys}
+            camera = self.generate_camera_points(layer_no)
+            try:
+                base = self.transform_points(camera, config)
+                mask = (
+                    (base[:, 0] >= candidate_roi['x_min']) & (base[:, 0] <= candidate_roi['x_max'])
+                    & (base[:, 1] >= candidate_roi['y_min']) & (base[:, 1] <= candidate_roi['y_max'])
+                    & (base[:, 2] >= candidate_roi['z_min']) & (base[:, 2] <= candidate_roi['z_max'])
+                )
+                if mask.any():
+                    # ROI 有效，使用配方中的 ROI
+                    config['roi'] = candidate_roi
+                else:
+                    # ROI 内无点：重算包围盒 ROI，并同步更新理论值为点云中位数
+                    lower, upper = base.min(axis=0) - 5.0, base.max(axis=0) + 5.0
+                    config['roi'] = {
+                        'x_min': float(lower[0]), 'x_max': float(upper[0]),
+                        'y_min': float(lower[1]), 'y_max': float(upper[1]),
+                        'z_min': float(lower[2]), 'z_max': float(upper[2]),
+                    }
+                    # 若配方未设标准坐标，用变换后点云中位数作理论值
+                    if not any(abs(v) > 1e-9 for v in standards):
+                        config['theoretical'] = self._axis_dict(np.median(base, axis=0))
+            except Exception:  # noqa: BLE001
+                pass  # 变换失败时保留 default_draft 的 ROI
         return config
 
     def transform_camera_roi(self, layer_no, camera_roi, recipe_id=None):
@@ -181,8 +210,24 @@ class CoordinateWorkbenchService:
             & (base[:, 2] >= roi['z_min']) & (base[:, 2] <= roi['z_max'])
         )
         cropped = base[mask]
+        roi_auto_expanded = False
         if not len(cropped):
-            raise CoordinateWorkbenchError('EMPTY_ROI', '当前机器人基坐标 ROI 内没有点', 422)
+            # ROI 与变换后点云不重叠（坐标系不匹配常见场景），自动扩展到全点云包围盒
+            import logging as _log
+            lower, upper = base.min(axis=0) - 5.0, base.max(axis=0) + 5.0
+            config['roi'] = {
+                'x_min': float(lower[0]), 'x_max': float(upper[0]),
+                'y_min': float(lower[1]), 'y_max': float(upper[1]),
+                'z_min': float(lower[2]), 'z_max': float(upper[2]),
+            }
+            cropped = base
+            roi_auto_expanded = True
+            _log.getLogger(__name__).warning(
+                '[CoordinateWorkbench] ROI 裁剪得到 0 个点，自动扩展到全点云包围盒 '
+                f'X:[{float(lower[0]):.1f},{float(upper[0]):.1f}] '
+                f'Y:[{float(lower[1]):.1f},{float(upper[1]):.1f}] '
+                f'Z:[{float(lower[2]):.1f},{float(upper[2]):.1f}]'
+            )
         actual = self._axis_dict(np.median(cropped, axis=0))
         theoretical = config['theoretical']
         offset = {axis: actual[axis] - theoretical[axis] for axis in ('x', 'y', 'z')}
@@ -191,7 +236,7 @@ class CoordinateWorkbenchService:
         base_flange = self.transform_service.pose_to_matrix(
             pose['x'], pose['y'], pose['z'], pose['rx'], pose['ry'], pose['rz']
         )
-        return {
+        result = {
             'config': config,
             'mode': config['mode'],
             'camera_points': self._display(camera),
@@ -211,6 +256,9 @@ class CoordinateWorkbenchService:
                 'base_camera': (base_flange @ hand_eye).tolist(),
             },
         }
+        if roi_auto_expanded:
+            result['warning'] = 'ROI 坐标与当前变换配置不匹配，展示全点云包围盒代替，建议重新配置 ROI'
+        return result
 
     @transaction.atomic
     def save(self, draft):
