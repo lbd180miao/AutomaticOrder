@@ -443,6 +443,7 @@ def api_foam_calibration_save(request):
 
 
 @require_POST
+@require_POST
 def api_camera_preview(request):
     """获取相机实时预览画面（不保存到数据库）"""
     try:
@@ -464,6 +465,43 @@ def api_camera_preview(request):
         # 转换为相对于MEDIA_ROOT的路径
         image_path_obj = Path(image_path)
         media_root = Path(settings.MEDIA_ROOT)
+
+        # The industrial camera produces a 4096x2460 BMP (~30 MB). Sending that
+        # file for every preview frame makes the browser appear frozen and turns
+        # polling into a disk/network bottleneck. Keep the original capture for
+        # inspection, but publish a bounded JPEG for the live workbench preview.
+        try:
+            preview_image = cv2.imread(str(image_path_obj), cv2.IMREAD_COLOR)
+            if preview_image is None:
+                raise RuntimeError(f'OpenCV could not decode {image_path_obj}')
+            height, width = preview_image.shape[:2]
+            max_width = 1280
+            if width > max_width:
+                scale = max_width / width
+                preview_image = cv2.resize(
+                    preview_image,
+                    (max_width, max(1, int(height * scale))),
+                    interpolation=cv2.INTER_AREA,
+                )
+            temp_dir = media_root / 'temp_previews'
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            preview_path = temp_dir / 'camera_live_preview.jpg'
+            with tempfile.NamedTemporaryFile(dir=temp_dir, suffix='.jpg', delete=False) as tmp:
+                temp_preview_path = Path(tmp.name)
+            try:
+                saved = cv2.imwrite(
+                    str(temp_preview_path),
+                    preview_image,
+                    [cv2.IMWRITE_JPEG_QUALITY, 82],
+                )
+                if not saved:
+                    raise RuntimeError('OpenCV failed to encode the preview JPEG')
+                temp_preview_path.replace(preview_path)
+            finally:
+                temp_preview_path.unlink(missing_ok=True)
+            image_path_obj = preview_path
+        except Exception as preview_exc:
+            logger.warning('Unable to optimize camera preview: %s', preview_exc)
         
         try:
             rel_path = image_path_obj.relative_to(media_root)
