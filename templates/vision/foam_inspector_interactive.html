@@ -499,6 +499,9 @@
           <button id="btn-refresh-preview" class="btn btn-secondary">
             🔄 刷新预览
           </button>
+          <button id="btn-live-preview" class="btn btn-secondary" aria-pressed="false">
+            ▶ 开始实时预览
+          </button>
           <button id="btn-capture-inspect" class="btn btn-success" style="background:var(--success);">
             📸 拍照检测
           </button>
@@ -636,8 +639,14 @@ function hideLoading() {
 }
 
 // ── 预览图更新 ───────────────────────────────────────────
-document.getElementById('btn-refresh-preview').addEventListener('click', async () => {
-  showLoading('获取相机画面...');
+let cameraPreviewRequestInFlight = false;
+let livePreviewEnabled = false;
+let livePreviewTimer = null;
+
+async function refreshCameraPreview({ background = false } = {}) {
+  if (cameraPreviewRequestInFlight) return false;
+  cameraPreviewRequestInFlight = true;
+  if (!background) showLoading('获取相机画面...');
   try {
     const res = await fetch(API.refreshPreview, {
       method: 'POST',
@@ -647,14 +656,82 @@ document.getElementById('btn-refresh-preview').addEventListener('click', async (
     if (data.success) {
       clearPendingFile();
       setPreviewImage(data.image_url);
+      return true;
     } else {
-      alert('获取预览失败：' + (data.error || '未知错误'));
+      // 改进的错误提示
+      let errorMsg = data.error || '未知错误';
+      
+      // 检查是否是设备占用错误
+      if (errorMsg.includes('-2147483115') || errorMsg.includes('打开设备失败') || errorMsg.includes('设备被占用')) {
+        errorMsg = '相机被占用，无法访问\n\n可能原因：\n' +
+                   '• MVS 客户端软件正在使用相机\n' +
+                   '• 其他程序正在访问相机\n' +
+                   '• 上次使用未正常释放\n\n' +
+                   '解决方法：\n' +
+                   '1. 关闭 MVS 软件\n' +
+                   '2. 刷新页面重试\n' +
+                   '3. 重启开发服务器';
+      } else if (errorMsg.includes('-2147483646') || errorMsg.includes('获取图像失败')) {
+        errorMsg = '相机无法获取图像\n\n可能原因：\n' +
+                   '• 相机触发模式未配置\n' +
+                   '• 相机参数设置不正确\n\n' +
+                   '解决方法：\n' +
+                   '1. 使用 MVS 软件配置相机\n' +
+                   '2. 设置触发模式为"连续采集"\n' +
+                   '3. 查看《相机配置说明.md》';
+      }
+      
+      alert('获取预览失败\n\n' + errorMsg);
+      return false;
     }
   } catch (e) {
     alert('网络请求失败：' + e.message);
+    return false;
   } finally {
-    hideLoading();
+    cameraPreviewRequestInFlight = false;
+    if (!background) hideLoading();
   }
+}
+
+document.getElementById('btn-refresh-preview').addEventListener('click', () => {
+  refreshCameraPreview();
+});
+
+function updateLivePreviewButton() {
+  const button = document.getElementById('btn-live-preview');
+  button.setAttribute('aria-pressed', livePreviewEnabled ? 'true' : 'false');
+  button.textContent = livePreviewEnabled ? '⏹ 停止实时预览' : '▶ 开始实时预览';
+  button.classList.toggle('btn-warning', livePreviewEnabled);
+  button.classList.toggle('btn-secondary', !livePreviewEnabled);
+}
+
+async function runLivePreviewFrame() {
+  if (!livePreviewEnabled) return;
+  if (document.hidden) {
+    livePreviewTimer = window.setTimeout(runLivePreviewFrame, 1000);
+    return;
+  }
+  const success = await refreshCameraPreview({ background: true });
+  if (!success) {
+    livePreviewEnabled = false;
+    updateLivePreviewButton();
+    return;
+  }
+  // 串行采集，上一帧完成后再请求下一帧，避免两个进程同时占用相机。
+  livePreviewTimer = window.setTimeout(runLivePreviewFrame, 250);
+}
+
+document.getElementById('btn-live-preview').addEventListener('click', () => {
+  livePreviewEnabled = !livePreviewEnabled;
+  if (livePreviewTimer) window.clearTimeout(livePreviewTimer);
+  livePreviewTimer = null;
+  updateLivePreviewButton();
+  if (livePreviewEnabled) runLivePreviewFrame();
+});
+
+window.addEventListener('beforeunload', () => {
+  livePreviewEnabled = false;
+  if (livePreviewTimer) window.clearTimeout(livePreviewTimer);
 });
 
 function setPreviewImage(url) {

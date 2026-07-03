@@ -236,6 +236,8 @@ class CameraAdapter(BaseDeviceAdapter):
         quality = hik_settings.get('QUALITY', 5)
         sdk_lib_dir = hik_settings.get('SDK_LIB_DIR')
         run_in_subprocess = hik_settings.get('RUN_IN_SUBPROCESS', True)
+        max_retries = hik_settings.get('MAX_RETRIES', 2)  # 添加重试次数配置
+        retry_delay = hik_settings.get('RETRY_DELAY', 1)  # 重试延迟（秒）
 
         if bool(camera_ip) != bool(pc_ip):
             raise RuntimeError('HIK_CAMERA CAMERA_IP and PC_IP must be configured together.')
@@ -265,31 +267,70 @@ class CameraAdapter(BaseDeviceAdapter):
                 f'无法创建或写入目录 {output_dir}, 错误: {exc}'
             ) from exc
 
-        if run_in_subprocess:
-            image_path = self._capture_with_worker(
-                output_dir,
-                camera_ip,
-                pc_ip,
-                image_format,
-                quality,
-                sdk_lib_dir,
-                camera_code,
-                task_type,
-            )
-        else:
-            image_path = self._capture_direct(
-                output_dir,
-                camera_ip,
-                pc_ip,
-                image_format,
-                quality,
-                camera_code,
-                task_type,
-            )
+        # 添加重试机制
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                if run_in_subprocess:
+                    image_path = self._capture_with_worker(
+                        output_dir,
+                        camera_ip,
+                        pc_ip,
+                        image_format,
+                        quality,
+                        sdk_lib_dir,
+                        camera_code,
+                        task_type,
+                    )
+                else:
+                    image_path = self._capture_direct(
+                        output_dir,
+                        camera_ip,
+                        pc_ip,
+                        image_format,
+                        quality,
+                        camera_code,
+                        task_type,
+                    )
 
-        return {
-            'success': True,
-            'image_path': image_path,
-            'camera_code': camera_code,
-            'task_type': task_type,
-        }
+                return {
+                    'success': True,
+                    'image_path': image_path,
+                    'camera_code': camera_code,
+                    'task_type': task_type,
+                }
+            except RuntimeError as exc:
+                last_error = exc
+                error_msg = str(exc)
+                
+                # 检查是否是设备占用错误（错误码 -2147483115）
+                if '-2147483115' in error_msg or '打开设备失败' in error_msg:
+                    if attempt < max_retries - 1:
+                        # 设备被占用，等待后重试
+                        import time
+                        import sys
+                        sys.stderr.write(
+                            f'Warning: Camera device busy (attempt {attempt + 1}/{max_retries}), '
+                            f'retrying in {retry_delay}s...\n'
+                        )
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        # 最后一次尝试失败
+                        raise RuntimeError(
+                            f'Hik camera capture failed for {camera_code} ({task_type}): '
+                            f'设备被占用或无法访问。请检查：\n'
+                            f'1. 是否有 MVS 软件正在运行\n'
+                            f'2. 是否有其他程序占用相机\n'
+                            f'3. 相机连接是否正常\n'
+                            f'原始错误: {error_msg}'
+                        ) from exc
+                else:
+                    # 其他错误直接抛出，不重试
+                    raise
+        
+        # 如果所有重试都失败
+        if last_error:
+            raise last_error
+        
+        raise RuntimeError(f'Hik camera capture failed for {camera_code} ({task_type}): Unknown error')
