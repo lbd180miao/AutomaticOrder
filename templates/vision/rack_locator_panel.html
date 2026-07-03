@@ -649,7 +649,6 @@
   <div class="rl-title-bar">
     <h1>3D 料架定位工作台</h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-secondary btn-sm">🧩 配方管理</a>
       <a href="{% url 'vision:rack_location_history' %}" class="btn btn-secondary btn-sm">历史记录</a>
       <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
     </div>
@@ -659,8 +658,6 @@
   <div class="rl-recipe-section">
     <div class="rl-recipe-section-head">
       <h2>选择配方</h2>
-      <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-secondary btn-sm" style="font-size:12px;">管理配方
-        →</a>
     </div>
 
     <!-- 配方下拉选择器 -->
@@ -679,8 +676,6 @@
         <option value="">暂无配方</option>
         {% endfor %}
       </select>
-      <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-sm" style="background:var(--success);">➕
-        新建配方</a>
     </div>
 
     <!-- 当前配方信息卡片 -->
@@ -734,15 +729,12 @@
         </div>
         <div class="rl-actions">
           <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
-          <button id="btn-auto-align" class="btn btn-secondary" disabled>自动对齐</button>
           <button id="btn-redraw" class="btn btn-secondary" disabled>重画 ROI</button>
           <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" disabled>🎯
             计算偏差</button>
-          <button id="btn-save-roi" class="btn btn-secondary" disabled>保存 ROI</button>
-          <button id="btn-write-plc" class="btn btn-secondary" disabled>写入 PLC</button>
         </div>
-        <span class="rl-source-chip" id="rl-source">数据源 —</span>
-        <p class="rl-status" id="rl-status">先选择配方，再采集点云。</p>
+        <span class="rl-source-chip" id="rl-source" style="display: none;">数据源 —</span>
+        <p class="rl-status" id="rl-status" style="display: none;">先选择配方，再采集点云。</p>
       </div>
     </div>
 
@@ -913,6 +905,13 @@
     selectedRecipeData = { id, pos, layer, sx, sy, sz, conf, side };
     document.getElementById('rl-status').textContent =
       `已选配方：${name}（POS${pos} 层${layer}），可采集点云。`;
+
+    // 更新计算结果中的标准值
+    if (document.getElementById('d-sx')) {
+      document.getElementById('d-sx').textContent = parseFloat(sx).toFixed(2);
+      document.getElementById('d-sy').textContent = parseFloat(sy).toFixed(2);
+      document.getElementById('d-sz').textContent = parseFloat(sz).toFixed(2);
+    }
 
     // 自动加载该配方保存的 ROI 并显示在画布上
     loadRecipeRoi(id);

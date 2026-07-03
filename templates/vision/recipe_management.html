@@ -429,7 +429,6 @@
       </button>
       <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-secondary btn-sm" id="btn-foam-workbench">泡棉检测工作台</a>
       <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-secondary btn-sm" id="btn-rack-workbench" style="display:none;">料架定位工作台</a>
-      <a href="{% url 'vision:roi_3d_workbench' %}" class="btn btn-secondary btn-sm" id="btn-roi-workbench" style="display:none;">ROI工作台</a>
       <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
     </div>
   </div>
@@ -439,9 +438,9 @@
     <button class="recipe-tab active" data-recipe-tab="foam2d" type="button">
       泡棉检测配方（2D）
     </button>
-    <button class="recipe-tab" data-recipe-tab="rack3d" type="button">
+    <a href="{% url 'vision:rack_location_recipes' %}" class="recipe-tab" style="text-decoration: none;">
       料架定位配方（3D）
-    </button>
+    </a>
   </div>
 
   <!-- 配方内容 -->
@@ -1033,18 +1032,15 @@ document.querySelectorAll('.recipe-tab[data-recipe-tab]').forEach(tab => {
 function updateWorkbenchButtons(tabName) {
   const foamBtn = document.getElementById('btn-foam-workbench');
   const rackBtn = document.getElementById('btn-rack-workbench');
-  const roiBtn = document.getElementById('btn-roi-workbench');
   
   if (tabName === 'foam2d') {
     // 2D配方标签页：显示泡棉检测工作台
-    foamBtn.style.display = '';
-    rackBtn.style.display = 'none';
-    roiBtn.style.display = 'none';
+    if(foamBtn) foamBtn.style.display = '';
+    if(rackBtn) rackBtn.style.display = 'none';
   } else if (tabName === 'rack3d') {
-    // 3D配方标签页：显示料架定位工作台和ROI工作台
-    foamBtn.style.display = 'none';
-    rackBtn.style.display = '';
-    roiBtn.style.display = '';
+    // 3D配方标签页：显示料架定位工作台
+    if(foamBtn) foamBtn.style.display = 'none';
+    if(rackBtn) rackBtn.style.display = '';
   }
 }
 
