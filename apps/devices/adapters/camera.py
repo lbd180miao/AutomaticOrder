@@ -76,6 +76,8 @@ class CameraAdapter(BaseDeviceAdapter):
         output_dir,
         camera_ip,
         pc_ip,
+        camera_serial,
+        feature_file,
         image_format,
         quality,
         sdk_lib_dir,
@@ -106,6 +108,8 @@ class CameraAdapter(BaseDeviceAdapter):
             'output_dir': output_dir.as_posix(),
             'camera_ip': camera_ip,
             'pc_ip': pc_ip,
+            'camera_serial': camera_serial,
+            'feature_file': feature_file.as_posix() if feature_file else '',
             'format': image_format,
             'quality': quality,
             'sdk_lib_dir': str(sdk_lib_dir) if sdk_lib_dir else '',
@@ -232,6 +236,18 @@ class CameraAdapter(BaseDeviceAdapter):
         output_dir = Path(hik_settings.get('OUTPUT_DIR', settings.MEDIA_ROOT / 'hik_captures')).resolve()
         camera_ip = hik_settings.get('CAMERA_IP') or None
         pc_ip = hik_settings.get('PC_IP') or None
+        camera_serial = hik_settings.get('SERIAL_NUMBER') or None
+        feature_file_value = hik_settings.get('FEATURE_FILE') or None
+        feature_file = None
+        if feature_file_value:
+            feature_file = Path(feature_file_value)
+            if not feature_file.is_absolute():
+                feature_file = Path(settings.BASE_DIR) / feature_file
+            feature_file = feature_file.resolve()
+            if feature_file.suffix.lower() != '.mfs':
+                raise RuntimeError(f'HIK_CAMERA FEATURE_FILE must be an .mfs file: {feature_file}')
+            if not feature_file.is_file():
+                raise RuntimeError(f'HIK_CAMERA FEATURE_FILE does not exist: {feature_file}')
         image_format = hik_settings.get('FORMAT', 'PNG')
         quality = hik_settings.get('QUALITY', 5)
         sdk_lib_dir = hik_settings.get('SDK_LIB_DIR')
@@ -271,11 +287,15 @@ class CameraAdapter(BaseDeviceAdapter):
         last_error = None
         for attempt in range(max_retries):
             try:
-                if run_in_subprocess:
+                # .mfs loading is implemented with Hikrobot's official MVS
+                # wrapper in the isolated worker, so it must use that path.
+                if run_in_subprocess or feature_file:
                     image_path = self._capture_with_worker(
                         output_dir,
                         camera_ip,
                         pc_ip,
+                        camera_serial,
+                        feature_file,
                         image_format,
                         quality,
                         sdk_lib_dir,

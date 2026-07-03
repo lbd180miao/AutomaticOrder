@@ -156,6 +156,8 @@ AUTOMATIC_ORDER = {
         'CAMERA_IP': None,  # 设置为 None 启用自动检测
         'PC_IP': None,       # 设置为 None 启用自动检测
         'FORMAT': 'BMP',  # 使用 BMP 格式避免编码问题
+        'SERIAL_NUMBER': 'DA6649441',
+        'FEATURE_FILE': BASE_DIR / '2d_SDK' / 'MV-CH100-60GC_DA6649441.mfs',
         'QUALITY': 5,
         'RUN_IN_SUBPROCESS': True,
     },
