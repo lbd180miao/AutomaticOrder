@@ -17,7 +17,6 @@
   const state = {
     token: null,         // 持久化点云 token
     roi: null,           // 真实图像像素 ROI {x,y,w,h}
-    alignmentToken: null,
     drawing: false,
     start: null,
     displayRoi: null,
@@ -468,7 +467,6 @@
 
   // ── 渲染结果 ─────────────────────────────────────────────
   function renderResult(r) {
-    // 简化版：只显示计算结果，不保存状态用于其他操作
     const ok = r.locate_ok ?? r.is_success;
     const v = $('rl-verdict');
     v.className = 'rl-verdict ' + (ok ? 'ok' : 'fail');
@@ -494,13 +492,28 @@
     }
 
     const meta = r.result_data || {};
-    $('d-ax').textContent = Number(r.actual_x || 0).toFixed(2);
-    $('d-ay').textContent = Number(r.actual_y || 0).toFixed(2);
-    $('d-az').textContent = Number(r.actual_z || 0).toFixed(2);
-    $('d-points').textContent = meta.valid_point_count ?? '—';
+    const actX = Number(r.actual_x || 0);
+    const actY = Number(r.actual_y || 0);
+    const actZ = Number(r.actual_z || 0);
+    
+    // 更新标准值（从当前选中的配方中获取）
+    const recipeData = currentRecipeData();
+    if ($('d-sx')) $('d-sx').textContent = (recipeData.standard_x || 0).toFixed(2);
+    if ($('d-sy')) $('d-sy').textContent = (recipeData.standard_y || 0).toFixed(2);
+    if ($('d-sz')) $('d-sz').textContent = (recipeData.standard_z || 0).toFixed(2);
+
+    // 更新实测值
+    if ($('d-ax')) $('d-ax').textContent = actX.toFixed(2);
+    if ($('d-ay')) $('d-ay').textContent = actY.toFixed(2);
+    if ($('d-az')) $('d-az').textContent = actZ.toFixed(2);
+
+
+    $('d-points').textContent = meta.valid_point_count ?? meta.point_count ?? '—';
+
     $('rl-detail').style.display = 'flex';
     refreshActionState();
   }
+
 
   function setOffset(axis, val, limit) {
     const cell = $('cell-' + axis), el = $('off-' + axis);
@@ -514,67 +527,7 @@
     else cell.classList.add('negative');
   }
 
-  // ── 自动按 POS/层号触发（沿用既有 trigger） ───────────────
-  $('btn-auto-trigger').addEventListener('click', async () => {
-    showLoading('自动拍照计算中...');
-    try {
-      const raw = await postJson(CFG.locateUrl || CFG.triggerUrl, semanticPayload({
-        position_no: Number($('position-no').value || 1),
-        rack_side: currentRackSide(),
-        recipe_id: $('recipe-id').value || null,
-        write_plc: false,
-      }));
-      const data = apiPayload(raw);
-      const status = $('rl-auto-status');
-      if (!data.success) { status.textContent = '失败：' + (data.error || '未知错误'); return; }
-      renderResult(data.result);
-      status.textContent = data.result.locate_ok ? '自动定位 OK，已入库。' : '自动定位 NG，已入库。';
-      loadHistory();
-    } catch (e) {
-      $('rl-auto-status').textContent = '网络请求失败：' + e.message;
-    } finally { hideLoading(); }
-  });
 
-  // ── 历史记录 ─────────────────────────────────────────────
-  async function loadHistory() {
-    try {
-      const query = new URLSearchParams({
-        position_no: $('position-no').value || '',
-        layer_index: String(currentLayerIndex()),
-        locate_type: currentLocateType(),
-      });
-      const res = await fetch(`${CFG.results3dUrl || CFG.resultsUrl}?${query.toString()}`);
-      const data = apiPayload(await res.json());
-      const tbody = $('history-tbody');
-      if (!data.results || !data.results.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty">暂无定位记录</td></tr>';
-        return;
-      }
-      tbody.innerHTML = data.results.map((r) => `
-        <tr>
-          <td>${(r.created_at || '').replace('T', ' ').slice(0, 19) || '—'}</td>
-          <td>${r.position_no ?? '—'}</td>
-          <td>${r.layer_no ?? '—'}</td>
-          <td>${fmt(r.offset_x)}</td>
-          <td>${fmt(r.offset_y)}</td>
-          <td>${fmt(r.offset_z)}</td>
-          <td>${fmt(r.offset_rz, '°')}</td>
-          <td>${r.confidence != null ? (r.confidence * 100).toFixed(1) + '%' : '—'}</td>
-          <td>${(r.locate_ok ?? r.is_success) ? '<span class="badge badge-ok">OK</span>' : '<span class="badge badge-fail">NG</span>'}</td>
-        </tr>`).join('');
-    } catch (e) {
-      $('history-tbody').innerHTML = `<tr><td colspan="9" class="empty">加载失败：${e.message}</td></tr>`;
-    }
-  }
-  function fmt(v, unit = 'mm') {
-    const n = parseFloat(v);
-    return isNaN(n) ? '—' : (n > 0 ? '+' : '') + n.toFixed(3) + ' ' + unit;
-  }
-
-  // ── 配方卡片选择联动 POS/层号（已由 HTML 层 selectRecipeCard() 处理，此处仅保留历史兼容） ──
-  // $('recipe-id').addEventListener('change', ...) 已迁移到 HTML 内联 onclick
-
-  $('btn-refresh-history').addEventListener('click', loadHistory);
   window.addEventListener('resize', resizeCanvas);
   image.addEventListener('load', resizeCanvas);
   
@@ -587,7 +540,6 @@
       state.lastResultOk = false;
       refreshActionState();
       await refreshCurrentRecipe();
-      loadHistory();
     });
   });
 
@@ -595,11 +547,10 @@
     syncControls();
     refreshActionState();
     await refreshCurrentRecipe();
-    loadHistory();
   });
   if (document.readyState !== 'loading') {
     syncControls();
     refreshActionState();
-    refreshCurrentRecipe().finally(loadHistory);
+    refreshCurrentRecipe();
   }
 }());
