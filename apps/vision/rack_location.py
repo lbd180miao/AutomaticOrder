@@ -473,32 +473,21 @@ class RackPoseEstimator:
         actual_y = round(float(pose.get('actual_y', 0)), 3)
         actual_z = round(float(pose.get('actual_z', 0)), 3)
 
-        # ── 坐标系校正 ────────────────────────────────────────────────
-        # 当实测值与标准值量级差异过大（>50mm）时，说明点云来自相机像素坐标系
-        # （模拟点云 X/Y 约在 ±200mm，Z 约 250~900mm，与机器人坐标 ~1200/350/850mm 相差悬殊）
-        # 此时用标准值+小量噪声代替，确保展示的是机器人坐标系的合理偏差
+        # ── 坐标系记录 ────────────────────────────────────────────────
+        # actual_x/y/z 的坐标系由调用者保证：
+        #   - Rack3DLocator._output_from_points 会先做手眼变换（相机→机器人基坐标系）
+        #   - extract_pose / SampleRackFrameProvider 走模拟路径，直接给机器人坐标
+        # 不再用「偏差超过50mm就强制替换」的hack，保留真实计算结果以便诊断。
         std_x_val = float(recipe.standard_x)
         std_y_val = float(recipe.standard_y)
         std_z_val = float(recipe.standard_z)
-        source = pose.get('source', '')
-
-        if std_x_val != 0 or std_y_val != 0 or std_z_val != 0:
-            diff_x = abs(actual_x - std_x_val)
-            diff_y = abs(actual_y - std_y_val)
-            diff_z = abs(actual_z - std_z_val)
-            # 若任一轴偏差超过50mm，判断为坐标系不匹配，校正为模拟机器人坐标
-            if diff_x > 50 or diff_y > 50 or diff_z > 50:
-                import random as _rng_module
-                rng = _rng_module.Random(f'coord-correct-{position_no}-{layer_no}-{source}')
-                actual_x = round(std_x_val + rng.gauss(0, 1.2), 3)
-                actual_y = round(std_y_val + rng.gauss(0, 1.2), 3)
-                actual_z = round(std_z_val + rng.gauss(0, 0.8), 3)
-                import logging as _log
-                _log.getLogger(__name__).info(
-                    f'[坐标校正] 检测到相机像素坐标系点云，已校正为机器人坐标系: '
-                    f'actual=({actual_x:.2f},{actual_y:.2f},{actual_z:.2f}) '
-                    f'standard=({std_x_val:.2f},{std_y_val:.2f},{std_z_val:.2f})'
-                )
+        coordinate_system = pose.get('coordinate_system', 'unknown')
+        import logging as _log
+        _log.getLogger(__name__).info(
+            f'[坐标系] actual=({actual_x:.2f},{actual_y:.2f},{actual_z:.2f}) '
+            f'standard=({std_x_val:.2f},{std_y_val:.2f},{std_z_val:.2f}) '
+            f'coordinate_system={coordinate_system}'
+        )
 
         offset_x = round(actual_x - float(recipe.standard_x), 3)
         offset_y = round(actual_y - float(recipe.standard_y), 3)
@@ -888,8 +877,11 @@ class Rack3DLocator:
             enabled=enabled,
         )
 
-    def capture(self, *, recipe_id=None, layer_no=1) -> dict:
-        """采集点云数据（简化版：固定position_no=1, rack_side=BOTH）"""
+    def capture(self, *, recipe_id=None, layer_no=1, rack_side=None, **_kwargs) -> dict:
+        """采集点云数据（每次调用都重新采集一帧实时数据）。
+        
+        rack_side 和其它额外参数由适配层内部处理，此处接受但不强制传递。
+        """
         recipe = self._select_recipe(recipe_id=recipe_id, layer_no=layer_no) if recipe_id else None
         position_no = 1  # 固定为1
         layer_no = int(getattr(recipe, 'layer_no', layer_no) or layer_no)
@@ -974,7 +966,11 @@ class Rack3DLocator:
         }
 
     def _output_from_points(self, *, points, recipe, rack_side, layer_no, roi_source, roi_id=None, token='') -> RackLocationOutput:
-        """从裁剪后的点云计算定位结果"""
+        """从裁剪后的点云计算定位结果。
+        
+        先尝试通过手眼矩阵将点云变换到机器人基坐标系，再计算实测 actual_x/y/z。
+        这确保前端显示的坐标与配方标准坐标（机器人坐标系）在同一坐标系内。
+        """
         import logging
         logger = logging.getLogger(__name__)
         
@@ -982,7 +978,6 @@ class Rack3DLocator:
         
         if points.shape[0] == 0:
             logger.error("[_output_from_points] ❌ 点云为空，无法计算位置！")
-            # 返回一个明确失败的结果，而不是默认的0值
             return RackLocationOutput(
                 locate_ok=False,
                 error_code='EMPTY_POINTCLOUD',
@@ -999,14 +994,73 @@ class Rack3DLocator:
                 result_data={
                     'roi_id': roi_id,
                     'roi_source': roi_source,
-                    'coordinate_system': 'rack',
+                    'coordinate_system': 'camera',
                     'point_count': 0,
                     'error_detail': 'ROI裁剪后点云为空',
                 }
             )
         
+        # ── 尝试将相机坐标系点云变换到机器人基坐标系 ─────────────────
+        coordinate_system = 'camera'  # 默认：相机坐标系
+        robot_points = points  # 默认不做变换
+        
         try:
-            actual_x, actual_y, actual_z = self.processor.calculate_median_xyz(points)
+            from apps.vision.coordinate_transform import CoordinateTransformService
+            transform_service = CoordinateTransformService()
+            
+            # 从配方中加载手眼标定矩阵
+            hand_eye_config = recipe.hand_eye_config or {}
+            has_calibration = recipe.hand_eye_calibration_id and getattr(
+                recipe, 'hand_eye_calibration', None
+            ) and recipe.hand_eye_calibration.T_flange_camera
+            
+            T_fc = None  # T_flange_camera：相机→法兰
+            if has_calibration:
+                T_fc = CoordinateTransformService.parse_matrix_from_json(
+                    recipe.hand_eye_calibration.T_flange_camera
+                )
+            elif hand_eye_config and hand_eye_config.get('matrix') not in (None, 'identity'):
+                T_fc = CoordinateTransformService.parse_matrix_from_json(hand_eye_config)
+            elif hand_eye_config and 'T_flange_camera' in hand_eye_config:
+                T_fc = CoordinateTransformService.parse_matrix_from_json(
+                    hand_eye_config['T_flange_camera']
+                )
+            
+            # 从配方中加载机器人位姿（法兰→基坐标系）
+            capture_pose = recipe.capture_pose or {}
+            T_bf = None  # T_base_flange：法兰→基坐标系
+            if capture_pose and all(k in capture_pose for k in ('x', 'y', 'z')):
+                T_bf = CoordinateTransformService.pose_to_matrix(
+                    float(capture_pose.get('x', 0)),
+                    float(capture_pose.get('y', 0)),
+                    float(capture_pose.get('z', 0)),
+                    float(capture_pose.get('rx', 0)),
+                    float(capture_pose.get('ry', 0)),
+                    float(capture_pose.get('rz', 0)),
+                )
+            
+            if T_fc is not None and T_bf is not None:
+                # 执行坐标变换：相机坐标系 → 法兰坐标系 → 机器人基坐标系
+                robot_points = transform_service.camera_to_robot_base(
+                    points.astype(np.float64), T_fc, T_bf
+                )
+                coordinate_system = 'robot_base'
+                logger.info(
+                    f"[_output_from_points] ✓ 已通过手眼变换将点云转换到机器人基坐标系"
+                    f" (手眼来源: {'手眼标定' if has_calibration else '配方矩阵'})"
+                )
+            else:
+                logger.warning(
+                    f"[_output_from_points] ⚠ 缺少手眼矩阵或机器人位姿，点云保持相机坐标系"
+                    f" (T_fc={'有' if T_fc is not None else '无'}, T_bf={'有' if T_bf is not None else '无'})"
+                )
+        except Exception as transform_exc:
+            logger.warning(f"[_output_from_points] ⚠ 坐标变换失败，使用原始相机坐标: {transform_exc}")
+            robot_points = points
+            coordinate_system = 'camera'
+        
+        try:
+            actual_x, actual_y, actual_z = self.processor.calculate_median_xyz(robot_points)
         except ValueError as e:
             logger.error(f"[_output_from_points] ❌ 计算中位数失败: {e}")
             return RackLocationOutput(
@@ -1025,16 +1079,19 @@ class Rack3DLocator:
                 result_data={
                     'roi_id': roi_id,
                     'roi_source': roi_source,
-                    'coordinate_system': 'rack',
-                    'point_count': int(points.shape[0]),
+                    'coordinate_system': coordinate_system,
+                    'point_count': int(robot_points.shape[0]),
                     'error_detail': str(e),
                 }
             )
         
-        confidence = min(0.99, max(0.0, points.shape[0] / 1000.0))
+        confidence = min(0.99, max(0.0, robot_points.shape[0] / 1000.0))
         
-        logger.info(f"[_output_from_points] ✓ 实际位置: X={actual_x:.2f}, Y={actual_y:.2f}, Z={actual_z:.2f}")
-        logger.info(f"[_output_from_points]   置信度: {confidence:.3f}, 点数: {points.shape[0]}")
+        logger.info(
+            f"[_output_from_points] ✓ 实际位置({coordinate_system}): "
+            f"X={actual_x:.2f}, Y={actual_y:.2f}, Z={actual_z:.2f}"
+        )
+        logger.info(f"[_output_from_points]   置信度: {confidence:.3f}, 点数: {robot_points.shape[0]}")
         
         frame = {
             'actual_x': actual_x,
@@ -1042,6 +1099,7 @@ class Rack3DLocator:
             'actual_z': actual_z,
             'confidence': confidence,
             'source': 'rack_3d_roi',
+            'coordinate_system': coordinate_system,
             'raw_data_path': token,
         }
         output = RackPoseEstimator(processor=self.processor).calculate_rack_offset(
@@ -1051,8 +1109,8 @@ class Rack3DLocator:
             **(output.result_data or {}),
             'roi_id': roi_id,
             'roi_source': roi_source,
-            'coordinate_system': 'rack',
-            'point_count': int(points.shape[0]),
+            'coordinate_system': coordinate_system,
+            'point_count': int(robot_points.shape[0]),
         }
         return output
 
@@ -1166,7 +1224,7 @@ class Rack3DLocator:
         return payload
 
     def locate(self, *, rack_side, layer_no, recipe_id=None, write_plc=False, product=None, rack=None, workflow=None):
-        recipe = self._select_recipe(recipe_id=recipe_id, rack_side=rack_side, layer_no=layer_no)
+        recipe = self._select_recipe(recipe_id=recipe_id, layer_no=layer_no)
         roi, roi_source = self._select_roi(recipe, int(layer_no))
         task = VisionTask.objects.create(
             task_type=VisionTaskType.RACK_LOCATING,
