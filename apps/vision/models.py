@@ -243,6 +243,11 @@ class RackLocationResult(TimeStampedModel):
     error_message = models.TextField(blank=True)
     raw_data_path = models.CharField(max_length=512, blank=True)
     result_image_path = models.CharField(max_length=512, blank=True)
+    roi_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='本次定位使用的ROI快照（像素ROI与三维坐标范围）',
+    )
     plc_write_status = models.CharField(max_length=32, default='SKIPPED')
     plc_error_message = models.TextField(blank=True)
     result_data = models.JSONField(default=dict, blank=True)

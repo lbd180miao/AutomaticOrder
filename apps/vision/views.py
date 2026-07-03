@@ -131,6 +131,9 @@ def task_detail(request, pk):
     )
     images = list(task.images.all())
     original = next((i for i in images if i.image_type == 'ORIGINAL'), None)
+    depth_img = next((i for i in images if i.image_type == 'DEPTH'), None)
+    if original is None:
+        original = depth_img
     result_img = next((i for i in images if i.image_type == 'RESULT'), None)
     rack_result = task.rack_results.first()
     foam_result = task.foam_results.first()
@@ -138,6 +141,7 @@ def task_detail(request, pk):
         'task': task,
         'original': original,
         'result_img': result_img,
+        'depth_img': depth_img,
         'rack_result': rack_result,
         'foam_result': foam_result,
     })
@@ -1692,9 +1696,11 @@ def api_rack_location_workbench_capture(request):
 
 @require_POST
 def api_rack_location_workbench_calculate(request):
-    """工作台「计算偏差」：按绘制的 ROI 裁剪持久化点云，仅预览不写库。
+    """工作台「计算偏差」：按绘制的 ROI 裁剪持久化点云，并保存到视觉记录。
     
-    优化：自动加载配方中保存的ROI坐标（如果有），避免每次都需要重新绘制。
+    优化：
+    1. 自动加载配方中保存的ROI坐标（如果有），避免每次都需要重新绘制
+    2. 自动保存到视觉记录（VisionTask），方便追溯和查询
     """
     try:
         data = _request_data(request)
@@ -1710,6 +1716,11 @@ def api_rack_location_workbench_calculate(request):
                     roi_config['target_roi'] = saved_target_roi
                     logger.info(f"自动加载配方 {recipe_id} 的已保存ROI坐标")
         
+        # 「计算偏差」即正式采集动作，默认保存本次深度图、结果图和 ROI 快照。
+        save_record = _as_bool(data.get('save_record'), True)
+        
+        logger.info(f"[计算偏差] recipe_id={recipe_id}, save_record={save_record}")
+        
         payload = RackLocationService().calculate_workbench(
             token=data.get('pointcloud_token'),
             roi_config=roi_config,
@@ -1718,9 +1729,15 @@ def api_rack_location_workbench_calculate(request):
             layer_no=_as_int(data.get('layer_no'), 1),
             roi_3d=data.get('roi_3d') or data.get('roi'),
             rack_side=data.get('rack_side') or 'LEFT',
+            save_record=save_record,
         )
+        
+        if save_record:
+            logger.info(f"[计算偏差] 已保存到视觉记录，VisionTask数量: {VisionTask.objects.count()}")
+        
         return JsonResponse({'success': True, 'result': payload})
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        logger.error(f"[计算偏差] 错误: {exc}")
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
@@ -1759,8 +1776,10 @@ def api_rack_location_workbench_save(request):
         result = RackLocationService().save_workbench_result(
             token=data.get('pointcloud_token'),
             roi_config=roi_config,
+            roi_3d=data.get('roi_3d') or data.get('roi') or {},
             recipe_id=recipe_id,
             recipe_data=data.get('recipe_data') or None,
+            position_no=_as_int(data.get('position_no'), 1),
             layer_no=layer_no,
         )
         return JsonResponse({'success': True, 'result': rack_location_result_payload(result)})

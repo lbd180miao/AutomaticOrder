@@ -212,6 +212,7 @@ class CameraAdapter(BaseDeviceAdapter):
                 f'Hik camera capture failed for {camera_code} ({task_type}): {exc}'
             ) from exc
         finally:
+            # 无论成功或失败，都必须关闭相机以释放资源
             if camera and camera_opened:
                 try:
                     close_method = getattr(camera, 'close_camera', None) or getattr(camera, '__exit__', None)
@@ -220,8 +221,10 @@ class CameraAdapter(BaseDeviceAdapter):
                             close_method(None, None, None)
                         else:
                             close_method()
-                except Exception:
-                    pass
+                except Exception as close_exc:
+                    # 关闭失败记录警告但不影响结果返回
+                    import sys
+                    sys.stderr.write(f'Warning: Failed to close camera: {close_exc}\n')
 
     def capture(self, camera_code, task_type):
         """Trigger capture and return image path plus metadata."""

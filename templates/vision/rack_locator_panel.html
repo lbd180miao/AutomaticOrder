@@ -641,6 +641,31 @@
       transform: rotate(360deg);
     }
   }
+  .rl-offline-actions { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color); }
+  .rl-package-modal[hidden] { display: none; }
+  .rl-package-modal { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 24px; }
+  .rl-package-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .68); backdrop-filter: blur(3px); }
+  .rl-package-dialog { position: relative; width: min(1050px, 96vw); max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: var(--card-bg, #fff); border: 1px solid var(--border-color); border-radius: 14px; box-shadow: 0 24px 70px rgba(0, 0, 0, .3); }
+  .rl-package-head, .rl-package-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--border-color); }
+  .rl-package-head h2 { margin: 0; font-size: 18px; }
+  .rl-package-head p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; }
+  .rl-package-body { display: grid; grid-template-columns: minmax(250px, 34%) 1fr; min-height: 430px; overflow: hidden; }
+  .rl-package-list-pane { padding: 14px; border-right: 1px solid var(--border-color); overflow-y: auto; }
+  .rl-package-list { display: grid; gap: 8px; margin-top: 12px; }
+  .rl-package-item { width: 100%; display: grid; grid-template-columns: 72px 1fr; gap: 10px; padding: 9px; text-align: left; color: var(--text); background: var(--bg-hover); border: 1px solid transparent; border-radius: 9px; cursor: pointer; }
+  .rl-package-item:hover, .rl-package-item.selected { border-color: var(--primary); }
+  .rl-package-item img { width: 72px; height: 58px; object-fit: cover; border-radius: 6px; background: #0f172a; }
+  .rl-package-item strong, .rl-package-item span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rl-package-item span { margin-top: 4px; color: var(--text-muted); font-size: 11px; }
+  .rl-package-detail { padding: 20px; overflow-y: auto; }
+  .rl-package-detail img { width: 100%; max-height: 300px; object-fit: contain; background: #0f172a; border-radius: 8px; }
+  .rl-package-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+  .rl-package-meta div { padding: 10px; border-radius: 8px; background: var(--bg-hover); }
+  .rl-package-meta small { display: block; color: var(--text-muted); margin-bottom: 3px; }
+  .rl-package-empty { color: var(--text-muted); text-align: center; padding: 30px 10px; }
+  .rl-package-foot { border-top: 1px solid var(--border-color); border-bottom: 0; }
+  #offline-package-message { color: var(--text-muted); font-size: 12px; }
+  @media (max-width: 760px) { .rl-package-body { grid-template-columns: 1fr; } .rl-package-list-pane { max-height: 240px; border-right: 0; border-bottom: 1px solid var(--border-color); } .rl-package-foot { align-items: flex-start; flex-direction: column; } }
 </style>
 
 <div class="rl-workbench">
@@ -733,6 +758,10 @@
           <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" disabled>🎯
             计算偏差</button>
         </div>
+        <div class="rl-actions rl-offline-actions">
+          <button id="btn-export-package" class="btn" style="background:#0ea5e9;" disabled>💾 保存数据包</button>
+          <button id="btn-packages" class="btn btn-secondary">📦 数据包管理</button>
+        </div>
         <span class="rl-source-chip" id="rl-source" style="display: none;">数据源 —</span>
         <p class="rl-status" id="rl-status" style="display: none;">先选择配方，再采集点云。</p>
       </div>
@@ -742,7 +771,7 @@
     <div class="rl-panel">
       <div class="rl-panel-head">
         <h2>计算结果 · 坐标偏差</h2>
-        <button id="btn-save" class="btn btn-sm" style="background:var(--primary);" disabled>💾 保存结果到数据库</button>
+        <span id="record-save-status" class="badge badge-muted">计算后自动保存记录</span>
       </div>
       <div class="rl-panel-body">
         <div class="rl-verdict idle" id="rl-verdict">
@@ -815,6 +844,36 @@
 
 
 
+  <!-- 新增：离线数据包管理弹窗；独立于现有工作台交互。 -->
+  <div class="rl-package-modal" id="packages-modal" hidden aria-hidden="true">
+    <div class="rl-package-backdrop" data-package-close></div>
+    <section class="rl-package-dialog" role="dialog" aria-modal="true" aria-labelledby="packages-modal-title">
+      <header class="rl-package-head">
+        <div>
+          <h2 id="packages-modal-title">📦 离线数据包管理</h2>
+          <p>加载历史现场数据，或使用当前配方重新定位。</p>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" data-package-close>关闭</button>
+      </header>
+      <div class="rl-package-body">
+        <aside class="rl-package-list-pane">
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-packages">刷新列表</button>
+          <div id="offline-package-list" class="rl-package-list"><p class="rl-package-empty">正在加载…</p></div>
+        </aside>
+        <main id="offline-package-detail" class="rl-package-detail">
+          <p class="rl-package-empty">请从左侧选择一个数据包。</p>
+        </main>
+      </div>
+      <footer class="rl-package-foot">
+        <span id="offline-package-message">—</span>
+        <div class="rl-actions">
+          <button type="button" class="btn" id="btn-load-package" disabled>加载到画布</button>
+          <button type="button" class="btn btn-success" id="btn-reprocess-package" disabled>重新定位</button>
+          <button type="button" class="btn" id="btn-delete-package" style="background:var(--danger);" disabled>删除</button>
+        </div>
+      </footer>
+    </section>
+  </div>
 </div>
 
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
@@ -1111,7 +1170,9 @@
     legacySaveUrl: '{% url "vision:api_rack_location_workbench_save" %}',
     triggerUrl: '{% url "vision:api_rack_location_trigger" %}',
     resultsUrl: '{% url "vision:api_rack_location_results" %}',
+    offlinePackagesUrl: '{% url "vision:offline_packages" %}',
   };
 </script>
 <script src="{% static 'vision/js/rack_locator_workbench.js' %}"></script>
+<script src="{% static 'vision/js/offline_package_manager.js' %}"></script>
 {% endblock %}

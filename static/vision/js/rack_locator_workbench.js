@@ -24,6 +24,11 @@
     lastResultOk: false,
     currentRecipe: null,
     pendingRoi: null,    // 待应用的 ROI（在采集点云前加载）
+    lastResult: null,    // 最近一次计算结果，供离线数据包保存
+    source: '',          // 最近一次点云数据源
+    captureRecipeId: null,
+    captureLayerNo: null,
+    lastCalculation: null,
   };
 
   // ── 暴露设置 ROI 的接口供外部调用 ────────────────────────
@@ -240,6 +245,7 @@
     setButton('btn-capture', true);  // 采集点云始终可用
     setButton('btn-redraw', Boolean(state.token));  // 有点云后可以重画ROI
     setButton('btn-calculate', Boolean(state.token));  // 有点云后可以计算
+    setButton('btn-export-package', Boolean(state.token));
   }
 
   async function refreshCurrentRecipe() {
@@ -405,6 +411,9 @@
       const data = apiPayload(raw);
       if (!data.success) { setStatus(data.error || '采集失败'); return; }
       state.token = data.pointcloud_token;
+      state.source = data.source || '';
+      state.captureRecipeId = $('recipe-id').value || null;
+      state.captureLayerNo = currentLayerIndex();
       state.alignmentToken = null;
       state.lastResultId = null;
       state.lastResultOk = false;
@@ -467,21 +476,37 @@
       // 优先使用工作台专用端点
       const calculateApiUrl = CFG.calculateUrl || CFG.legacyCalculateUrl || CFG.testLocateUrl || '/vision/api/rack-location/workbench/calculate/';
       console.log('[计算偏差] 使用API端点:', calculateApiUrl);
-      
-      const raw = await postJson(calculateApiUrl, semanticPayload({
+
+      const calculation = {
         pointcloud_token: state.token,
         roi: currentRoi3D(),
+        roi_3d: currentRoi3D(),
         roi_config: { target_roi: state.roi },
         rack_side: currentRackSide(),
         recipe_id: $('recipe-id').value || null,
         recipe_data: currentRecipeData(),
-      }));
+        save_record: true,
+      };
+      const raw = await postJson(calculateApiUrl, semanticPayload(calculation));
       const data = apiPayload(raw);
       if (!data.success) { setStatus(data.error || '计算失败'); return; }
+      state.lastCalculation = calculation;
+      state.lastResultId = data.result?.result_id || data.result?.id || null;
       renderResult(data.result);
-      $('btn-save').disabled = false;
-      $('last-time').textContent = '上次计算：' + new Date().toLocaleString('zh-CN', { hour12: false });
-      setStatus(data.result.locate_ok ? '计算完成：定位 OK。' : ('计算完成：定位 NG · ' + (data.result.error_message || data.result.error_code || '')));
+      const saveStatus = $('record-save-status');
+      if (saveStatus) {
+        saveStatus.className = 'badge badge-ok';
+        saveStatus.textContent = state.lastResultId
+          ? `✅ 已自动保存记录 #${state.lastResultId}`
+          : '✅ 已自动保存记录';
+      }
+      const lastTime = $('last-time');
+      if (lastTime) {
+        lastTime.textContent = '上次计算：' + new Date().toLocaleString('zh-CN', { hour12: false });
+      }
+      setStatus(data.result.locate_ok
+        ? '计算完成：定位 OK，本次3D记录已自动保存。'
+        : ('计算完成：定位 NG，本次3D记录已自动保存 · ' + (data.result.error_message || data.result.error_code || '')));
       
       // 计算完成后自动选中下一个配方
       selectNextRecipe();
@@ -489,7 +514,7 @@
       setStatus('网络请求失败：' + e.message);
     } finally { hideLoading(); }
   });
-  
+
   // ── 自动选中下一个配方 ──────────────────────────────────
   function selectNextRecipe() {
     const select = document.getElementById('recipe-select');
@@ -522,14 +547,14 @@
     }
   }
 
-  // ── 保存结果到数据库 ─────────────────────────────────────
-  // 移除保存功能，简化工作台为纯计算预览工具
+  // 计算接口会同步保存深度图、结果图和 ROI 快照，无需二次点击。
 
   // ── 移除不需要的高级功能 ──────────────────────────────────
   // 移除：自动对齐、保存ROI、写入PLC、自动触发、历史记录等复杂功能
 
   // ── 渲染结果 ─────────────────────────────────────────────
   function renderResult(r) {
+    state.lastResult = r || null;
     const ok = r.locate_ok ?? r.is_success;
     const v = $('rl-verdict');
     v.className = 'rl-verdict ' + (ok ? 'ok' : 'fail');
@@ -593,6 +618,52 @@
 
   window.addEventListener('resize', resizeCanvas);
   image.addEventListener('load', resizeCanvas);
+
+  // 新增离线数据包桥接层：仅暴露当前快照和“加载到画布”，不改变原工作台流程。
+  window.rackLocatorOfflineBridge = {
+    snapshot() {
+      return {
+        pointcloud_token: state.token,
+        source: state.source,
+        roi_config: currentRoi3D(),
+        result: state.lastResult,
+        recipe_id: state.captureRecipeId || $('recipe-id')?.value || null,
+        layer_no: state.captureLayerNo || currentLayerIndex(),
+      };
+    },
+    load(payload) {
+      if (!payload || !payload.pointcloud_token) throw new Error('数据包未返回有效点云');
+      state.token = payload.pointcloud_token;
+      state.source = payload.source || 'offline_package';
+      state.captureRecipeId = payload.metadata?.recipe?.recipe_id || $('recipe-id')?.value || null;
+      state.captureLayerNo = payload.metadata?.layer?.layer_no || currentLayerIndex();
+      state.lastResult = payload.result || null;
+      const previewUrl = payload.preview_image_url;
+      if (previewUrl) {
+        image.src = previewUrl + (previewUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+        $('rl-result-img').src = image.src;
+        $('rl-result-img').style.display = 'block';
+        $('rl-result-ph').style.display = 'none';
+      }
+      image.dataset.naturalWidth = payload.image_width || 640;
+      image.dataset.naturalHeight = payload.image_height || 480;
+      image.style.display = 'block';
+      canvas.style.display = 'block';
+      $('rl-placeholder').style.display = 'none';
+      $('rl-roi-readout').style.display = 'block';
+      $('rl-source').textContent = '数据源 ' + state.source;
+      $('rl-source').style.display = '';
+      const roi = payload.roi_config || {};
+      ['x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max'].forEach((key) => {
+        const node = $('roi-' + key.replace('_', '-'));
+        if (node && roi[key] != null) node.value = Number(roi[key]).toFixed(3);
+      });
+      if (payload.result) renderResult(payload.result);
+      setStatus('离线数据包已加载，可调整 ROI 后重新计算。');
+      refreshActionState();
+    },
+    renderResult,
+  };
   
   // 监听新旧控件变化并同步
   ['locate-mode', 'layer-no-select', 'layer-no', 'locate-type', 'layer-index'].forEach((id) => {

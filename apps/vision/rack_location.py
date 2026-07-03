@@ -799,10 +799,11 @@ class Rack3DLocator:
 
     def _select_recipe(self, *, recipe_id=None, layer_no=1):
         """选择配方（简化版：固定position_no=1, rack_side=BOTH）"""
-        qs = RackLocationRecipe.objects.filter(enabled=True, position_no=1)
         if recipe_id:
-            return qs.get(pk=recipe_id)
-        return qs.get(layer_no=layer_no)
+            return RackLocationRecipe.objects.get(pk=recipe_id, enabled=True)
+        return RackLocationRecipe.objects.get(
+            enabled=True, position_no=1, layer_no=layer_no,
+        )
 
     def _select_roi(self, recipe: RackLocationRecipe, layer_no: int):
         local_roi = (
@@ -1200,8 +1201,9 @@ class Rack3DLocator:
             'plc_payload': plc_payload,
         }
 
-    def test_locate(self, *, token, roi_3d, recipe_id=None, rack_side=RackSide.LEFT, layer_no=1) -> dict:
-        recipe = self._select_recipe(recipe_id=recipe_id, layer_no=layer_no)  # ✅ 移除rack_side参数
+    def test_locate(self, *, token, roi_3d, roi_config=None, recipe_id=None, rack_side=RackSide.LEFT, layer_no=1, save_record=False) -> dict:
+        """测试定位（不保存到数据库，除非指定save_record=True）"""
+        recipe = self._select_recipe(recipe_id=recipe_id, layer_no=layer_no)
         pointcloud = self._load_pointcloud(token)
         points = self.processor.crop_by_roi_3d(pointcloud, roi_3d)
         if points.shape[0] < self.processor.min_valid_points:
@@ -1214,12 +1216,112 @@ class Rack3DLocator:
             roi_source='request',
             token=token,
         )
+        
+        # 生成带ROI框和结果标注的图像
         preview = image_io.pointcloud_to_preview(pointcloud)
-        result_rel, _, _ = image_io.save_image(preview, 'rack_3d_cropped', rel_dir='vision/rack_3d')
+        
+        # 尝试从roi_config获取2D ROI用于标注
+        target_roi = None
+        if roi_config and roi_config.get('target_roi'):
+            target_roi = roi_config['target_roi']
+        
+        # 如果有2D ROI，则绘制标注；否则只添加结果文字
+        if target_roi:
+            annotated = image_io.annotate_pointcloud_roi(
+                preview, target_roi,
+                offsets={'offset_x': output.offset_x, 'offset_y': output.offset_y, 'offset_z': output.offset_z},
+                confidence=output.confidence,
+                actual=(output.actual_x, output.actual_y, output.actual_z),
+                locate_ok=output.locate_ok,
+            )
+        else:
+            # 没有2D ROI，只在图像上添加结果文字（不绘制框）
+            annotated = preview.copy()
+            import cv2
+            COLOR_OK = (0, 255, 0)
+            COLOR_FAIL = (0, 0, 255)
+            COLOR_TEXT = (255, 255, 255)
+            box_color = COLOR_OK if output.locate_ok else COLOR_FAIL
+            verdict = '定位 OK' if output.locate_ok else '定位 NG'
+            cv2.putText(annotated, verdict, (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.6, box_color, 2)
+            cv2.putText(annotated, f'X={output.offset_x:+.2f}  Y={output.offset_y:+.2f}  Z={output.offset_z:+.2f} mm', 
+                       (12, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_TEXT, 1)
+            if output.confidence is not None:
+                cv2.putText(annotated, f'Conf: {output.confidence:.2%}', 
+                           (12, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_TEXT, 1)
+        
+        result_rel, result_width, result_height = image_io.save_image(
+            annotated, 'rack_3d_result', rel_dir='vision/rack_3d',
+        )
+        saved_result = None
+        
+        # 如果需要保存记录，创建VisionTask和RackLocationResult
+        if save_record:
+            position_no = 1  # 固定为1（工作台模式）
+            db_recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first() if recipe_id else None
+            
+            task = VisionTask.objects.create(
+                task_type=VisionTaskType.RACK_LOCATING,
+                status=ResultStatus.SUCCESS if output.locate_ok else ResultStatus.FAILED,
+                started_at=timezone.now(),
+                finished_at=timezone.now(),
+                error_message=output.error_message,
+            )
+            
+            roi_snapshot = {
+                'target_roi': target_roi or {},
+                'roi_3d': roi_3d or {},
+            }
+            saved_result = RackLocationResult.objects.create(
+                vision_task=task,
+                recipe=db_recipe,
+                side=output.rack_side or RackSide.BOTH,
+                position_no=position_no,
+                layer_no=int(layer_no),
+                offset_x=_decimal(output.offset_x),
+                offset_y=_decimal(output.offset_y),
+                offset_z=_decimal(output.offset_z),
+                offset_rz=_decimal(output.offset_rz),
+                actual_x=_decimal(output.actual_x),
+                actual_y=_decimal(output.actual_y),
+                actual_z=_decimal(output.actual_z),
+                confidence=_decimal(output.confidence),
+                is_success=output.locate_ok,
+                error_code=output.error_code,
+                error_message=output.error_message,
+                raw_data_path=token or '',
+                result_image_path=result_rel,
+                roi_data=roi_snapshot,
+                result_data={**(output.result_data or {}), 'roi': roi_snapshot},
+            )
+
+            depth_rel, depth_width, depth_height = image_io.save_image(
+                preview, 'rack_3d_depth', rel_dir='vision/rack_3d',
+            )
+            VisionImage.objects.create(
+                vision_task=task,
+                image_type=VisionImageType.DEPTH,
+                file=depth_rel,
+                width=depth_width,
+                height=depth_height,
+                captured_at=timezone.now(),
+            )
+            VisionImage.objects.create(
+                vision_task=task,
+                image_type=VisionImageType.RESULT,
+                file=result_rel,
+                width=result_width,
+                height=result_height,
+                captured_at=timezone.now(),
+            )
+        
         payload = output.to_payload()
         payload.update({
             'roi_source': 'request',
             'cropped_preview_url': settings.MEDIA_URL + result_rel,
+            'result_image_url': settings.MEDIA_URL + result_rel,
+            'result_image_path': result_rel,
+            'result_id': saved_result.id if saved_result else None,
         })
         return payload
 
@@ -1535,44 +1637,121 @@ class RackLocationService:
 
     def calculate_workbench(self, *, token, roi_config, recipe_id=None,
                             recipe_data=None, layer_no=1, roi_3d=None,
-                            rack_side=RackSide.LEFT) -> dict:
-        """工作台「计算偏差」：仅预览，不写库。"""
+                            rack_side=RackSide.LEFT, save_record=False) -> dict:
+        """工作台「计算偏差」：计算并可选择保存到视觉记录。
+        
+        Args:
+            save_record: 是否保存到数据库（默认False；计算偏差只预览）
+        """
         if roi_3d:
-            return Rack3DLocator(
+            # 使用3D ROI计算
+            result = Rack3DLocator(
                 frame_provider=self.frame_provider,
                 plc_writer=self.plc_writer,
             ).test_locate(
                 token=token,
                 roi_3d=roi_3d,
+                roi_config=roi_config,  # 传递roi_config以获取2D ROI用于标注
                 recipe_id=recipe_id,
                 rack_side=rack_side,
                 layer_no=layer_no,
+                save_record=save_record,
             )
+            return result
+            
         recipe = self._build_workbench_recipe(recipe_id, recipe_data)
         layer_no = int((recipe_data or {}).get('layer_no') or layer_no or getattr(recipe, 'layer_no', 1) or 1)
         output, result_rel = self._compute_workbench(
             token=token, roi_config=roi_config, recipe=recipe, layer_no=layer_no,
         )
+        
+        # 如果需要保存记录，创建VisionTask和RackLocationResult
+        if save_record:
+            position_no = 1  # 固定为1（工作台模式）
+            db_recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first() if recipe_id else None
+            
+            task = VisionTask.objects.create(
+                task_type=VisionTaskType.RACK_LOCATING,
+                status=ResultStatus.SUCCESS if output.locate_ok else ResultStatus.FAILED,
+                started_at=timezone.now(),
+                finished_at=timezone.now(),
+                error_message=output.error_message,
+            )
+            
+            RackLocationResult.objects.create(
+                vision_task=task,
+                recipe=db_recipe,
+                side=output.rack_side or RackSide.BOTH,
+                position_no=position_no,
+                layer_no=layer_no,
+                offset_x=_decimal(output.offset_x),
+                offset_y=_decimal(output.offset_y),
+                offset_z=_decimal(output.offset_z),
+                offset_rz=_decimal(output.offset_rz),
+                actual_x=_decimal(output.actual_x),
+                actual_y=_decimal(output.actual_y),
+                actual_z=_decimal(output.actual_z),
+                confidence=_decimal(output.confidence),
+                is_success=output.locate_ok,
+                error_code=output.error_code,
+                error_message=output.error_message,
+                raw_data_path='',
+                result_image_path=result_rel,
+                result_data=output.result_data or {},
+            )
+            
+            # 创建结果图像记录
+            VisionImage.objects.create(
+                vision_task=task,
+                image_type=VisionImageType.RESULT,
+                file=result_rel,
+                captured_at=timezone.now(),
+            )
+        
         payload = output.to_payload()
         payload['result_image_url'] = settings.MEDIA_URL + result_rel
         payload['result_image_path'] = result_rel
         payload['source'] = (output.result_data or {}).get('source', 'workbench')
         return payload
 
-    def save_workbench_result(self, *, token, roi_config, recipe_id=None, recipe_data=None,
-                              layer_no=1, rack=None, product=None) -> RackLocationResult:
+    def save_workbench_result(self, *, token, roi_config, roi_3d=None, recipe_id=None,
+                              recipe_data=None, position_no=1, layer_no=1,
+                              rack=None, product=None) -> RackLocationResult:
         """工作台「保存结果到数据库」：用同一点云重新确定性计算后写入一条记录。
         
         简化版：固定position_no=1，只需传layer_no
         不调用 PLC（本期只做手动现场调试）。
         """
-        position_no = 1  # 固定为1
+        position_no = int(position_no or 1)
         layer_no = int(layer_no)
+        if not (roi_config or {}).get('target_roi') and roi_3d:
+            saved = Rack3DLocator(
+                frame_provider=self.frame_provider,
+                plc_writer=self.plc_writer,
+            ).test_locate(
+                token=token,
+                roi_3d=roi_3d,
+                roi_config=roi_config,
+                recipe_id=recipe_id,
+                rack_side=RackSide.BOTH,
+                layer_no=layer_no,
+                save_record=True,
+            )
+            return RackLocationResult.objects.get(pk=saved['result_id'])
         recipe = self._build_workbench_recipe(recipe_id, recipe_data)
         output, result_rel = self._compute_workbench(
             token=token, roi_config=roi_config, recipe=recipe, layer_no=layer_no,
         )
+        pointcloud = self._load_workbench_pointcloud(token)
+        depth_preview = image_io.pointcloud_to_preview(pointcloud)
+        depth_rel, depth_width, depth_height = image_io.save_image(
+            depth_preview, 'rack_workbench_depth', rel_dir='vision/rack_workbench',
+        )
         db_recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first() if recipe_id else None
+        roi_snapshot = {
+            'target_roi': (roi_config or {}).get('target_roi') or {},
+            'roi_3d': roi_3d or {},
+        }
 
         task = VisionTask.objects.create(
             task_type=VisionTaskType.RACK_LOCATING,
@@ -1605,20 +1784,34 @@ class RackLocationService:
             error_message=output.error_message,
             raw_data_path=token or '',
             result_image_path=result_rel,
+            roi_data=roi_snapshot,
             result_data={
                 **(payload.get('result_data') or {}),
                 'task_kind': 'RACK_3D_LOCATION',
                 'position_no': position_no,
                 'layer_no': layer_no,
                 'source': 'workbench',
+                'roi': roi_snapshot,
                 'plc_payload': payload['plc_payload'],
             },
             plc_write_status='SKIPPED',
         )
         VisionImage.objects.create(
             vision_task=task,
+            image_type=VisionImageType.DEPTH,
+            file=depth_rel,
+            width=depth_width,
+            height=depth_height,
+            captured_at=timezone.now(),
+        )
+        result_width = int(pointcloud.shape[1])
+        result_height = int(pointcloud.shape[0])
+        VisionImage.objects.create(
+            vision_task=task,
             image_type=VisionImageType.RESULT,
             file=result_rel,
+            width=result_width,
+            height=result_height,
             captured_at=timezone.now(),
         )
         return result
@@ -1751,6 +1944,7 @@ def _normalized_plc_payload(result: RackLocationResult, *, locate_type: str,
 
 def result_payload(result: RackLocationResult) -> dict:
     result_img = result.vision_task.images.filter(image_type=VisionImageType.RESULT).first()
+    depth_img = result.vision_task.images.filter(image_type=VisionImageType.DEPTH).first()
     data = result.result_data or {}
     locate_type = data.get('locate_type') or (
         LOCATE_TYPE_GLOBAL if int(result.layer_no or 0) == 0 else LOCATE_TYPE_LAYER
@@ -1803,6 +1997,8 @@ def result_payload(result: RackLocationResult) -> dict:
         'raw_data_path': result.raw_data_path,
         'result_image_path': result.result_image_path,
         'result_image_url': result_img.file.url if result_img else '',
+        'depth_image_url': depth_img.file.url if depth_img else '',
+        'roi_data': result.roi_data or data.get('roi') or {},
         'plc_write_status': result.plc_write_status,
         'plc_error_message': result.plc_error_message,
         'plc_payload': plc_payload,

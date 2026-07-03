@@ -2391,7 +2391,7 @@ class RackLocationWorkbenchTests(TestCase):
             max_offset_y=20,
             max_offset_z=20,
             confidence_threshold=0.5,
-            hand_eye_config={'matrix': 'identity'},
+            hand_eye_config={'matrix': 'identity', 'skip_validation': True},  # 添加skip_validation以跳过手眼标定验证
         )
 
     def _service(self):
@@ -2435,17 +2435,51 @@ class RackLocationWorkbenchTests(TestCase):
             )
 
     def test_calculate_workbench_crops_persisted_cloud_without_db_write(self):
+        """测试禁用保存记录时不写入数据库"""
         service = self._service()
         captured = service.capture_workbench(recipe_id=self.recipe.id)
         result = service.calculate_workbench(
             token=captured['pointcloud_token'],
             roi_config={'target_roi': self.roi},
             recipe_id=self.recipe.id,
+            save_record=False,  # 明确指定不保存
         )
         self.assertTrue(result['locate_ok'])
         self.assertLess(abs(result['offset_x']), 20)
         self.assertTrue(result['result_image_url'].endswith('.png') or 'rack_workbench' in result['result_image_url'])
         self.assertEqual(RackLocationResult.objects.count(), 0)
+    
+    def test_calculate_workbench_saves_record_when_requested(self):
+        """测试仅明确请求时保存到数据库"""
+        service = self._service()
+        captured = service.capture_workbench(recipe_id=self.recipe.id)
+        result = service.calculate_workbench(
+            token=captured['pointcloud_token'],
+            roi_config={'target_roi': self.roi},
+            recipe_id=self.recipe.id,
+            save_record=True,
+        )
+        
+        # 如果定位失败，打印错误信息帮助调试
+        if not result.get('locate_ok'):
+            print(f"定位失败: {result.get('error_code')} - {result.get('error_message')}")
+        
+        self.assertTrue(result['locate_ok'])
+        self.assertLess(abs(result['offset_x']), 20)
+        # 验证已保存到数据库
+        self.assertEqual(RackLocationResult.objects.count(), 1)
+        self.assertEqual(VisionTask.objects.count(), 1)
+        
+        # 验证保存的记录内容
+        saved_result = RackLocationResult.objects.first()
+        self.assertEqual(saved_result.recipe, self.recipe)
+        self.assertEqual(saved_result.layer_no, 1)
+        self.assertEqual(saved_result.position_no, 1)
+        self.assertTrue(saved_result.is_success)
+        
+        saved_task = VisionTask.objects.first()
+        self.assertEqual(saved_task.task_type, VisionTaskType.RACK_LOCATING)
+        self.assertEqual(saved_task.status, ResultStatus.SUCCESS)
 
     def test_calculate_workbench_requires_roi(self):
         service = self._service()
@@ -2468,9 +2502,15 @@ class RackLocationWorkbenchTests(TestCase):
     def test_save_workbench_result_writes_single_row(self):
         service = self._service()
         captured = service.capture_workbench(recipe_id=self.recipe.id)
+        roi_3d = {
+            'x_min': -100, 'x_max': 100,
+            'y_min': -80, 'y_max': 80,
+            'z_min': 300, 'z_max': 900,
+        }
         result = service.save_workbench_result(
             token=captured['pointcloud_token'],
             roi_config={'target_roi': self.roi},
+            roi_3d=roi_3d,
             recipe_id=self.recipe.id,
             position_no=2,
             layer_no=1,
@@ -2481,8 +2521,31 @@ class RackLocationWorkbenchTests(TestCase):
         self.assertEqual(result.layer_no, 1)
         self.assertEqual(result.plc_write_status, 'SKIPPED')
         self.assertTrue(result.result_image_path)
+        self.assertEqual(result.roi_data['target_roi'], self.roi)
+        self.assertEqual(result.roi_data['roi_3d'], roi_3d)
+        self.assertEqual(result.vision_task.images.filter(image_type=VisionImageType.DEPTH).count(), 1)
+        self.assertEqual(result.vision_task.images.filter(image_type=VisionImageType.RESULT).count(), 1)
 
-    def test_workbench_api_capture_calculate_save_roundtrip(self):
+    def test_save_workbench_result_accepts_3d_roi_without_pixel_roi(self):
+        service = self._service()
+        captured = service.capture_workbench(recipe_id=self.recipe.id)
+        roi_3d = {
+            'x_min': -500, 'x_max': 500,
+            'y_min': -300, 'y_max': 300,
+            'z_min': 1, 'z_max': 1500,
+        }
+        result = service.save_workbench_result(
+            token=captured['pointcloud_token'],
+            roi_config={},
+            roi_3d=roi_3d,
+            recipe_id=self.recipe.id,
+            layer_no=1,
+        )
+        self.assertEqual(result.roi_data['target_roi'], {})
+        self.assertEqual(result.roi_data['roi_3d'], roi_3d)
+        self.assertEqual(result.vision_task.images.count(), 2)
+
+    def test_workbench_api_calculate_automatically_saves_record(self):
         from unittest.mock import patch
         from apps.vision.rack_location import RackLocationService
 
@@ -2503,25 +2566,19 @@ class RackLocationWorkbenchTests(TestCase):
                 data=json.dumps({
                     'pointcloud_token': cap['pointcloud_token'],
                     'roi_config': {'target_roi': self.roi},
+                    'roi_3d': {
+                        'x_min': -500, 'x_max': 500,
+                        'y_min': -300, 'y_max': 300,
+                        'z_min': 1, 'z_max': 1500,
+                    },
                     'recipe_id': self.recipe.id,
+                    'save_record': True,
                 }),
                 content_type='application/json',
             ).json()
             self.assertTrue(calc['success'])
             self.assertIn('result_image_url', calc['result'])
-
-            save = self.client.post(
-                reverse('vision:api_rack_location_workbench_save'),
-                data=json.dumps({
-                    'pointcloud_token': cap['pointcloud_token'],
-                    'roi_config': {'target_roi': self.roi},
-                    'recipe_id': self.recipe.id,
-                    'position_no': 2,
-                    'layer_no': 1,
-                }),
-                content_type='application/json',
-            ).json()
-            self.assertTrue(save['success'])
+            self.assertIsNotNone(calc['result']['result_id'])
         self.assertEqual(RackLocationResult.objects.count(), 1)
 
     def test_old_workbench_calculate_accepts_3d_roi_payload(self):
