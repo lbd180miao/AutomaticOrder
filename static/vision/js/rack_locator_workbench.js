@@ -55,12 +55,49 @@
       setReadout();
       setStatus('已加载配方 ROI，可直接点击「计算偏差」。');
       console.log('ROI 已应用到画布');
+      syncRoiToRightSide();
     } else {
       // 如果还没有点云，保存到待应用状态
       state.pendingRoi = targetRoi;
       console.log('ROI 已保存，等待点云采集后应用');
     }
   };
+
+  // ── 同步 ROI 到右侧结果图 ──────────────────────────────
+  function syncRoiToRightSide() {
+    const rightImg = $('rl-result-img');
+    const ph = $('rl-result-ph');
+    if (!image || !image.src || !state.roi) return;
+    
+    try {
+      const tmpCanvas = document.createElement('canvas');
+      const nat = naturalDims();
+      tmpCanvas.width = nat.w;
+      tmpCanvas.height = nat.h;
+      const tCtx = tmpCanvas.getContext('2d');
+      
+      tCtx.drawImage(image, 0, 0, tmpCanvas.width, tmpCanvas.height);
+      
+      const r = state.roi;
+      tCtx.strokeStyle = '#22c55e';
+      tCtx.lineWidth = Math.max(3, tmpCanvas.width / 200);
+      tCtx.setLineDash([8, 4]);
+      tCtx.strokeRect(r.x, r.y, r.w, r.h);
+      
+      tCtx.fillStyle = 'rgba(34,197,94,0.16)';
+      tCtx.fillRect(r.x, r.y, r.w, r.h);
+      
+      tCtx.fillStyle = '#22c55e';
+      tCtx.font = `${Math.max(14, tmpCanvas.width / 40)}px sans-serif`;
+      tCtx.fillText('target ROI', r.x + 8, Math.max(18, r.y + 18));
+      
+      rightImg.src = tmpCanvas.toDataURL('image/jpeg', 0.9);
+      rightImg.style.display = 'block';
+      if (ph) ph.style.display = 'none';
+    } catch (e) {
+      console.error('同步 ROI 到右侧失败', e);
+    }
+  }
 
 
   // ── Loading 遮罩 ─────────────────────────────────────────
@@ -242,6 +279,24 @@
     return card ? card.dataset : null;
   }
   function currentRecipeData() {
+    // 优先从下拉框读取（新版 UI）
+    const select = document.getElementById('recipe-select');
+    if (select && select.selectedIndex >= 0) {
+      const option = select.options[select.selectedIndex];
+      if (option && option.value) {
+        return {
+          standard_x: Number(option.dataset.sx || 0),
+          standard_y: Number(option.dataset.sy || 0),
+          standard_z: Number(option.dataset.sz || 0),
+          layer_no: Number(option.dataset.layer || 1),
+          position_no: Number(option.dataset.pos || 1),
+          locate_type: currentLocateType(),
+          layer_index: currentLayerIndex()
+        };
+      }
+    }
+
+    // 回退到旧的卡片读取方式
     const d = selectedCardData();
     const data = { layer_no: currentLayerIndex(), locate_type: currentLocateType(), layer_index: currentLayerIndex() };
     if (d) {
@@ -332,6 +387,7 @@
     state.roi = { x: real.x, y: real.y, w: real.w, h: real.h, feature_type: 'rack_reference' };
     setReadout();
     setStatus('ROI 已绘制，可点击「计算偏差」。');
+    syncRoiToRightSide();
   });
 
   // ── 采集点云 ─────────────────────────────────────────────
@@ -354,7 +410,14 @@
       state.lastResultOk = false;
       state.roi = null; state.displayRoi = null;
       const previewUrl = data.pointcloud_preview_url || data.preview_image_url;
-      if (previewUrl) image.src = previewUrl + '?t=' + Date.now();
+      if (previewUrl) {
+        const urlWithTime = previewUrl + '?t=' + Date.now();
+        image.src = urlWithTime;
+        // 同步显示到右侧结果区
+        $('rl-result-img').src = urlWithTime;
+        $('rl-result-img').style.display = 'block';
+        if ($('rl-result-ph')) $('rl-result-ph').style.display = 'none';
+      }
       image.dataset.naturalWidth = data.image_width;
       image.dataset.naturalHeight = data.image_height;
       image.style.display = 'block';

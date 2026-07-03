@@ -18,11 +18,8 @@ urlpatterns = [
     # 视觉配方管理（独立页面）
     path('recipes/', views.recipe_management, name='recipe_management'),
 
-    # 手眼标定模块
-    path('', include('apps.vision.urls_hand_eye')),
-    
     # 3D ROI配方模块
-    path('', include('apps.vision.urls_roi_3d')),
+    # path('', include('apps.vision.urls_roi_3d')),
 
     # 3D 料架定位（rack_3d 包，Provider 模式，MOCK/REAL）
     path('rack-3d/', include('apps.vision.rack_3d.urls')),
@@ -35,6 +32,9 @@ urlpatterns = [
     
     # PLC补偿值写入模块
     path('plc/', include('apps.vision.urls_plc_writer')),
+    
+    # 手眼标定模块
+    path('', include('apps.vision.urls_hand_eye')),
     
     # 3D ROI裁剪工作台（前端页面）
     path('roi-3d-workbench/', views.roi_3d_workbench, name='roi_3d_workbench'),
