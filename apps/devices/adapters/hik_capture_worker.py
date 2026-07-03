@@ -143,6 +143,7 @@ def _capture_with_official_mvs(payload):
             raise RuntimeError('No Hikrobot camera was found')
 
         requested_ip = payload.get('camera_ip')
+        requested_serial = payload.get('camera_serial')
         selected = None
         for index in range(devices.nDeviceNum):
             info = cast(devices.pDeviceInfo[index], POINTER(mvs.MV_CC_DEVICE_INFO)).contents
@@ -151,10 +152,20 @@ def _capture_with_official_mvs(payload):
                 current_ip = '.'.join(str((value >> shift) & 0xff) for shift in (24, 16, 8, 0))
                 if current_ip != requested_ip:
                     continue
+            if requested_serial:
+                serial_bytes = b''
+                if info.nTLayerType in (mvs.MV_GIGE_DEVICE, mvs.MV_GENTL_GIGE_DEVICE):
+                    serial_bytes = bytes(info.SpecialInfo.stGigEInfo.chSerialNumber)
+                elif info.nTLayerType == mvs.MV_USB_DEVICE:
+                    serial_bytes = bytes(info.SpecialInfo.stUsb3VInfo.chSerialNumber)
+                serial = serial_bytes.split(b'\0', 1)[0].decode('ascii', errors='replace')
+                if serial != requested_serial:
+                    continue
             selected = info
             break
         if selected is None:
-            raise RuntimeError(f'Hikrobot camera {requested_ip} was not found')
+            identity = requested_serial or requested_ip or '(first available device)'
+            raise RuntimeError(f'Hikrobot camera {identity} was not found')
 
         cam = mvs.MvCamera()
         ret = cam.MV_CC_CreateHandle(selected)
@@ -166,14 +177,27 @@ def _capture_with_official_mvs(payload):
             raise RuntimeError(f'MVS open camera failed: 0x{ret & 0xffffffff:08x}')
         opened = True
 
-        if selected.nTLayerType in (mvs.MV_GIGE_DEVICE, mvs.MV_GENTL_GIGE_DEVICE):
-            packet_size = cam.MV_CC_GetOptimalPacketSize()
-            if int(packet_size) > 0:
-                cam.MV_CC_SetIntValue('GevSCPSPacketSize', packet_size)
+        feature_file_value = payload.get('feature_file')
+        if feature_file_value:
+            feature_file = Path(feature_file_value).resolve()
+            if feature_file.suffix.lower() != '.mfs' or not feature_file.is_file():
+                raise RuntimeError(f'Invalid MVS feature file: {feature_file}')
+            ret = cam.MV_CC_FeatureLoad(str(feature_file))
+            if ret != 0:
+                raise RuntimeError(
+                    f'MVS feature load failed for {feature_file}: 0x{ret & 0xffffffff:08x}'
+                )
+        else:
+            # Only apply defaults when no tuned feature file was supplied.
+            # An .mfs file owns these values and must not be overwritten.
+            if selected.nTLayerType in (mvs.MV_GIGE_DEVICE, mvs.MV_GENTL_GIGE_DEVICE):
+                packet_size = cam.MV_CC_GetOptimalPacketSize()
+                if int(packet_size) > 0:
+                    cam.MV_CC_SetIntValue('GevSCPSPacketSize', packet_size)
 
-        ret = cam.MV_CC_SetEnumValue('TriggerMode', mvs.MV_TRIGGER_MODE_OFF)
-        if ret != 0:
-            raise RuntimeError(f'MVS set continuous trigger mode failed: 0x{ret & 0xffffffff:08x}')
+            ret = cam.MV_CC_SetEnumValue('TriggerMode', mvs.MV_TRIGGER_MODE_OFF)
+            if ret != 0:
+                raise RuntimeError(f'MVS set continuous trigger mode failed: 0x{ret & 0xffffffff:08x}')
         ret = cam.MV_CC_StartGrabbing()
         if ret != 0:
             raise RuntimeError(f'MVS start grabbing failed: 0x{ret & 0xffffffff:08x}')
@@ -258,6 +282,12 @@ def capture(payload):
     # Prefer the compatibility API when present.  On the installed chg_hik
     # build it can acquire a frame but cannot save it; transparently fall back
     # to Hikrobot's current official Python wrapper in that case.
+    # The compatibility binding cannot load GenApi .mfs files.  When one is
+    # configured, always use the official MVS wrapper so all tuned parameters
+    # are applied before acquisition starts.
+    if payload.get('feature_file'):
+        return _capture_with_official_mvs(payload)
+
     if getattr(chg_hik, 'capture_images', None):
         try:
             legacy_image_path = _capture_with_legacy_api(chg_hik, payload)

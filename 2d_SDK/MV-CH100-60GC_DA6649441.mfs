@@ -1,0 +1,93 @@
+# {05D8C294-F295-4dfb-9D01-096BD04049F4}
+# GenApi persistence file (version 3.0.1)
+# Device = HIKROBOT::HIKCamera -- HIKROBOT GigE Vision Camera Interface -- Device version = 1.2.0 -- Product GUID = EE4B7E09-DA29-4956-A1EC-212263331CFC -- Product version GUID = 79ace398-62e3-44a6-8845-f81aaf104382
+# BoardDeviceType = 275
+# DeviceVendorName = Hikrobot
+# DeviceModelName = MV-CH100-60GC
+# DeviceVersion = V4.0.28 240905 1360070
+# DeviceFirmwareVersion = V4.0.28 2409051360070 24090402
+# SaveTime = Friday, July 3, 2026 17:24:59
+UserSetDefault	UserSet3
+Gain	10.6623
+GainAuto	Off
+AcquisitionFrameRate	12000
+AcquisitionFrameRateEnable	0
+ExposureTime	66330
+ReverseX	0
+ReverseY	0
+PixelFormat	BayerGR8
+DeviceLinkSelector	0
+DeviceLinkHeartbeatMode	On
+DeviceLinkSelector	0
+GevStreamChannelSelector	0
+GevSCPSPacketSize	1500
+GevStreamChannelSelector	0
+GevStreamChannelSelector	0
+GevSCPD	400
+GevStreamChannelSelector	0
+LineSelector	Line1
+LineMode	Strobe
+LineSelector	Line2
+LineMode	Input
+LineSelector	Line0
+LineSelector	Line1
+LineSource	ExposureStartActive
+LineSelector	Line0
+LineSelector	Line1
+LineInverter	0
+LineSelector	Line0
+LineSelector	Line1
+StrobeEnable	0
+LineSelector	Line0
+LineSelector	Line0
+LineDebouncerTime	50
+LineSelector	Line2
+LineDebouncerTime	50
+LineSelector	Line0
+LineSelector	Line1
+StrobeLineDuration	0
+LineSelector	Line0
+LineSelector	Line1
+StrobeLineDelay	0
+LineSelector	Line0
+LineSelector	Line1
+StrobeLinePreDelay	0
+LineSelector	Line0
+RegionSelector	Region0
+RegionDestination	Stream0
+RegionSelector	Region0
+RegionSelector	Region0
+Width	4096
+RegionSelector	Region0
+RegionSelector	Region0
+Height	2460
+RegionSelector	Region0
+RegionSelector	Region0
+OffsetX	0
+RegionSelector	Region0
+RegionSelector	Region0
+OffsetY	0
+RegionSelector	Region0
+TestPatternGeneratorSelector	Region0
+TestPattern	Off
+TestPatternGeneratorSelector	Region0
+TriggerSelector	FrameBurstStart
+TriggerMode	Off
+TriggerSelector	FrameBurstStart
+TriggerSelector	FrameBurstStart
+TriggerSource	Line0
+TriggerSelector	FrameBurstStart
+TriggerSelector	FrameBurstStart
+TriggerActivation	RisingEdge
+TriggerSelector	FrameBurstStart
+TriggerSelector	FrameBurstStart
+TriggerDelay	0
+TriggerSelector	FrameBurstStart
+DeviceConnectionSelector	0
+DeviceLinkSelector	0
+GevStreamChannelSelector	0
+LineSelector	Line0
+RegionSelector	Region0
+TestPatternGeneratorSelector	Region0
+TriggerSelector	FrameBurstStart
+UserSetSelector	UserSet1

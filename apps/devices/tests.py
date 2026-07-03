@@ -200,6 +200,50 @@ class CameraAdapterTests(SimpleTestCase):
 
         self.assertEqual(result['image_path'], 'D:/capture/foam.png')
 
+    def test_capture_forwards_mfs_feature_file_and_camera_serial_to_worker(self):
+        captured_payload = {}
+
+        def fake_run(command, **kwargs):
+            captured_payload.update(json.loads(command[-1]))
+            Path(captured_payload['result_path']).write_text(
+                json.dumps({'success': True, 'image_path': 'D:/capture/foam.bmp'}),
+                encoding='utf-8',
+            )
+            completed = mock.Mock(returncode=0, stdout='', stderr='')
+            return completed
+
+        with TemporaryDirectory() as tmpdir:
+            feature_file = Path(tmpdir) / 'camera.mfs'
+            feature_file.write_text('ExposureTime\t66330\n', encoding='ascii')
+            settings_value = {
+                'HIK_CAMERA': {
+                    'OUTPUT_DIR': tmpdir,
+                    'SERIAL_NUMBER': 'DA6649441',
+                    'FEATURE_FILE': feature_file,
+                    'RUN_IN_SUBPROCESS': True,
+                }
+            }
+            with override_settings(AUTOMATIC_ORDER=settings_value):
+                with mock.patch('subprocess.run', side_effect=fake_run):
+                    result = CameraAdapter().capture('CAM04', 'FOAM_INSPECTION')
+
+        self.assertEqual(result['image_path'], 'D:/capture/foam.bmp')
+        self.assertEqual(captured_payload['camera_serial'], 'DA6649441')
+        self.assertEqual(captured_payload['feature_file'], feature_file.resolve().as_posix())
+
+    def test_capture_rejects_missing_mfs_feature_file_before_starting_worker(self):
+        settings_value = {
+            'HIK_CAMERA': {
+                'OUTPUT_DIR': 'D:/capture',
+                'FEATURE_FILE': 'missing-camera.mfs',
+            }
+        }
+        with override_settings(AUTOMATIC_ORDER=settings_value):
+            with mock.patch('subprocess.run') as run:
+                with self.assertRaisesRegex(RuntimeError, 'FEATURE_FILE does not exist'):
+                    CameraAdapter().capture('CAM04', 'FOAM_INSPECTION')
+        run.assert_not_called()
+
     def test_capture_raises_clear_error_when_worker_result_file_is_empty(self):
         def fake_run(command, **kwargs):
             payload = json.loads(command[-1])
