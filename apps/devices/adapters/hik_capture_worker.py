@@ -114,9 +114,10 @@ def capture(payload):
             '3. SDK 的 Env.json 路径配置正确'
         ) from exc
 
-    legacy_image_path = _capture_with_legacy_api(chg_hik, payload)
-    if legacy_image_path:
-        return legacy_image_path
+    # 注释掉 legacy API，强制使用新的 Camera API
+    # legacy_image_path = _capture_with_legacy_api(chg_hik, payload)
+    # if legacy_image_path:
+    #     return legacy_image_path
 
     camera_ip = payload.get('camera_ip') or None
     pc_ip = payload.get('pc_ip') or None
@@ -158,13 +159,16 @@ def capture(payload):
         else:
             raise RuntimeError(f'相机捕获失败: {exc}') from exc
     finally:
-        # 只在捕获失败时关闭相机
-        if camera_opened and image_path is None:
+        # 无论成功或失败，都必须关闭相机以释放资源
+        if camera_opened:
             try:
                 close_camera = getattr(camera, 'close_camera', None)
                 if close_camera:
                     close_camera()
             except Exception:
+                # 关闭失败不影响结果返回，但记录到stderr便于调试
+                import sys
+                sys.stderr.write(f'Warning: Failed to close camera\n')
                 pass
 
 
@@ -176,20 +180,29 @@ def write_result(result_path, result):
 
 def main():
     result_path = None
+    image_path = None
     try:
         payload = json.loads(sys.argv[1])
         result_path = Path(payload['result_path'])
         image_path = capture(payload)
+        # 捕获成功，写入结果
+        write_result(result_path, {'success': True, 'image_path': image_path})
+        return 0
     except BaseException as exc:  # noqa: BLE001
-        result = {'success': False, 'error': str(exc)}
+        # 只有真正的捕获失败才返回错误
+        # 如果是关闭相机失败，检查是否已经有图像路径
+        error_msg = str(exc)
+        if 'Failed to close camera' in error_msg and image_path:
+            # 相机关闭失败但拍照成功，返回成功
+            write_result(result_path, {'success': True, 'image_path': image_path})
+            return 0
+        
+        result = {'success': False, 'error': error_msg}
         if result_path:
             write_result(result_path, result)
         else:
             sys.stderr.write(json.dumps(result))
         return 1
-
-    write_result(result_path, {'success': True, 'image_path': image_path})
-    return 0
 
 
 if __name__ == '__main__':

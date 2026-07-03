@@ -135,6 +135,9 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# 3D 料架定位离线数据包；与既有离线测试文件共用 docs/pic 根目录。
+OFFLINE_DATA_PACKAGE_DIR = BASE_DIR / 'docs' / 'pic'
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # 3D 深度相机料架定位运行模式：'MOCK'（模拟，无需硬件）/ 'REAL'（真实相机+机器人）
@@ -147,8 +150,11 @@ AUTOMATIC_ORDER = {
     'HIK_CAMERA': {
         'OUTPUT_DIR': BASE_DIR / 'media' / 'hik_captures',
         'SDK_LIB_DIR': 'C:/Program Files (x86)/Common Files/MVS/Runtime/Win64_x64',
-        'CAMERA_IP': '169.254.160.253',
-        'PC_IP': '169.254.160.95',
+        # 使用自动检测模式（不指定 IP）
+        # 'CAMERA_IP': '169.254.160.253',
+        # 'PC_IP': '169.254.160.95',
+        'CAMERA_IP': None,  # 设置为 None 启用自动检测
+        'PC_IP': None,       # 设置为 None 启用自动检测
         'FORMAT': 'BMP',  # 使用 BMP 格式避免编码问题
         'QUALITY': 5,
         'RUN_IN_SUBPROCESS': True,

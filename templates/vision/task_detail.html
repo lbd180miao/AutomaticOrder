@@ -145,6 +145,26 @@
       </tr>
     </tbody>
   </table>
+  <h3 class="section-title" style="margin-top:20px;">本次 ROI 位置</h3>
+  {% with pixel_roi=rack_result.roi_data.target_roi roi3d=rack_result.roi_data.roi_3d %}
+  <table class="data-table">
+    <thead><tr><th>ROI 类型</th><th>X</th><th>Y</th><th>Z / 尺寸</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>图像像素 ROI</td>
+        <td>x={{ pixel_roi.x|default:"-" }}</td>
+        <td>y={{ pixel_roi.y|default:"-" }}</td>
+        <td>w={{ pixel_roi.w|default:"-" }}, h={{ pixel_roi.h|default:"-" }}</td>
+      </tr>
+      <tr>
+        <td>3D ROI（mm）</td>
+        <td>{{ roi3d.x_min|default:"-" }} ～ {{ roi3d.x_max|default:"-" }}</td>
+        <td>{{ roi3d.y_min|default:"-" }} ～ {{ roi3d.y_max|default:"-" }}</td>
+        <td>{{ roi3d.z_min|default:"-" }} ～ {{ roi3d.z_max|default:"-" }}</td>
+      </tr>
+    </tbody>
+  </table>
+  {% endwith %}
   <p class="muted">原始数据：<code>{{ rack_result.raw_data_path|default:"-" }}</code></p>
   <p class="muted">结果图：<code>{{ rack_result.result_image_path|default:"-" }}</code></p>
   {% if rack_result.error_code or rack_result.error_message %}

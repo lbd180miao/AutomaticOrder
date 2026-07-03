@@ -29,6 +29,9 @@ from .providers import (
     RealHandEyeProvider,
     RealRobotPoseProvider,
     RealDepthCameraProvider,
+    OfflineHandEyeProvider,
+    OfflineRobotPoseProvider,
+    OfflineDepthCameraProvider,
     ProviderFactory,
 )
 from .processors import PointCloudProcessor
@@ -56,6 +59,9 @@ __all__ = [
     "RealHandEyeProvider",
     "RealRobotPoseProvider",
     "RealDepthCameraProvider",
+    "OfflineHandEyeProvider",
+    "OfflineRobotPoseProvider",
+    "OfflineDepthCameraProvider",
     "ProviderFactory",
     "PointCloudProcessor",
     "PositioningAlgorithm",

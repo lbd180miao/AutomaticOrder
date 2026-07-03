@@ -410,11 +410,60 @@ class RealDepthCameraProvider(DepthCameraProvider):
 # ---------------------------------------------------------------------------
 # 工厂
 # ---------------------------------------------------------------------------
+class OfflineDepthCameraProvider(DepthCameraProvider):
+    """从已加载数据包返回固定点云，不访问相机硬件。"""
+
+    def __init__(self, loaded_data: Dict[str, Any]):
+        self.pointcloud = np.asarray(loaded_data['pointcloud'])
+        self.metadata = (loaded_data.get('metadata') or {}).get('camera') or {}
+
+    def capture_pointcloud(self, recipe_id=None, layer_no=None) -> Dict[str, Any]:
+        return {
+            'data': self.pointcloud.copy(),
+            'width': int(self.metadata.get('width') or (self.pointcloud.shape[1] if self.pointcloud.ndim == 3 else self.pointcloud.shape[0])),
+            'height': int(self.metadata.get('height') or (self.pointcloud.shape[0] if self.pointcloud.ndim == 3 else 1)),
+            'frame_index': self.metadata.get('frame_index'),
+            'confidence': float(self.metadata.get('confidence') or 0.95),
+            'raw_data_path': '',
+            'result_image_path': '',
+        }
+
+
+class OfflineHandEyeProvider(HandEyeProvider):
+    """从数据包返回固定手眼标定矩阵。"""
+
+    def __init__(self, matrix: np.ndarray):
+        self.matrix = _parse_matrix(matrix)
+
+    def get_hand_eye_matrix(self, recipe_id=None) -> np.ndarray:
+        return self.matrix.copy()
+
+    def save_hand_eye_matrix(self, matrix: np.ndarray, recipe_id=None) -> bool:
+        self.matrix = _parse_matrix(matrix)
+        return True
+
+
+class OfflineRobotPoseProvider(RobotPoseProvider):
+    """从数据包返回固定机器人位姿。"""
+
+    def __init__(self, pose_matrix: np.ndarray, pose_dict: Optional[Dict[str, float]] = None):
+        self.pose_matrix = _parse_matrix(pose_matrix)
+        self.pose_dict = dict(pose_dict or {})
+
+    def get_robot_pose_matrix(self, layer_no, recipe_id=None) -> np.ndarray:
+        return self.pose_matrix.copy()
+
+    def get_robot_pose_dict(self, layer_no, recipe_id=None) -> Dict[str, float]:
+        return dict(self.pose_dict)
+
+
 def _normalize_mode(mode: Optional[str]) -> str:
     if mode is None:
         from django.conf import settings
         mode = getattr(settings, 'RACK_3D_POSITIONING_MODE', 'MOCK')
     mode = str(mode).upper()
+    if mode == 'OFFLINE':
+        return mode
     if mode not in ('MOCK', 'REAL'):
         raise ConfigurationError(EC.INVALID_MODE, f"不支持的运行模式: {mode}")
     return mode
@@ -426,11 +475,17 @@ class ProviderFactory:
     @staticmethod
     def create_hand_eye_provider(mode: Optional[str] = None, **kwargs) -> HandEyeProvider:
         mode = _normalize_mode(mode)
+        if mode == 'OFFLINE':
+            return kwargs.get('hand_eye_provider') or OfflineHandEyeProvider(kwargs['hand_eye_matrix'])
         return MockHandEyeProvider() if mode == 'MOCK' else RealHandEyeProvider()
 
     @staticmethod
     def create_robot_pose_provider(mode: Optional[str] = None, **kwargs) -> RobotPoseProvider:
         mode = _normalize_mode(mode)
+        if mode == 'OFFLINE':
+            return kwargs.get('robot_pose_provider') or OfflineRobotPoseProvider(
+                kwargs['robot_pose_matrix'], kwargs.get('robot_pose_dict')
+            )
         if mode == 'MOCK':
             return MockRobotPoseProvider()
         return RealRobotPoseProvider(robot_service=kwargs.get('robot_service'))
@@ -438,6 +493,8 @@ class ProviderFactory:
     @staticmethod
     def create_depth_camera_provider(mode: Optional[str] = None, **kwargs) -> DepthCameraProvider:
         mode = _normalize_mode(mode)
+        if mode == 'OFFLINE':
+            return kwargs.get('depth_camera_provider') or OfflineDepthCameraProvider(kwargs['loaded_data'])
         if mode == 'MOCK':
             return MockDepthCameraProvider(seed=kwargs.get('seed'))
         # REAL：未注入服务时 Provider 会自动获取并连接激活相机

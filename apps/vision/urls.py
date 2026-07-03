@@ -2,10 +2,18 @@ from django.urls import path, include
 from django.shortcuts import render
 
 from . import views
+from . import offline_data_views
 
 app_name = 'vision'
 
 urlpatterns = [
+    # 3D 料架定位离线数据包（新增旁路，不改变现有离线测试 API）。
+    path('offline/packages/', offline_data_views.packages, name='offline_packages'),
+    path('offline/packages/<str:package_name>/', offline_data_views.package_detail, name='offline_package_detail'),
+    path('offline/packages/<str:package_name>/load/', offline_data_views.load_package, name='offline_load_package'),
+    path('offline/packages/<str:package_name>/reprocess/', offline_data_views.reprocess_package, name='offline_reprocess_package'),
+    path('offline/packages/<str:package_name>/delete/', offline_data_views.delete_package, name='offline_delete_package'),
+    path('offline/packages/<str:package_name>/preview/', offline_data_views.package_preview, name='offline_package_preview'),
     path('tasks/', views.task_list, name='task_list'),
     path('tasks/<int:pk>/delete/', views.delete_task, name='delete_task'),
     path('tasks/<int:pk>/', views.task_detail, name='task_detail'),
