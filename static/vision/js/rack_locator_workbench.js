@@ -69,39 +69,12 @@
   };
 
   // ── 同步 ROI 到右侧结果图 ──────────────────────────────
+  // NOTE: 右侧画布只在计算完成（renderResult）后更新，以保留上一次的计算结果。
+  // 左侧画布用于实时绘制新的 ROI，右侧画布仅展示历史计算结果，两侧相互独立。
   function syncRoiToRightSide() {
-    const rightImg = $('rl-result-img');
-    const ph = $('rl-result-ph');
-    if (!image || !image.src || !state.roi) return;
-    
-    try {
-      const tmpCanvas = document.createElement('canvas');
-      const nat = naturalDims();
-      tmpCanvas.width = nat.w;
-      tmpCanvas.height = nat.h;
-      const tCtx = tmpCanvas.getContext('2d');
-      
-      tCtx.drawImage(image, 0, 0, tmpCanvas.width, tmpCanvas.height);
-      
-      const r = state.roi;
-      tCtx.strokeStyle = '#22c55e';
-      tCtx.lineWidth = Math.max(3, tmpCanvas.width / 200);
-      tCtx.setLineDash([8, 4]);
-      tCtx.strokeRect(r.x, r.y, r.w, r.h);
-      
-      tCtx.fillStyle = 'rgba(34,197,94,0.16)';
-      tCtx.fillRect(r.x, r.y, r.w, r.h);
-      
-      tCtx.fillStyle = '#22c55e';
-      tCtx.font = `${Math.max(14, tmpCanvas.width / 40)}px sans-serif`;
-      tCtx.fillText('target ROI', r.x + 8, Math.max(18, r.y + 18));
-      
-      rightImg.src = tmpCanvas.toDataURL('image/jpeg', 0.9);
-      rightImg.style.display = 'block';
-      if (ph) ph.style.display = 'none';
-    } catch (e) {
-      console.error('同步 ROI 到右侧失败', e);
-    }
+    // 不再将当前 ROI 同步到右侧，右侧只由 renderResult() 更新。
+    // 保留函数签名以避免破坏现有调用链，但直接 no-op。
+    return;
   }
 
 
@@ -353,6 +326,13 @@
   async function recipePixelRoi(recipeId) {
     if (!recipeId) return null;
     const res = await fetch(`/vision/api/vision/3d/recipes/${encodeURIComponent(recipeId)}/`);
+    
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+       console.error('recipePixelRoi returned non-JSON:', res.status);
+       throw new Error(`读取3D配方失败，服务器返回了非JSON数据 (HTTP ${res.status})`);
+    }
+    
     if (!res.ok) throw new Error(`读取3D配方失败（HTTP ${res.status}）`);
     const data = apiPayload(await res.json());
     if (!data.success) throw new Error(data.error || '读取3D配方失败');
@@ -514,10 +494,8 @@
       if (previewUrl) {
         const urlWithTime = previewUrl + '?t=' + Date.now();
         image.src = urlWithTime;
-        // 同步显示到右侧结果区
-        $('rl-result-img').src = urlWithTime;
-        $('rl-result-img').style.display = 'block';
-        if ($('rl-result-ph')) $('rl-result-ph').style.display = 'none';
+        // 右侧结果区保留上一次的计算结果图，不在采集时覆盖。
+        // 右侧仅在 renderResult() 中由后端返回的 result_image_url 更新。
       }
       image.dataset.naturalWidth = data.image_width;
       image.dataset.naturalHeight = data.image_height;
@@ -527,6 +505,18 @@
       $('rl-roi-readout').style.display = 'block';
       $('rl-source').textContent = '数据源 ' + (data.source || '—');
       setReadout();
+      // 右侧若尚无结果图，显示占位提示；若有上次结果图则保留不动。
+      if (!$('rl-result-img').src || $('rl-result-img').style.display === 'none') {
+        if ($('rl-result-ph')) $('rl-result-ph').style.display = 'block';
+        $('rl-result-img').style.display = 'none';
+      } else {
+        // 在右侧标题徽章上提示右侧显示的是上一次结果
+        const saveStatus = $('record-save-status');
+        if (saveStatus && !saveStatus.textContent.includes('已自动保存')) {
+          saveStatus.className = 'badge badge-muted';
+          saveStatus.textContent = '右侧为上次结果，点击计算偏差后更新';
+        }
+      }
       
       // 点云图像真正加载完成后，再读取本次采集所用3D配方的2D ROI。
       if (data.roi_projection_error) console.warn('[自动ROI] 3D ROI投影提示：', data.roi_projection_error);

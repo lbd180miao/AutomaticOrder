@@ -1,6 +1,66 @@
 {
-  "updated_at": "2026-07-03T07:17:42.932488+00:00",
+  "updated_at": "2026-07-06T05:09:52.956585+00:00",
   "packages": [
+    {
+      "package_name": "2026-07-06_POS1_L1_050952",
+      "created_at": "2026-07-06T05:09:52.905713+00:00",
+      "recipe_name": "MOCK-Demo-POS1-L1",
+      "recipe_id": 8,
+      "position_no": 1,
+      "layer_no": 1,
+      "source": "dm_camera",
+      "point_count": 307200,
+      "has_result": true,
+      "preview_url": "/vision/offline/packages/2026-07-06_POS1_L1_050952/preview/"
+    },
+    {
+      "package_name": "2026-07-06_POS1_L1_050946",
+      "created_at": "2026-07-06T05:09:46.981232+00:00",
+      "recipe_name": "MOCK-Demo-POS1-L1",
+      "recipe_id": 8,
+      "position_no": 1,
+      "layer_no": 1,
+      "source": "dm_camera",
+      "point_count": 307200,
+      "has_result": true,
+      "preview_url": "/vision/offline/packages/2026-07-06_POS1_L1_050946/preview/"
+    },
+    {
+      "package_name": "2026-07-06_POS1_L1_050929",
+      "created_at": "2026-07-06T05:09:29.926151+00:00",
+      "recipe_name": "MOCK-Demo-POS1-L1",
+      "recipe_id": 8,
+      "position_no": 1,
+      "layer_no": 1,
+      "source": "dm_camera",
+      "point_count": 307200,
+      "has_result": true,
+      "preview_url": "/vision/offline/packages/2026-07-06_POS1_L1_050929/preview/"
+    },
+    {
+      "package_name": "2026-07-06_POS1_L1_050921",
+      "created_at": "2026-07-06T05:09:21.651077+00:00",
+      "recipe_name": "MOCK-Demo-POS1-L1",
+      "recipe_id": 8,
+      "position_no": 1,
+      "layer_no": 1,
+      "source": "dm_camera",
+      "point_count": 307200,
+      "has_result": true,
+      "preview_url": "/vision/offline/packages/2026-07-06_POS1_L1_050921/preview/"
+    },
+    {
+      "package_name": "2026-07-06_POS1_L1_050909",
+      "created_at": "2026-07-06T05:09:09.293410+00:00",
+      "recipe_name": "MOCK-Demo-POS1-L1",
+      "recipe_id": 8,
+      "position_no": 1,
+      "layer_no": 1,
+      "source": "dm_camera",
+      "point_count": 307200,
+      "has_result": true,
+      "preview_url": "/vision/offline/packages/2026-07-06_POS1_L1_050909/preview/"
+    },
     {
       "package_name": "2026-07-03_POS1_L1_071742",
       "created_at": "2026-07-03T07:17:42.881206+00:00",
