@@ -1177,8 +1177,12 @@ function renderRecipeCard() {
     `x=${right.x || 0}, y=${right.y || 0}, w=${right.width || 0}, h=${right.height || 0}`;
   
   const thresh = recipe.threshold_config || {};
+  // 兼容新旧字段名：coverage_threshold(新) 或 minCoverage(旧)
+  // 默认值与算法保持一致：覆盖率 0.08 (8%), 得分 0.8 (80%)
+  const coverageThreshold = thresh.coverage_threshold || thresh.minCoverage || 0.08;
+  const scoreThreshold = thresh.score_threshold || thresh.minScore || 0.8;
   document.getElementById('recipe-thresholds').textContent = 
-    `覆盖率≥${thresh.minCoverage || 0.75}, 得分≥${thresh.minScore || 0.8}`;
+    `覆盖率≥${coverageThreshold}, 得分≥${scoreThreshold}`;
   
   // 更新配方标题，提示当前配方
   const titleEl = card.querySelector('.recipe-info-title');
