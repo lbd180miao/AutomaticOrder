@@ -115,12 +115,12 @@
   }
   function hideLoading() { $('rl-loading')?.remove(); }
 
-  async function postJson(url, body) {
+  async function postJson(url, body, method = 'POST') {
     if (!url || typeof url !== 'string' || !url.startsWith('/')) {
       throw new Error(`API URL 未正确配置 (值为: ${url})。请刷新页面重试，或检查浏览器控制台是否有JS语法错误。`);
     }
     const res = await fetch(url, {
-      method: 'POST',
+      method: method,
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
       body: JSON.stringify(body || {}),
     });
@@ -481,8 +481,11 @@
     const real = displayToReal(state.displayRoi);
     state.roi = { x: real.x, y: real.y, w: real.w, h: real.h, feature_type: 'rack_reference' };
     setReadout();
-    setStatus('ROI 已绘制，可点击「计算偏差」。');
     syncRoiToRightSide();
+    refreshActionState();
+    
+    // 自动保存新坐标到配方中
+    autoSaveRoiToRecipe();
   });
 
   // ── 采集点云 ─────────────────────────────────────────────
@@ -600,6 +603,38 @@
     } finally { hideLoading(); }
   });
 
+  // ── 自动保存 ROI 到配方 ──────────────────────────────────
+  async function autoSaveRoiToRecipe() {
+    const recipeId = $('recipe-id')?.value;
+    if (!recipeId) return;
+    if (!state.roi) return;
+    
+    // showLoading('自动保存新坐标中...'); // 为了体验顺畅，可以不显示全屏 loading，直接在 status 显示
+    setStatus('正在自动保存 ROI 坐标到配方...');
+    try {
+      const currentRecipe = currentRecipeData() || {};
+      const newRoiConfig = Object.assign({}, currentRecipe.roi_config || {}, { target_roi: state.roi });
+      
+      const payload = {
+        id: recipeId,
+        roi_config: newRoiConfig
+      };
+      
+      const raw = await postJson('/vision/api/vision/3d/recipes/', semanticPayload(payload), 'PATCH');
+      const data = apiPayload(raw);
+      if (!data.success) { setStatus(data.error || '自动保存失败'); return; }
+      
+      setStatus('✅ 新的 ROI 坐标已自动保存到配方，可点击「计算偏差」。');
+      
+      // 更新本地状态
+      if (state.lastCalculation && state.lastCalculation.recipe_data) {
+        state.lastCalculation.recipe_data.roi_config = newRoiConfig;
+      }
+    } catch (e) {
+      setStatus('自动保存请求失败：' + e.message);
+    }
+  }
+
   // ── 自动选中下一个配方 ──────────────────────────────────
   function selectNextRecipe() {
     const select = document.getElementById('recipe-select');
@@ -624,11 +659,27 @@
     
     // 更新下拉框选择
     if (select.options[nextIndex] && select.options[nextIndex].value) {
+      const fromName = select.options[currentIndex].text.trim();
+      const toName = select.options[nextIndex].text.trim();
+      
       select.selectedIndex = nextIndex;
       // 触发change事件以应用配方
       select.dispatchEvent(new Event('change'));
       
-      console.log(`已自动选中下一个配方：${select.options[nextIndex].text}`);
+      console.log(`已自动选中下一个配方：${toName}`);
+      
+      // 显示提示信息
+      const statusSpan = document.getElementById('recipe-switch-status');
+      if (statusSpan) {
+        statusSpan.textContent = `✅ 计算完成，已自动切换：${fromName} → ${toName}`;
+        statusSpan.style.color = '#059669';
+        statusSpan.style.fontWeight = '700';
+        
+        // 3秒后恢复原样
+        setTimeout(() => {
+          statusSpan.textContent = '';
+        }, 3000);
+      }
     }
   }
 

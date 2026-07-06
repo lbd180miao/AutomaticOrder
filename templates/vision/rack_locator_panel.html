@@ -763,6 +763,7 @@
           <button id="btn-packages" class="btn btn-secondary">📦 数据包管理</button>
         </div>
         <span class="rl-source-chip" id="rl-source" style="display: none;">数据源 —</span>
+        <span id="recipe-switch-status" style="margin-left: 12px; font-size: 13px; transition: all 0.3s;"></span>
         <p class="rl-status" id="rl-status" style="display: none;">先选择配方，再采集点云。</p>
       </div>
     </div>
@@ -916,16 +917,16 @@
     const sideText = side === 'LEFT' ? '左料架' : side === 'RIGHT' ? '右料架' : '左右料架';
 
     // 更新卡片显示
-    document.getElementById('recipe-card-name').textContent = name;
-    document.getElementById('recipe-badge').textContent = `POS${pos} · L${layer}`;
-    document.getElementById('recipe-card-sx').textContent = sx;
-    document.getElementById('recipe-card-sy').textContent = sy;
-    document.getElementById('recipe-card-sz').textContent = sz;
-    document.getElementById('recipe-card-side').textContent = sideText;
-    document.getElementById('recipe-card-mox').textContent = mox;
-    document.getElementById('recipe-card-moy').textContent = moy;
-    document.getElementById('recipe-card-moz').textContent = moz;
-    document.getElementById('recipe-card-conf').textContent = conf;
+    if (document.getElementById('recipe-card-name')) document.getElementById('recipe-card-name').textContent = name;
+    if (document.getElementById('recipe-badge')) document.getElementById('recipe-badge').textContent = `POS${pos} · L${layer}`;
+    if (document.getElementById('recipe-card-sx')) document.getElementById('recipe-card-sx').textContent = sx;
+    if (document.getElementById('recipe-card-sy')) document.getElementById('recipe-card-sy').textContent = sy;
+    if (document.getElementById('recipe-card-sz')) document.getElementById('recipe-card-sz').textContent = sz;
+    if (document.getElementById('recipe-card-side')) document.getElementById('recipe-card-side').textContent = sideText;
+    if (document.getElementById('recipe-card-mox')) document.getElementById('recipe-card-mox').textContent = mox;
+    if (document.getElementById('recipe-card-moy')) document.getElementById('recipe-card-moy').textContent = moy;
+    if (document.getElementById('recipe-card-moz')) document.getElementById('recipe-card-moz').textContent = moz;
+    if (document.getElementById('recipe-card-conf')) document.getElementById('recipe-card-conf').textContent = conf;
   }
 
   // 应用选中的配方
@@ -946,9 +947,15 @@
     const side = option.dataset.side || 'BOTH';
 
     // 填充隐藏输入和手动调整框
-    document.getElementById('recipe-id').value = id;
-    document.getElementById('position-no').value = pos;
-    document.getElementById('layer-no').value = layer;
+    const recipeIdEl = document.getElementById('recipe-id');
+    if (recipeIdEl) recipeIdEl.value = id;
+    
+    const posNoEl = document.getElementById('position-no');
+    if (posNoEl) posNoEl.value = pos;
+    
+    const layerNoEl = document.getElementById('layer-no');
+    if (layerNoEl) layerNoEl.value = layer;
+    
     const layerSelect = document.getElementById('layer-no-select');
     if (layerSelect) layerSelect.value = layer;
 
