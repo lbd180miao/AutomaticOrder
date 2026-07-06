@@ -1012,6 +1012,12 @@
       // 2. 查询该配方保存的 3D ROI 参数
       const query = new URLSearchParams({ recipe_id: recipeId });
       const res = await fetch(`{% url "vision:api_vision_3d_rois" %}?${query.toString()}`);
+      
+      const contentType1 = res.headers.get('content-type');
+      if (!contentType1 || !contentType1.includes('application/json')) {
+         console.error('api_vision_3d_rois returned non-JSON:', res.status, await res.text());
+         throw new Error('api_vision_3d_rois returned non-JSON');
+      }
       const data = await res.json();
 
       if (data.success && data.data && data.data.rois && data.data.rois.length > 0) {
@@ -1043,6 +1049,12 @@
       const recipeQuery = new URLSearchParams();
       // 注意：后端API可能不支持通过id查询，尝试通过recipe_id路由
       const recipeDetailRes = await fetch(`{% url "vision:api_vision_3d_recipes" %}${recipeId}/`);
+      
+      const contentType2 = recipeDetailRes.headers.get('content-type');
+      if (!contentType2 || !contentType2.includes('application/json')) {
+         console.error('api_vision_3d_recipe_detail returned non-JSON:', recipeDetailRes.status, await recipeDetailRes.text());
+         throw new Error('api_vision_3d_recipe_detail returned non-JSON');
+      }
       const recipeDetailData = await recipeDetailRes.json();
 
       if (recipeDetailData.success && recipeDetailData.data && recipeDetailData.data.recipe) {

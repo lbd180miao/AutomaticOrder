@@ -70,10 +70,12 @@ def package_detail(request, package_name):
 @require_http_methods(["POST"])
 def load_package(request, package_name):
     try:
-        payload = OfflineDataPackageService().create_workbench_copy(package_name)
+        data = _request_json(request)
+        recipe_id = data.get("recipe_id")
+        payload = OfflineDataPackageService().create_workbench_copy(package_name, recipe_id=recipe_id)
         return JsonResponse({"success": True, "package": payload})
-    except OfflineDataPackageError as exc:
-        return _error(exc, 404)
+    except (OfflineDataPackageError, Exception) as exc:
+        return _error(exc, 500 if not isinstance(exc, OfflineDataPackageError) else 404)
 
 
 @require_http_methods(["POST"])

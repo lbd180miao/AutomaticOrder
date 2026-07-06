@@ -1541,6 +1541,70 @@ class RackLocationService:
     # 交互式工作台：采集真实点云 → 绘制 ROI → 计算 → 保存
     # ------------------------------------------------------------------
 
+    def project_recipe_roi_to_pixels(self, pointcloud, recipe) -> dict:
+        """根据配方的 3D ROI 或目标坐标系下的 ROI，向二维像素系投影，得出 2D 框。"""
+        config = dict(getattr(recipe, 'roi_config', None) or {})
+        cloud = np.asarray(pointcloud, dtype=float)
+        if cloud.ndim == 2:
+            raise ValueError("project_recipe_roi_to_pixels requires organized pointcloud (H, W, 3)")
+
+        z = cloud[:, :, 2]
+        valid = np.isfinite(z) & (np.abs(z) > 1e-9)
+
+        camera_roi = config.get('camera_roi')
+        if camera_roi:
+            bounds = self.estimator.processor._normalized_roi_3d(camera_roi)
+            projection_source = 'camera_roi'
+            x = cloud[:, :, 0]
+            y = cloud[:, :, 1]
+            in_roi = (
+                valid
+                & (x >= bounds['x_min']) & (x <= bounds['x_max'])
+                & (y >= bounds['y_min']) & (y <= bounds['y_max'])
+                & (z >= bounds['z_min']) & (z <= bounds['z_max'])
+            )
+        else:
+            bounds = self.estimator.processor._normalized_roi_3d(config.get('target_roi') or {})
+            projection_source = 'robot_roi'
+            T_rc = np.array(config.get('transform_snapshot', np.eye(4)))
+
+            x = cloud[:, :, 0]
+            y = cloud[:, :, 1]
+
+            P_cam = np.column_stack((x[valid], y[valid], z[valid]))
+            if len(P_cam) > 0:
+                P_cam_hom = np.column_stack((P_cam, np.ones(len(P_cam))))
+                P_rob = P_cam_hom @ T_rc.T
+                x_rob, y_rob, z_rob = P_rob[:, 0], P_rob[:, 1], P_rob[:, 2]
+                in_roi_valid = (
+                    (x_rob >= bounds['x_min']) & (x_rob <= bounds['x_max'])
+                    & (y_rob >= bounds['y_min']) & (y_rob <= bounds['y_max'])
+                    & (z_rob >= bounds['z_min']) & (z_rob <= bounds['z_max'])
+                )
+                in_roi = np.zeros(valid.shape, dtype=bool)
+                in_roi[valid] = in_roi_valid
+            else:
+                in_roi = np.zeros(valid.shape, dtype=bool)
+
+        rows, cols = np.where(in_roi)
+        if len(rows) > 0:
+            x1 = int(cols.min())
+            x2 = int(cols.max()) + 1
+            y1 = int(rows.min())
+            y2 = int(rows.max()) + 1
+            return {
+                'x': x1, 'y': y1, 'w': x2 - x1, 'h': y2 - y1,
+                'projection_source': projection_source,
+                'feature_type': 'recipe_3d_roi'
+            }
+        else:
+            return {
+                'x': 0, 'y': 0, 'w': 0, 'h': 0,
+                'projection_source': projection_source,
+                'feature_type': 'recipe_3d_roi',
+                'error': 'No points inside ROI'
+            }
+
     def _persist_workbench_frame(self, pointcloud) -> tuple[str, str, int, int]:
         """把组织化点云持久化为 .npy，并渲染像素一一对应的伪彩预览图。
 

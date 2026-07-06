@@ -148,13 +148,21 @@ class OfflineDataPackageService:
         summaries.sort(key=lambda item: item.get("created_at", ""), reverse=True)
         return summaries[: max(0, int(limit))]
 
-    def create_workbench_copy(self, package_name: str) -> Dict[str, Any]:
+    def create_workbench_copy(self, package_name: str, recipe_id: Optional[Any] = None) -> Dict[str, Any]:
         package = self.load_package(package_name)
+        
+        cloud = package["pointcloud"]
+        if cloud.ndim == 2 and cloud.shape[1] == 3:
+            camera_meta = package.get("metadata", {}).get("camera", {})
+            w, h = camera_meta.get("width"), camera_meta.get("height")
+            if w and h and w * h == cloud.shape[0]:
+                cloud = cloud.reshape((int(h), int(w), 3))
+        
         from apps.vision.rack_location import RackLocationService
 
         workbench_service = RackLocationService()
         token, preview_url, width, height = workbench_service._persist_workbench_frame(
-            package["pointcloud"]
+            cloud
         )
         payload = {
             "pointcloud_token": token,
@@ -166,11 +174,18 @@ class OfflineDataPackageService:
             "result": package["result"],
             "metadata": package["metadata"],
         }
+
+        current_recipe = None
+        if recipe_id:
+            from apps.vision.models import RackLocationRecipe
+            current_recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first()
+
+        projection_config = dict(current_recipe.roi_config or {}) if current_recipe else dict(package["roi_config"] or {})
+
         try:
-            projection_config = dict(package["roi_config"] or {})
             projection_config.setdefault(
                 "transform_snapshot",
-                (package["robot_pose_matrix"] @ package["hand_eye_matrix"]).tolist(),
+                (np.array(package["robot_pose_matrix"]) @ np.array(package["hand_eye_matrix"])).tolist(),
             )
             projection_recipe = SimpleNamespace(
                 roi_config=projection_config,
@@ -178,9 +193,9 @@ class OfflineDataPackageService:
                 capture_pose={},
             )
             payload["recipe_pixel_roi"] = workbench_service.project_recipe_roi_to_pixels(
-                package["pointcloud"], projection_recipe,
+                cloud, projection_recipe,
             )
-        except (TypeError, ValueError, np.linalg.LinAlgError) as exc:
+        except (TypeError, ValueError, np.linalg.LinAlgError, KeyError) as exc:
             payload["roi_projection_error"] = str(exc)
             # 兜底回退：3D ROI 投影失败时，尝试从数据包 roi_config 中
             # 读取已保存的 2D 像素 target_roi 直接返回给前端，

@@ -168,7 +168,12 @@
     if (!state.selectedName) return;
     message('正在加载数据到画布…');
     try {
-      const data = await request(packageUrl(state.selectedName, 'load'), { method: 'POST', body: '{}' });
+      const recipeId = document.getElementById('select-recipe')?.value 
+                    || document.getElementById('recipe-id')?.value || null;
+      const data = await request(packageUrl(state.selectedName, 'load'), { 
+          method: 'POST', 
+          body: JSON.stringify({ recipe_id: recipeId }) 
+      });
       window.rackLocatorOfflineBridge.load(data.package);
       closeModal();
     } catch (error) {
