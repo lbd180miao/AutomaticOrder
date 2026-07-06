@@ -340,10 +340,10 @@ def api_foam_recipe_create(request):
             'rightFoamROI': {'x': 780, 'y': 140, 'width': 110, 'height': 70}
         }
         
-        # 默认阈值配置
+        # 默认阈值配置（与算法默认值保持一致）
         threshold_config = body.get('threshold_config') or {
-            'coverage_threshold': 0.75,
-            'score_threshold': 0.8,
+            'coverage_threshold': 0.08,  # 8% 覆盖率，适配大ROI场景
+            'score_threshold': 0.8,      # 80% 综合得分
             'max_offset_px': 30
         }
         
