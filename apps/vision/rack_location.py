@@ -1205,9 +1205,43 @@ class Rack3DLocator:
         """测试定位（不保存到数据库，除非指定save_record=True）"""
         recipe = self._select_recipe(recipe_id=recipe_id, layer_no=layer_no)
         pointcloud = self._load_pointcloud(token)
-        points = self.processor.crop_by_roi_3d(pointcloud, roi_3d)
+        
+        target_roi = None
+        new_camera_roi = None
+        if roi_config and roi_config.get('target_roi'):
+            target_roi = roi_config['target_roi']
+            
+        if target_roi:
+            # 优先使用前端传入的 2D target_roi (手工画的框) 来截取点云，保证计算结果与画框完全一致
+            cloud = np.asarray(pointcloud, dtype=float)
+            x = int(round(float(target_roi.get('x', 0))))
+            y = int(round(float(target_roi.get('y', 0))))
+            w = int(round(float(target_roi.get('w', 0))))
+            h = int(round(float(target_roi.get('h', 0))))
+            if cloud.ndim == 3 and cloud.shape[2] == 3 and w > 0 and h > 0:
+                cropped_cloud = cloud[y:y+h, x:x+w]
+                pts = cropped_cloud.reshape(-1, 3)
+                valid = np.isfinite(pts[:, 2]) & (np.abs(pts[:, 2]) > 1e-9)
+                points = pts[valid]
+                
+                # 自动计算该 2D 框覆盖点云的 3D 包围框（相当于将其保存成3D指标）
+                if len(points) > 0:
+                    new_camera_roi = {
+                        'x_min': float(points[:, 0].min()),
+                        'x_max': float(points[:, 0].max()),
+                        'y_min': float(points[:, 1].min()),
+                        'y_max': float(points[:, 1].max()),
+                        'z_min': float(points[:, 2].min()),
+                        'z_max': float(points[:, 2].max()),
+                    }
+            else:
+                points = np.array([])
+        else:
+            points = self.processor.crop_by_roi_3d(pointcloud, roi_3d)
+            
         if points.shape[0] < self.processor.min_valid_points:
             raise ValueError('ROI 内有效点数太少')
+            
         output = self._output_from_points(
             points=points,
             recipe=recipe,
@@ -1260,6 +1294,15 @@ class Rack3DLocator:
             position_no = 1  # 固定为1（工作台模式）
             db_recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first() if recipe_id else None
             
+            if db_recipe and target_roi:
+                # 用户手工画了 2D 框进行计算，自动更新配方的 ROI 使得下次定位自动生效
+                config = dict(db_recipe.roi_config or {})
+                config['target_roi'] = target_roi
+                if new_camera_roi:
+                    config['camera_roi'] = new_camera_roi
+                db_recipe.roi_config = config
+                db_recipe.save(update_fields=['roi_config'])
+            
             task = VisionTask.objects.create(
                 task_type=VisionTaskType.RACK_LOCATING,
                 status=ResultStatus.SUCCESS if output.locate_ok else ResultStatus.FAILED,
@@ -1270,7 +1313,7 @@ class Rack3DLocator:
             
             roi_snapshot = {
                 'target_roi': target_roi or {},
-                'roi_3d': roi_3d or {},
+                'roi_3d': new_camera_roi or roi_3d or {},
             }
             saved_result = RackLocationResult.objects.create(
                 vision_task=task,

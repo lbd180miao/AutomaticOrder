@@ -1660,9 +1660,11 @@ def api_vision_3d_test_locate(request):
         payload = Rack3DLocator().test_locate(
             token=data.get('pointcloud_token'),
             roi_3d=data.get('roi') or data.get('roi_3d') or {},
+            roi_config=data.get('roi_config'),
             recipe_id=data.get('recipe_id') or None,
             rack_side=data.get('rack_side') or 'LEFT',
             layer_no=_as_int(data.get('layer_no'), 1),
+            save_record=data.get('save_record', False),
         )
         return _api3d_success({'result': payload})
     except Exception as exc:  # noqa: BLE001
@@ -1769,6 +1771,25 @@ def api_rack_location_workbench_calculate(request):
             rack_side=data.get('rack_side') or 'LEFT',
             save_record=save_record,
         )
+        
+        # 自动将用户绘制的 2D 像素 target_roi 持久化保存到配方 roi_config，
+        # 确保下次采集点云时可以通过兜底回退逻辑自动显示 ROI 框。
+        target_roi = roi_config.get('target_roi')
+        if recipe_id and target_roi and all(
+            target_roi.get(k) is not None for k in ('x', 'y', 'w', 'h')
+        ):
+            try:
+                recipe_obj = RackLocationRecipe.objects.filter(pk=recipe_id).first()
+                if recipe_obj:
+                    current_config = recipe_obj.roi_config or {}
+                    current_config['target_roi'] = target_roi
+                    from django.utils import timezone
+                    current_config['target_roi_updated_at'] = timezone.now().isoformat()
+                    recipe_obj.roi_config = current_config
+                    recipe_obj.save(update_fields=['roi_config'])
+                    logger.info(f"[计算偏差] 已自动保存配方 {recipe_id} 的 target_roi: {target_roi}")
+            except Exception as _roi_save_exc:  # noqa: BLE001
+                logger.warning(f"[计算偏差] 自动保存 target_roi 失败（不影响计算结果）: {_roi_save_exc}")
         
         if save_record:
             logger.info(f"[计算偏差] 已保存到视觉记录，VisionTask数量: {VisionTask.objects.count()}")

@@ -313,6 +313,95 @@
     return data;
   }
 
+  // ── 自动加载并显示配方 ROI ─────────────────────────────
+  function normalizePixelRoi(targetRoi) {
+    if (!targetRoi) return null;
+    const roi = {
+      x: Number(targetRoi.x),
+      y: Number(targetRoi.y),
+      w: Number(targetRoi.w),
+      h: Number(targetRoi.h),
+      feature_type: targetRoi.feature_type || 'rack_reference',
+    };
+    if (![roi.x, roi.y, roi.w, roi.h].every(Number.isFinite) || roi.w <= 0 || roi.h <= 0) {
+      return null;
+    }
+    return roi;
+  }
+
+  function applyPixelRoi(targetRoi) {
+    const roi = normalizePixelRoi(targetRoi);
+    if (!roi || !state.token || !image.src || image.style.display === 'none') return false;
+
+    const nat = naturalDims();
+    if (!nat.w || !nat.h || !canvas.width || !canvas.height) return false;
+
+    state.roi = roi;
+    state.displayRoi = {
+      x: roi.x * canvas.width / nat.w,
+      y: roi.y * canvas.height / nat.h,
+      w: roi.w * canvas.width / nat.w,
+      h: roi.h * canvas.height / nat.h,
+    };
+    draw();
+    setReadout();
+    syncRoiToRightSide();
+    setButton('btn-calculate', true);
+    return true;
+  }
+
+  async function recipePixelRoi(recipeId) {
+    if (!recipeId) return null;
+    const res = await fetch(`/vision/api/vision/3d/recipes/${encodeURIComponent(recipeId)}/`);
+    if (!res.ok) throw new Error(`读取3D配方失败（HTTP ${res.status}）`);
+    const data = apiPayload(await res.json());
+    if (!data.success) throw new Error(data.error || '读取3D配方失败');
+    const recipe = data.recipe || null;
+    return normalizePixelRoi(recipe?.roi_config?.target_roi || recipe?.roi_info?.target_roi);
+  }
+
+  /** 在点云图像已经加载到画布后，应用数据包或3D配方中的2D ROI。 */
+  async function autoLoadAndShowRecipeRoi({ recipeId, targetRoi, source = '配方' } = {}) {
+    const token = state.token;
+    if (!token || !image.src || image.style.display === 'none') return false;
+
+    try {
+      const roi = normalizePixelRoi(targetRoi) || await recipePixelRoi(recipeId);
+      // 等待接口期间如果又加载了另一帧，旧 ROI 不再覆盖新画布。
+      if (state.token !== token) return false;
+      if (!roi) {
+        setStatus('点云已加载，但当前3D配方ROI无法投影到图像，请检查相机坐标ROI。');
+        return false;
+      }
+      if (!applyPixelRoi(roi)) return false;
+
+      state.pendingRoi = null;
+      window.tempPendingRoi = null;
+      setStatus(`${source}2D ROI 已自动显示 (${roi.w}×${roi.h})，可直接计算偏差。`);
+      console.log(`[自动ROI] 已从${source}加载2D ROI`, roi);
+      return true;
+    } catch (e) {
+      console.warn('[自动ROI] 加载失败：', e);
+      setStatus('点云已加载，但3D配方ROI投影失败，请检查配方坐标。');
+      return false;
+    }
+  }
+
+  function afterPreviewLoaded(callback) {
+    const expectedSrc = image.src;
+    const run = () => {
+      if (image.src !== expectedSrc || !image.naturalWidth) return;
+      const schedule = window.requestAnimationFrame || ((fn) => setTimeout(fn, 0));
+      schedule(() => {
+        if (image.src !== expectedSrc) return;
+        resizeCanvas();
+        callback();
+      });
+    };
+    if (image.complete && image.naturalWidth > 0) run();
+    else image.addEventListener('load', run, { once: true });
+  }
+
   // ── 画布 / ROI ───────────────────────────────────────────
   const image = $('rl-depth-image');
   const canvas = $('rl-canvas');
@@ -436,24 +525,20 @@
       $('rl-source').textContent = '数据源 ' + (data.source || '—');
       setReadout();
       
-      // 如果有待应用的 ROI，在点云加载后自动应用
-      if (state.pendingRoi || window.tempPendingRoi) {
-        const pendingRoi = state.pendingRoi || window.tempPendingRoi;
-        // 等待图像加载完成
-        image.onload = function() {
-          resizeCanvas();
-          window.rackLocatorSetRoi(pendingRoi);
-          state.pendingRoi = null; // 清除待应用状态
-          window.tempPendingRoi = null;
-        };
-      }
+      // 点云图像真正加载完成后，再读取本次采集所用3D配方的2D ROI。
+      if (data.roi_projection_error) console.warn('[自动ROI] 3D ROI投影提示：', data.roi_projection_error);
+      afterPreviewLoaded(() => autoLoadAndShowRecipeRoi({
+        recipeId: state.captureRecipeId,
+        targetRoi: data.recipe_pixel_roi,
+        source: data.recipe_pixel_roi ? '配方3D ROI' : '配方',
+      }));
       
       if (data.source && data.source.indexOf('sample') === 0) {
         setStatus('⚠ 未取到真实相机数据，已回退模拟点云'
           + (data.fallback_reason ? '：' + data.fallback_reason : '（相机未连接）')
           + '。请检查相机连接后重试。');
       } else {
-        setStatus(state.pendingRoi ? '点云已采集，配方 ROI 已自动显示。' : '点云已采集（真实相机），请在图上拖拽绘制 ROI。');
+        setStatus('点云已采集，正在加载配方 ROI...');
       }
     } catch (e) {
       setStatus('网络请求失败：' + e.message);
@@ -625,7 +710,10 @@
       return {
         pointcloud_token: state.token,
         source: state.source,
-        roi_config: currentRoi3D(),
+        roi_config: {
+          ...currentRoi3D(),
+          target_roi: state.roi ? { ...state.roi } : null,
+        },
         result: state.lastResult,
         recipe_id: state.captureRecipeId || $('recipe-id')?.value || null,
         layer_no: state.captureLayerNo || currentLayerIndex(),
@@ -638,6 +726,8 @@
       state.captureRecipeId = payload.metadata?.recipe?.recipe_id || $('recipe-id')?.value || null;
       state.captureLayerNo = payload.metadata?.layer?.layer_no || currentLayerIndex();
       state.lastResult = payload.result || null;
+      state.roi = null;
+      state.displayRoi = null;
       const previewUrl = payload.preview_image_url;
       if (previewUrl) {
         image.src = previewUrl + (previewUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
@@ -658,8 +748,18 @@
         const node = $('roi-' + key.replace('_', '-'));
         if (node && roi[key] != null) node.value = Number(roi[key]).toFixed(3);
       });
+
+      // 数据包图像加载到画布后优先使用包内2D ROI；旧包没有时按包内配方回查。
+      if (payload.roi_projection_error) console.warn('[自动ROI] 数据包3D ROI投影提示：', payload.roi_projection_error);
+      const packageRoi = normalizePixelRoi(payload.recipe_pixel_roi)
+        || normalizePixelRoi(payload.roi_config?.target_roi);
+      afterPreviewLoaded(() => autoLoadAndShowRecipeRoi({
+        recipeId: state.captureRecipeId,
+        targetRoi: packageRoi,
+        source: payload.recipe_pixel_roi ? '数据包3D ROI' : (packageRoi ? '数据包' : '配方'),
+      }));
+
       if (payload.result) renderResult(payload.result);
-      setStatus('离线数据包已加载，可调整 ROI 后重新计算。');
       refreshActionState();
     },
     renderResult,

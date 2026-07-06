@@ -10,6 +10,7 @@ import tempfile
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -151,10 +152,11 @@ class OfflineDataPackageService:
         package = self.load_package(package_name)
         from apps.vision.rack_location import RackLocationService
 
-        token, preview_url, width, height = RackLocationService()._persist_workbench_frame(
+        workbench_service = RackLocationService()
+        token, preview_url, width, height = workbench_service._persist_workbench_frame(
             package["pointcloud"]
         )
-        return {
+        payload = {
             "pointcloud_token": token,
             "preview_image_url": preview_url,
             "image_width": width,
@@ -164,6 +166,35 @@ class OfflineDataPackageService:
             "result": package["result"],
             "metadata": package["metadata"],
         }
+        try:
+            projection_config = dict(package["roi_config"] or {})
+            projection_config.setdefault(
+                "transform_snapshot",
+                (package["robot_pose_matrix"] @ package["hand_eye_matrix"]).tolist(),
+            )
+            projection_recipe = SimpleNamespace(
+                roi_config=projection_config,
+                hand_eye_config={},
+                capture_pose={},
+            )
+            payload["recipe_pixel_roi"] = workbench_service.project_recipe_roi_to_pixels(
+                package["pointcloud"], projection_recipe,
+            )
+        except (TypeError, ValueError, np.linalg.LinAlgError) as exc:
+            payload["roi_projection_error"] = str(exc)
+            # 兜底回退：3D ROI 投影失败时，尝试从数据包 roi_config 中
+            # 读取已保存的 2D 像素 target_roi 直接返回给前端，
+            # 确保加载数据包后 ROI 框能自动显示在图像上。
+            saved_target_roi = (package.get("roi_config") or {}).get("target_roi")
+            if saved_target_roi and all(
+                saved_target_roi.get(k) is not None for k in ("x", "y", "w", "h")
+            ):
+                payload["recipe_pixel_roi"] = {
+                    **{k: saved_target_roi[k] for k in ("x", "y", "w", "h")},
+                    "feature_type": "recipe_3d_roi",
+                    "projection_source": "saved_target_roi",
+                }
+        return payload
 
     def reprocess_package(
         self,
@@ -311,4 +342,3 @@ class OfflineDataPackageService:
 
         preview = image_io.pointcloud_to_preview(cloud)
         Image.fromarray(np.asarray(preview, dtype=np.uint8)).save(path, format="PNG")
-
