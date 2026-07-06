@@ -2408,6 +2408,50 @@ class RackLocationWorkbenchTests(TestCase):
         abs_path = Path(settings.MEDIA_ROOT) / payload['pointcloud_token']
         self.assertTrue(abs_path.exists())
 
+    def test_capture_projects_recipe_3d_roi_to_pixel_bounds(self):
+        bounds = {
+            'x_min': -100, 'x_max': 100,
+            'y_min': -80, 'y_max': 80,
+            'z_min': 800, 'z_max': 1000,
+        }
+        self.recipe.roi_config = {
+            'coordinate_system': 'robot',
+            **bounds,
+            'target_roi': bounds,
+            'camera_roi': bounds,
+        }
+        self.recipe.save(update_fields=['roi_config'])
+
+        payload = self._service().capture_workbench(recipe_id=self.recipe.id)
+
+        self.assertEqual(payload['recipe_pixel_roi']['projection_source'], 'camera_roi')
+        self.assertEqual(
+            {key: payload['recipe_pixel_roi'][key] for key in ('x', 'y', 'w', 'h')},
+            {'x': 244, 'y': 179, 'w': 152, 'h': 122},
+        )
+
+    def test_robot_recipe_roi_uses_coordinate_snapshot_for_projection(self):
+        bounds = {
+            'x_min': -100, 'x_max': 100,
+            'y_min': -80, 'y_max': 80,
+            'z_min': 800, 'z_max': 1000,
+        }
+        self.recipe.roi_config = {
+            'coordinate_system': 'robot',
+            **bounds,
+            'target_roi': bounds,
+            'transform_snapshot': np.eye(4).tolist(),
+        }
+        cloud = self.CloudFrameProvider().capture(self.recipe, 1, 1)['organized_pointcloud']
+
+        pixel_roi = self._service().project_recipe_roi_to_pixels(cloud, self.recipe)
+
+        self.assertEqual(pixel_roi['projection_source'], 'robot_roi')
+        self.assertEqual(
+            {key: pixel_roi[key] for key in ('x', 'y', 'w', 'h')},
+            {'x': 244, 'y': 179, 'w': 152, 'h': 122},
+        )
+
     def test_capture_workbench_falls_back_to_sample_when_camera_unavailable(self):
         from apps.vision.rack_location import RackLocationService
 
@@ -2674,6 +2718,23 @@ class Rack3DLocatorServiceTests(TestCase):
         self.assertIn('raw_rgb_image_url', payload)
         self.assertIn('raw_depth_image_url', payload)
         self.assertEqual(payload['source'], 'dm_camera')
+
+    def test_formal_capture_returns_projected_recipe_pixel_roi(self):
+        bounds = {
+            'x_min': -100, 'x_max': 100,
+            'y_min': -80, 'y_max': 80,
+            'z_min': 800, 'z_max': 1000,
+        }
+        self.recipe.roi_config = {'camera_roi': bounds, **bounds}
+        self.recipe.save(update_fields=['roi_config'])
+
+        payload = self._locator().capture(recipe_id=self.recipe.id)
+
+        self.assertEqual(payload['recipe_pixel_roi']['projection_source'], 'camera_roi')
+        self.assertEqual(
+            {key: payload['recipe_pixel_roi'][key] for key in ('x', 'y', 'w', 'h')},
+            {'x': 244, 'y': 179, 'w': 152, 'h': 122},
+        )
 
     def test_capture_propagates_dm_camera_configuration_error(self):
         from apps.dm_camera.sdk_wrapper import DMCameraConfigurationError

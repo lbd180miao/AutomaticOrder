@@ -195,6 +195,121 @@
     n.textContent = `ROI(相机像素)  x=${r.x}  y=${r.y}  w=${r.w}  h=${r.h}  → 机器人坐标自动转换`;
   }
 
+  // ── 自动加载并显示配方ROI ──────────────────────────────
+  /**
+   * 自动加载并显示当前配方的2D ROI
+   * 时机：采集点云后图像加载完成时 / 加载数据包后画布准备好时
+   */
+  async function autoLoadAndShowRecipeRoi() {
+    console.log('[自动ROI] 开始尝试加载配方ROI...');
+
+    // 1. 检查前提：必须有点云 token 且图像已显示
+    if (!state.token) {
+      console.log('[自动ROI] 无点云token，跳过');
+      return;
+    }
+    if (!image || !image.src || image.style.display === 'none') {
+      console.log('[自动ROI] 图像未加载，跳过');
+      return;
+    }
+
+    // 2. 获取当前配方ID
+    const recipeId = $('recipe-id')?.value;
+    if (!recipeId) {
+      console.log('[自动ROI] 未选择配方，跳过');
+      setStatus('点云已采集，请在图上拖拽绘制 ROI。');
+      return;
+    }
+
+    try {
+      console.log('[自动ROI] 正在获取配方', recipeId, '的ROI信息...');
+
+      // 3. 从后端获取配方详情（包含 roi_config）
+      const apiUrl = `/vision/api/rack-location/recipes/${recipeId}/`;
+      console.log('[自动ROI] API URL:', apiUrl);
+
+      const recipeDetailRes = await fetch(apiUrl);
+      if (!recipeDetailRes.ok) {
+        console.log('[自动ROI] 配方API请求失败:', recipeDetailRes.status);
+        setStatus('点云已采集，请在图上拖拽绘制 ROI。');
+        return;
+      }
+
+      const recipeDetailData = await recipeDetailRes.json();
+      console.log('[自动ROI] API响应:', recipeDetailData);
+
+      if (!recipeDetailData.success) {
+        console.log('[自动ROI] 配方API返回失败:', recipeDetailData.error);
+        setStatus('点云已采集，请在图上拖拽绘制 ROI。');
+        return;
+      }
+
+      // 4. 提取配方数据
+      const recipe = recipeDetailData.recipe;
+      if (!recipe) {
+        console.log('[自动ROI] 配方数据为空');
+        setStatus('点云已采集，请在图上拖拽绘制 ROI。');
+        return;
+      }
+
+      // 5. 提取2D ROI坐标
+      const roiConfig = recipe.roi_config || {};
+      const targetRoi = roiConfig.target_roi;
+      console.log('[自动ROI] roi_config:', roiConfig);
+      console.log('[自动ROI] target_roi:', targetRoi);
+
+      if (!targetRoi) {
+        console.log('[自动ROI] 配方中无保存的 target_roi');
+        setStatus('点云已采集，请在图上拖拽绘制 ROI。');
+        return;
+      }
+
+      // 6. 验证ROI坐标有效性
+      if (!targetRoi.w || !targetRoi.h || targetRoi.w <= 0 || targetRoi.h <= 0) {
+        console.warn('[自动ROI] ROI尺寸无效:', targetRoi);
+        setStatus('点云已采集，请在图上拖拽绘制 ROI。');
+        return;
+      }
+
+      // 7. 应用ROI到画布
+      console.log('[自动ROI] ✅ 成功加载配方ROI:', targetRoi);
+
+      // 保存真实像素坐标
+      state.roi = {
+        x: Number(targetRoi.x) || 0,
+        y: Number(targetRoi.y) || 0,
+        w: Number(targetRoi.w),
+        h: Number(targetRoi.h),
+        feature_type: targetRoi.feature_type || 'rack_reference'
+      };
+
+      // 转换为显示坐标
+      const nat = naturalDims();
+      const scaleX = canvas.width / nat.w;
+      const scaleY = canvas.height / nat.h;
+      state.displayRoi = {
+        x: state.roi.x * scaleX,
+        y: state.roi.y * scaleY,
+        w: state.roi.w * scaleX,
+        h: state.roi.h * scaleY,
+      };
+
+      // 8. 绘制ROI并更新UI
+      draw();
+      setReadout();
+      setStatus(
+        `✅ 已自动加载配方ROI (${state.roi.w}×${state.roi.h})，` +
+        `可直接点击「计算偏差」或「重画ROI」重新绘制。`
+      );
+      setButton('btn-calculate', true);
+      console.log('[自动ROI] ROI已应用到画布，state.roi=', state.roi);
+
+    } catch (e) {
+      console.error('[自动ROI] 加载失败:', e);
+      setStatus('点云已采集，请在图上拖拽绘制 ROI。');
+    }
+  }
+
   canvas.addEventListener('mousedown', (e) => {
     if (!state.token) return;
     state.drawing = true;
@@ -248,9 +363,9 @@
       if (!data.success) { setStatus(data.error || '采集失败'); return; }
       
       state.token = data.pointcloud_token;
-      state.roi = null; 
+      state.roi = null;
       state.displayRoi = null;
-      
+
       const previewUrl = data.pointcloud_preview_url || data.preview_image_url;
       if (previewUrl) image.src = previewUrl + '?t=' + Date.now();
       image.dataset.naturalWidth = data.image_width;
@@ -261,22 +376,28 @@
       $('rl-roi-readout').style.display = 'block';
       $('rl-source').textContent = '数据源 ' + (data.source || '—');
       setReadout();
-      
-      // 如果有待应用的 ROI，在点云加载后自动应用
-      if (state.pendingRoi || window.tempPendingRoi) {
-        const pendingRoi = state.pendingRoi || window.tempPendingRoi;
+
+      // 图像加载完成后自动从配方加载2D ROI并显示在画布上
+      const applyRoiAfterCapture = function() {
+        resizeCanvas();
+        autoLoadAndShowRecipeRoi();
+      };
+      if (image.complete && image.naturalWidth > 0) {
+        // 图像已缓存，稍后执行（确保画布已渲染）
+        console.log('[采集点云] 图像已缓存，立即加载ROI');
+        setTimeout(applyRoiAfterCapture, 100);
+      } else {
+        console.log('[采集点云] 等待图像加载...');
         image.onload = function() {
-          resizeCanvas();
-          window.rackLocatorSetRoi(pendingRoi);
-          state.pendingRoi = null;
-          window.tempPendingRoi = null;
+          console.log('[采集点云] 图像加载完成，触发ROI加载');
+          applyRoiAfterCapture();
         };
       }
-      
+
       if (data.source && data.source.indexOf('sample') === 0) {
         setStatus('⚠ 未取到真实相机数据，已回退模拟点云。请检查相机连接后重试。');
       } else {
-        setStatus(state.pendingRoi ? '点云已采集，配方 ROI 已自动显示。' : '点云已采集，请在图上拖拽绘制 ROI。');
+        setStatus('点云已采集，正在加载配方 ROI...');
       }
       
       // ✨ 新增：采集成功后，自动保存数据到离线目录
@@ -481,7 +602,7 @@
       state.token = raw.pointcloud_token;
       state.roi = null;
       state.displayRoi = null;
-      
+
       const previewUrl = raw.pointcloud_preview_url || raw.preview_image_url;
       if (previewUrl) image.src = previewUrl + '?t=' + Date.now();
       image.dataset.naturalWidth = raw.image_width;
@@ -492,19 +613,24 @@
       $('rl-roi-readout').style.display = 'block';
       $('rl-source').textContent = '数据源 ' + (raw.source || '导入');
       setReadout();
-      
-      // 如果有待应用的 ROI，在数据加载后自动应用
-      if (state.pendingRoi || window.tempPendingRoi) {
-        const pendingRoi = state.pendingRoi || window.tempPendingRoi;
+
+      // 图像加载完成后自动从配方加载2D ROI并显示在画布上
+      const applyRoiAfterImport = function() {
+        resizeCanvas();
+        autoLoadAndShowRecipeRoi();
+      };
+      if (image.complete && image.naturalWidth > 0) {
+        console.log('[导入数据] 图像已缓存，立即加载ROI');
+        setTimeout(applyRoiAfterImport, 100);
+      } else {
+        console.log('[导入数据] 等待图像加载...');
         image.onload = function() {
-          resizeCanvas();
-          window.rackLocatorSetRoi(pendingRoi);
-          state.pendingRoi = null;
-          window.tempPendingRoi = null;
+          console.log('[导入数据] 图像加载完成，触发ROI加载');
+          applyRoiAfterImport();
         };
       }
-      
-      setStatus(`已加载上一次的数据（${raw.source}），请在图上拖拽绘制 ROI。`);
+
+      setStatus(`已加载上一次的数据（${raw.source}），正在加载配方 ROI...`);
       console.log('[导入数据] 成功:', raw);
       
       // 同时保存数据到指定目录

@@ -37,7 +37,10 @@ def packages(request):
             pointcloud=cloud,
             hand_eye_matrix=hand_eye,
             robot_pose_matrix=robot_pose,
-            roi_config=data.get("roi_config") or {},
+            roi_config={
+                **(recipe.roi_config or {}),
+                **(data.get("roi_config") or {}),
+            },
             recipe=recipe,
             layer_no=int(data.get("layer_no") or recipe.layer_no),
             camera_info={
