@@ -556,26 +556,76 @@
           </div>
         </div>
 
-        <!-- 三项指标卡 -->
-        <div class="metric-cards">
-          <div class="metric-card idle" id="card-present">
-            <div class="metric-icon">🔍</div>
-            <div class="metric-label">泡棉存在</div>
-            <div class="metric-value" id="val-present">—</div>
-            <div class="metric-sub">核心判定项</div>
+        <!-- 详细检测结果区域（方案A：左右分侧） -->
+        <div id="detailed-result" style="display:none;">
+          
+          <!-- 配方标题 -->
+          <div style="padding:12px 16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;margin-bottom:16px;">
+            <div style="font-weight:700;font-size:14px;color:#0369a1;">
+              <span id="result-recipe-title">【POS0 配方 - 第1层泡棉检测】</span>
+            </div>
           </div>
-          <div class="metric-card idle" id="card-aligned">
-            <div class="metric-icon">📐</div>
-            <div class="metric-label">位置对齐</div>
-            <div class="metric-value" id="val-aligned">—</div>
-            <div class="metric-sub" id="sub-aligned">存在即 OK</div>
+
+          <!-- 左侧泡棉结果 -->
+          <div style="margin-bottom:20px;border:2px solid #e5e7eb;border-radius:8px;padding:14px;background:#fff;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:2px dashed #d1d5db;">
+              <span style="font-weight:800;font-size:15px;color:#374151;">━━━ 左侧泡棉 ━━━</span>
+              <span id="left-status-badge" style="padding:4px 10px;border-radius:4px;font-size:13px;font-weight:700;">-</span>
+            </div>
+            
+            <table style="width:100%;font-size:13px;line-height:2.2;">
+              <tr>
+                <td style="color:#6b7280;width:120px;"><strong>覆盖率:</strong></td>
+                <td id="left-coverage-detail" style="font-family:monospace;">-</td>
+              </tr>
+              <tr>
+                <td style="color:#6b7280;"><strong>交并比(IoU):</strong></td>
+                <td id="left-iou-detail" style="font-family:monospace;">-</td>
+              </tr>
+              <tr>
+                <td style="color:#6b7280;"><strong>位置偏移:</strong></td>
+                <td id="left-offset-detail" style="font-family:monospace;">-</td>
+              </tr>
+              <tr>
+                <td style="color:#6b7280;"><strong>综合得分:</strong></td>
+                <td id="left-score" style="font-family:monospace;font-weight:700;">-</td>
+              </tr>
+            </table>
           </div>
-          <div class="metric-card idle" id="card-lifted">
-            <div class="metric-icon">📋</div>
-            <div class="metric-label">边缘起翘</div>
-            <div class="metric-value" id="val-lifted">—</div>
-            <div class="metric-sub" id="sub-lifted">存在即 OK</div>
+
+          <!-- 右侧泡棉结果 -->
+          <div style="margin-bottom:20px;border:2px solid #e5e7eb;border-radius:8px;padding:14px;background:#fff;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:2px dashed #d1d5db;">
+              <span style="font-weight:800;font-size:15px;color:#374151;">━━━ 右侧泡棉 ━━━</span>
+              <span id="right-status-badge" style="padding:4px 10px;border-radius:4px;font-size:13px;font-weight:700;">-</span>
+            </div>
+            
+            <table style="width:100%;font-size:13px;line-height:2.2;">
+              <tr>
+                <td style="color:#6b7280;width:120px;"><strong>覆盖率:</strong></td>
+                <td id="right-coverage-detail" style="font-family:monospace;">-</td>
+              </tr>
+              <tr>
+                <td style="color:#6b7280;"><strong>交并比(IoU):</strong></td>
+                <td id="right-iou-detail" style="font-family:monospace;">-</td>
+              </tr>
+              <tr>
+                <td style="color:#6b7280;"><strong>位置偏移:</strong></td>
+                <td id="right-offset-detail" style="font-family:monospace;">-</td>
+              </tr>
+              <tr>
+                <td style="color:#6b7280;"><strong>综合得分:</strong></td>
+                <td id="right-score" style="font-family:monospace;font-weight:700;">-</td>
+              </tr>
+            </table>
           </div>
+
+          <!-- 最终判定 -->
+          <div id="final-verdict" style="padding:14px 18px;border-radius:6px;margin-bottom:16px;">
+            <div style="font-weight:800;font-size:15px;margin-bottom:4px;">━━━ 最终判定 ━━━</div>
+            <div id="final-verdict-text" style="font-size:14px;font-weight:700;">-</div>
+          </div>
+
         </div>
 
         <!-- 结果图 -->
@@ -1042,6 +1092,8 @@ document.getElementById('file-upload').addEventListener('change', async (e) => {
 
 // ── 渲染检测结果 ──────────────────────────────────────────
 function renderResult(r) {
+  console.log('渲染检测结果:', r);
+  
   // 判定横幅
   const banner = document.getElementById('verdict-banner');
   banner.className = 'verdict-banner ' + (r.is_passed ? 'pass' : 'fail');
@@ -1049,26 +1101,63 @@ function renderResult(r) {
   document.getElementById('verdict-text').textContent = r.is_passed ? '检测合格 · OK' : '检测不合格 · NG';
   let sub = r.is_passed
     ? '泡棉已检测到，贴附状态合格，进入下一循环'
-    : '泡棉未检测到，请人工核查是否漏贴！';
-  if (!r.is_passed && r.defect_type && r.defect_type !== 'MISSING') {
-    sub = `缺陷类型：${formatDefect(r.defect_type)}`;
-  }
+    : '泡棉检测异常，请查看下方详细信息';
   document.getElementById('verdict-sub').textContent = sub;
 
-  // 三项指标卡
-  setMetricCard('card-present', 'val-present', r.is_present, r.is_present ? '已检测到' : '未检测到', '🔍');
-  setMetricCard('card-aligned', 'val-aligned', r.is_aligned, r.is_aligned ? 'OK' : 'NG', '📐');
-  setMetricCard('card-lifted', 'val-lifted', !r.has_lifted_edge, !r.has_lifted_edge ? 'OK' : 'NG', '📋');
-
-  // 副标题说明
-  const subAligned = document.getElementById('sub-aligned');
-  const subLifted  = document.getElementById('sub-lifted');
-  if (r.is_present) {
-    subAligned.textContent = '存在即 OK';
-    subLifted.textContent  = '存在即 OK';
+  // 显示详细结果区域
+  document.getElementById('detailed-result').style.display = 'block';
+  
+  // 配方标题
+  const recipeTitle = `【POS${r.position_index} 配方 - 第${r.position_index + 1}层泡棉检测】`;
+  document.getElementById('result-recipe-title').textContent = recipeTitle;
+  
+  // 渲染左右侧结果
+  if (r.sides && (r.sides.left || r.sides.right)) {
+    renderSideResult('left', r.sides.left, r);
+    renderSideResult('right', r.sides.right, r);
   } else {
-    subAligned.textContent = '泡棉缺失';
-    subLifted.textContent  = '泡棉缺失';
+    // 兼容旧格式：没有sides字段时隐藏详细区域
+    document.getElementById('detailed-result').style.display = 'none';
+  }
+  
+  // 最终判定
+  const finalDiv = document.getElementById('final-verdict');
+  const finalText = document.getElementById('final-verdict-text');
+  if (r.is_passed) {
+    finalDiv.style.background = 'linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)';
+    finalDiv.style.border = '2px solid #10b981';
+    finalText.style.color = '#059669';
+    finalText.textContent = '✓ 合格';
+  } else {
+    finalDiv.style.background = 'linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%)';
+    finalDiv.style.border = '2px solid #ef4444';
+    finalText.style.color = '#dc2626';
+    
+    // 分析不合格原因
+    let reason = '';
+    if (r.sides) {
+      const leftNG = r.sides.left && !r.sides.left.is_present;
+      const rightNG = r.sides.right && !r.sides.right.is_present;
+      if (leftNG && rightNG) {
+        reason = '左右侧泡棉均缺失';
+      } else if (leftNG) {
+        reason = '左侧泡棉' + getDefectReason(r.sides.left);
+      } else if (rightNG) {
+        reason = '右侧泡棉' + getDefectReason(r.sides.right);
+      } else {
+        // 存在但不合格
+        const leftReason = getSideIssue(r.sides.left);
+        const rightReason = getSideIssue(r.sides.right);
+        if (leftReason && rightReason) {
+          reason = `左侧${leftReason}，右侧${rightReason}`;
+        } else {
+          reason = leftReason || rightReason || '质量不达标';
+        }
+      }
+    } else {
+      reason = formatDefect(r.defect_type);
+    }
+    finalText.textContent = '✗ 不合格 - ' + reason;
   }
 
   // 结果图
@@ -1079,7 +1168,7 @@ function renderResult(r) {
     document.getElementById('result-placeholder').style.display = 'none';
   }
 
-  // 详细数值
+  // 详细数值（保留原有显示）
   document.getElementById('d-pos').textContent   = r.position_index;
   document.getElementById('d-recipe').textContent = r.recipe?.name || currentDetectionRecipe()?.name || '默认配置';
   document.getElementById('d-score').textContent = Number(r.score).toFixed(3);
@@ -1094,8 +1183,108 @@ function renderResult(r) {
     document.getElementById('d-defect-chip').style.display = 'none';
   }
   
-  // 同步更新左侧预览的ROI框：确保左右两侧使用相同的配方ROI
+  // 同步更新左侧预览的ROI框
   syncResultRecipeToPreview(r);
+}
+
+// ── 渲染单侧结果（新增）────────────────────────────────────
+function renderSideResult(side, data, fullResult) {
+  if (!data) return;
+  
+  const prefix = side; // 'left' or 'right'
+  const sideName = side === 'left' ? '左侧' : '右侧';
+  
+  // 状态徽章
+  const badge = document.getElementById(`${prefix}-status-badge`);
+  if (data.is_present && data.is_aligned && data.is_complete) {
+    badge.textContent = '✓ 合格';
+    badge.style.background = '#dcfce7';
+    badge.style.color = '#059669';
+    badge.style.border = '1px solid #10b981';
+  } else {
+    const defect = getDefectReason(data);
+    badge.textContent = '✗ 不合格 (缺陷: ' + defect + ')';
+    badge.style.background = '#fee2e2';
+    badge.style.color = '#dc2626';
+    badge.style.border = '1px solid #ef4444';
+  }
+  
+  // 获取阈值
+  const coverageThreshold = fullResult.sides?.[side]?.coverage_threshold || 0.85;
+  const iouThreshold = fullResult.sides?.[side]?.iou_threshold || 0.70;
+  const maxOffsetMm = 2.0; // 默认2mm
+  
+  // 覆盖率
+  const coverage = data.coverage_ratio || 0;
+  const detectedPixels = data.detected_pixels || 0;
+  const standardPixels = data.standard_pixels || 0;
+  const coveragePercent = (coverage * 100).toFixed(1) + '%';
+  const pixelInfo = standardPixels ? ` (${detectedPixels} / ${standardPixels} 像素)` : '';
+  const coverageWarning = coverage < coverageThreshold ? ' ⚠️ 低于' + (coverageThreshold * 100).toFixed(0) + '%阈值' : '';
+  document.getElementById(`${prefix}-coverage-detail`).innerHTML = 
+    `<strong style="color:${coverage < coverageThreshold ? '#dc2626' : '#059669'}">${coveragePercent}</strong>${pixelInfo}${coverageWarning}`;
+  
+  // IoU
+  const iou = data.iou;
+  if (iou !== null && iou !== undefined) {
+    const iouPercent = (iou * 100).toFixed(1) + '%';
+    const iouWarning = iou < iouThreshold ? ' ⚠️ 低于' + (iouThreshold * 100).toFixed(0) + '%阈值' : '';
+    document.getElementById(`${prefix}-iou-detail`).innerHTML = 
+      `<strong style="color:${iou < iouThreshold ? '#dc2626' : '#059669'}">${iouPercent}</strong>${iouWarning}`;
+  } else {
+    document.getElementById(`${prefix}-iou-detail`).innerHTML = 
+      '<span style="color:#9ca3af;">N/A (无标准模板)</span>';
+  }
+  
+  // 位置偏移
+  const offsetMm = data.offset_distance_mm || 0;
+  const offsetPxX = data.offset_x_px || 0;
+  const offsetPxY = data.offset_y_px || 0;
+  const offsetStr = offsetMm.toFixed(2) + ' mm';
+  const offsetDetail = ` (${offsetPxX > 0 ? '+' : ''}${offsetPxX.toFixed(1)}px, ${offsetPxY > 0 ? '+' : ''}${offsetPxY.toFixed(1)}px)`;
+  const offsetWarning = offsetMm > maxOffsetMm ? ' ⚠️ 超出' + maxOffsetMm.toFixed(1) + 'mm限值' : '';
+  document.getElementById(`${prefix}-offset-detail`).innerHTML = 
+    `<strong style="color:${offsetMm > maxOffsetMm ? '#dc2626' : '#059669'}">${offsetStr}</strong>${offsetDetail}${offsetWarning}`;
+  
+  // 综合得分
+  const score = data.score || 0;
+  document.getElementById(`${prefix}-score`).innerHTML = 
+    `<strong style="color:${score >= 0.8 ? '#059669' : '#dc2626'}">${score.toFixed(3)}</strong>`;
+}
+
+// ── 获取缺陷原因（新增）────────────────────────────────────
+function getDefectReason(data) {
+  if (!data) return '未检测';
+  if (!data.is_present) {
+    const coverage = data.coverage_ratio || 0;
+    if (coverage < 0.05) {
+      return '缺失';
+    } else {
+      return '覆盖不足';
+    }
+  }
+  if (!data.is_aligned) return '位置偏移';
+  if (!data.is_complete) return '形状不完整';
+  return '未知';
+}
+
+// ── 获取单侧问题描述（新增）────────────────────────────────
+function getSideIssue(data) {
+  if (!data || data.is_present && data.is_aligned && data.is_complete) return '';
+  
+  const issues = [];
+  if (!data.is_present) {
+    const coverage = data.coverage_ratio || 0;
+    if (coverage < 0.05) {
+      issues.push('缺失');
+    } else {
+      issues.push(`覆盖不足(${(coverage * 100).toFixed(1)}%)`);
+    }
+  }
+  if (!data.is_aligned) issues.push('位置偏移');
+  if (!data.is_complete) issues.push('形状不完整');
+  
+  return issues.join('、');
 }
 
 // ── 同步结果配方到左侧预览 ─────────────────────────────────────

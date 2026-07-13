@@ -210,11 +210,24 @@ def _result_payload(foam_result):
         'is_passed': foam_result.is_passed,
         'offset_x_px': float(foam_result.offset_x_px),
         'offset_y_px': float(foam_result.offset_y_px),
+        'offset_x_mm': float(foam_result.offset_x_mm),
+        'offset_y_mm': float(foam_result.offset_y_mm),
         'coverage_ratio': float(foam_result.coverage_ratio),
         'defect_type': foam_result.defect_type,
         'result_image_url': result_image.file.url if result_image else '',
         'original_image_url': original_image.file.url if original_image else '',
     }
+    for key in (
+        'offset_distance_px',
+        'offset_distance_mm',
+        'iou',
+        'detected_pixels',
+        'standard_pixels',
+        'is_complete',
+        'sides',
+    ):
+        if key in foam_result.result_data:
+            payload[key] = foam_result.result_data[key]
     if foam_result.result_data.get('recipe'):
         payload['recipe'] = foam_result.result_data['recipe']
     return payload
@@ -659,6 +672,8 @@ def api_foam_upload_inspect(request):
             is_passed=result['is_passed'],
             offset_x_px=result['offset_x_px'],
             offset_y_px=result['offset_y_px'],
+            offset_x_mm=result.get('offset_x_mm', 0),
+            offset_y_mm=result.get('offset_y_mm', 0),
             coverage_ratio=result['coverage_ratio'],
             defect_type=result['defect_type'],
             result_data=result.get('result_data', {}),
