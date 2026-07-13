@@ -24,6 +24,124 @@ from django.db import models
 from . import image_io
 
 
+def generate_foam_mask(roi_image, cfg=None):
+    """Generate a binary foam mask for a single ROI.
+
+    The detector still uses traditional OpenCV thresholding. Downstream
+    metrics use this mask directly instead of the contour bounding rectangle.
+    """
+    cfg = cfg or {}
+    roi_img = roi_image.copy()
+
+    if cfg.get('denoise', False):
+        roi_img = cv2.fastNlMeansDenoisingColored(roi_img, None, 10, 10, 7, 21)
+
+    if cfg.get('use_clahe', False):
+        lab_temp = cv2.cvtColor(roi_img, cv2.COLOR_BGR2LAB)
+        l_channel, a_channel, b_channel = cv2.split(lab_temp)
+        clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+        l_channel = clahe.apply(l_channel)
+        roi_img = cv2.cvtColor(cv2.merge([l_channel, a_channel, b_channel]), cv2.COLOR_LAB2BGR)
+
+    hsv = cv2.cvtColor(roi_img, cv2.COLOR_BGR2HSV)
+    gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+    lab = cv2.cvtColor(roi_img, cv2.COLOR_BGR2LAB)
+
+    min_v = int(cfg.get('white_min_v', 150))
+    max_s = int(cfg.get('white_max_s', 100))
+    min_l = int(cfg.get('white_min_l', 160))
+    high_threshold = int(cfg.get('gray_high_threshold', 170))
+
+    mask_hsv = cv2.inRange(hsv, (0, 0, min_v), (180, max_s, 255))
+    mask_lab = cv2.inRange(lab[:, :, 0], min_l, 255)
+    _, mask_otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    _, mask_fixed = cv2.threshold(gray, high_threshold, 255, cv2.THRESH_BINARY)
+    mask_adaptive = cv2.adaptiveThreshold(
+        gray,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        blockSize=int(cfg.get('adaptive_block_size', 21)),
+        C=int(cfg.get('adaptive_c', -5)),
+    )
+
+    mask = cv2.bitwise_or(mask_hsv, mask_lab)
+    mask = cv2.bitwise_or(mask, mask_otsu)
+    mask = cv2.bitwise_or(mask, mask_fixed)
+    mask = cv2.bitwise_or(mask, mask_adaptive)
+
+    # Broader neutral gray/white candidate for shadowed foam.
+    foam_max_s = int(cfg.get('foam_max_s', 135))
+    foam_min_v = int(cfg.get('foam_min_v', 85))
+    foam_min_l = int(cfg.get('foam_min_l', 105))
+    neutral_mask = cv2.inRange(hsv[:, :, 1], 0, foam_max_s)
+    value_mask = cv2.inRange(hsv[:, :, 2], foam_min_v, 255)
+    lightness_mask = cv2.inRange(lab[:, :, 0], foam_min_l, 255)
+    foam_candidate_mask = cv2.bitwise_and(neutral_mask, cv2.bitwise_or(value_mask, lightness_mask))
+    mask = cv2.bitwise_or(mask, foam_candidate_mask)
+
+    green_mask = cv2.inRange(hsv, (35, 40, 40), (100, 255, 255))
+    mask = cv2.bitwise_and(mask, cv2.bitwise_not(green_mask))
+
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close, iterations=3)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_open, iterations=2)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close, iterations=1)
+    return mask
+
+
+def compute_mask_centroid(mask):
+    """Return the centroid of a binary mask as (x, y), or None for an empty mask."""
+    moments = cv2.moments(mask)
+    if moments['m00'] == 0:
+        return None
+    return (moments['m10'] / moments['m00'], moments['m01'] / moments['m00'])
+
+
+def compute_iou(mask1, mask2):
+    """Compute intersection-over-union for two binary masks."""
+    mask1_binary = (mask1 > 0).astype(np.uint8)
+    mask2_binary = (mask2 > 0).astype(np.uint8)
+    intersection_pixels = np.count_nonzero(cv2.bitwise_and(mask1_binary, mask2_binary))
+    union_pixels = np.count_nonzero(cv2.bitwise_or(mask1_binary, mask2_binary))
+    if union_pixels == 0:
+        return 0.0
+    return intersection_pixels / union_pixels
+
+
+def compute_coverage_ratio(detected_mask, standard_mask=None, roi_area=None):
+    """Compute foam coverage from actual mask pixels."""
+    detected_pixels = np.count_nonzero(detected_mask)
+    if standard_mask is not None:
+        standard_pixels = np.count_nonzero(standard_mask)
+        return 0.0 if standard_pixels == 0 else detected_pixels / standard_pixels
+    if not roi_area:
+        return 0.0
+    return detected_pixels / roi_area
+
+
+def compute_physical_offset(detected_mask, standard_mask, mm_per_pixel_x, mm_per_pixel_y):
+    """Compute mask-centroid offset in pixels and millimetres."""
+    detected_centroid = compute_mask_centroid(detected_mask)
+    standard_centroid = compute_mask_centroid(standard_mask)
+    if detected_centroid is None or standard_centroid is None:
+        return None
+
+    offset_x_px = detected_centroid[0] - standard_centroid[0]
+    offset_y_px = detected_centroid[1] - standard_centroid[1]
+    offset_x_mm = offset_x_px * float(mm_per_pixel_x or 0)
+    offset_y_mm = offset_y_px * float(mm_per_pixel_y or 0)
+    return {
+        'offset_x_px': round(offset_x_px, 2),
+        'offset_y_px': round(offset_y_px, 2),
+        'offset_x_mm': round(offset_x_mm, 3),
+        'offset_y_mm': round(offset_y_mm, 3),
+        'offset_distance_px': round(float(np.hypot(offset_x_px, offset_y_px)), 2),
+        'offset_distance_mm': round(float(np.hypot(offset_x_mm, offset_y_mm)), 3),
+    }
+
+
 def _offsets_mm(offset_x_px, offset_y_px, cfg):
     """Convert pixel offsets to millimetres using calibration factors.
 
@@ -89,6 +207,81 @@ def _ratio_box_to_pixels(ratio_box, width, height):
     x2 = int(round(width * x2_ratio))
     y2 = int(round(height * y2_ratio))
     return (x1, y1, x2, y2)
+
+
+def _load_standard_mask_for_side(cfg, side, expected_shape):
+    """Load an optional standard mask for a side from config.
+
+    Supported config formats:
+    - standard_masks: {'left': numpy_array_or_path, 'right': ...}
+    - standard_mask_paths: {'left': 'path/to/mask.png', 'right': ...}
+    - standard_mask_left / standard_mask_path_left, and right variants
+    """
+    mask_source = None
+    standard_masks = cfg.get('standard_masks')
+    if isinstance(standard_masks, dict):
+        mask_source = standard_masks.get(side)
+    standard_mask_paths = cfg.get('standard_mask_paths')
+    if mask_source is None and isinstance(standard_mask_paths, dict):
+        mask_source = standard_mask_paths.get(side)
+    if mask_source is None:
+        mask_source = cfg.get(f'standard_mask_{side}') or cfg.get(f'standard_mask_path_{side}')
+    if mask_source is None and side is None:
+        mask_source = cfg.get('standard_mask') or cfg.get('standard_mask_path')
+
+    if mask_source is None:
+        return None
+    if isinstance(mask_source, np.ndarray):
+        mask = mask_source
+    elif isinstance(mask_source, str):
+        mask = cv2.imread(mask_source, cv2.IMREAD_GRAYSCALE)
+        if mask is None:
+            return None
+    else:
+        return None
+
+    expected_height, expected_width = expected_shape
+    if mask.shape[:2] != (expected_height, expected_width):
+        mask = cv2.resize(mask, (expected_width, expected_height), interpolation=cv2.INTER_NEAREST)
+    return (mask > 0).astype(np.uint8) * 255
+
+
+def _largest_mask_box(mask, origin):
+    """Return the largest foreground contour box in absolute image coordinates."""
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
+    largest = max(contours, key=cv2.contourArea)
+    bx, by, bw, bh = cv2.boundingRect(largest)
+    x1, y1 = origin
+    return (x1 + bx, y1 + by, x1 + bx + bw, y1 + by + bh)
+
+
+def _empty_side_result(roi, *, reason=None, coverage_threshold=0.0, extra=None):
+    result = {
+        'roi': roi,
+        'box': None,
+        'is_present': False,
+        'is_aligned': False,
+        'coverage_ratio': 0.0,
+        'iou': None,
+        'detected_pixels': 0,
+        'standard_pixels': None,
+        'is_complete': False,
+        'offset_x_px': 0.0,
+        'offset_y_px': 0.0,
+        'offset_x_mm': 0.0,
+        'offset_y_mm': 0.0,
+        'offset_distance_px': 0.0,
+        'offset_distance_mm': 0.0,
+        'score': 0.0,
+        'coverage_threshold': coverage_threshold,
+    }
+    if reason:
+        result['reason'] = reason
+    if extra:
+        result.update(extra)
+    return result
 
 
 def _detect_foam_in_image(image, roi, cfg=None):
@@ -359,7 +552,7 @@ def _apply_image_quality_adjustments(cfg, quality_analysis):
     return adjusted_cfg
 
 
-def _detect_foam_side(image, roi, cfg):
+def _detect_foam_side(image, roi, cfg, side=None):
     """检测单侧（左或右）ROI 内的泡棉。
     
     Args:
@@ -374,292 +567,139 @@ def _detect_foam_side(image, roi, cfg):
     roi_img = image[y1:y2, x1:x2].copy()
     roi_height, roi_width = roi_img.shape[:2]
     roi_area = max(roi_width * roi_height, 1)
-    
-    # 覆盖率阈值：根据实际场景调整
-    # 降低阈值以适应不同尺寸的ROI配置，避免误判
     coverage_threshold = float(cfg.get('coverage_threshold', 0.08))
-    
-    if roi_width < 5 or roi_height < 5:
-        return {
-            'roi': roi,
-            'box': None,
-            'is_present': False,
-            'is_aligned': False,
-            'coverage_ratio': 0.0,
-            'offset_x_px': 0.0,
-            'offset_y_px': 0.0,
-            'score': 0.0,
-        }
+    iou_threshold = float(cfg.get('iou_threshold', cfg.get('min_iou', 0.70)))
+    max_offset_px = float(cfg.get('max_offset_px', 30))
 
-    # === 图像预处理（根据配置应用增强） ===
-    
-    # 降噪处理
-    if cfg.get('denoise', False):
-        roi_img = cv2.fastNlMeansDenoisingColored(roi_img, None, 10, 10, 7, 21)
-    
-    # 对比度增强（CLAHE）
-    if cfg.get('use_clahe', False):
-        lab_temp = cv2.cvtColor(roi_img, cv2.COLOR_BGR2LAB)
-        l_channel, a_channel, b_channel = cv2.split(lab_temp)
-        clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
-        l_channel = clahe.apply(l_channel)
-        roi_img = cv2.cvtColor(cv2.merge([l_channel, a_channel, b_channel]), cv2.COLOR_LAB2BGR)
-    
+    if roi_width < 5 or roi_height < 5:
+        return _empty_side_result(roi, reason='roi_too_small', coverage_threshold=coverage_threshold)
+
     hsv = cv2.cvtColor(roi_img, cv2.COLOR_BGR2HSV)
-    gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
-    lab = cv2.cvtColor(roi_img, cv2.COLOR_BGR2LAB)
-    
-    # 可选：黑色底座检测（确保保险杠在视野内）
     if cfg.get('require_dark_support'):
         dark_mask = cv2.inRange(hsv[:, :, 2], 0, int(cfg.get('dark_max_v', 65)))
         dark_ratio = cv2.countNonZero(dark_mask) / roi_area
         if dark_ratio < float(cfg.get('min_dark_ratio', 0.002)):
-            return {
-                'roi': roi,
-                'box': None,
-                'is_present': False,
-                'is_aligned': False,
-                'coverage_ratio': 0.0,
-                'offset_x_px': 0.0,
-                'offset_y_px': 0.0,
-                'score': 0.0,
-                'reason': 'no_dark_support',
-                'dark_ratio': round(dark_ratio, 4),
-            }
+            return _empty_side_result(
+                roi,
+                reason='no_dark_support',
+                coverage_threshold=coverage_threshold,
+                extra={'dark_ratio': round(dark_ratio, 4)},
+            )
 
-    # 白色检测：HSV + LAB 双策略（降低阈值以提高检测灵敏度）
-    min_v = int(cfg.get('white_min_v', 150))  # 从170降到150，更容易检测到白色
-    max_s = int(cfg.get('white_max_s', 100))  # 从80提高到100，允许更多饱和度范围
-    min_l = int(cfg.get('white_min_l', 160))  # 从175降到160，LAB空间更宽容
-    white_hsv = cv2.inRange(hsv, (0, 0, min_v), (180, max_s, 255))
-    white_lab = cv2.inRange(lab[:, :, 0], min_l, 255)
-    mask = cv2.bitwise_or(white_hsv, white_lab)
+    mask = generate_foam_mask(roi_img, cfg)
 
-    # 排除绿色区域（避免误检绿色背景物体）
-    green_mask = cv2.inRange(hsv, (35, 40, 40), (100, 255, 255))
-
-    # 边界忽略（避免边缘反光误检）- 减小边界忽略范围，提高检测覆盖
-    border_ratio = float(cfg.get('ignore_border_ratio', 0.02))  # 从0.04降到0.02
+    border_ratio = float(cfg.get('ignore_border_ratio', 0.02))
     border_x = int(round(roi_width * max(0.0, min(0.25, border_ratio))))
     border_y = int(round(roi_height * max(0.0, min(0.25, border_ratio))))
+    if border_x > 0:
+        mask[:, :border_x] = 0
+        mask[:, roi_width - border_x:] = 0
+    if border_y > 0:
+        mask[:border_y, :] = 0
+        mask[roi_height - border_y:, :] = 0
 
-    # 形态学操作：增强闭运算以更好地连接泡棉区域
-    kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
-    kernel_open = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-    
-    # 降低最小面积阈值，提高检测灵敏度
-    min_area = roi_area * float(cfg.get('side_min_area_ratio', 0.05))  # 从0.15降到0.05
-    max_area = roi_area * float(cfg.get('side_max_area_ratio', 0.98))  # 从0.95提高到0.98
+    detected_pixels = int(np.count_nonzero(mask))
+    standard_mask = _load_standard_mask_for_side(cfg, side, (roi_height, roi_width))
+    standard_pixels = int(np.count_nonzero(standard_mask)) if standard_mask is not None else None
+    coverage_ratio = round(compute_coverage_ratio(mask, standard_mask, roi_area), 4)
+    iou = round(compute_iou(mask, standard_mask), 4) if standard_mask is not None else None
+    centroid = compute_mask_centroid(mask)
+    box = _largest_mask_box(mask, (x1, y1))
 
-    def prepare_mask(raw_mask):
-        """准备最终检测mask：排除绿色、边界，形态学处理"""
-        prepared = cv2.bitwise_and(raw_mask, cv2.bitwise_not(green_mask))
-        if border_x > 0:
-            prepared[:, :border_x] = 0
-            prepared[:, roi_width - border_x:] = 0
-        if border_y > 0:
-            prepared[:border_y, :] = 0
-            prepared[roi_height - border_y:, :] = 0
-        # 增强形态学处理
-        prepared = cv2.morphologyEx(prepared, cv2.MORPH_CLOSE, kernel_close, iterations=3)  # 从2增加到3
-        prepared = cv2.morphologyEx(prepared, cv2.MORPH_OPEN, kernel_open, iterations=2)  # 增加开运算次数
-        if border_x > 0:
-            prepared[:, :border_x] = 0
-            prepared[:, roi_width - border_x:] = 0
-        if border_y > 0:
-            prepared[:border_y, :] = 0
-            prepared[roi_height - border_y:, :] = 0
-        return prepared
-
-    def find_best(mask_to_check):
-        """从mask中找到最佳泡棉轮廓候选"""
-        contours, _ = cv2.findContours(mask_to_check, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        best_candidate = None
-        best_area = 0
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if area < min_area or area > max_area:
-                continue
-            bx, by, bw, bh = cv2.boundingRect(contour)
-            aspect = bw / max(bh, 1)
-            if aspect < 0.1 or aspect > 10:  # 放宽宽高比限制，从0.15-8改为0.1-10
-                continue
-            compactness = area / max(bw * bh, 1)
-            if compactness < float(cfg.get('side_min_compactness', 0.20)):  # 从0.25降到0.20
-                continue
-            if area > best_area:
-                best_candidate = (bx, by, bw, bh, area)
-                best_area = area
-        return best_candidate
-
-    mask = prepare_mask(mask)
-
-    # 核心判定：计算白色像素覆盖率（基于实际像素数，而非轮廓边界框面积）
-    strict_mask = mask
-    white_pixel_count = cv2.countNonZero(strict_mask)
-    white_pixel_coverage = round(white_pixel_count / roi_area, 4)
-
-    # Production coverage should approximate the filled visible foam region,
-    # not only pure-white pixels. Shadowed foam is often gray, so build a
-    # broader neutral gray/white candidate mask and measure its contour area.
-    foam_max_s = int(cfg.get('foam_max_s', 135))
-    foam_min_v = int(cfg.get('foam_min_v', 85))
-    foam_min_l = int(cfg.get('foam_min_l', 105))
-    neutral_mask = cv2.inRange(hsv[:, :, 1], 0, foam_max_s)
-    value_mask = cv2.inRange(hsv[:, :, 2], foam_min_v, 255)
-    lightness_mask = cv2.inRange(lab[:, :, 0], foam_min_l, 255)
-    foam_candidate_mask = cv2.bitwise_and(
-        neutral_mask,
-        cv2.bitwise_or(value_mask, lightness_mask),
-    )
-    mask = prepare_mask(cv2.bitwise_or(strict_mask, foam_candidate_mask))
-
-    best_for_coverage = find_best(mask)
-
-    # 标准面积比模式：以标定面积为基准衡量覆盖率
-    # standard_foam_area_ratio = 泡棉标准面积 / ROI面积（标定阶段记录）
-    # coverage = detected_area / standard_area → 1.0 完美匹配
-    standard_ratio = float(cfg.get('standard_foam_area_ratio', 0) or 0)
-    using_standard_area = standard_ratio > 0
-
-    if best_for_coverage:
-        _, _, bw, bh, area = best_for_coverage
-        envelope_coverage = round((bw * bh) / roi_area, 4)
-        contour_coverage = round(area / roi_area, 4)
-
-        if using_standard_area:
-            standard_area = standard_ratio * roi_area
-            white_area_cov = round(white_pixel_count / max(standard_area, 1), 4)
-            contour_area_cov = round(area / max(standard_area, 1), 4)
-            pixel_coverage = max(white_area_cov, contour_area_cov)
-        else:
-            pixel_coverage = max(white_pixel_coverage, contour_coverage)
-    else:
-        envelope_coverage = 0.0
-        contour_coverage = 0.0
-        if using_standard_area:
-            standard_area = standard_ratio * roi_area
-            pixel_coverage = round(white_pixel_count / max(standard_area, 1), 4)
-        else:
-            pixel_coverage = white_pixel_coverage
-
-    # 核心判定：覆盖率必须达到阈值才认为有泡棉
-    if pixel_coverage < coverage_threshold:
-        # 覆盖率不足，判定为无泡棉
-        # 仍然尝试找轮廓用于结果图标注（显示检测到了什么）
-        best = find_best(mask)
-        box = None
-        if best:
-            bx, by, bw, bh, area = best
-            box = (x1 + bx, y1 + by, x1 + bx + bw, y1 + by + bh)
-        return {
-            'roi': roi,
-            'box': box,
-            'is_present': False,
-            'is_aligned': False,
-            'coverage_ratio': pixel_coverage,
-            'white_pixel_coverage': white_pixel_coverage,
-            'envelope_coverage': envelope_coverage,
-            'contour_coverage': contour_coverage,
-            'coverage_source': 'foam_region_envelope',
-            'offset_x_px': 0.0,
-            'offset_y_px': 0.0,
-            'score': round(pixel_coverage / max(coverage_threshold, 0.01), 3),
-            'reason': 'coverage_below_threshold',
-            'coverage_threshold': coverage_threshold,
-            'offset_x_mm': _offsets_mm(0.0, 0.0, cfg)[0],
-            'offset_y_mm': _offsets_mm(0.0, 0.0, cfg)[1],
+    white_pixel_coverage = round(detected_pixels / roi_area, 4)
+    if standard_mask is not None:
+        offset = compute_physical_offset(
+            mask,
+            standard_mask,
+            cfg.get('mm_per_pixel_x', 0),
+            cfg.get('mm_per_pixel_y', 0),
+        )
+    elif centroid is not None:
+        roi_cx = roi_width / 2
+        roi_cy = roi_height / 2
+        offset_x = round(centroid[0] - roi_cx, 2)
+        offset_y = round(centroid[1] - roi_cy, 2)
+        offset_x_mm, offset_y_mm = _offsets_mm(offset_x, offset_y, cfg)
+        offset = {
+            'offset_x_px': offset_x,
+            'offset_y_px': offset_y,
+            'offset_x_mm': offset_x_mm,
+            'offset_y_mm': offset_y_mm,
+            'offset_distance_px': round(float(np.hypot(offset_x, offset_y)), 2),
+            'offset_distance_mm': round(float(np.hypot(offset_x_mm, offset_y_mm)), 3),
         }
-
-    best = find_best(mask)
-
-    # 低光灰白兜底检测：默认关闭，因实际场景白色泡棉与黑色保险杠对比度足够
-    if not best and cfg.get('enable_low_light_gray_detection', False):
-        gray_blur = cv2.GaussianBlur(gray, (5, 5), 0)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(gray_blur)
-        _, otsu_mask = cv2.threshold(clahe, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        min_gray = int(cfg.get('low_light_min_gray', 100))
-        delta_gray = float(cfg.get('low_light_delta_gray', 8))
-        local_floor = int(max(min_gray, min(255, np.percentile(gray_blur, 25) + delta_gray)))
-        relative_mask = cv2.inRange(gray_blur, local_floor, 255)
-        neutral_mask = cv2.inRange(hsv[:, :, 1], 0, int(cfg.get('low_light_max_s', 50)))
-        brightness_mask = cv2.inRange(hsv[:, :, 2], min_gray, 255)
-        low_light_mask = cv2.bitwise_or(otsu_mask, relative_mask)
-        low_light_mask = cv2.bitwise_and(low_light_mask, neutral_mask)
-        low_light_mask = cv2.bitwise_and(low_light_mask, brightness_mask)
-        mask = prepare_mask(low_light_mask)
-        # 重新计算低光模式下的像素覆盖率
-        white_pixel_count = cv2.countNonZero(mask)
-        pixel_coverage = round(white_pixel_count / roi_area, 4)
-        if pixel_coverage < coverage_threshold:
-            return {
-                'roi': roi,
-                'box': None,
-                'is_present': False,
-                'is_aligned': False,
-                'coverage_ratio': pixel_coverage,
-                'offset_x_px': 0.0,
-                'offset_y_px': 0.0,
-                'score': 0.0,
-                'reason': 'low_light_coverage_below_threshold',
-                'coverage_threshold': coverage_threshold,
-                'offset_x_mm': _offsets_mm(0.0, 0.0, cfg)[0],
-                'offset_y_mm': _offsets_mm(0.0, 0.0, cfg)[1],
-            }
-        best = find_best(mask)
-
-    if not best:
-        return {
-            'roi': roi,
-            'box': None,
-            'is_present': False,
-            'is_aligned': False,
-            'coverage_ratio': pixel_coverage,
-            'offset_x_px': 0.0,
-            'offset_y_px': 0.0,
-            'offset_x_mm': 0.0,
-            'offset_y_mm': 0.0,
-            'score': 0.0,
-        }
-
-    bx, by, bw, bh, area = best
-    box = (x1 + bx, y1 + by, x1 + bx + bw, y1 + by + bh)
-
-    # Centroid via image moments for sub-bbox accuracy on irregular foam
-    _moments = cv2.moments(mask)
-    if _moments['m00'] > 0:
-        foam_cx = x1 + round(_moments['m10'] / _moments['m00'], 1)
-        foam_cy = y1 + round(_moments['m01'] / _moments['m00'], 1)
     else:
-        foam_cx = (box[0] + box[2]) / 2
-        foam_cy = (box[1] + box[3]) / 2
+        offset = None
 
-    roi_cx = (x1 + x2) / 2
-    roi_cy = (y1 + y2) / 2
-    offset_x = round(foam_cx - roi_cx, 1)
-    offset_y = round(foam_cy - roi_cy, 1)
-    _mm_x, _mm_y = _offsets_mm(offset_x, offset_y, cfg)
-    # 使用像素级覆盖率（白色像素数 / ROI 总面积），而非轮廓边界框面积比
-    coverage_ratio = pixel_coverage
-    is_aligned = True
-    score = round(max(0.85, min(1.0, coverage_ratio / max(coverage_threshold, 0.01))), 3)
-    return {
+    if centroid is None or detected_pixels == 0:
+        return _empty_side_result(
+            roi,
+            reason='no_foam_detected',
+            coverage_threshold=coverage_threshold,
+            extra={
+                'coverage_ratio': coverage_ratio,
+                'white_pixel_coverage': white_pixel_coverage,
+                'detected_pixels': detected_pixels,
+                'standard_pixels': standard_pixels,
+                'iou': iou,
+                'box': box,
+            },
+        )
+
+    if coverage_ratio < coverage_threshold:
+        result = _empty_side_result(
+            roi,
+            reason='coverage_below_threshold',
+            coverage_threshold=coverage_threshold,
+            extra={
+                'box': box,
+                'coverage_ratio': coverage_ratio,
+                'white_pixel_coverage': white_pixel_coverage,
+                'detected_pixels': detected_pixels,
+                'standard_pixels': standard_pixels,
+                'iou': iou,
+                'score': round(coverage_ratio / max(coverage_threshold, 0.01), 3),
+            },
+        )
+        if offset:
+            result.update(offset)
+        return result
+
+    offset_distance_px = offset['offset_distance_px'] if offset else 0.0
+    is_aligned = True if standard_mask is None else offset_distance_px <= max_offset_px
+    is_complete = iou is None or iou >= iou_threshold
+    score = round(max(0.0, min(1.0, coverage_ratio / max(coverage_threshold, 0.01))), 3)
+    if iou is not None:
+        score = round(min(score, iou), 3)
+
+    result = {
         'roi': roi,
         'box': box,
         'is_present': True,
         'is_aligned': is_aligned,
         'coverage_ratio': coverage_ratio,
         'white_pixel_coverage': white_pixel_coverage,
-        'envelope_coverage': envelope_coverage,
-        'contour_coverage': contour_coverage,
-        'coverage_source': 'standard_area_ratio' if using_standard_area else 'foam_region_envelope',
-        'standard_foam_area_ratio': standard_ratio if using_standard_area else 0.0,
-        'offset_x_px': offset_x,
-        'offset_y_px': offset_y,
-        'offset_x_mm': _mm_x,
-        'offset_y_mm': _mm_y,
+        'coverage_source': 'standard_mask' if standard_mask is not None else 'roi_pixel_ratio',
+        'detected_pixels': detected_pixels,
+        'standard_pixels': standard_pixels,
+        'iou': iou,
+        'iou_threshold': iou_threshold if iou is not None else None,
+        'is_complete': is_complete,
         'score': score,
+        'coverage_threshold': coverage_threshold,
     }
+    if offset:
+        result.update(offset)
+    else:
+        result.update({
+            'offset_x_px': 0.0,
+            'offset_y_px': 0.0,
+            'offset_x_mm': 0.0,
+            'offset_y_mm': 0.0,
+            'offset_distance_px': 0.0,
+            'offset_distance_mm': 0.0,
+        })
+    return result
 
 
 def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
@@ -678,12 +718,20 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
     sides = {}
     for side, ratio_box in side_roi_config.items():
         roi = _ratio_box_to_pixels(ratio_box, width, height)
-        sides[side] = _detect_foam_side(image, roi, cfg)
+        sides[side] = _detect_foam_side(image, roi, cfg, side=side)
 
     missing = [side for side, data in sides.items() if not data['is_present']]
+    misaligned = [side for side, data in sides.items() if not data.get('is_aligned', False)]
+    incomplete = [side for side, data in sides.items() if not data.get('is_complete', True)]
     present_sides = [data for data in sides.values() if data['box']]
     if missing:
         defect_type = FoamDefectType.MISSING
+        is_passed = False
+    elif misaligned:
+        defect_type = FoamDefectType.MISALIGNED
+        is_passed = False
+    elif incomplete:
+        defect_type = FoamDefectType.LIFTED_EDGE
         is_passed = False
     else:
         defect_type = FoamDefectType.NONE
@@ -713,17 +761,31 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
     offsets_y = [data['offset_y_px'] for data in sides.values()]
     offsets_x_mm = [data.get('offset_x_mm', 0.0) for data in sides.values()]
     offsets_y_mm = [data.get('offset_y_mm', 0.0) for data in sides.values()]
+    offset_distances_px = [data.get('offset_distance_px', 0.0) for data in sides.values()]
+    offset_distances_mm = [data.get('offset_distance_mm', 0.0) for data in sides.values()]
+    ious = [data.get('iou') for data in sides.values() if data.get('iou') is not None]
+    detected_pixels = [data.get('detected_pixels', 0) for data in sides.values()]
+    standard_pixels = [
+        data.get('standard_pixels') for data in sides.values()
+        if data.get('standard_pixels') is not None
+    ]
     result = {
         'is_present': not missing,
-        'is_aligned': not missing,
-        'has_lifted_edge': bool(missing),
+        'is_aligned': not missing and not misaligned,
+        'has_lifted_edge': bool(missing or incomplete),
         'defect_type': defect_type,
         'score': round(min(scores) if scores else 0.0, 3),
         'offset_x_px': round(max(offsets_x, key=abs) if offsets_x else 0.0, 1),
         'offset_y_px': round(max(offsets_y, key=abs) if offsets_y else 0.0, 1),
         'offset_x_mm': round(max(offsets_x_mm, key=abs) if offsets_x_mm else 0.0, 3),
         'offset_y_mm': round(max(offsets_y_mm, key=abs) if offsets_y_mm else 0.0, 3),
+        'offset_distance_px': round(max(offset_distances_px) if offset_distances_px else 0.0, 2),
+        'offset_distance_mm': round(max(offset_distances_mm) if offset_distances_mm else 0.0, 3),
         'coverage_ratio': round(min(coverage) if coverage else 0.0, 4),
+        'iou': round(min(ious), 4) if ious else None,
+        'detected_pixels': int(sum(detected_pixels)),
+        'standard_pixels': int(sum(standard_pixels)) if standard_pixels else None,
+        'is_complete': not incomplete,
         'is_passed': is_passed,
     }
     return result, roi, foam, sides
@@ -842,7 +904,15 @@ class FoamInspector:
                         'foam_box': foam,
                         'offset_x_px': result['offset_x_px'],
                         'offset_y_px': result['offset_y_px'],
+                        'offset_x_mm': result.get('offset_x_mm', 0.0),
+                        'offset_y_mm': result.get('offset_y_mm', 0.0),
+                        'offset_distance_px': result.get('offset_distance_px', 0.0),
+                        'offset_distance_mm': result.get('offset_distance_mm', 0.0),
                         'coverage_ratio': result['coverage_ratio'],
+                        'iou': result.get('iou'),
+                        'detected_pixels': result.get('detected_pixels', 0),
+                        'standard_pixels': result.get('standard_pixels'),
+                        'is_complete': result.get('is_complete', True),
                         'score_threshold': score_threshold,
                         'coverage_threshold': coverage_threshold,
                         'max_offset_px': max_offset_px,

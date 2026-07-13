@@ -17,7 +17,13 @@ from django.urls import NoReverseMatch, reverse
 
 from apps.core.constants import ResultStatus, VisionImageType, VisionTaskType
 from apps.production.models import Product, Rack, RackRecipe
-from apps.vision.algorithms.foam_inspector import FoamDefectType, FoamInspector
+from apps.vision.algorithms.foam_inspector import (
+    FoamDefectType,
+    FoamInspector,
+    compute_iou,
+    compute_mask_centroid,
+    generate_foam_mask,
+)
 from apps.vision.models import (
     CalibrationProfile,
     FoamInspectionResult,
@@ -32,6 +38,63 @@ from apps.vision.recipe_utils import (
     serialize_recipe,
 )
 from apps.vision.services import VisionService
+
+
+class FoamPixelSegmentationTests(SimpleTestCase):
+    def test_compute_mask_centroid_uses_actual_mask_pixels(self):
+        mask = np.zeros((100, 100), dtype=np.uint8)
+        mask[10:80, 10:35] = 255
+        mask[55:80, 10:90] = 255
+
+        centroid = compute_mask_centroid(mask)
+
+        self.assertIsNotNone(centroid)
+        self.assertLess(centroid[0], 50.0)
+        self.assertGreater(centroid[1], 45.0)
+
+    def test_compute_iou_for_partial_overlap(self):
+        mask1 = np.zeros((100, 100), dtype=np.uint8)
+        mask1[25:75, 25:75] = 255
+        mask2 = np.zeros((100, 100), dtype=np.uint8)
+        mask2[50:100, 25:75] = 255
+
+        self.assertAlmostEqual(compute_iou(mask1, mask2), 1 / 3, places=2)
+
+    def test_calibrated_foam_uses_standard_mask_metrics(self):
+        image = np.zeros((100, 200, 3), dtype=np.uint8)
+        image[:, :] = (20, 20, 20)
+        image[30:70, 25:65] = 245
+        image[30:70, 125:165] = 245
+        standard = generate_foam_mask(image[10:90, 0:80], {})
+        standard[:, :2] = 0
+        standard[:, 78:] = 0
+        standard[:2, :] = 0
+        standard[78:, :] = 0
+
+        result = FoamInspector().inspect(
+            image=image,
+            inspection_config={
+                'foam_rois': {
+                    '0': {
+                        'left': (0.0, 0.1, 0.4, 0.9),
+                        'right': (0.5, 0.1, 0.9, 0.9),
+                    },
+                },
+                'coverage_threshold': 0.90,
+                'iou_threshold': 0.70,
+                'standard_masks': {'left': standard, 'right': standard},
+                'max_offset_px': 2,
+            },
+            simulated_pass=False,
+        )
+
+        self.assertTrue(result['is_passed'])
+        left = result['result_data']['sides']['left']
+        self.assertGreater(left['detected_pixels'], 0)
+        self.assertEqual(left['detected_pixels'], left['standard_pixels'])
+        self.assertAlmostEqual(left['coverage_ratio'], 1.0, places=2)
+        self.assertAlmostEqual(left['iou'], 1.0, places=2)
+        self.assertEqual(left['offset_distance_px'], 0.0)
 
 
 class Rack3DSemanticMappingTests(SimpleTestCase):
