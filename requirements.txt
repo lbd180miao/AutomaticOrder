@@ -1,7 +1,7 @@
 Django==6.0.6
-opencv-python
-numpy
-scipy
-open3d
-Pillow
-requests
+opencv-python==4.10.0.84
+numpy==1.26.4
+scipy==1.17.1
+open3d==0.19.0
+Pillow==10.3.0
+requests==2.33.1

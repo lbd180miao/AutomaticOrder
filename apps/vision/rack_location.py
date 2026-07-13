@@ -425,8 +425,8 @@ class RackPoseEstimator:
             elif 'T_flange_camera' in hand_eye_config:
                 # 直接包含变换矩阵
                 has_valid_calibration = True
-            elif matrix_type == 'identity' and skip_calibration_check:
-                # 开发模式：允许使用单位矩阵（相机坐标系 = 机器人坐标系）
+            elif matrix_type == 'identity':
+                # 显式单位矩阵用于相机坐标系与机器人坐标系已重合的工位。
                 has_valid_calibration = True
         
         if not has_valid_calibration and not skip_calibration_check:
@@ -884,10 +884,11 @@ class Rack3DLocator:
         rack_side 和其它额外参数由适配层内部处理，此处接受但不强制传递。
         """
         recipe = self._select_recipe(recipe_id=recipe_id, layer_no=layer_no) if recipe_id else None
-        position_no = 1  # 固定为1
+        position_no = int(getattr(recipe, 'position_no', 1) or 1)
         layer_no = int(getattr(recipe, 'layer_no', layer_no) or layer_no)
         layer_count = int(getattr(recipe, 'layer_count', 3) or 3)
-        side_key = RackSide.LEFT  # 固定为LEFT用于显示
+        requested_side = rack_side or getattr(recipe, 'rack_side', RackSide.LEFT)
+        side_key = requested_side if requested_side in {RackSide.LEFT, RackSide.RIGHT} else RackSide.LEFT
 
         pointcloud = None
         source = 'sample'
@@ -896,7 +897,7 @@ class Rack3DLocator:
             probe_recipe = recipe or RackLocationRecipe(
                 recipe_name='VISION-3D-CAPTURE',
                 rack_side=RackSide.BOTH,
-                position_no=1,
+                position_no=position_no,
                 layer_no=layer_no,
                 layer_count=layer_count,
                 hand_eye_config={'matrix': 'identity'},
@@ -919,7 +920,7 @@ class Rack3DLocator:
             source = 'sample'
 
         token, preview_url, width, height = self._persist_frame(pointcloud)
-        return {
+        payload = {
             'pointcloud_token': token,
             'pointcloud_preview_url': preview_url,
             'raw_rgb_image_url': preview_url,
@@ -929,6 +930,12 @@ class Rack3DLocator:
             'source': source,
             'fallback_reason': fallback_reason,
         }
+        if recipe and recipe.roi_config:
+            payload['recipe_pixel_roi'] = RackLocationService(
+                frame_provider=self.frame_provider,
+                plc_writer=self.plc_writer,
+            ).project_recipe_roi_to_pixels(pointcloud, recipe)
+        return payload
 
     def auto_align(self, *, token, recipe_id=None) -> dict:
         pointcloud = self._load_pointcloud(token)
@@ -1467,9 +1474,10 @@ class RackLocationService:
         self.estimator = estimator or RackPoseEstimator()
         self.plc_writer = plc_writer or PlcVisionResultWriter()
 
-    def _select_recipe(self, *, recipe_id=None, layer_no: int) -> RackLocationRecipe:
-        """选择配方（简化版：固定position_no=1）"""
-        qs = RackLocationRecipe.objects.filter(enabled=True, position_no=1)
+    def _select_recipe(self, *, recipe_id=None, position_no: int = 1,
+                       layer_no: int) -> RackLocationRecipe:
+        """Select the enabled recipe for the requested workstation and layer."""
+        qs = RackLocationRecipe.objects.filter(enabled=True, position_no=position_no)
         if recipe_id:
             return qs.get(pk=recipe_id)
         return qs.get(layer_no=layer_no)
@@ -1548,62 +1556,70 @@ class RackLocationService:
         if cloud.ndim == 2:
             raise ValueError("project_recipe_roi_to_pixels requires organized pointcloud (H, W, 3)")
 
-        z = cloud[:, :, 2]
-        valid = np.isfinite(z) & (np.abs(z) > 1e-9)
+        height, width = cloud.shape[:2]
+        intrinsics = config.get('camera_intrinsics') or {}
+        fx = float(intrinsics.get('fx', image_io.PINHOLE_FX))
+        fy = float(intrinsics.get('fy', image_io.PINHOLE_FY))
+        cx = float(intrinsics.get('cx', width / 2.0))
+        cy = float(intrinsics.get('cy', height / 2.0))
+
+        def project_box(camera_bounds, source):
+            corners = np.array([
+                [x, y, z]
+                for x in (camera_bounds['x_min'], camera_bounds['x_max'])
+                for y in (camera_bounds['y_min'], camera_bounds['y_max'])
+                for z in (camera_bounds['z_min'], camera_bounds['z_max'])
+            ], dtype=float)
+            positive = corners[:, 2] > 1e-9
+            if not positive.any():
+                return None
+            corners = corners[positive]
+            u = fx * corners[:, 0] / corners[:, 2] + cx
+            v = fy * corners[:, 1] / corners[:, 2] + cy
+            x1 = max(0, int(np.floor(u.min())) - 1)
+            y1 = max(0, int(np.floor(v.min())) - 1)
+            x2 = min(width, int(np.ceil(u.max())) + 1)
+            y2 = min(height, int(np.ceil(v.max())) + 1)
+            if x2 <= x1 or y2 <= y1:
+                return None
+            return {
+                'x': x1, 'y': y1, 'w': x2 - x1, 'h': y2 - y1,
+                'projection_source': source,
+                'feature_type': 'recipe_3d_roi',
+            }
 
         camera_roi = config.get('camera_roi')
         if camera_roi:
             bounds = self.estimator.processor._normalized_roi_3d(camera_roi)
-            projection_source = 'camera_roi'
-            x = cloud[:, :, 0]
-            y = cloud[:, :, 1]
-            in_roi = (
-                valid
-                & (x >= bounds['x_min']) & (x <= bounds['x_max'])
-                & (y >= bounds['y_min']) & (y <= bounds['y_max'])
-                & (z >= bounds['z_min']) & (z <= bounds['z_max'])
-            )
+            projected = project_box(bounds, 'camera_roi')
         else:
             bounds = self.estimator.processor._normalized_roi_3d(config.get('target_roi') or {})
-            projection_source = 'robot_roi'
-            T_rc = np.array(config.get('transform_snapshot', np.eye(4)))
-
-            x = cloud[:, :, 0]
-            y = cloud[:, :, 1]
-
-            P_cam = np.column_stack((x[valid], y[valid], z[valid]))
-            if len(P_cam) > 0:
-                P_cam_hom = np.column_stack((P_cam, np.ones(len(P_cam))))
-                P_rob = P_cam_hom @ T_rc.T
-                x_rob, y_rob, z_rob = P_rob[:, 0], P_rob[:, 1], P_rob[:, 2]
-                in_roi_valid = (
-                    (x_rob >= bounds['x_min']) & (x_rob <= bounds['x_max'])
-                    & (y_rob >= bounds['y_min']) & (y_rob <= bounds['y_max'])
-                    & (z_rob >= bounds['z_min']) & (z_rob <= bounds['z_max'])
-                )
-                in_roi = np.zeros(valid.shape, dtype=bool)
-                in_roi[valid] = in_roi_valid
-            else:
-                in_roi = np.zeros(valid.shape, dtype=bool)
-
-        rows, cols = np.where(in_roi)
-        if len(rows) > 0:
-            x1 = int(cols.min())
-            x2 = int(cols.max()) + 1
-            y1 = int(rows.min())
-            y2 = int(rows.max()) + 1
-            return {
-                'x': x1, 'y': y1, 'w': x2 - x1, 'h': y2 - y1,
-                'projection_source': projection_source,
-                'feature_type': 'recipe_3d_roi'
+            transform = np.asarray(config.get('transform_snapshot', np.eye(4)), dtype=float)
+            if transform.shape != (4, 4):
+                raise ValueError('transform_snapshot must be a 4 x 4 matrix')
+            robot_corners = np.array([
+                [x, y, z, 1.0]
+                for x in (bounds['x_min'], bounds['x_max'])
+                for y in (bounds['y_min'], bounds['y_max'])
+                for z in (bounds['z_min'], bounds['z_max'])
+            ])
+            camera_corners = robot_corners @ np.linalg.inv(transform).T
+            camera_bounds = {
+                'x_min': float(camera_corners[:, 0].min()),
+                'x_max': float(camera_corners[:, 0].max()),
+                'y_min': float(camera_corners[:, 1].min()),
+                'y_max': float(camera_corners[:, 1].max()),
+                'z_min': float(camera_corners[:, 2].min()),
+                'z_max': float(camera_corners[:, 2].max()),
             }
-        else:
-            return {
-                'x': 0, 'y': 0, 'w': 0, 'h': 0,
-                'projection_source': projection_source,
-                'feature_type': 'recipe_3d_roi',
-                'error': 'No points inside ROI'
-            }
+            projected = project_box(camera_bounds, 'robot_roi')
+
+        return projected or {
+            'x': 0, 'y': 0, 'w': 0, 'h': 0,
+            'projection_source': 'camera_roi' if camera_roi else 'robot_roi',
+            'feature_type': 'recipe_3d_roi',
+            'error': 'ROI projects outside the image',
+        }
 
     def _persist_workbench_frame(self, pointcloud) -> tuple[str, str, int, int]:
         """把组织化点云持久化为 .npy，并渲染像素一一对应的伪彩预览图。
@@ -1662,11 +1678,11 @@ class RackLocationService:
         """采集一帧用于工作台：真实 3D 相机优先，离线回退到模拟场景；
         持久化组织化点云并返回预览图与 token。"""
         recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first() if recipe_id else None
-        position_no = 1  # 固定为1
+        position_no = int(getattr(recipe, 'position_no', 1) or 1)
         layer_no = int(getattr(recipe, 'layer_no', 1) or 1)
         layer_count = int(getattr(recipe, 'layer_count', 3) or 3)
-        side = RackSide.LEFT  # 固定为LEFT用于显示
-        side_key = 'LEFT'
+        side = getattr(recipe, 'rack_side', RackSide.LEFT) or RackSide.LEFT
+        side_key = side if side in {RackSide.LEFT, RackSide.RIGHT} else RackSide.LEFT
 
         pointcloud = None
         source = 'sample'
@@ -1703,6 +1719,8 @@ class RackLocationService:
             'image_height': height,
             'source': source,
         }
+        if recipe and recipe.roi_config:
+            payload['recipe_pixel_roi'] = self.project_recipe_roi_to_pixels(pointcloud, recipe)
         # 没拿到真实相机数据时，把原因暴露出来（未找到设备 / 数据流未开启等）。
         if source != 'dm_camera' and fallback_reason:
             payload['fallback_reason'] = fallback_reason
@@ -1926,9 +1944,11 @@ class RackLocationService:
     def trigger(self, *, layer_no: int, position_no: int = 1, recipe_id=None,
                 rack_side: str = RackSide.BOTH, write_plc: bool = False,
                 product=None, rack=None, workflow=None) -> RackLocationResult:
-        """触发3D定位（简化版：只需传layer_no，position_no和rack_side固定）"""
-        position_no = 1  # 固定工位号为1
-        rack_side = RackSide.BOTH  # 固定为BOTH
+        """Trigger one 3D location cycle for a workstation, layer and rack side."""
+        position_no = int(position_no)
+        rack_side = str(rack_side or RackSide.BOTH).upper()
+        if rack_side not in {RackSide.LEFT, RackSide.RIGHT, RackSide.BOTH}:
+            raise ValueError('rack_side must be LEFT, RIGHT, or BOTH')
         layer_no = int(layer_no)
         task = VisionTask.objects.create(
             task_type=VisionTaskType.RACK_LOCATING,

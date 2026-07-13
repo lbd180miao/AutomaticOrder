@@ -132,7 +132,7 @@ class RackLocationROI3DEnhanced(TimeStampedModel):
         '权重',
         max_digits=5,
         decimal_places=2,
-        default='1.00',  # Use string to ensure 2 decimal places
+        default=1.0,
         help_text='计算偏移时的权重（0.0-1.0）'
     )
     

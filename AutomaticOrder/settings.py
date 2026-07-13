@@ -17,6 +17,17 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def env_list(name, default=''):
+    return [item.strip() for item in os.environ.get(name, default).split(',') if item.strip()]
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -27,9 +38,21 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env_bool('DJANGO_DEBUG', True)
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'testserver']
+ALLOWED_HOSTS = env_list(
+    'DJANGO_ALLOWED_HOSTS',
+    '127.0.0.1,localhost,testserver,*',
+)
+
+# HTTPS hardening stays off for a local factory LAN by default and can be
+# enabled when the service is placed behind an HTTPS reverse proxy.
+SECURE_SSL_REDIRECT = env_bool('DJANGO_SECURE_SSL_REDIRECT', False)
+SESSION_COOKIE_SECURE = env_bool('DJANGO_SESSION_COOKIE_SECURE', False)
+CSRF_COOKIE_SECURE = env_bool('DJANGO_CSRF_COOKIE_SECURE', False)
+SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_SECURE_HSTS_SECONDS', 0))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS', False)
+SECURE_HSTS_PRELOAD = env_bool('DJANGO_SECURE_HSTS_PRELOAD', False)
 
 
 # Application definition
@@ -90,7 +113,7 @@ WSGI_APPLICATION = 'AutomaticOrder.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': Path(os.environ.get('DJANGO_DATABASE_PATH', BASE_DIR / 'db.sqlite3')),
     }
 }
 
@@ -131,41 +154,60 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# 现场图片入口保护，避免误传超大文件耗尽进程内存。
+VISION_MAX_UPLOAD_BYTES = int(os.environ.get('VISION_MAX_UPLOAD_BYTES', 25 * 1024 * 1024))
+VISION_MAX_IMAGE_PIXELS = int(os.environ.get('VISION_MAX_IMAGE_PIXELS', 25_000_000))
+
 # 3D 料架定位离线数据包；与既有离线测试文件共用 docs/pic 根目录。
-OFFLINE_DATA_PACKAGE_DIR = BASE_DIR / 'docs' / 'pic'
+OFFLINE_DATA_PACKAGE_DIR = Path(
+    os.environ.get('OFFLINE_DATA_PACKAGE_DIR', BASE_DIR / 'docs' / 'pic')
+)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# 根目录 test_*.py 是需人工执行的硬件诊断脚本，默认测试仅发现业务应用。
+TEST_RUNNER = 'AutomaticOrder.test_runner.ApplicationDiscoverRunner'
+
 # 3D 深度相机料架定位运行模式：'MOCK'（模拟，无需硬件）/ 'REAL'（真实相机+机器人）
-RACK_3D_POSITIONING_MODE = 'MOCK'
+RACK_3D_POSITIONING_MODE = os.environ.get('RACK_3D_POSITIONING_MODE', 'MOCK').upper()
 
 AUTOMATIC_ORDER = {
-    'USE_SIMULATED_DEVICES': False,
-    'MES_BASE_URL': '',
-    'DEVICE_TIMEOUT_SECONDS': 5,
+    'USE_SIMULATED_DEVICES': env_bool('USE_SIMULATED_DEVICES', False),
+    'MES_BASE_URL': os.environ.get('MES_BASE_URL', ''),
+    'DEVICE_TIMEOUT_SECONDS': int(os.environ.get('DEVICE_TIMEOUT_SECONDS', 5)),
     'HIK_CAMERA': {
-        'OUTPUT_DIR': BASE_DIR / 'media' / 'hik_captures',
-        'SDK_LIB_DIR': 'C:/Program Files (x86)/Common Files/MVS/Runtime/Win64_x64',
+        'OUTPUT_DIR': Path(os.environ.get('HIK_CAMERA_OUTPUT_DIR', BASE_DIR / 'media' / 'hik_captures')),
+        'SDK_LIB_DIR': os.environ.get(
+            'HIK_CAMERA_SDK_LIB_DIR',
+            'C:/Program Files (x86)/Common Files/MVS/Runtime/Win64_x64',
+        ),
         # 使用自动检测模式（不指定 IP）
         # 'CAMERA_IP': '169.254.160.253',
         # 'PC_IP': '169.254.160.95',
         'CAMERA_IP': None,  # 设置为 None 启用自动检测
         'PC_IP': None,       # 设置为 None 启用自动检测
         'FORMAT': 'BMP',  # 使用 BMP 格式避免编码问题
-        'SERIAL_NUMBER': 'DA6649441',
-        'FEATURE_FILE': BASE_DIR / '2d_SDK' / 'MV-CH100-60GC_DA6649441.mfs',
+        'SERIAL_NUMBER': os.environ.get('HIK_CAMERA_SERIAL_NUMBER', 'DA6649441'),
+        'FEATURE_FILE': Path(os.environ.get(
+            'HIK_CAMERA_FEATURE_FILE',
+            BASE_DIR / '2d_SDK' / 'MV-CH100-60GC_DA6649441.mfs',
+        )),
         'QUALITY': 5,
         'RUN_IN_SUBPROCESS': True,
     },
     'DM_CAMERA': {
-        'OUTPUT_DIR': BASE_DIR / 'media' / 'dm_captures',
-        'SDK_PATH': BASE_DIR.parent / 'DM-Host-Computer-SDK/DM上位机&SDK/SDK/1.2.3',
-        'AUTO_CONNECT': False,  # 是否自动连接第一个设备
-        'DEFAULT_FRAME_RATE': 10,
-        'DEFAULT_EXPOSURE_TIME': 1000,
+        'OUTPUT_DIR': Path(os.environ.get('DM_CAMERA_OUTPUT_DIR', BASE_DIR / 'media' / 'dm_captures')),
+        'SDK_PATH': Path(os.environ.get(
+            'DM_CAMERA_SDK_PATH',
+            BASE_DIR.parent / 'DM-Host-Computer-SDK/DM上位机&SDK/SDK/1.2.3',
+        )),
+        'AUTO_CONNECT': env_bool('DM_CAMERA_AUTO_CONNECT', False),
+        'DEFAULT_FRAME_RATE': int(os.environ.get('DM_CAMERA_FRAME_RATE', 10)),
+        'DEFAULT_EXPOSURE_TIME': int(os.environ.get('DM_CAMERA_EXPOSURE_TIME', 1000)),
     },
 }
