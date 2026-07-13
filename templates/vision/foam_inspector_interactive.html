@@ -255,6 +255,33 @@
   flex-wrap: wrap;
 }
 .roi-tools select { width: auto; padding: 5px 8px; }
+.threshold-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(100px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.threshold-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.threshold-grid input {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 7px;
+}
+.standard-mask-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #bae6fd;
+}
 #calibration-status {
   font-size: 12px;
   color: #0369a1;
@@ -431,6 +458,7 @@
 }
 @media (max-width: 600px) {
   .metric-cards { grid-template-columns: 1fr; }
+  .threshold-grid { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
 }
 
 
@@ -531,6 +559,20 @@
             <button id="btn-save-recipe" class="btn btn-sm" style="background:var(--primary);">💾 保存到配方</button>
             <span id="calibration-status"></span>
           </div>
+          <div class="threshold-grid">
+            <label>最低覆盖率<input id="foam-min-coverage" type="number" min="0" max="1" step="0.01" value="0.75"></label>
+            <label>最低得分<input id="foam-min-score" type="number" min="0" max="1" step="0.01" value="0.8"></label>
+            <label>最低 IoU<input id="foam-min-iou" type="number" min="0" max="1" step="0.01" value="0.7"></label>
+            <label>最大偏移(px)<input id="foam-max-offset-px" type="number" min="0" step="1" value="30"></label>
+            <label>最大偏移(mm)<input id="foam-max-offset-mm" type="number" min="0" step="0.1" value="2"></label>
+            <label>X毫米/像素<input id="foam-mm-per-pixel-x" type="number" min="0" step="0.0001" value="0"></label>
+            <label>Y毫米/像素<input id="foam-mm-per-pixel-y" type="number" min="0" step="0.0001" value="0"></label>
+          </div>
+          <div class="standard-mask-tools">
+            <button id="btn-upload-standard-mask" class="btn btn-secondary btn-sm">上传当前侧标准样本</button>
+            <input type="file" id="file-standard-mask" accept="image/*" style="display:none;">
+            <span id="standard-mask-status"></span>
+          </div>
         </div>
 
       </div>
@@ -553,6 +595,24 @@
           <div class="verdict-text">
             <strong id="verdict-text">等待检测</strong>
             <div class="verdict-sub" id="verdict-sub">请点击左侧「拍照检测」或导入图片开始检测</div>
+          </div>
+        </div>
+
+        <div class="metric-cards">
+          <div id="card-present" class="metric-card idle">
+            <div class="metric-icon">●</div>
+            <div class="metric-label">泡棉存在</div>
+            <div id="value-present" class="metric-value">待检测</div>
+          </div>
+          <div id="card-aligned" class="metric-card idle">
+            <div class="metric-icon">↔</div>
+            <div class="metric-label">位置对齐</div>
+            <div id="value-aligned" class="metric-value">待检测</div>
+          </div>
+          <div id="card-lifted" class="metric-card idle">
+            <div class="metric-icon">⌁</div>
+            <div class="metric-label">边缘贴合</div>
+            <div id="value-lifted" class="metric-value">待检测</div>
           </div>
         </div>
 
@@ -668,6 +728,7 @@ const API = {
   recipes:          '{% url "vision:api_vision_recipes" %}',
   recipeByPos:      '{% url "vision:api_foam_recipe_by_pos" %}',
   saveRecipe:       '{% url "vision:api_foam_recipe_save" %}',
+  standardMask:     '{% url "vision:api_foam_standard_mask_upload" %}',
   defaultRecipes:   '{% url "vision:api_foam_recipe_defaults" %}',
 };
 
@@ -1015,6 +1076,45 @@ document.getElementById('file-upload-preview').addEventListener('change', (e) =>
   e.target.value = '';
 });
 
+document.getElementById('btn-upload-standard-mask').addEventListener('click', () => {
+  const recipe = currentDetectionRecipe();
+  if (!recipe?.id) {
+    alert('请先保存当前 ROI 配方，再上传标准样本。');
+    return;
+  }
+  document.getElementById('file-standard-mask').click();
+});
+
+document.getElementById('file-standard-mask').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  const recipe = currentDetectionRecipe();
+  if (!file || !recipe?.id) return;
+  const side = document.getElementById('calibration-side').value;
+  const fd = new FormData();
+  fd.append('image', file);
+  fd.append('recipe_id', recipe.id);
+  fd.append('side', side);
+  showLoading(`生成${side === 'left' ? '左' : '右'}侧标准模板...`);
+  try {
+    const res = await fetch(API.standardMask, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf() },
+      body: fd,
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || '标准模板生成失败');
+    upsertSavedRecipe(data.recipe);
+    renderRecipeCard();
+    document.getElementById('standard-mask-status').textContent =
+      `${side === 'left' ? '左' : '右'}侧标准模板已更新，覆盖率 ${(Number(data.mask.coverage_ratio) * 100).toFixed(1)}%`;
+  } catch (error) {
+    alert('标准模板生成失败：' + error.message);
+  } finally {
+    hideLoading();
+    e.target.value = '';
+  }
+});
+
 function setPendingBadge(name) {
   let badge = document.getElementById('pending-file-badge');
   if (!badge) {
@@ -1028,11 +1128,21 @@ function setPendingBadge(name) {
     ].join(';');
     document.querySelector('.cam-controls').insertAdjacentElement('afterend', badge);
   }
-  badge.innerHTML =
-    `⏳ <strong>已导入：${name}</strong>，可标定 ROI 后点「拍照检测」（不调用相机）` +
-    `<button onclick="clearPendingFile()" style="margin-left:auto;padding:2px 6px;` +
-    `font-size:11px;border:1px solid #d97706;border-radius:4px;` +
-    `background:#fff;color:#b45309;cursor:pointer;">✕ 清除</button>`;
+  badge.replaceChildren();
+  badge.append('⏳ ');
+  const label = document.createElement('strong');
+  label.textContent = `已导入：${name}`;
+  badge.append(label, '，可标定 ROI 后点「拍照检测」（不调用相机）');
+  const clearButton = document.createElement('button');
+  clearButton.type = 'button';
+  clearButton.textContent = '✕ 清除';
+  clearButton.style.cssText = [
+    'margin-left:auto', 'padding:2px 6px', 'font-size:11px',
+    'border:1px solid #d97706', 'border-radius:4px',
+    'background:#fff', 'color:#b45309', 'cursor:pointer',
+  ].join(';');
+  clearButton.addEventListener('click', clearPendingFile);
+  badge.appendChild(clearButton);
   badge.style.display = 'flex';
 }
 
@@ -1103,6 +1213,9 @@ function renderResult(r) {
     ? '泡棉已检测到，贴附状态合格，进入下一循环'
     : '泡棉检测异常，请查看下方详细信息';
   document.getElementById('verdict-sub').textContent = sub;
+  setMetricCard('card-present', 'value-present', r.is_present, r.is_present ? '已检测' : '缺失', '●');
+  setMetricCard('card-aligned', 'value-aligned', r.is_aligned, r.is_aligned ? '对齐' : '偏移', '↔');
+  setMetricCard('card-lifted', 'value-lifted', !r.has_lifted_edge, r.has_lifted_edge ? '异常' : '贴合', '⌁');
 
   // 显示详细结果区域
   document.getElementById('detailed-result').style.display = 'block';
@@ -1212,7 +1325,8 @@ function renderSideResult(side, data, fullResult) {
   // 获取阈值
   const coverageThreshold = fullResult.sides?.[side]?.coverage_threshold || 0.85;
   const iouThreshold = fullResult.sides?.[side]?.iou_threshold || 0.70;
-  const maxOffsetMm = 2.0; // 默认2mm
+  const maxOffsetMm = data.max_offset_mm;
+  const maxOffsetPx = data.max_offset_px ?? 30;
   
   // 覆盖率
   const coverage = data.coverage_ratio || 0;
@@ -1226,25 +1340,52 @@ function renderSideResult(side, data, fullResult) {
   
   // IoU
   const iou = data.iou;
+  const hasStandardMask = standardPixels && standardPixels > 0;
+
   if (iou !== null && iou !== undefined) {
     const iouPercent = (iou * 100).toFixed(1) + '%';
     const iouWarning = iou < iouThreshold ? ' ⚠️ 低于' + (iouThreshold * 100).toFixed(0) + '%阈值' : '';
     document.getElementById(`${prefix}-iou-detail`).innerHTML = 
       `<strong style="color:${iou < iouThreshold ? '#dc2626' : '#059669'}">${iouPercent}</strong>${iouWarning}`;
   } else {
+    // 无标准模板：提供创建引导
     document.getElementById(`${prefix}-iou-detail`).innerHTML = 
-      '<span style="color:#9ca3af;">N/A (无标准模板)</span>';
+      `<span style="color:#9ca3af;">- (需要标准模板)</span><br>` +
+      `<a href="#" onclick="showStandardMaskGuide('${side}'); return false;" style="color:#2563eb;font-size:11px;text-decoration:none;">` +
+      `💡 创建${sideName}标准模板可提高检测精度</a>`;
   }
   
   // 位置偏移
   const offsetMm = data.offset_distance_mm || 0;
+  const offsetPx = data.offset_distance_px || 0;
   const offsetPxX = data.offset_x_px || 0;
   const offsetPxY = data.offset_y_px || 0;
-  const offsetStr = offsetMm.toFixed(2) + ' mm';
   const offsetDetail = ` (${offsetPxX > 0 ? '+' : ''}${offsetPxX.toFixed(1)}px, ${offsetPxY > 0 ? '+' : ''}${offsetPxY.toFixed(1)}px)`;
-  const offsetWarning = offsetMm > maxOffsetMm ? ' ⚠️ 超出' + maxOffsetMm.toFixed(1) + 'mm限值' : '';
-  document.getElementById(`${prefix}-offset-detail`).innerHTML = 
-    `<strong style="color:${offsetMm > maxOffsetMm ? '#dc2626' : '#059669'}">${offsetStr}</strong>${offsetDetail}${offsetWarning}`;
+
+  if (data.alignment_metric === 'mm' && maxOffsetMm !== null && maxOffsetMm !== undefined) {
+    // 有标准模板，精确毫米测量
+    const exceeded = offsetMm > maxOffsetMm;
+    const warning = exceeded ? ` ⚠️ 超出${Number(maxOffsetMm).toFixed(1)}mm限值` : '';
+    document.getElementById(`${prefix}-offset-detail`).innerHTML =
+      `<strong style="color:${exceeded ? '#dc2626' : '#059669'}">${offsetMm.toFixed(2)} mm</strong>${offsetDetail}${warning}`;
+  } else if (data.alignment_metric === 'px') {
+    // 有标准模板，像素测量
+    const exceeded = offsetPx > maxOffsetPx;
+    const warning = exceeded ? ` ⚠️ 超出${Number(maxOffsetPx).toFixed(0)}px限值` : '';
+    document.getElementById(`${prefix}-offset-detail`).innerHTML =
+      `<strong style="color:${exceeded ? '#dc2626' : '#059669'}">${offsetPx.toFixed(1)} px</strong>${offsetDetail}${warning}`;
+  } else if (offsetPxX !== 0 || offsetPxY !== 0 || offsetMm > 0) {
+    // 无标准模板，但有偏移数据（相对ROI中心）
+    const displayOffset = offsetMm > 0 ? `${offsetMm.toFixed(2)} mm` : `${offsetPx.toFixed(1)} px`;
+    document.getElementById(`${prefix}-offset-detail`).innerHTML =
+      `<strong style="color:#6b7280;">${displayOffset}</strong>${offsetDetail}<br>` +
+      `<span style="color:#9ca3af;font-size:11px;">(相对ROI中心，创建标准模板可精确测量)</span>`;
+  } else {
+    // 完全无偏移数据
+    document.getElementById(`${prefix}-offset-detail`).innerHTML =
+      `<span style="color:#9ca3af;">- (需要标准模板)</span><br>` +
+      `<span style="color:#9ca3af;font-size:11px;">(创建标准模板后可计算精确偏移)</span>`;
+  }
   
   // 综合得分
   const score = data.score || 0;
@@ -1285,6 +1426,34 @@ function getSideIssue(data) {
   if (!data.is_complete) issues.push('形状不完整');
   
   return issues.join('、');
+}
+
+// ── 标准模板创建引导（新增）────────────────────────────────
+function showStandardMaskGuide(side) {
+  const sideName = side === 'left' ? '左侧' : '右侧';
+  const message = `💡 创建${sideName}标准模板可以：
+
+✅ 计算精确的IoU（交并比），评估贴合完整度
+✅ 基于标准质心计算偏移，而非ROI中心
+✅ 提高覆盖率计算精度（基于标准像素数）
+
+📝 创建步骤：
+1. 准备一张合格的${sideName}泡棉样本图片
+2. 点击左侧「导入图片」加载样本
+3. 使用ROI标定工具框选${sideName}泡棉区域
+4. 点击「保存到配方」
+5. 重新检测即可看到IoU等完整指标
+
+⚠️ 注意：
+• 标准模板需要用合格样本创建
+• 每个POS配方需要单独创建标准模板
+• 创建后会自动保存到当前配方
+
+是否现在前往配方管理页面？`;
+
+  if (confirm(message)) {
+    window.location.href = '{% url "vision:recipe_management" %}';
+  }
 }
 
 // ── 同步结果配方到左侧预览 ─────────────────────────────────────
@@ -1370,8 +1539,21 @@ function renderRecipeCard() {
   // 默认值与算法保持一致：覆盖率 0.08 (8%), 得分 0.8 (80%)
   const coverageThreshold = thresh.coverage_threshold || thresh.minCoverage || 0.08;
   const scoreThreshold = thresh.score_threshold || thresh.minScore || 0.8;
+  const iouThreshold = thresh.iou_threshold ?? thresh.minIoU ?? 0.70;
+  const maxOffsetPx = thresh.max_offset_px ?? Math.max(thresh.maxOffsetX ?? 30, thresh.maxOffsetY ?? 30);
+  const maxOffsetMm = thresh.max_offset_mm ?? thresh.maxOffsetMm ?? 2.0;
   document.getElementById('recipe-thresholds').textContent = 
-    `覆盖率≥${coverageThreshold}, 得分≥${scoreThreshold}`;
+    `覆盖率≥${coverageThreshold}, 得分≥${scoreThreshold}, IoU≥${iouThreshold}`;
+  document.getElementById('foam-min-coverage').value = coverageThreshold;
+  document.getElementById('foam-min-score').value = scoreThreshold;
+  document.getElementById('foam-min-iou').value = iouThreshold;
+  document.getElementById('foam-max-offset-px').value = maxOffsetPx;
+  document.getElementById('foam-max-offset-mm').value = maxOffsetMm;
+  document.getElementById('foam-mm-per-pixel-x').value = thresh.mm_per_pixel_x ?? thresh.mmPerPixelX ?? 0;
+  document.getElementById('foam-mm-per-pixel-y').value = thresh.mm_per_pixel_y ?? thresh.mmPerPixelY ?? 0;
+  const maskPaths = thresh.standardMaskPaths || thresh.standard_mask_paths || {};
+  document.getElementById('standard-mask-status').textContent =
+    `标准模板：左${maskPaths.left ? '已配置' : '未配置'} / 右${maskPaths.right ? '已配置' : '未配置'}`;
   
   // 更新配方标题，提示当前配方
   const titleEl = card.querySelector('.recipe-info-title');
@@ -1450,6 +1632,19 @@ async function saveRoiToRecipe(targetPos) {
   
   // 查找已有配方
   const existingRecipe = foam2DRecipes.find(r => Number(r.pos) === Number(targetPos));
+  const existingThresholds = existingRecipe?.threshold_config || {};
+  const maxOffsetPx = Number(document.getElementById('foam-max-offset-px').value || 30);
+  const thresholdConfig = {
+    ...existingThresholds,
+    minCoverage: Number(document.getElementById('foam-min-coverage').value || 0.75),
+    minScore: Number(document.getElementById('foam-min-score').value || 0.8),
+    minIoU: Number(document.getElementById('foam-min-iou').value || 0.70),
+    maxOffsetX: maxOffsetPx,
+    maxOffsetY: maxOffsetPx,
+    maxOffsetMm: Number(document.getElementById('foam-max-offset-mm').value || 2.0),
+    mmPerPixelX: Number(document.getElementById('foam-mm-per-pixel-x').value || 0),
+    mmPerPixelY: Number(document.getElementById('foam-mm-per-pixel-y').value || 0),
+  };
   
   const payload = {
     id: existingRecipe?.id,
@@ -1462,12 +1657,7 @@ async function saveRoiToRecipe(targetPos) {
       leftFoamROI,
       rightFoamROI
     },
-    threshold_config: existingRecipe?.threshold_config || {
-      minCoverage: 0.75,
-      minScore: 0.8,
-      maxOffsetX: 30,
-      maxOffsetY: 30
-    },
+    threshold_config: thresholdConfig,
     is_active: true,
     remark: existingRecipe?.remark || ''
   };

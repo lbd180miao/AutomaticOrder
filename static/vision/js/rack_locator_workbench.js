@@ -20,6 +20,7 @@
     drawing: false,
     start: null,
     displayRoi: null,
+    alignmentToken: null,
     lastResultId: null,
     lastResultOk: false,
     currentRecipe: null,
@@ -214,10 +215,13 @@
   }
 
   function refreshActionState() {
-    // 简化版：只控制三个主要按钮
-    setButton('btn-capture', true);  // 采集点云始终可用
-    setButton('btn-redraw', Boolean(state.token));  // 有点云后可以重画ROI
-    setButton('btn-calculate', Boolean(state.token));  // 有点云后可以计算
+    setButton('btn-capture', true);
+    setButton('btn-redraw', Boolean(state.token));
+    setButton('btn-calculate', Boolean(state.token));
+    setButton('btn-production-locate', Boolean($('recipe-id')?.value));
+    setButton('btn-auto-align', Boolean(state.token));
+    setButton('btn-save-roi', Boolean(state.alignmentToken));
+    setButton('btn-write-plc', Boolean(state.lastResultId && state.lastResultOk));
     setButton('btn-export-package', Boolean(state.token));
   }
 
@@ -546,6 +550,99 @@
     refreshActionState();
   });
 
+  $('btn-auto-align')?.addEventListener('click', async () => {
+    if (!state.token) { setStatus('请先采集点云。'); return; }
+    showLoading('自动对齐料架坐标系...');
+    try {
+      const raw = await postJson(CFG.autoAlignUrl, semanticPayload({
+        pointcloud_token: state.token,
+        recipe_id: $('recipe-id')?.value || null,
+      }));
+      const data = apiPayload(raw);
+      if (!data.success) { setStatus(data.error || '自动对齐失败'); return; }
+      state.alignmentToken = data.aligned_pointcloud_token || state.token;
+      setStatus('自动对齐完成，可以保存当前 3D ROI。');
+    } catch (e) {
+      setStatus('自动对齐失败：' + e.message);
+    } finally {
+      hideLoading();
+      refreshActionState();
+    }
+  });
+
+  $('btn-save-roi')?.addEventListener('click', async () => {
+    if (!state.alignmentToken) { setStatus('请先执行自动对齐。'); return; }
+    const roi = currentRoi3D();
+    showLoading('保存 3D ROI...');
+    try {
+      const raw = await postJson(CFG.saveRoiUrl, semanticPayload({
+        recipe_id: $('recipe-id')?.value || null,
+        roi_name: currentLocateType() === 'GLOBAL' ? '全局 ROI' : `第 ${currentLayerIndex()} 层 ROI`,
+        alignment_token: state.alignmentToken,
+        aligned_pointcloud_token: state.alignmentToken,
+        ...roi,
+      }));
+      const data = apiPayload(raw);
+      setStatus(data.success ? '3D ROI 已保存并启用。' : (data.error || '保存 ROI 失败'));
+    } catch (e) {
+      setStatus('保存 ROI 失败：' + e.message);
+    } finally {
+      hideLoading();
+      refreshActionState();
+    }
+  });
+
+  $('btn-write-plc')?.addEventListener('click', async () => {
+    if (!state.lastResultId || !state.lastResultOk) {
+      setStatus('只有定位成功的结果才允许写入 PLC。');
+      return;
+    }
+    showLoading('写入 PLC 补偿值...');
+    try {
+      const raw = await postJson(CFG.writePlcUrl, { result_id: state.lastResultId });
+      const data = apiPayload(raw);
+      setStatus(data.success ? 'PLC 补偿值写入成功。' : (data.error || 'PLC 写入失败'));
+    } catch (e) {
+      setStatus('PLC 写入失败：' + e.message);
+    } finally {
+      hideLoading();
+      refreshActionState();
+    }
+  });
+
+  async function fetchRecentResults() {
+    if (!CFG.results3dUrl) return [];
+    const query = new URLSearchParams({
+      locate_type: currentLocateType(),
+      layer_index: String(currentLayerIndex()),
+    });
+    const res = await fetch(`${CFG.results3dUrl}?${query.toString()}`);
+    const data = apiPayload(await res.json());
+    return data.results || [];
+  }
+
+  $('btn-production-locate')?.addEventListener('click', async () => {
+    showLoading('执行正式 3D 定位...');
+    try {
+      const raw = await postJson(CFG.locateUrl, semanticPayload({
+        recipe_id: $('recipe-id')?.value || null,
+        rack_side: currentRackSide(),
+        write_plc: false,
+      }));
+      const data = apiPayload(raw);
+      if (!data.success) { setStatus(data.error || '正式定位失败'); return; }
+      state.lastResultId = data.result?.id || data.result?.result_id || null;
+      renderResult(data.result);
+      await fetchRecentResults();
+      setStatus(data.result?.is_success ? '正式定位完成，可确认后写入 PLC。' : '正式定位未通过，请检查结果。');
+    } catch (e) {
+      setStatus('正式定位失败：' + e.message);
+    } finally {
+      hideLoading();
+      refreshActionState();
+    }
+  });
+
   // ── 计算偏差 ─────────────────────────────────────────────
   $('btn-calculate').addEventListener('click', async () => {
     if (!state.token) { setStatus('请先采集点云。'); return; }
@@ -675,13 +772,11 @@
 
   // 计算接口会同步保存深度图、结果图和 ROI 快照，无需二次点击。
 
-  // ── 移除不需要的高级功能 ──────────────────────────────────
-  // 移除：自动对齐、保存ROI、写入PLC、自动触发、历史记录等复杂功能
-
   // ── 渲染结果 ─────────────────────────────────────────────
   function renderResult(r) {
     state.lastResult = r || null;
     const ok = r.locate_ok ?? r.is_success;
+    state.lastResultOk = Boolean(ok);
     const v = $('rl-verdict');
     v.className = 'rl-verdict ' + (ok ? 'ok' : 'fail');
     $('rl-verdict-icon').textContent = ok ? '✅' : '❌';

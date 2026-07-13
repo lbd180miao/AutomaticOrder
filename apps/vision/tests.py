@@ -20,6 +20,7 @@ from apps.production.models import Product, Rack, RackRecipe
 from apps.vision.algorithms.foam_inspector import (
     FoamDefectType,
     FoamInspector,
+    StandardMaskConfigurationError,
     compute_iou,
     compute_mask_centroid,
     generate_foam_mask,
@@ -95,6 +96,99 @@ class FoamPixelSegmentationTests(SimpleTestCase):
         self.assertAlmostEqual(left['coverage_ratio'], 1.0, places=2)
         self.assertAlmostEqual(left['iou'], 1.0, places=2)
         self.assertEqual(left['offset_distance_px'], 0.0)
+
+    def test_configured_standard_mask_must_exist(self):
+        image = np.zeros((100, 200, 3), dtype=np.uint8)
+        image[30:70, 25:65] = 245
+        image[30:70, 125:165] = 245
+
+        with self.assertRaises(StandardMaskConfigurationError):
+            FoamInspector().inspect(
+                image=image,
+                inspection_config={
+                    'foam_rois': {
+                        '0': {
+                            'left': (0.0, 0.1, 0.4, 0.9),
+                            'right': (0.5, 0.1, 0.9, 0.9),
+                        },
+                    },
+                    'standard_mask_paths': {'left': 'missing-standard-mask.png'},
+                },
+            )
+
+    def test_mm_calibration_uses_mm_alignment_limit(self):
+        image = np.zeros((100, 200, 3), dtype=np.uint8)
+        image[30:70, 29:69] = 245
+        image[30:70, 129:169] = 245
+        standard = np.zeros((80, 80), dtype=np.uint8)
+        standard[20:60, 25:65] = 255
+
+        result = FoamInspector().inspect(
+            image=image,
+            inspection_config={
+                'foam_rois': {
+                    '0': {
+                        'left': (0.0, 0.1, 0.4, 0.9),
+                        'right': (0.5, 0.1, 0.9, 0.9),
+                    },
+                },
+                'coverage_threshold': 0.8,
+                'iou_threshold': 0.5,
+                'standard_masks': {'left': standard, 'right': standard},
+                'max_offset_px': 100,
+                'max_offset_mm': 2,
+                'mm_per_pixel_x': 1,
+                'mm_per_pixel_y': 1,
+            },
+        )
+
+        self.assertFalse(result['is_aligned'])
+        self.assertEqual(result['sides']['left']['alignment_metric'], 'mm')
+        self.assertGreater(result['sides']['left']['offset_distance_mm'], 2)
+
+
+class FoamStandardMaskApiTests(TestCase):
+    def test_standard_sample_upload_creates_mask_and_updates_recipe(self):
+        recipe = VisionRecipe.objects.create(
+            recipe_type='FOAM_2D',
+            name='标准模板测试',
+            pos=0,
+            camera_side='both',
+            image_width=200,
+            image_height=100,
+            roi_config={
+                'leftFoamROI': {'x': 0, 'y': 10, 'width': 80, 'height': 80},
+                'rightFoamROI': {'x': 100, 'y': 10, 'width': 80, 'height': 80},
+            },
+            threshold_config={'minCoverage': 0.5},
+        )
+        image = np.full((100, 200, 3), 20, dtype=np.uint8)
+        image[30:70, 20:60] = 245
+        ok, encoded = cv2.imencode('.png', image)
+        self.assertTrue(ok)
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post(
+                reverse('vision:api_foam_standard_mask_upload'),
+                data={
+                    'recipe_id': recipe.id,
+                    'side': 'left',
+                    'image': SimpleUploadedFile(
+                        'qualified-sample.png',
+                        encoded.tobytes(),
+                        content_type='image/png',
+                    ),
+                },
+            )
+
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertTrue(payload['success'])
+            mask_path = payload['mask']['path']
+            self.assertTrue((Path(media_root) / mask_path).is_file())
+
+        recipe.refresh_from_db()
+        self.assertEqual(recipe.threshold_config['standardMaskPaths']['left'], mask_path)
 
 
 class Rack3DSemanticMappingTests(SimpleTestCase):

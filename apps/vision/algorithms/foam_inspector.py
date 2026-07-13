@@ -17,11 +17,18 @@
 注意：默认阈值8%已针对大ROI场景优化。如果你的场景中泡棉应该覆盖更大区域，
 可以在配方中调整 coverage_threshold 参数。
 """
+from pathlib import Path
+
 import cv2
 import numpy as np
+from django.conf import settings
 from django.db import models
 
 from . import image_io
+
+
+class StandardMaskConfigurationError(ValueError):
+    """Raised when a configured foam template cannot be used safely."""
 
 
 def generate_foam_mask(roi_image, cfg=None):
@@ -56,14 +63,23 @@ def generate_foam_mask(roi_image, cfg=None):
     mask_lab = cv2.inRange(lab[:, :, 0], min_l, 255)
     _, mask_otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     _, mask_fixed = cv2.threshold(gray, high_threshold, 255, cv2.THRESH_BINARY)
-    mask_adaptive = cv2.adaptiveThreshold(
-        gray,
-        255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY,
-        blockSize=int(cfg.get('adaptive_block_size', 21)),
-        C=int(cfg.get('adaptive_c', -5)),
-    )
+    min_dimension = min(gray.shape[:2])
+    block_size = max(3, int(cfg.get('adaptive_block_size', 21)))
+    if block_size % 2 == 0:
+        block_size += 1
+    max_block_size = min_dimension if min_dimension % 2 == 1 else min_dimension - 1
+    block_size = max(3, min(block_size, max_block_size))
+    if min_dimension >= 3:
+        mask_adaptive = cv2.adaptiveThreshold(
+            gray,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            blockSize=block_size,
+            C=int(cfg.get('adaptive_c', -5)),
+        )
+    else:
+        mask_adaptive = mask_fixed.copy()
 
     mask = cv2.bitwise_or(mask_hsv, mask_lab)
     mask = cv2.bitwise_or(mask, mask_otsu)
@@ -225,20 +241,38 @@ def _load_standard_mask_for_side(cfg, side, expected_shape):
     if mask_source is None and isinstance(standard_mask_paths, dict):
         mask_source = standard_mask_paths.get(side)
     if mask_source is None:
-        mask_source = cfg.get(f'standard_mask_{side}') or cfg.get(f'standard_mask_path_{side}')
+        direct_mask = cfg.get(f'standard_mask_{side}')
+        mask_source = direct_mask if direct_mask is not None else cfg.get(f'standard_mask_path_{side}')
     if mask_source is None and side is None:
-        mask_source = cfg.get('standard_mask') or cfg.get('standard_mask_path')
+        direct_mask = cfg.get('standard_mask')
+        mask_source = direct_mask if direct_mask is not None else cfg.get('standard_mask_path')
 
     if mask_source is None:
         return None
     if isinstance(mask_source, np.ndarray):
         mask = mask_source
     elif isinstance(mask_source, str):
-        mask = cv2.imread(mask_source, cv2.IMREAD_GRAYSCALE)
+        mask_path = Path(mask_source).expanduser()
+        if not mask_path.is_absolute():
+            media_candidate = Path(settings.MEDIA_ROOT) / mask_path
+            project_candidate = Path(settings.BASE_DIR) / mask_path
+            mask_path = media_candidate if media_candidate.is_file() else project_candidate
+        if not mask_path.is_file():
+            raise StandardMaskConfigurationError(
+                f'{side or "foam"} standard mask is missing or unreadable: {mask_source}'
+            )
+        mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
         if mask is None:
-            return None
+            raise StandardMaskConfigurationError(
+                f'{side or "foam"} standard mask is missing or unreadable: {mask_source}'
+            )
     else:
-        return None
+        raise StandardMaskConfigurationError(
+            f'{side or "foam"} standard mask must be a numpy array or image path'
+        )
+
+    if mask.size == 0 or np.count_nonzero(mask) == 0:
+        raise StandardMaskConfigurationError(f'{side or "foam"} standard mask is empty')
 
     expected_height, expected_width = expected_shape
     if mask.shape[:2] != (expected_height, expected_width):
@@ -570,6 +604,7 @@ def _detect_foam_side(image, roi, cfg, side=None):
     coverage_threshold = float(cfg.get('coverage_threshold', 0.08))
     iou_threshold = float(cfg.get('iou_threshold', cfg.get('min_iou', 0.70)))
     max_offset_px = float(cfg.get('max_offset_px', 30))
+    max_offset_mm = float(cfg.get('max_offset_mm', 0) or 0)
 
     if roi_width < 5 or roi_height < 5:
         return _empty_side_result(roi, reason='roi_too_small', coverage_threshold=coverage_threshold)
@@ -607,6 +642,22 @@ def _detect_foam_side(image, roi, cfg, side=None):
     box = _largest_mask_box(mask, (x1, y1))
 
     white_pixel_coverage = round(detected_pixels / roi_area, 4)
+    max_mask_coverage = float(cfg.get('max_mask_coverage', 0.90))
+    roi_gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+    is_nearly_uniform = float(np.std(roi_gray)) < float(cfg.get('min_roi_stddev', 3.0))
+    if standard_mask is None and white_pixel_coverage > max_mask_coverage and is_nearly_uniform:
+        return _empty_side_result(
+            roi,
+            reason='mask_saturated',
+            coverage_threshold=coverage_threshold,
+            extra={
+                'coverage_ratio': coverage_ratio,
+                'white_pixel_coverage': white_pixel_coverage,
+                'detected_pixels': detected_pixels,
+                'standard_pixels': standard_pixels,
+                'box': box,
+            },
+        )
     if standard_mask is not None:
         offset = compute_physical_offset(
             mask,
@@ -666,7 +717,21 @@ def _detect_foam_side(image, roi, cfg, side=None):
         return result
 
     offset_distance_px = offset['offset_distance_px'] if offset else 0.0
-    is_aligned = True if standard_mask is None else offset_distance_px <= max_offset_px
+    offset_distance_mm = offset['offset_distance_mm'] if offset else 0.0
+    has_mm_calibration = (
+        float(cfg.get('mm_per_pixel_x', 0) or 0) > 0
+        and float(cfg.get('mm_per_pixel_y', 0) or 0) > 0
+        and max_offset_mm > 0
+    )
+    if standard_mask is None:
+        is_aligned = True
+        alignment_metric = 'not_evaluated'
+    elif has_mm_calibration:
+        is_aligned = offset_distance_mm <= max_offset_mm
+        alignment_metric = 'mm'
+    else:
+        is_aligned = offset_distance_px <= max_offset_px
+        alignment_metric = 'px'
     is_complete = iou is None or iou >= iou_threshold
     score = round(max(0.0, min(1.0, coverage_ratio / max(coverage_threshold, 0.01))), 3)
     if iou is not None:
@@ -684,6 +749,9 @@ def _detect_foam_side(image, roi, cfg, side=None):
         'standard_pixels': standard_pixels,
         'iou': iou,
         'iou_threshold': iou_threshold if iou is not None else None,
+        'max_offset_px': max_offset_px,
+        'max_offset_mm': max_offset_mm if has_mm_calibration else None,
+        'alignment_metric': alignment_metric,
         'is_complete': is_complete,
         'score': score,
         'coverage_threshold': coverage_threshold,
@@ -757,10 +825,6 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
 
     scores = [data['score'] for data in sides.values()]
     coverage = [data['coverage_ratio'] for data in sides.values()]
-    offsets_x = [data['offset_x_px'] for data in sides.values()]
-    offsets_y = [data['offset_y_px'] for data in sides.values()]
-    offsets_x_mm = [data.get('offset_x_mm', 0.0) for data in sides.values()]
-    offsets_y_mm = [data.get('offset_y_mm', 0.0) for data in sides.values()]
     offset_distances_px = [data.get('offset_distance_px', 0.0) for data in sides.values()]
     offset_distances_mm = [data.get('offset_distance_mm', 0.0) for data in sides.values()]
     ious = [data.get('iou') for data in sides.values() if data.get('iou') is not None]
@@ -769,16 +833,23 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
         data.get('standard_pixels') for data in sides.values()
         if data.get('standard_pixels') is not None
     ]
+    worst_offset_side = max(
+        sides.values(),
+        key=lambda data: data.get('offset_distance_mm', 0.0)
+        if data.get('alignment_metric') == 'mm'
+        else data.get('offset_distance_px', 0.0),
+        default={},
+    )
     result = {
         'is_present': not missing,
         'is_aligned': not missing and not misaligned,
         'has_lifted_edge': bool(missing or incomplete),
         'defect_type': defect_type,
         'score': round(min(scores) if scores else 0.0, 3),
-        'offset_x_px': round(max(offsets_x, key=abs) if offsets_x else 0.0, 1),
-        'offset_y_px': round(max(offsets_y, key=abs) if offsets_y else 0.0, 1),
-        'offset_x_mm': round(max(offsets_x_mm, key=abs) if offsets_x_mm else 0.0, 3),
-        'offset_y_mm': round(max(offsets_y_mm, key=abs) if offsets_y_mm else 0.0, 3),
+        'offset_x_px': round(worst_offset_side.get('offset_x_px', 0.0), 1),
+        'offset_y_px': round(worst_offset_side.get('offset_y_px', 0.0), 1),
+        'offset_x_mm': round(worst_offset_side.get('offset_x_mm', 0.0), 3),
+        'offset_y_mm': round(worst_offset_side.get('offset_y_mm', 0.0), 3),
         'offset_distance_px': round(max(offset_distances_px) if offset_distances_px else 0.0, 2),
         'offset_distance_mm': round(max(offset_distances_mm) if offset_distances_mm else 0.0, 3),
         'coverage_ratio': round(min(coverage) if coverage else 0.0, 4),

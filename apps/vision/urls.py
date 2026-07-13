@@ -72,6 +72,7 @@ urlpatterns = [
     path('api/recipes/foam-2d/by-pos/', views.api_foam_recipe_by_pos, name='api_foam_recipe_by_pos'),
     path('api/recipes/foam-2d/defaults/', views.api_foam_recipe_defaults, name='api_foam_recipe_defaults'),
     path('api/recipes/foam-2d/save/', views.api_foam_recipe_save, name='api_foam_recipe_save'),
+    path('api/recipes/foam-2d/standard-mask/', views.api_foam_standard_mask_upload, name='api_foam_standard_mask_upload'),
     path('api/recipes/foam-2d/create/', views.api_foam_recipe_create, name='api_foam_recipe_create'),
     path('api/recipes/foam-2d/<int:recipe_id>/delete/', views.api_foam_recipe_delete, name='api_foam_recipe_delete'),
     path('api/foam/capture-inspect/', views.api_foam_capture_inspect, name='api_foam_capture_inspect'),

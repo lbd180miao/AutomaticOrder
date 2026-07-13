@@ -7,6 +7,7 @@ DEFAULT_THRESHOLD_CONFIG = {
     'minCoverage': 0.75,
     'maxOffsetX': 30,
     'maxOffsetY': 30,
+    'maxOffsetMm': 2.0,
     'minScore': 0.8,
     'minIoU': 0.70,
     # mm_per_pixel 标定系数（0 表示未标定，不输出 mm 偏移）
@@ -131,6 +132,9 @@ def build_foam_inspection_config(recipe):
     max_offset = thresholds.get('max_offset_px')
     max_offset_x = int(_threshold_value(thresholds, ('max_offset_x', 'maxOffsetX'), 30))
     max_offset_y = int(_threshold_value(thresholds, ('max_offset_y', 'maxOffsetY'), 30))
+    max_offset_mm = float(
+        _threshold_value(thresholds, ('max_offset_mm', 'maxOffsetMm'), 2.0)
+    )
     # mm_per_pixel 标定系数（0 表示未标定，跳过 mm 换算）
     mm_per_pixel_x = float(
         _threshold_value(thresholds, ('mm_per_pixel_x', 'mmPerPixelX'), 0)
@@ -162,6 +166,7 @@ def build_foam_inspection_config(recipe):
             _threshold_value(thresholds, ('iou_threshold', 'minIoU'), 0.70)
         ),
         'max_offset_px': int(max_offset) if max_offset is not None else max(max_offset_x, max_offset_y),
+        'max_offset_mm': max_offset_mm,
         'mm_per_pixel_x': mm_per_pixel_x,
         'mm_per_pixel_y': mm_per_pixel_y,
         'standard_foam_area_ratio': standard_foam_area_ratio,

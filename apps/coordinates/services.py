@@ -210,23 +210,12 @@ class CoordinateWorkbenchService:
             & (base[:, 2] >= roi['z_min']) & (base[:, 2] <= roi['z_max'])
         )
         cropped = base[mask]
-        roi_auto_expanded = False
         if not len(cropped):
-            # ROI 与变换后点云不重叠（坐标系不匹配常见场景），自动扩展到全点云包围盒
-            import logging as _log
-            lower, upper = base.min(axis=0) - 5.0, base.max(axis=0) + 5.0
-            config['roi'] = {
-                'x_min': float(lower[0]), 'x_max': float(upper[0]),
-                'y_min': float(lower[1]), 'y_max': float(upper[1]),
-                'z_min': float(lower[2]), 'z_max': float(upper[2]),
-            }
-            cropped = base
-            roi_auto_expanded = True
-            _log.getLogger(__name__).warning(
-                '[CoordinateWorkbench] ROI 裁剪得到 0 个点，自动扩展到全点云包围盒 '
-                f'X:[{float(lower[0]):.1f},{float(upper[0]):.1f}] '
-                f'Y:[{float(lower[1]):.1f},{float(upper[1]):.1f}] '
-                f'Z:[{float(lower[2]):.1f},{float(upper[2]):.1f}]'
+            raise CoordinateWorkbenchError(
+                'EMPTY_ROI',
+                'ROI 内没有有效点，请检查坐标系或放宽 ROI 范围',
+                422,
+                {'roi': '与当前点云不相交'},
             )
         actual = self._axis_dict(np.median(cropped, axis=0))
         theoretical = config['theoretical']
@@ -256,8 +245,6 @@ class CoordinateWorkbenchService:
                 'base_camera': (base_flange @ hand_eye).tolist(),
             },
         }
-        if roi_auto_expanded:
-            result['warning'] = 'ROI 坐标与当前变换配置不匹配，展示全点云包围盒代替，建议重新配置 ROI'
         return result
 
     @transaction.atomic

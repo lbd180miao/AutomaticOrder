@@ -39,7 +39,8 @@ def save_image(image, prefix, rel_dir='vision/captures'):
     stamp = timezone.now().strftime('%H%M%S_%f')
     filename = f'{prefix}_{stamp}.png'
     abs_path = os.path.join(abs_dir, filename)
-    cv2.imwrite(abs_path, image)
+    if not cv2.imwrite(abs_path, image):
+        raise OSError(f'图像保存失败: {abs_path}')
     h, w = image.shape[:2]
     return f'{rel}/{filename}', w, h
 
@@ -55,10 +56,10 @@ def _put_label(img, text, org, color, scale=0.5, thickness=1):
         # Windows系统中文字体
         font_size = int(20 * scale)
         font = ImageFont.truetype("msyh.ttc", font_size)  # 微软雅黑
-    except:
+    except OSError:
         try:
             font = ImageFont.truetype("simsun.ttc", font_size)  # 宋体
-        except:
+        except OSError:
             font = ImageFont.load_default()
     
     x, y = org

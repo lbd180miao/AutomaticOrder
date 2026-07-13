@@ -12,8 +12,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_http_methods
 
+from apps.core.constants import RackSide
 from apps.devices.models import Device
 from apps.production.models import Rack, RackRecipe
+from .algorithms.standard_mask_manager import StandardMaskManager
 from .models import (
     CalibrationProfile,
     FoamInspectionResult,
@@ -43,6 +45,27 @@ from .rack_location import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _decode_uploaded_image(uploaded_file):
+    if uploaded_file is None:
+        raise ValueError('未上传图片文件')
+
+    max_bytes = int(getattr(settings, 'VISION_MAX_UPLOAD_BYTES', 25 * 1024 * 1024))
+    if uploaded_file.size > max_bytes:
+        raise ValueError(f'图片不能超过 {max_bytes // (1024 * 1024)} MB')
+
+    image = cv2.imdecode(
+        np.frombuffer(uploaded_file.read(), dtype=np.uint8),
+        cv2.IMREAD_COLOR,
+    )
+    if image is None:
+        raise ValueError('无法解码图片，请确保上传的是有效的图片文件')
+
+    max_pixels = int(getattr(settings, 'VISION_MAX_IMAGE_PIXELS', 25_000_000))
+    if image.shape[0] * image.shape[1] > max_pixels:
+        raise ValueError(f'图片像素数不能超过 {max_pixels}')
+    return image
 
 
 def task_list(request):
@@ -306,6 +329,50 @@ def api_foam_recipe_save(request):
         recipe.remark = body.get('remark') or ''
         recipe.save()
         return JsonResponse({'success': True, 'recipe': serialize_recipe(recipe)})
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@require_POST
+def api_foam_standard_mask_upload(request):
+    """Create and activate a left/right standard mask from a qualified sample."""
+    try:
+        recipe_id = int(request.POST.get('recipe_id') or 0)
+        side = request.POST.get('side', '').lower()
+        recipe = VisionRecipe.objects.filter(
+            id=recipe_id, recipe_type='FOAM_2D', is_active=True
+        ).first()
+        if recipe is None:
+            return JsonResponse(
+                {'success': False, 'error': '未找到启用的泡棉检测配方'},
+                status=404,
+            )
+        image = _decode_uploaded_image(request.FILES.get('image'))
+        result = StandardMaskManager().create_from_sample(
+            image,
+            recipe,
+            side,
+            build_foam_inspection_config(recipe),
+        )
+
+        thresholds = dict(recipe.threshold_config or {})
+        mask_paths = dict(
+            thresholds.get('standardMaskPaths')
+            or thresholds.get('standard_mask_paths')
+            or {}
+        )
+        mask_paths[side] = result['path']
+        thresholds['standardMaskPaths'] = mask_paths
+        thresholds.setdefault('minIoU', 0.70)
+        thresholds.setdefault('maxOffsetMm', 2.0)
+        recipe.threshold_config = thresholds
+        recipe.save(update_fields=['threshold_config', 'updated_at'])
+
+        return JsonResponse({
+            'success': True,
+            'mask': result,
+            'recipe': serialize_recipe(recipe),
+        })
     except (TypeError, ValueError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
@@ -601,22 +668,7 @@ def api_foam_upload_inspect(request):
         recipe_id = request.POST.get('recipe_id') or None
         use_recipe = _as_bool(request.POST.get('use_recipe'), True)
         
-        # 读取上传的图片
-        file_bytes = uploaded_file.read()
-        nparr = np.frombuffer(file_bytes, np.uint8)
-        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        if image is None:
-            return JsonResponse({
-                'success': False,
-                'error': '无法解码图片，请确保上传的是有效的图片文件'
-            })
-        
-        # 保存上传的图片到临时位置
-        temp_dir = Path(settings.MEDIA_ROOT) / 'temp_uploads'
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        temp_path = temp_dir / f'upload_{uploaded_file.name}'
-        cv2.imwrite(str(temp_path), image)
+        image = _decode_uploaded_image(uploaded_file)
         
         # 使用真实图片进行检测
         from .algorithms.foam_inspector import FoamInspector
@@ -646,7 +698,7 @@ def api_foam_upload_inspect(request):
             position_index=position_index,
             inspection_config=inspection_config,
             image=image,
-            camera_image_path=str(temp_path),
+            camera_image_path=f'upload:{Path(uploaded_file.name).name[:128]}',
             simulated_pass=True,  # 当image不为None时此参数被忽略
         )
         if recipe:
@@ -698,12 +750,12 @@ def api_foam_upload_inspect(request):
         return JsonResponse({
             'success': False,
             'error': f'参数错误: {str(e)}'
-        })
+        }, status=400)
     except Exception as e:
         return JsonResponse({
             'success': False,
             'error': f'检测失败: {str(e)}'
-        })
+        }, status=500)
 
 
 # ------------------------------------------------------------------
@@ -1058,7 +1110,8 @@ def _request_data(request):
 
 
 def _api3d_success(data=None, status=200):
-    return JsonResponse({'success': True, 'data': data or {}, 'error': ''}, status=status)
+    data = data or {}
+    return JsonResponse({'success': True, 'data': data, 'error': '', **data}, status=status)
 
 
 def _api3d_error(message, status=400):
@@ -1400,8 +1453,7 @@ def api_vision_3d_recipes(request):
             qs = qs.filter(layer_no=int(layer_no))
         if enabled not in (None, ''):
             qs = qs.filter(enabled=_as_bool(enabled))
-        return JsonResponse({
-            'success': True,
+        return _api3d_success({
             'recipes': [_serialize_3d_recipe(recipe) for recipe in qs],
         })
 
@@ -1410,7 +1462,7 @@ def api_vision_3d_recipes(request):
             data = _request_data(request)
             recipe_id = data.get('id')
             if not recipe_id:
-                return JsonResponse({'success': False, 'error': '缺少配方ID'}, status=400)
+                return _api3d_error('缺少配方ID')
             recipe = get_object_or_404(RackLocationRecipe, pk=recipe_id)
             
             # 更新字段
@@ -1418,6 +1470,14 @@ def api_vision_3d_recipes(request):
                 recipe.recipe_name = data['recipe_name']
             if 'layer_no' in data:
                 recipe.layer_no = _as_int(data['layer_no'], recipe.layer_no)
+            if 'position_no' in data:
+                recipe.position_no = _as_int(data['position_no'], recipe.position_no)
+            if 'rack_side' in data:
+                recipe.rack_side = str(data['rack_side']).upper()
+            if 'rack_type' in data:
+                recipe.rack_type = data['rack_type']
+            if 'layer_count' in data:
+                recipe.layer_count = _as_int(data['layer_count'], recipe.layer_count)
             if 'standard_x' in data:
                 recipe.standard_x = _as_float(data['standard_x'], recipe.standard_x)
             if 'standard_y' in data:
@@ -1435,42 +1495,34 @@ def api_vision_3d_recipes(request):
             if 'enabled' in data:
                 recipe.enabled = _as_bool(data['enabled'])
             
-            recipe.position_no = 1  # 固定
-            recipe.rack_side = 'BOTH'  # 固定
             recipe.save()
-            return JsonResponse({
-                'success': True,
-                'recipe': _serialize_3d_recipe(recipe),
-            })
+            return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
         except Exception as exc:  # noqa: BLE001
-            return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+            return _api3d_error(exc)
 
     if request.method == 'DELETE':
         try:
             data = _request_data(request)
             recipe_id = data.get('id')
             if not recipe_id:
-                return JsonResponse({'success': False, 'error': '缺少配方ID'}, status=400)
+                return _api3d_error('缺少配方ID')
             recipe = get_object_or_404(RackLocationRecipe, pk=recipe_id)
             recipe_name = recipe.recipe_name
             recipe.delete()
-            return JsonResponse({
-                'success': True,
-                'message': f'配方「{recipe_name}」已删除',
-            })
+            return _api3d_success({'message': f'配方「{recipe_name}」已删除'})
         except Exception as exc:  # noqa: BLE001
-            return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+            return _api3d_error(exc)
 
     # POST - 创建新配方
     try:
         data = _request_data(request)
         recipe = RackLocationRecipe.objects.create(
             recipe_name=data.get('recipe_name') or f"3D-L{data.get('layer_no', 1)}",
-            rack_side='BOTH',  # 固定
-            rack_type='',
-            position_no=1,  # 固定
+            rack_side=str(data.get('rack_side') or RackSide.BOTH).upper(),
+            rack_type=data.get('rack_type') or '',
+            position_no=_as_int(data.get('position_no'), 1),
             layer_no=_as_int(data.get('layer_no'), 1),
-            layer_count=3,  # 固定
+            layer_count=_as_int(data.get('layer_count'), 3),
             standard_x=_as_float(data.get('standard_x'), 0),
             standard_y=_as_float(data.get('standard_y'), 0),
             standard_z=_as_float(data.get('standard_z'), 0),
@@ -1484,12 +1536,9 @@ def api_vision_3d_recipes(request):
             },
             enabled=_as_bool(data.get('enabled'), True),
         )
-        return JsonResponse({
-            'success': True,
-            'recipe': _serialize_3d_recipe(recipe),
-        })
+        return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
     except Exception as exc:  # noqa: BLE001
-        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+        return _api3d_error(exc)
 
 
 @require_http_methods(['GET', 'PUT'])
@@ -1743,9 +1792,7 @@ def api_rack_location_workbench_capture(request):
     except json.JSONDecodeError as exc:
         return JsonResponse({'success': False, 'error': f'JSON解析失败: {exc}'}, status=400)
     except Exception as exc:  # noqa: BLE001
-        import traceback
-        error_detail = traceback.format_exc()
-        print(f"采集点云错误: {error_detail}")  # 输出到控制台便于调试
+        logger.exception('工作台点云采集失败')
         return JsonResponse({'success': False, 'error': f'相机采集失败: {exc}'}, status=400)
 
 
@@ -1863,7 +1910,7 @@ def api_rack_location_workbench_save(request):
 
 @require_POST
 def api_rack_location_trigger(request):
-    """触发3D定位（简化版：只需传layer_no）"""
+    """Trigger 3D location using the requested workstation, layer and side."""
     try:
         data = _request_data(request)
         layer_no = _as_int(data.get('layer_no'), 1)
@@ -1872,8 +1919,10 @@ def api_rack_location_trigger(request):
         
         # 使用简化的服务
         result = RackLocationService().trigger(
+            position_no=_as_int(data.get('position_no'), 1),
             layer_no=layer_no,
             recipe_id=recipe_id,
+            rack_side=data.get('rack_side') or RackSide.BOTH,
             write_plc=write_plc,
         )
         return JsonResponse({'success': True, 'result': rack_location_result_payload(result)})

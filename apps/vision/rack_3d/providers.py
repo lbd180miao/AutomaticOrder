@@ -348,7 +348,9 @@ class RealDepthCameraProvider(DepthCameraProvider):
             data = self._normalize_pointcloud(frame.get('data'), width, height)
             if data.size == 0:
                 raise PointCloudError(EC.POINTCLOUD_EMPTY, "相机返回空点云")
-        except Exception as exc:  # noqa: BLE001 - 相机异常时回退到模拟点云
+        except PointCloudError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - 连接类异常时回退到模拟点云
             source = 'sample_fallback'
             fallback_reason = str(exc)
             data = None
