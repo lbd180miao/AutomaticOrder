@@ -338,7 +338,7 @@ class VisionService:
                 position_index=position_index,
                 is_present=data['is_present'],
                 is_aligned=data['is_aligned'],
-                has_lifted_edge=data['has_lifted_edge'],
+                has_lifted_edge=data.get('has_lifted_edge', False),
                 score=data['score'],
                 is_passed=data['is_passed'],
                 offset_x_px=data.get('offset_x_px', 0),

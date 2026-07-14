@@ -104,36 +104,47 @@ class CoordinateWorkbenchService:
         if any(abs(value) > 1e-9 for value in standards):
             config['theoretical'] = dict(zip(('x', 'y', 'z'), standards))
 
-        # 加载配方中已保存的 ROI——但先验证其与当前变换后的点云是否重叠
-        # 若 ROI 内无点（常见于坐标系不匹配情形），自动回退到包围盒 ROI
+        # 尝试加载配方中已保存的 ROI，或回退到根据当前点云重算包围盒
         roi = recipe.roi_config or {}
+        candidate_roi = None
+        
+        # 兼容两种格式：直接在 roi_config 中，或者在 camera_roi 中
         roi_keys = ('x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max')
         if all(key in roi for key in roi_keys):
             candidate_roi = {key: float(roi[key]) for key in roi_keys}
-            camera = self.generate_camera_points(layer_no)
-            try:
-                base = self.transform_points(camera, config)
+        elif 'camera_roi' in roi and all(key in roi['camera_roi'] for key in roi_keys):
+            # 但是注意，坐标模块需要的是机器人基坐标 ROI，如果 camera_roi 存的是相机系 ROI 则不能直接用
+            # 如果我们认为配方中的 ROI 结构改变，这里直接在下面重算最安全
+            pass
+
+        camera = self.generate_camera_points(layer_no)
+        try:
+            base = self.transform_points(camera, config)
+            if candidate_roi:
                 mask = (
                     (base[:, 0] >= candidate_roi['x_min']) & (base[:, 0] <= candidate_roi['x_max'])
                     & (base[:, 1] >= candidate_roi['y_min']) & (base[:, 1] <= candidate_roi['y_max'])
                     & (base[:, 2] >= candidate_roi['z_min']) & (base[:, 2] <= candidate_roi['z_max'])
                 )
                 if mask.any():
-                    # ROI 有效，使用配方中的 ROI
                     config['roi'] = candidate_roi
                 else:
-                    # ROI 内无点：重算包围盒 ROI，并同步更新理论值为点云中位数
-                    lower, upper = base.min(axis=0) - 5.0, base.max(axis=0) + 5.0
-                    config['roi'] = {
-                        'x_min': float(lower[0]), 'x_max': float(upper[0]),
-                        'y_min': float(lower[1]), 'y_max': float(upper[1]),
-                        'z_min': float(lower[2]), 'z_max': float(upper[2]),
-                    }
-                    # 若配方未设标准坐标，用变换后点云中位数作理论值
-                    if not any(abs(v) > 1e-9 for v in standards):
-                        config['theoretical'] = self._axis_dict(np.median(base, axis=0))
-            except Exception:  # noqa: BLE001
-                pass  # 变换失败时保留 default_draft 的 ROI
+                    candidate_roi = None
+                    
+            if not candidate_roi:
+                # ROI 内无点或配方中无可用 ROI：重算包围盒 ROI
+                lower, upper = base.min(axis=0) - 5.0, base.max(axis=0) + 5.0
+                config['roi'] = {
+                    'x_min': float(lower[0]), 'x_max': float(upper[0]),
+                    'y_min': float(lower[1]), 'y_max': float(upper[1]),
+                    'z_min': float(lower[2]), 'z_max': float(upper[2]),
+                }
+                # 若配方未设标准坐标，用变换后点云中位数作理论值
+                if not any(abs(v) > 1e-9 for v in standards):
+                    config['theoretical'] = self._axis_dict(np.median(base, axis=0))
+        except Exception:  # noqa: BLE001
+            pass  # 变换失败时保留 default_draft 的 ROI
+
         return config
 
     def transform_camera_roi(self, layer_no, camera_roi, recipe_id=None):
