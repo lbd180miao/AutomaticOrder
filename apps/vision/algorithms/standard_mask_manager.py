@@ -44,16 +44,25 @@ class StandardMaskManager:
         mask = generate_foam_mask(image[y1:y2, x1:x2], cfg or {})
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
-            raise ValueError(f'no foam was detected in the {side} standard sample')
+            raise ValueError(
+                f'在{"左" if side == "left" else "右"}侧 ROI 区域内未检测到泡棉，'
+                '请检查 ROI 是否正确框住了泡棉，或图片曝光是否合适'
+            )
 
         clean_mask = np.zeros_like(mask)
         largest = max(contours, key=cv2.contourArea)
         cv2.drawContours(clean_mask, [largest], -1, 255, -1)
         coverage = np.count_nonzero(clean_mask) / clean_mask.size
         if coverage < 0.01:
-            raise ValueError(f'{side} standard mask is too small')
-        if coverage > 0.90:
-            raise ValueError(f'{side} standard mask fills the ROI; check the ROI or sample image')
+            raise ValueError(
+                f'{"左" if side == "left" else "右"}侧标准模板面积太小（覆盖率 {coverage*100:.1f}%），'
+                '请确认图片中有泡棉并重新框选 ROI'
+            )
+        if coverage > 0.98:
+            raise ValueError(
+                f'{"左" if side == "left" else "右"}侧检测到的泡棉几乎填满了整张图（覆盖率 {coverage*100:.1f}%），'
+                '可能是背景被误识别，请检查图片或调整 ROI 范围'
+            )
 
         target = self.base_dir / f'foam_recipe_{recipe.pk}_pos{recipe.pos}_{side}.png'
         temp_path = self.base_dir / f'.{target.stem}_{uuid4().hex}.png'

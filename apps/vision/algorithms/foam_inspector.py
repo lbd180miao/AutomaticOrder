@@ -530,12 +530,12 @@ def _analyze_image_quality(image, roi):
         suggestions['denoise'] = False
     
     return {
-        'mean_brightness': round(mean_brightness, 1),
-        'std_brightness': round(std_brightness, 1),
-        'contrast': round(contrast, 1),
-        'sharpness_score': round(laplacian_var, 1),
-        'noise_level': round(noise_level, 2),
-        'white_ratio': round(white_ratio, 4),
+        'mean_brightness': float(round(mean_brightness, 1)),
+        'std_brightness': float(round(std_brightness, 1)),
+        'contrast': float(round(float(contrast), 1)),
+        'sharpness_score': float(round(laplacian_var, 1)),
+        'noise_level': float(round(noise_level, 2)),
+        'white_ratio': float(round(white_ratio, 4)),
         'suggestions': suggestions,
     }
 
@@ -727,34 +727,33 @@ def _detect_foam_side(image, roi, cfg, side=None):
         is_aligned = True
         alignment_metric = 'not_evaluated'
     elif has_mm_calibration:
-        is_aligned = offset_distance_mm <= max_offset_mm
+        is_aligned = bool(offset_distance_mm <= max_offset_mm)
         alignment_metric = 'mm'
     else:
-        is_aligned = offset_distance_px <= max_offset_px
+        is_aligned = bool(offset_distance_px <= max_offset_px)
         alignment_metric = 'px'
-    is_complete = iou is None or iou >= iou_threshold
-    score = round(max(0.0, min(1.0, coverage_ratio / max(coverage_threshold, 0.01))), 3)
+    score = round(float(max(0.0, min(1.0, coverage_ratio / max(coverage_threshold, 0.01)))), 3)
     if iou is not None:
-        score = round(min(score, iou), 3)
+        iou = float(iou)
+        score = round(float(min(score, iou)), 3)
 
     result = {
         'roi': roi,
         'box': box,
         'is_present': True,
         'is_aligned': is_aligned,
-        'coverage_ratio': coverage_ratio,
-        'white_pixel_coverage': white_pixel_coverage,
+        'coverage_ratio': float(coverage_ratio),
+        'white_pixel_coverage': float(white_pixel_coverage),
         'coverage_source': 'standard_mask' if standard_mask is not None else 'roi_pixel_ratio',
-        'detected_pixels': detected_pixels,
-        'standard_pixels': standard_pixels,
+        'detected_pixels': int(detected_pixels),
+        'standard_pixels': int(standard_pixels) if standard_pixels is not None else None,
         'iou': iou,
-        'iou_threshold': iou_threshold if iou is not None else None,
-        'max_offset_px': max_offset_px,
-        'max_offset_mm': max_offset_mm if has_mm_calibration else None,
+        'iou_threshold': float(iou_threshold) if iou is not None else None,
+        'max_offset_px': float(max_offset_px),
+        'max_offset_mm': float(max_offset_mm) if has_mm_calibration else None,
         'alignment_metric': alignment_metric,
-        'is_complete': is_complete,
         'score': score,
-        'coverage_threshold': coverage_threshold,
+        'coverage_threshold': float(coverage_threshold),
     }
     if offset:
         result.update(offset)
@@ -790,16 +789,12 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
 
     missing = [side for side, data in sides.items() if not data['is_present']]
     misaligned = [side for side, data in sides.items() if not data.get('is_aligned', False)]
-    incomplete = [side for side, data in sides.items() if not data.get('is_complete', True)]
     present_sides = [data for data in sides.values() if data['box']]
     if missing:
         defect_type = FoamDefectType.MISSING
         is_passed = False
     elif misaligned:
         defect_type = FoamDefectType.MISALIGNED
-        is_passed = False
-    elif incomplete:
-        defect_type = FoamDefectType.LIFTED_EDGE
         is_passed = False
     else:
         defect_type = FoamDefectType.NONE
@@ -841,23 +836,21 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
         default={},
     )
     result = {
-        'is_present': not missing,
-        'is_aligned': not missing and not misaligned,
-        'has_lifted_edge': bool(missing or incomplete),
-        'defect_type': defect_type,
-        'score': round(min(scores) if scores else 0.0, 3),
-        'offset_x_px': round(worst_offset_side.get('offset_x_px', 0.0), 1),
-        'offset_y_px': round(worst_offset_side.get('offset_y_px', 0.0), 1),
-        'offset_x_mm': round(worst_offset_side.get('offset_x_mm', 0.0), 3),
-        'offset_y_mm': round(worst_offset_side.get('offset_y_mm', 0.0), 3),
-        'offset_distance_px': round(max(offset_distances_px) if offset_distances_px else 0.0, 2),
-        'offset_distance_mm': round(max(offset_distances_mm) if offset_distances_mm else 0.0, 3),
-        'coverage_ratio': round(min(coverage) if coverage else 0.0, 4),
-        'iou': round(min(ious), 4) if ious else None,
+        'is_present': bool(not missing),
+        'is_aligned': bool(not missing and not misaligned),
+        'defect_type': defect_type.value if hasattr(defect_type, 'value') else str(defect_type),
+        'score': round(float(min(scores)) if scores else 0.0, 3),
+        'offset_x_px': round(float(worst_offset_side.get('offset_x_px', 0.0)), 1),
+        'offset_y_px': round(float(worst_offset_side.get('offset_y_px', 0.0)), 1),
+        'offset_x_mm': round(float(worst_offset_side.get('offset_x_mm', 0.0)), 3),
+        'offset_y_mm': round(float(worst_offset_side.get('offset_y_mm', 0.0)), 3),
+        'offset_distance_px': round(float(max(offset_distances_px)) if offset_distances_px else 0.0, 2),
+        'offset_distance_mm': round(float(max(offset_distances_mm)) if offset_distances_mm else 0.0, 3),
+        'coverage_ratio': round(float(min(coverage)) if coverage else 0.0, 4),
+        'iou': round(float(min(ious)), 4) if ious else None,
         'detected_pixels': int(sum(detected_pixels)),
         'standard_pixels': int(sum(standard_pixels)) if standard_pixels else None,
-        'is_complete': not incomplete,
-        'is_passed': is_passed,
+        'is_passed': bool(is_passed),
     }
     return result, roi, foam, sides
 
@@ -1089,7 +1082,7 @@ class FoamInspector:
                 'foam_target': 'bumper',
                 'decision_rule': 'coverage_threshold_70_percent',
                 'camera_image_path': camera_image_path,
-                'defect_type': defect_type,
+                'defect_type': defect_type.value if hasattr(defect_type, 'value') else str(defect_type),
                 'roi': roi,
                 'foam_box': foam,
                 'offset_x_px': offset_x_px,
@@ -1123,7 +1116,6 @@ def _build_result(*, defect_type, offset_x_px, offset_y_px, offset_x_mm=0.0,
         return {
             'is_present': False,
             'is_aligned': False,
-            'has_lifted_edge': True,
             'defect_type': FoamDefectType.MISSING,
             'score': 0.0,
             'offset_x_px': 0.0,
@@ -1138,7 +1130,6 @@ def _build_result(*, defect_type, offset_x_px, offset_y_px, offset_x_mm=0.0,
     return {
         'is_present': True,
         'is_aligned': True,
-        'has_lifted_edge': False,
         'defect_type': FoamDefectType.NONE,
         'score': 0.96,
         'offset_x_px': offset_x_px,

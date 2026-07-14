@@ -130,8 +130,8 @@ def build_foam_inspection_config(recipe):
         roi_config['rightFoamROI'], recipe.image_width, recipe.image_height
     )
     max_offset = thresholds.get('max_offset_px')
-    max_offset_x = int(_threshold_value(thresholds, ('max_offset_x', 'maxOffsetX'), 30))
-    max_offset_y = int(_threshold_value(thresholds, ('max_offset_y', 'maxOffsetY'), 30))
+    max_offset_x = int(_threshold_value(thresholds, ('max_offset_x', 'maxOffsetX'), 150))
+    max_offset_y = int(_threshold_value(thresholds, ('max_offset_y', 'maxOffsetY'), 150))
     max_offset_mm = float(
         _threshold_value(thresholds, ('max_offset_mm', 'maxOffsetMm'), 2.0)
     )

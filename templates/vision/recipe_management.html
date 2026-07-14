@@ -734,6 +734,10 @@ function renderRecipeCards() {
         <div class="recipe-card-row">
           阈值: 覆盖率 ≥ ${thresh.coverage_threshold || 0.08}, 得分 ≥ ${thresh.score_threshold || 0.8}
         </div>
+        <div class="recipe-card-row">
+          标准模板: 左侧 ${thresh.standard_mask_paths?.left ? '✅已配置' : '❌未配置'} / 右侧 ${thresh.standard_mask_paths?.right ? '✅已配置' : '❌未配置'}
+          <a href="/vision/foam-inspector/?recipe_id=${recipe.id}" style="margin-left: 10px; color: var(--primary); text-decoration: none; font-size: 12px;">管理模板 ➔</a>
+        </div>
         <div class="recipe-card-actions">
           <button class="btn btn-sm" onclick="selectRecipeForEdit(${recipe.id})">编辑</button>
           <button class="btn btn-secondary btn-sm" onclick="copyRecipe(${recipe.id})">复制</button>

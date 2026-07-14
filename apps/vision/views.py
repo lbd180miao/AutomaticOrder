@@ -309,6 +309,7 @@ def api_foam_recipe_save(request):
         if not roi_config.get('leftFoamROI') or not roi_config.get('rightFoamROI'):
             raise ValueError('leftFoamROI and rightFoamROI are required')
         threshold_config = body.get('threshold_config') or {}
+
         recipe_id = body.get('id')
         if recipe_id:
             recipe = get_object_or_404(
@@ -339,15 +340,22 @@ def api_foam_standard_mask_upload(request):
     try:
         recipe_id = int(request.POST.get('recipe_id') or 0)
         side = request.POST.get('side', '').lower()
+        if side not in ('left', 'right'):
+            return JsonResponse({'success': False, 'error': 'side 必须是 left 或 right'}, status=400)
         recipe = VisionRecipe.objects.filter(
             id=recipe_id, recipe_type='FOAM_2D', is_active=True
         ).first()
         if recipe is None:
             return JsonResponse(
-                {'success': False, 'error': '未找到启用的泡棉检测配方'},
+                {'success': False, 'error': f'未找到 ID={recipe_id} 的启用泡棉检测配方'},
                 status=404,
             )
-        image = _decode_uploaded_image(request.FILES.get('image'))
+        uploaded = request.FILES.get('image')
+        if not uploaded:
+            return JsonResponse({'success': False, 'error': '请上传图片文件'}, status=400)
+        image = _decode_uploaded_image(uploaded)
+        if image is None:
+            return JsonResponse({'success': False, 'error': '无法解码上传的图片，请确认格式正确（JPG / PNG 等）'}, status=400)
         result = StandardMaskManager().create_from_sample(
             image,
             recipe,
@@ -375,6 +383,200 @@ def api_foam_standard_mask_upload(request):
         })
     except (TypeError, ValueError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    except Exception as exc:
+        logger.exception('标准模板上传失败')
+        return JsonResponse({'success': False, 'error': f'服务器内部错误: {exc}'}, status=500)
+
+
+def api_foam_standard_mask_status(request, recipe_id):
+    """查询某配方左/右标准模板的配置状态。
+
+    GET /api/recipes/foam-2d/<recipe_id>/standard-mask/
+    返回每侧是否已配置，以及覆盖率、质心等摘要信息。
+    """
+    recipe = VisionRecipe.objects.filter(
+        id=recipe_id, recipe_type='FOAM_2D', is_active=True
+    ).first()
+    if recipe is None:
+        return JsonResponse({'success': False, 'error': '未找到配方'}, status=404)
+
+    thresholds = recipe.threshold_config or {}
+    mask_paths = (
+        thresholds.get('standardMaskPaths')
+        or thresholds.get('standard_mask_paths')
+        or {}
+    )
+
+    sides_info = {}
+    for side in ('left', 'right'):
+        path_str = mask_paths.get(side, '')
+        if not path_str:
+            sides_info[side] = {'exists': False, 'path': ''}
+            continue
+
+        mask_path = Path(path_str)
+        if not mask_path.is_absolute():
+            mask_path = Path(settings.MEDIA_ROOT) / mask_path
+
+        if not mask_path.is_file():
+            sides_info[side] = {'exists': False, 'path': path_str, 'error': '文件不存在'}
+            continue
+
+        mask_img = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+        if mask_img is None:
+            sides_info[side] = {'exists': False, 'path': path_str, 'error': '文件无法读取'}
+            continue
+
+        total = mask_img.size
+        nonzero = int(np.count_nonzero(mask_img))
+        coverage = round(nonzero / max(total, 1), 4)
+        moments = cv2.moments(mask_img)
+        if moments['m00'] > 0:
+            cx = round(moments['m10'] / moments['m00'], 1)
+            cy = round(moments['m01'] / moments['m00'], 1)
+        else:
+            cx, cy = 0.0, 0.0
+
+        import os as _os
+        from datetime import datetime as _dt
+        mtime = _os.path.getmtime(str(mask_path))
+        updated_at = _dt.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
+
+        sides_info[side] = {
+            'exists': True,
+            'path': path_str,
+            'coverage_ratio': coverage,
+            'centroid_x': cx,
+            'centroid_y': cy,
+            'updated_at': updated_at,
+            'pixel_count': nonzero,
+        }
+
+    return JsonResponse({
+        'success': True,
+        'recipe_id': recipe_id,
+        'sides': sides_info,
+    })
+
+
+@require_POST
+def api_foam_standard_mask_capture(request, recipe_id):
+    """拍照并生成标准模板。
+
+    POST /api/recipes/foam-2d/<recipe_id>/standard-mask/capture/
+    Body JSON: {"side": "left"|"right"}
+
+    调用相机拍一张图，然后调用 StandardMaskManager 生成标准掩膜并保存到配方。
+    """
+    try:
+        body = json.loads(request.body or '{}')
+        side = body.get('side', '').lower()
+        if side not in ('left', 'right'):
+            return JsonResponse({'success': False, 'error': 'side 必须是 left 或 right'}, status=400)
+
+        recipe = VisionRecipe.objects.filter(
+            id=recipe_id, recipe_type='FOAM_2D', is_active=True
+        ).first()
+        if recipe is None:
+            return JsonResponse({'success': False, 'error': '未找到配方'}, status=404)
+
+        # 触发相机拍照
+        from apps.devices.adapters.camera import CameraAdapter
+        adapter = CameraAdapter()
+        capture_result = adapter.capture(
+            camera_code='CAM-INSPECT-FOAM-01',
+            task_type='FOAM_MASK_SAMPLE',
+        )
+        image_path = capture_result.get('image_path', '')
+        if not image_path:
+            return JsonResponse({'success': False, 'error': '相机返回的图像路径为空'}, status=500)
+
+        # 读取图像
+        image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        if image is None:
+            return JsonResponse({'success': False, 'error': f'无法读取拍摄图像: {image_path}'}, status=500)
+
+        # 生成标准模板
+        result = StandardMaskManager().create_from_sample(
+            image,
+            recipe,
+            side,
+            build_foam_inspection_config(recipe),
+        )
+
+        # 保存路径到配方
+        thresholds = dict(recipe.threshold_config or {})
+        mask_paths = dict(
+            thresholds.get('standardMaskPaths')
+            or thresholds.get('standard_mask_paths')
+            or {}
+        )
+        mask_paths[side] = result['path']
+        thresholds['standardMaskPaths'] = mask_paths
+        thresholds.setdefault('minIoU', 0.70)
+        thresholds.setdefault('maxOffsetMm', 2.0)
+        recipe.threshold_config = thresholds
+        recipe.save(update_fields=['threshold_config', 'updated_at'])
+
+        return JsonResponse({
+            'success': True,
+            'mask': result,
+            'recipe': serialize_recipe(recipe),
+        })
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    except Exception as exc:
+        logger.exception('拍照生成标准模板失败')
+        return JsonResponse({'success': False, 'error': f'拍照失败: {exc}'}, status=500)
+
+
+@require_POST
+def api_foam_standard_mask_delete(request, recipe_id, side):
+    """删除某侧标准模板。
+
+    POST /api/recipes/foam-2d/<recipe_id>/standard-mask/<side>/delete/
+    从配方的 threshold_config 中移除该侧路径，并删除 PNG 文件。
+    """
+    try:
+        if side not in ('left', 'right'):
+            return JsonResponse({'success': False, 'error': 'side 必须是 left 或 right'}, status=400)
+
+        recipe = VisionRecipe.objects.filter(
+            id=recipe_id, recipe_type='FOAM_2D', is_active=True
+        ).first()
+        if recipe is None:
+            return JsonResponse({'success': False, 'error': '未找到配方'}, status=404)
+
+        thresholds = dict(recipe.threshold_config or {})
+        mask_paths = dict(
+            thresholds.get('standardMaskPaths')
+            or thresholds.get('standard_mask_paths')
+            or {}
+        )
+
+        path_str = mask_paths.pop(side, '')
+        thresholds['standardMaskPaths'] = mask_paths
+        recipe.threshold_config = thresholds
+        recipe.save(update_fields=['threshold_config', 'updated_at'])
+
+        # 尝试删除 PNG 文件
+        deleted_file = False
+        if path_str:
+            mask_path = Path(path_str)
+            if not mask_path.is_absolute():
+                mask_path = Path(settings.MEDIA_ROOT) / mask_path
+            if mask_path.is_file():
+                mask_path.unlink(missing_ok=True)
+                deleted_file = True
+
+        return JsonResponse({
+            'success': True,
+            'deleted_file': deleted_file,
+            'recipe': serialize_recipe(recipe),
+        })
+    except Exception as exc:
+        logger.exception('删除标准模板失败')
+        return JsonResponse({'success': False, 'error': str(exc)}, status=500)
 
 
 @require_POST
@@ -719,7 +921,7 @@ def api_foam_upload_inspect(request):
             position_index=result['position_index'],
             is_present=result['is_present'],
             is_aligned=result['is_aligned'],
-            has_lifted_edge=result['has_lifted_edge'],
+            has_lifted_edge=result.get('has_lifted_edge', False),
             score=result['score'],
             is_passed=result['is_passed'],
             offset_x_px=result['offset_x_px'],
