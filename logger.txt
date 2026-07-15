@@ -1649,3 +1649,6 @@
 2026-07-06 15:35:27 INFO LWDMApi.cpp ljhNS::DeviceHandle::StartStream 2883 <2512ABDM60008>
 2026-07-06 15:35:45 ERROR LWDMApi.cpp ljhNS::DeviceHandle::rawDataRecvThread 1970 <2512ABDM60008>, The network connection has been disconnected.---你的主机中的软件中止了一个已建立的连接。
 
+2026-07-15 09:34:55 INFO LWDMApi.cpp LWInitializeResources 5732 
+2026-07-15 09:34:55 INFO LWDMApi.cpp LWGetDeviceInfoList 5761 
+2026-07-15 09:34:58 INFO LWDMApi.cpp LWCleanupResources 5743 
