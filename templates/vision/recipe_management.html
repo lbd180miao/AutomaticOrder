@@ -597,6 +597,108 @@
   </div>
 </div>
 
+<!-- 2D配方编辑弹窗 -->
+<div id="recipe-edit-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:580px;">
+    <div class="modal-header">
+      <h3 id="edit-modal-title">编辑配方</h3>
+      <button class="modal-close" onclick="closeEditModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-modal-id">
+      
+      <!-- POS 信息 -->
+      <div style="margin-bottom:16px;padding:10px 14px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;color:var(--text-muted);">
+        📍 位置：<strong id="edit-modal-pos" style="color:var(--primary);"></strong>
+        <span style="margin-left:10px;font-size:12px;">· ROI坐标以图片像素为单位</span>
+      </div>
+
+      <!-- 左侧ROI -->
+      <div class="form-section">
+        <div class="form-section-title" style="color:#3b82f6;">🔵 左侧泡棉 ROI</div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>X（左边距）</label>
+            <input type="number" id="edit-left-x" min="0" placeholder="220">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Y（上边距）</label>
+            <input type="number" id="edit-left-y" min="0" placeholder="140">
+          </div>
+        </div>
+        <div class="form-row" style="margin-top:10px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>W（宽度）</label>
+            <input type="number" id="edit-left-w" min="1" placeholder="90">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>H（高度）</label>
+            <input type="number" id="edit-left-h" min="1" placeholder="70">
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧ROI -->
+      <div class="form-section">
+        <div class="form-section-title" style="color:#10b981;">🟢 右侧泡棉 ROI</div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>X（左边距）</label>
+            <input type="number" id="edit-right-x" min="0" placeholder="780">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Y（上边距）</label>
+            <input type="number" id="edit-right-y" min="0" placeholder="140">
+          </div>
+        </div>
+        <div class="form-row" style="margin-top:10px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>W（宽度）</label>
+            <input type="number" id="edit-right-w" min="1" placeholder="110">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>H（高度）</label>
+            <input type="number" id="edit-right-h" min="1" placeholder="70">
+          </div>
+        </div>
+      </div>
+
+      <!-- 阈值配置 -->
+      <div class="form-section">
+        <div class="form-section-title">⚙️ 判定阈值</div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>最低覆盖率</label>
+            <input type="number" id="edit-thresh-cov" min="0" max="1" step="0.01" placeholder="0.08">
+            <small>建议: 0.05~0.15</small>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>最低得分</label>
+            <input type="number" id="edit-thresh-score" min="0" max="1" step="0.01" placeholder="0.8">
+            <small>建议: 0.7~0.9</small>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>最大偏移(px)</label>
+            <input type="number" id="edit-thresh-x" min="0" step="1" placeholder="30">
+            <small>建议: 20~50</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- 工作台提示 -->
+      <div style="margin-top:8px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;font-size:12px;color:#0369a1;">
+        💡 <strong>提示：</strong>如需在相机图像上直接框选ROI，请使用
+        <a href="{% url 'vision:foam_inspector_interactive' %}" style="color:#0284c7;font-weight:700;">泡棉检测工作台</a>
+        进行可视化标定。
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeEditModal()">取消</button>
+      <button class="btn btn-sm" style="background:var(--success);" onclick="submitEditModal()">💾 保存配方</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============================================================
 //  视觉配方管理 · 前端逻辑 v1.2 (无Loading版本)
@@ -719,6 +821,9 @@ function renderRecipeCards() {
     const right = roi.rightFoamROI || {};
     const thresh = recipe.threshold_config || {};
 
+    const hasLeftRoi = (left.width || 0) > 0 && (left.height || 0) > 0;
+    const hasRightRoi = (right.width || 0) > 0 && (right.height || 0) > 0;
+    
     return `
       <div class="${classes.join(' ')}">
         <h3>第${recipe.pos + 1}层泡棉检测配方${isActive ? ' · 当前自动使用' : ''}</h3>
@@ -726,20 +831,17 @@ function renderRecipeCards() {
           <strong>POS ${recipe.pos}</strong> / 第${recipe.pos + 1}层
         </div>
         <div class="recipe-card-row">
-          左泡棉 ROI: x=${left.x || 0}, y=${left.y || 0}, w=${left.width || 0}, h=${left.height || 0}
+          左ROI: ${hasLeftRoi ? `✅ x=${left.x}, y=${left.y}, w=${left.width}, h=${left.height}` : '⚠️ 未配置'}
         </div>
         <div class="recipe-card-row">
-          右泡棉 ROI: x=${right.x || 0}, y=${right.y || 0}, w=${right.width || 0}, h=${right.height || 0}
+          右ROI: ${hasRightRoi ? `✅ x=${right.x}, y=${right.y}, w=${right.width}, h=${right.height}` : '⚠️ 未配置'}
         </div>
         <div class="recipe-card-row">
           阈值: 覆盖率 ≥ ${thresh.coverage_threshold || 0.08}, 得分 ≥ ${thresh.score_threshold || 0.8}
-        </div>
-        <div class="recipe-card-row">
-          标准模板: 左侧 ${thresh.standard_mask_paths?.left ? '✅已配置' : '❌未配置'} / 右侧 ${thresh.standard_mask_paths?.right ? '✅已配置' : '❌未配置'}
-          <a href="/vision/foam-inspector/?recipe_id=${recipe.id}" style="margin-left: 10px; color: var(--primary); text-decoration: none; font-size: 12px;">管理模板 ➔</a>
+          <a href="/vision/foam-inspector/?recipe_id=${recipe.id}" style="margin-left: 10px; color: var(--primary); text-decoration: none; font-size: 12px;">🔬 进入工作台 ➔</a>
         </div>
         <div class="recipe-card-actions">
-          <button class="btn btn-sm" onclick="selectRecipeForEdit(${recipe.id})">编辑</button>
+          <button class="btn btn-sm" onclick="openEditModal(${recipe.id})">✏️ 编辑</button>
           <button class="btn btn-secondary btn-sm" onclick="copyRecipe(${recipe.id})">复制</button>
           <button class="btn btn-sm" style="background:#ef4444;" onclick="deleteRecipe(${recipe.id}, '${recipe.name}')">删除</button>
         </div>
@@ -822,6 +924,105 @@ window.selectRecipeForEdit = function(recipeId) {
   selectedRecipeForEdit = foam2DRecipes.find(r => r.id === recipeId);
   currentPosIndex = selectedRecipeForEdit?.pos || 0;
   renderRecipeCards();
+};
+
+// ── 打开编辑弹窗 ────────────────────────────────────
+window.openEditModal = function(recipeId) {
+  const recipe = foam2DRecipes.find(r => r.id === recipeId);
+  if (!recipe) return;
+  
+  // 同步更新底部编辑区
+  selectedRecipeForEdit = recipe;
+  currentPosIndex = recipe.pos || 0;
+  
+  // 填充弹窗数据
+  const roi = recipe.roi_config || {};
+  const left = roi.leftFoamROI || {};
+  const right = roi.rightFoamROI || {};
+  const thresh = recipe.threshold_config || {};
+  
+  document.getElementById('edit-modal-title').textContent = `编辑配方：${recipe.name}`;
+  document.getElementById('edit-modal-id').value = recipe.id;
+  document.getElementById('edit-modal-pos').textContent = `POS ${recipe.pos}（第${recipe.pos + 1}层）`;
+  
+  // 左ROI
+  document.getElementById('edit-left-x').value = left.x || 0;
+  document.getElementById('edit-left-y').value = left.y || 0;
+  document.getElementById('edit-left-w').value = left.width || 0;
+  document.getElementById('edit-left-h').value = left.height || 0;
+  // 右ROI
+  document.getElementById('edit-right-x').value = right.x || 0;
+  document.getElementById('edit-right-y').value = right.y || 0;
+  document.getElementById('edit-right-w').value = right.width || 0;
+  document.getElementById('edit-right-h').value = right.height || 0;
+  // 阈值
+  document.getElementById('edit-thresh-cov').value = thresh.coverage_threshold || 0.08;
+  document.getElementById('edit-thresh-score').value = thresh.score_threshold || 0.8;
+  document.getElementById('edit-thresh-x').value = thresh.max_offset_px || 30;
+  
+  document.getElementById('recipe-edit-modal').style.display = 'flex';
+};
+
+// ── 关闭编辑弹窗 ────────────────────────────────────
+window.closeEditModal = function() {
+  document.getElementById('recipe-edit-modal').style.display = 'none';
+};
+
+// ── 提交编辑弹窗保存 ────────────────────────────────
+window.submitEditModal = async function() {
+  const recipeId = Number(document.getElementById('edit-modal-id').value);
+  const recipe = foam2DRecipes.find(r => r.id === recipeId);
+  if (!recipe) {
+    showToast('未找到配方，请刷新页面', 'error');
+    return;
+  }
+  
+  const leftFoamROI = {
+    x: Number(document.getElementById('edit-left-x').value),
+    y: Number(document.getElementById('edit-left-y').value),
+    width: Number(document.getElementById('edit-left-w').value),
+    height: Number(document.getElementById('edit-left-h').value),
+  };
+  const rightFoamROI = {
+    x: Number(document.getElementById('edit-right-x').value),
+    y: Number(document.getElementById('edit-right-y').value),
+    width: Number(document.getElementById('edit-right-w').value),
+    height: Number(document.getElementById('edit-right-h').value),
+  };
+  const threshold_config = {
+    coverage_threshold: Number(document.getElementById('edit-thresh-cov').value),
+    score_threshold: Number(document.getElementById('edit-thresh-score').value),
+    max_offset_px: Number(document.getElementById('edit-thresh-x').value),
+  };
+  
+  try {
+    const res = await fetch(API.saveRecipe, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: recipe.id,
+        pos: recipe.pos,
+        name: recipe.name,
+        camera_side: recipe.camera_side,
+        image_width: recipe.image_width,
+        image_height: recipe.image_height,
+        roi_config: { leftFoamROI, rightFoamROI },
+        threshold_config,
+        is_active: true,
+        remark: recipe.remark || '',
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('配方保存成功', 'success');
+      closeEditModal();
+      await loadRecipes();
+    } else {
+      showToast(data.error || '保存失败', 'error');
+    }
+  } catch (e) {
+    showToast('网络请求失败：' + e.message, 'error');
+  }
 };
 
 // ── 本次使用（手动选择配方）──────────────────────────
@@ -1300,16 +1501,22 @@ window.submit3DModal = async function() {
   }
 };
 
-// ── 3D Modal ESC键关闭 ──────────────────────────────
+// ── ESC键关闭所有Modal ──────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     close3DModal();
+    closeEditModal();
   }
 });
 
 // ── 3D Modal 点击背景关闭 ───────────────────────────
 document.getElementById('recipe-3d-modal')?.addEventListener('click', function(e) {
   if (e.target === this) close3DModal();
+});
+
+// ── 编辑Modal 点击背景关闭 ──────────────────────────
+document.getElementById('recipe-edit-modal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeEditModal();
 });
 
 // ── 初始化 ───────────────────────────────────────────
