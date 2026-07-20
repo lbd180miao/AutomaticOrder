@@ -684,7 +684,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
     roi_gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
     is_nearly_uniform = float(np.std(roi_gray)) < float(cfg.get('min_roi_stddev', 3.0))
     if not has_real_standard_mask and white_pixel_coverage > max_mask_coverage and is_nearly_uniform:
-        return _empty_side_result(
+        result = _empty_side_result(
             roi,
             reason='mask_saturated',
             coverage_threshold=coverage_threshold,
@@ -696,6 +696,8 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
                 'box': box,
             },
         )
+        result['mask'] = mask
+        return result
     offset = compute_physical_offset(
         mask,
         standard_mask,
@@ -735,6 +737,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         )
         if offset:
             result.update(offset)
+        result['mask'] = mask
         return result
 
     offset_distance_px = offset['offset_distance_px'] if offset else 0.0
@@ -761,6 +764,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
     result = {
         'roi': roi,
         'box': box,
+        'mask': mask,
         'is_present': True,
         'is_aligned': is_aligned,
         'coverage_ratio': float(coverage_ratio),
@@ -977,6 +981,9 @@ class FoamInspector:
                     scene, f'foam_raw_p{position_index}'
                 )
                 annotated = image_io.annotate_foam(scene, roi, foam, result)
+                for details in side_details.values():
+                    details.pop('mask', None)
+                
                 result_path, _, _ = image_io.save_image(
                     annotated, f'foam_result_p{position_index}', rel_dir='vision/results',
                 )
@@ -1095,6 +1102,8 @@ class FoamInspector:
             scene, f'foam_raw_p{position_index}'
         )
         annotated = image_io.annotate_foam(scene, roi, foam, result)
+        result.pop('mask', None)
+        
         result_path, _, _ = image_io.save_image(
             annotated, f'foam_result_p{position_index}', rel_dir='vision/results',
         )
