@@ -81,7 +81,18 @@ def _capture_with_legacy_api(chg_hik, payload):
     raise RuntimeError('capture_images succeeded but no image file was found')
 
 
-def _capture_with_official_mvs(payload):
+def _is_camera_busy_ret(ret: int) -> bool:
+    """判断 MVS SDK 返回码是否为相机占用/访问拒绝类错误。"""
+    # 统一转为无符号32位整数后比较
+    unsigned = ret & 0xFFFFFFFF
+    return unsigned in (
+        0x80000203,   # MV_E_RESOURCE_BUSY
+        0x80000206,   # MV_E_ACCESS_DENIED
+        0x80000201,   # MV_E_HANDLE (handle invalid, may happen if previous session leaked)
+    )
+
+
+def _capture_with_official_mvs(payload, max_open_retries=3, open_retry_delay=1.0):
     """Capture one frame with Hikrobot's official Python wrapper.
 
     The bundled ``chg_hik`` 0.4.1 binding calls the older
@@ -172,10 +183,29 @@ def _capture_with_official_mvs(payload):
         if ret != 0:
             raise RuntimeError(f'MVS create handle failed: 0x{ret & 0xffffffff:08x}')
         handle_created = True
-        ret = cam.MV_CC_OpenDevice(mvs.MV_ACCESS_Exclusive, 0)
-        if ret != 0:
-            raise RuntimeError(f'MVS open camera failed: 0x{ret & 0xffffffff:08x}')
-        opened = True
+
+        # ── 打开相机（带重试，应对短暂占用 0x80000203）─────────────────────
+        last_open_ret = None
+        for open_attempt in range(max_open_retries):
+            ret = cam.MV_CC_OpenDevice(mvs.MV_ACCESS_Exclusive, 0)
+            if ret == 0:
+                opened = True
+                break
+            last_open_ret = ret
+            if _is_camera_busy_ret(ret) and open_attempt < max_open_retries - 1:
+                wait = open_retry_delay * (2 ** open_attempt)  # 指数退避：1s, 2s ...
+                sys.stderr.write(
+                    f'Warning: MVS open camera busy '
+                    f'0x{ret & 0xffffffff:08x} '
+                    f'(attempt {open_attempt + 1}/{max_open_retries}), '
+                    f'retrying in {wait:.1f}s...\n'
+                )
+                time.sleep(wait)
+            else:
+                break  # 非占用类错误，不重试
+        if not opened:
+            raise RuntimeError(f'MVS open camera failed: 0x{last_open_ret & 0xffffffff:08x}')
+        # ─────────────────────────────────────────────────────────────────────
 
         feature_file_value = payload.get('feature_file')
         if feature_file_value:

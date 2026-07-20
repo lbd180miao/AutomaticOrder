@@ -99,18 +99,41 @@ def serialize_recipe(recipe):
 
 
 def _pixel_roi_to_ratio(roi, image_width, image_height):
+    """将 ROI 配置转换为归一化比例坐标 [x1, y1, x2, y2]。
+
+    支持两种格式：
+    1. 比例格式（新格式）：{x1r, y1r, x2r, y2r}，值在 [0, 1]，**优先使用**
+    2. 像素格式（旧格式）：{x, y, width, height}，需要除以图像尺寸
+
+    返回 None 表示 ROI 数据无效（负数、零面积等）。
+    """
+    # 优先读取比例坐标（前端新格式，精确且不依赖分辨率）
+    if all(k in roi for k in ('x1r', 'y1r', 'x2r', 'y2r')):
+        x1r = float(roi['x1r'])
+        y1r = float(roi['y1r'])
+        x2r = float(roi['x2r'])
+        y2r = float(roi['y2r'])
+        # 校验：必须是合法的 [0,1] 区间且有正面积
+        if (0.0 <= x1r < x2r <= 1.0) and (0.0 <= y1r < y2r <= 1.0):
+            return [round(x1r, 6), round(y1r, 6), round(x2r, 6), round(y2r, 6)]
+
+    # 回退到旧格式（像素坐标）
     x = float(roi.get('x', 0))
     y = float(roi.get('y', 0))
-    width = float(roi.get('width', 0))
-    height = float(roi.get('height', 0))
-    image_width = max(float(image_width or 1), 1.0)
-    image_height = max(float(image_height or 1), 1.0)
-    return [
-        round(max(0.0, min(1.0, x / image_width)), 6),
-        round(max(0.0, min(1.0, y / image_height)), 6),
-        round(max(0.0, min(1.0, (x + width) / image_width)), 6),
-        round(max(0.0, min(1.0, (y + height) / image_height)), 6),
-    ]
+    w = float(roi.get('width', 0))
+    h = float(roi.get('height', 0))
+    iw = max(float(image_width or 1), 1.0)
+    ih = max(float(image_height or 1), 1.0)
+    # 宽度或高度为负 / 零 → 数据损坏
+    if w <= 0 or h <= 0:
+        return None
+    x1 = round(max(0.0, min(1.0, x / iw)), 6)
+    y1 = round(max(0.0, min(1.0, y / ih)), 6)
+    x2 = round(max(0.0, min(1.0, (x + w) / iw)), 6)
+    y2 = round(max(0.0, min(1.0, (y + h) / ih)), 6)
+    if x1 >= x2 or y1 >= y2:
+        return None
+    return [x1, y1, x2, y2]
 
 
 def _threshold_value(thresholds, keys, default):
@@ -123,12 +146,29 @@ def _threshold_value(thresholds, keys, default):
 def build_foam_inspection_config(recipe):
     roi_config = recipe.roi_config or {}
     thresholds = recipe.threshold_config or {}
-    left = _pixel_roi_to_ratio(
-        roi_config['leftFoamROI'], recipe.image_width, recipe.image_height
-    )
-    right = _pixel_roi_to_ratio(
-        roi_config['rightFoamROI'], recipe.image_width, recipe.image_height
-    )
+
+    left_roi_raw = roi_config.get('leftFoamROI')
+    right_roi_raw = roi_config.get('rightFoamROI')
+    if not left_roi_raw or not right_roi_raw:
+        raise ValueError(
+            f'配方 "{recipe.name}" (POS {recipe.pos}) 缺少 ROI 配置，'
+            '请在工作台重新标定左右泡棉区域后保存配方。'
+        )
+
+    left = _pixel_roi_to_ratio(left_roi_raw, recipe.image_width, recipe.image_height)
+    right = _pixel_roi_to_ratio(right_roi_raw, recipe.image_width, recipe.image_height)
+
+    if left is None:
+        raise ValueError(
+            f'配方 "{recipe.name}" (POS {recipe.pos}) 的左侧 ROI 数据无效 '
+            f'(raw={left_roi_raw})。请重新标定左侧泡棉区域后保存配方。'
+        )
+    if right is None:
+        raise ValueError(
+            f'配方 "{recipe.name}" (POS {recipe.pos}) 的右侧 ROI 数据无效 '
+            f'(raw={right_roi_raw})。请重新标定右侧泡棉区域后保存配方。'
+        )
+
     max_offset = thresholds.get('max_offset_px')
     max_offset_x = int(_threshold_value(thresholds, ('max_offset_x', 'maxOffsetX'), 150))
     max_offset_y = int(_threshold_value(thresholds, ('max_offset_y', 'maxOffsetY'), 150))
@@ -172,3 +212,4 @@ def build_foam_inspection_config(recipe):
         'standard_foam_area_ratio': standard_foam_area_ratio,
         'standard_mask_paths': standard_mask_paths if isinstance(standard_mask_paths, dict) else {},
     }
+

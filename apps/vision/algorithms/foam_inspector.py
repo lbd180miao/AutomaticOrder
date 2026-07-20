@@ -81,15 +81,23 @@ def generate_foam_mask(roi_image, cfg=None):
     else:
         mask_adaptive = mask_fixed.copy()
 
+    # 安全限制：OTSU和自适应阈值容易在全黑背景中提取噪点/反光，
+    # 必须限制它们只在有一定绝对亮度的区域生效
+    min_foam_gray = int(cfg.get('min_foam_gray', 110))
+    _, mask_min_gray = cv2.threshold(gray, min_foam_gray, 255, cv2.THRESH_BINARY)
+    mask_otsu = cv2.bitwise_and(mask_otsu, mask_min_gray)
+    mask_adaptive = cv2.bitwise_and(mask_adaptive, mask_min_gray)
+
     mask = cv2.bitwise_or(mask_hsv, mask_lab)
     mask = cv2.bitwise_or(mask, mask_otsu)
     mask = cv2.bitwise_or(mask, mask_fixed)
     mask = cv2.bitwise_or(mask, mask_adaptive)
 
     # Broader neutral gray/white candidate for shadowed foam.
-    foam_max_s = int(cfg.get('foam_max_s', 135))
-    foam_min_v = int(cfg.get('foam_min_v', 85))
-    foam_min_l = int(cfg.get('foam_min_l', 105))
+    # 提高阈值，防止把黑色保险杠的高光反光（低饱和度，中等亮度）误认为阴影中的泡棉
+    foam_max_s = int(cfg.get('foam_max_s', 70))   # 泡棉几乎没有颜色，饱和度应极低（原135太宽）
+    foam_min_v = int(cfg.get('foam_min_v', 120))  # 亮度门槛提高（原85太容易把暗灰当白）
+    foam_min_l = int(cfg.get('foam_min_l', 130))  # LAB亮度提高（原105太低）
     neutral_mask = cv2.inRange(hsv[:, :, 1], 0, foam_max_s)
     value_mask = cv2.inRange(hsv[:, :, 2], foam_min_v, 255)
     lightness_mask = cv2.inRange(lab[:, :, 0], foam_min_l, 255)
@@ -635,6 +643,12 @@ def _detect_foam_side(image, roi, cfg, side=None):
 
     detected_pixels = int(np.count_nonzero(mask))
     standard_mask = _load_standard_mask_for_side(cfg, side, (roi_height, roi_width))
+    
+    has_real_standard_mask = standard_mask is not None
+    # 核心业务逻辑："ROI即标准模板"。如果未配置真实的掩膜，则认为整个ROI就是标准的泡棉形状
+    if standard_mask is None:
+        standard_mask = np.full((roi_height, roi_width), 255, dtype=np.uint8)
+        
     standard_pixels = int(np.count_nonzero(standard_mask)) if standard_mask is not None else None
     coverage_ratio = round(compute_coverage_ratio(mask, standard_mask, roi_area), 4)
     iou = round(compute_iou(mask, standard_mask), 4) if standard_mask is not None else None
@@ -645,7 +659,7 @@ def _detect_foam_side(image, roi, cfg, side=None):
     max_mask_coverage = float(cfg.get('max_mask_coverage', 0.90))
     roi_gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
     is_nearly_uniform = float(np.std(roi_gray)) < float(cfg.get('min_roi_stddev', 3.0))
-    if standard_mask is None and white_pixel_coverage > max_mask_coverage and is_nearly_uniform:
+    if not has_real_standard_mask and white_pixel_coverage > max_mask_coverage and is_nearly_uniform:
         return _empty_side_result(
             roi,
             reason='mask_saturated',
@@ -658,29 +672,12 @@ def _detect_foam_side(image, roi, cfg, side=None):
                 'box': box,
             },
         )
-    if standard_mask is not None:
-        offset = compute_physical_offset(
-            mask,
-            standard_mask,
-            cfg.get('mm_per_pixel_x', 0),
-            cfg.get('mm_per_pixel_y', 0),
-        )
-    elif centroid is not None:
-        roi_cx = roi_width / 2
-        roi_cy = roi_height / 2
-        offset_x = round(centroid[0] - roi_cx, 2)
-        offset_y = round(centroid[1] - roi_cy, 2)
-        offset_x_mm, offset_y_mm = _offsets_mm(offset_x, offset_y, cfg)
-        offset = {
-            'offset_x_px': offset_x,
-            'offset_y_px': offset_y,
-            'offset_x_mm': offset_x_mm,
-            'offset_y_mm': offset_y_mm,
-            'offset_distance_px': round(float(np.hypot(offset_x, offset_y)), 2),
-            'offset_distance_mm': round(float(np.hypot(offset_x_mm, offset_y_mm)), 3),
-        }
-    else:
-        offset = None
+    offset = compute_physical_offset(
+        mask,
+        standard_mask,
+        cfg.get('mm_per_pixel_x', 0),
+        cfg.get('mm_per_pixel_y', 0),
+    )
 
     if centroid is None or detected_pixels == 0:
         return _empty_side_result(
@@ -723,19 +720,19 @@ def _detect_foam_side(image, roi, cfg, side=None):
         and float(cfg.get('mm_per_pixel_y', 0) or 0) > 0
         and max_offset_mm > 0
     )
-    if standard_mask is None:
-        is_aligned = True
-        alignment_metric = 'not_evaluated'
-    elif has_mm_calibration:
+    if has_mm_calibration:
         is_aligned = bool(offset_distance_mm <= max_offset_mm)
         alignment_metric = 'mm'
     else:
         is_aligned = bool(offset_distance_px <= max_offset_px)
         alignment_metric = 'px'
+        
     score = round(float(max(0.0, min(1.0, coverage_ratio / max(coverage_threshold, 0.01)))), 3)
     if iou is not None:
         iou = float(iou)
         score = round(float(min(score, iou)), 3)
+        if iou < iou_threshold:
+            is_aligned = False
 
     result = {
         'roi': roi,
@@ -744,7 +741,7 @@ def _detect_foam_side(image, roi, cfg, side=None):
         'is_aligned': is_aligned,
         'coverage_ratio': float(coverage_ratio),
         'white_pixel_coverage': float(white_pixel_coverage),
-        'coverage_source': 'standard_mask' if standard_mask is not None else 'roi_pixel_ratio',
+        'coverage_source': 'standard_mask' if has_real_standard_mask else 'roi_pixel_ratio',
         'detected_pixels': int(detected_pixels),
         'standard_pixels': int(standard_pixels) if standard_pixels is not None else None,
         'iou': iou,

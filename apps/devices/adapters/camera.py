@@ -9,6 +9,34 @@ from django.conf import settings
 
 from .base import BaseDeviceAdapter
 
+# ── 海康 MVS 相机占用 / 访问失败 相关错误特征 ─────────────────────────────
+# 0x80000203 = MV_E_RESOURCE_BUSY  (-2147483133)
+# 0x80000206 = MV_E_ACCESS_DENIED  (-2147483130)
+# -2147483115 = 老版本 SDK 设备占用
+_CAMERA_BUSY_PATTERNS = (
+    '0x80000203',       # MV_E_RESOURCE_BUSY (新版 SDK)
+    '0x80000206',       # MV_E_ACCESS_DENIED
+    '-2147483133',      # 0x80000203 有符号十进制
+    '-2147483130',      # 0x80000206 有符号十进制
+    '-2147483115',      # 老版本占用错误
+    '打开设备失败',
+    '设备被占用',
+    'resource busy',
+    'access denied',
+    'open camera failed',
+    'MV_E_RESOURCE_BUSY',
+    'MV_E_ACCESS_DENIED',
+)
+
+
+def _is_camera_busy_error(error_msg: str) -> bool:
+    """判断错误是否为相机资源占用/访问拒绝类错误。"""
+    msg_lower = error_msg.lower()
+    return any(
+        pattern.lower() in msg_lower
+        for pattern in _CAMERA_BUSY_PATTERNS
+    )
+
 
 class CameraAdapter(BaseDeviceAdapter):
     """Camera adapter backed by the Hikrobot ``chg_hik`` Python binding."""
@@ -283,7 +311,8 @@ class CameraAdapter(BaseDeviceAdapter):
                 f'无法创建或写入目录 {output_dir}, 错误: {exc}'
             ) from exc
 
-        # 添加重试机制
+        # 重试机制（指数退避）
+        import time as _time
         last_error = None
         for attempt in range(max_retries):
             try:
@@ -322,35 +351,38 @@ class CameraAdapter(BaseDeviceAdapter):
             except RuntimeError as exc:
                 last_error = exc
                 error_msg = str(exc)
-                
-                # 检查是否是设备占用错误（错误码 -2147483115）
-                if '-2147483115' in error_msg or '打开设备失败' in error_msg:
+
+                if _is_camera_busy_error(error_msg):
                     if attempt < max_retries - 1:
-                        # 设备被占用，等待后重试
-                        import time
-                        import sys
+                        # 指数退避：1s, 2s, 4s ...
+                        wait = retry_delay * (2 ** attempt)
                         sys.stderr.write(
-                            f'Warning: Camera device busy (attempt {attempt + 1}/{max_retries}), '
-                            f'retrying in {retry_delay}s...\n'
+                            f'Warning: Camera busy [{camera_code}] '
+                            f'(attempt {attempt + 1}/{max_retries}), '
+                            f'retrying in {wait}s... error={error_msg}\n'
                         )
-                        time.sleep(retry_delay)
+                        _time.sleep(wait)
                         continue
                     else:
-                        # 最后一次尝试失败
+                        # 所有重试耗尽，给出清晰的中文提示
                         raise RuntimeError(
-                            f'Hik camera capture failed for {camera_code} ({task_type}): '
-                            f'设备被占用或无法访问。请检查：\n'
-                            f'1. 是否有 MVS 软件正在运行\n'
-                            f'2. 是否有其他程序占用相机\n'
-                            f'3. 相机连接是否正常\n'
+                            f'相机被占用，无法访问 ({camera_code})\n\n'
+                            '可能原因：\n'
+                            '• MVS 客户端软件正在使用相机\n'
+                            '• 其他程序正在访问相机\n'
+                            '• 上次使用未正常释放\n\n'
+                            '解决方法：\n'
+                            '1. 关闭 MVS 软件后重试\n'
+                            '2. 刷新页面重试\n'
+                            '3. 重启开发服务器\n\n'
                             f'原始错误: {error_msg}'
                         ) from exc
                 else:
-                    # 其他错误直接抛出，不重试
+                    # 非占用类错误，直接抛出不重试
                     raise
-        
-        # 如果所有重试都失败
+
+        # 所有重试都失败
         if last_error:
             raise last_error
-        
+
         raise RuntimeError(f'Hik camera capture failed for {camera_code} ({task_type}): Unknown error')
