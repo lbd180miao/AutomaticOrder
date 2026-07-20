@@ -648,6 +648,12 @@ def api_foam_recipe_create(request):
 
 
 def _normalize_roi_ratio(values):
+    if isinstance(values, dict) and values.get('type') == 'polygon':
+        points = values.get('points')
+        if not isinstance(points, list) or len(points) < 3:
+            raise ValueError('Polygon ROI must contain at least 3 points')
+        return values
+        
     if not isinstance(values, (list, tuple)) or len(values) != 4:
         raise ValueError('ROI must contain four ratio values')
     ratios = [float(value) for value in values]

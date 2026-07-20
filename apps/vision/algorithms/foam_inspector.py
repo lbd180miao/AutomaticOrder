@@ -594,13 +594,15 @@ def _apply_image_quality_adjustments(cfg, quality_analysis):
     return adjusted_cfg
 
 
-def _detect_foam_side(image, roi, cfg, side=None):
+def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
     """检测单侧（左或右）ROI 内的泡棉。
     
     Args:
         image: 完整图像
         roi: ROI 区域 (x1, y1, x2, y2)
         cfg: 检测配置字典
+        side: 'left' 或 'right'
+        polygon_points: 可选的多边形顶点列表（全图比例坐标），用于不规则 ROI
     
     Returns:
         dict: 检测结果，包含 is_present、coverage_ratio 等字段
@@ -608,7 +610,23 @@ def _detect_foam_side(image, roi, cfg, side=None):
     x1, y1, x2, y2 = roi
     roi_img = image[y1:y2, x1:x2].copy()
     roi_height, roi_width = roi_img.shape[:2]
-    roi_area = max(roi_width * roi_height, 1)
+    
+    # 如果存在多边形，计算多边形的像素面积；否则使用包围盒面积
+    polygon_mask = None
+    if polygon_points and len(polygon_points) >= 3:
+        h, w = image.shape[:2]
+        pts_px = np.array([
+            [int(round(pt[0] * w)) - x1, int(round(pt[1] * h)) - y1]
+            for pt in polygon_points
+        ], dtype=np.int32)
+        polygon_mask = np.zeros((roi_height, roi_width), dtype=np.uint8)
+        cv2.fillPoly(polygon_mask, [pts_px], 255)
+        roi_area = max(cv2.countNonZero(polygon_mask), 1)
+        # 将超出多边形的区域涂黑，避免背景干扰检测
+        roi_img = cv2.bitwise_and(roi_img, roi_img, mask=polygon_mask)
+    else:
+        roi_area = max(roi_width * roi_height, 1)
+
     coverage_threshold = float(cfg.get('coverage_threshold', 0.08))
     iou_threshold = float(cfg.get('iou_threshold', cfg.get('min_iou', 0.70)))
     max_offset_px = float(cfg.get('max_offset_px', 30))
@@ -640,6 +658,9 @@ def _detect_foam_side(image, roi, cfg, side=None):
     if border_y > 0:
         mask[:border_y, :] = 0
         mask[roi_height - border_y:, :] = 0
+        
+    if polygon_mask is not None:
+        mask = cv2.bitwise_and(mask, polygon_mask)
 
     detected_pixels = int(np.count_nonzero(mask))
     standard_mask = _load_standard_mask_for_side(cfg, side, (roi_height, roi_width))
@@ -647,7 +668,10 @@ def _detect_foam_side(image, roi, cfg, side=None):
     has_real_standard_mask = standard_mask is not None
     # 核心业务逻辑："ROI即标准模板"。如果未配置真实的掩膜，则认为整个ROI就是标准的泡棉形状
     if standard_mask is None:
-        standard_mask = np.full((roi_height, roi_width), 255, dtype=np.uint8)
+        if polygon_mask is not None:
+            standard_mask = polygon_mask.copy()
+        else:
+            standard_mask = np.full((roi_height, roi_width), 255, dtype=np.uint8)
         
     standard_pixels = int(np.count_nonzero(standard_mask)) if standard_mask is not None else None
     coverage_ratio = round(compute_coverage_ratio(mask, standard_mask, roi_area), 4)
@@ -780,9 +804,19 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
     """
     height, width = image.shape[:2]
     sides = {}
+    
+    polygon_rois = cfg.get('polygon_rois', {}).get(str(position_index), {})
+
     for side, ratio_box in side_roi_config.items():
         roi = _ratio_box_to_pixels(ratio_box, width, height)
-        sides[side] = _detect_foam_side(image, roi, cfg, side=side)
+        polygon_points = polygon_rois.get(side)
+        sides[side] = _detect_foam_side(
+            image, 
+            roi, 
+            cfg, 
+            side=side, 
+            polygon_points=polygon_points
+        )
 
     missing = [side for side, data in sides.items() if not data['is_present']]
     misaligned = [side for side, data in sides.items() if not data.get('is_aligned', False)]
