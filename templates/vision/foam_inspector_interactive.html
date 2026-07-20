@@ -837,6 +837,39 @@ let cameraPreviewRequestInFlight = false;
 let livePreviewEnabled = false;
 let livePreviewTimer = null;
 
+function isCameraBusyError(msg) {
+  const patterns = [
+    '0x80000203', '0x80000206',           // MV_E_RESOURCE_BUSY / ACCESS_DENIED
+    '-2147483133', '-2147483130',          // 同上十进制有符号
+    '-2147483115',                         // 旧版 SDK 占用
+    '相机被占用', '设备被占用', '打开设备失败',
+    'resource busy', 'access denied',
+    'open camera failed', 'mv_e_resource_busy',
+  ];
+  const lower = msg.toLowerCase();
+  return patterns.some(p => lower.includes(p.toLowerCase()));
+}
+
+// 在页面顶部显示一个临时 toast 消息（不打断用户操作）
+function showCameraToast(msg, type = 'warn') {
+  const existing = document.getElementById('camera-toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'camera-toast';
+  toast.style.cssText = [
+    'position:fixed', 'top:16px', 'right:16px', 'z-index:9999',
+    'max-width:380px', 'padding:12px 16px', 'border-radius:8px',
+    'font-size:13px', 'line-height:1.5', 'box-shadow:0 4px 20px rgba(0,0,0,.4)',
+    type === 'warn'
+      ? 'background:#92400e;color:#fef3c7;border:1px solid #b45309;'
+      : 'background:#1e3a5f;color:#dbeafe;border:1px solid #3b82f6;',
+    'transition:opacity .3s',
+  ].join(';');
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 350); }, 4000);
+}
+
 async function refreshCameraPreview({ background = false } = {}) {
   if (cameraPreviewRequestInFlight) return false;
   cameraPreviewRequestInFlight = true;
@@ -852,33 +885,53 @@ async function refreshCameraPreview({ background = false } = {}) {
       setPreviewImage(data.image_url);
       return true;
     } else {
-      // 改进的错误提示
       let errorMsg = data.error || '未知错误';
-      
-      // 检查是否是设备占用错误
-      if (errorMsg.includes('-2147483115') || errorMsg.includes('打开设备失败') || errorMsg.includes('设备被占用')) {
-        errorMsg = '相机被占用，无法访问\n\n可能原因：\n' +
-                   '• MVS 客户端软件正在使用相机\n' +
-                   '• 其他程序正在访问相机\n' +
-                   '• 上次使用未正常释放\n\n' +
-                   '解决方法：\n' +
-                   '1. 关闭 MVS 软件\n' +
-                   '2. 刷新页面重试\n' +
-                   '3. 重启开发服务器';
+
+      // 相机占用类错误：给出结构化提示
+      if (isCameraBusyError(errorMsg)) {
+        const friendlyMsg =
+          '⚠️ 相机被占用，无法访问\n\n' +
+          '可能原因：\n' +
+          '• MVS 客户端软件正在使用相机\n' +
+          '• 其他程序正在访问相机\n' +
+          '• 上次使用未正常释放\n\n' +
+          '解决方法：\n' +
+          '1. 关闭 MVS 软件后再试\n' +
+          '2. 刷新页面重试\n' +
+          '3. 重启开发服务器';
+        if (background) {
+          // 实时预览：显示 toast，不弹 alert，不停止预览，让用户继续操作
+          showCameraToast('📷 相机暂时被占用，将在下次自动重试...');
+          return false;  // 返回 false 但由调用方决定是否停止
+        } else {
+          alert('获取预览失败\n\n' + friendlyMsg);
+          return false;
+        }
       } else if (errorMsg.includes('-2147483646') || errorMsg.includes('获取图像失败')) {
-        errorMsg = '相机无法获取图像\n\n可能原因：\n' +
-                   '• 相机触发模式未配置\n' +
-                   '• 相机参数设置不正确\n\n' +
-                   '解决方法：\n' +
-                   '1. 使用 MVS 软件配置相机\n' +
-                   '2. 设置触发模式为"连续采集"\n' +
-                   '3. 查看《相机配置说明.md》';
+        errorMsg =
+          '相机无法获取图像\n\n可能原因：\n' +
+          '• 相机触发模式未配置\n' +
+          '• 相机参数设置不正确\n\n' +
+          '解决方法：\n' +
+          '1. 使用 MVS 软件配置相机\n' +
+          '2. 设置触发模式为"连续采集"\n' +
+          '3. 查看《相机配置说明.md》';
+        alert('获取预览失败\n\n' + errorMsg);
+        return false;
       }
-      
+
+      if (background) {
+        showCameraToast('📷 预览失败：' + errorMsg.slice(0, 80));
+        return false;
+      }
       alert('获取预览失败\n\n' + errorMsg);
       return false;
     }
   } catch (e) {
+    if (background) {
+      showCameraToast('📷 网络请求失败，将自动重试...');
+      return false;
+    }
     alert('网络请求失败：' + e.message);
     return false;
   } finally {
@@ -907,8 +960,10 @@ async function runLivePreviewFrame() {
   }
   const success = await refreshCameraPreview({ background: true });
   if (!success) {
-    livePreviewEnabled = false;
-    updateLivePreviewButton();
+    // 相机占用是短暂错误，不停止实时预览，等待下一帧重试
+    if (livePreviewEnabled) {
+      livePreviewTimer = window.setTimeout(runLivePreviewFrame, 2000);  // 2s 后重试
+    }
     return;
   }
   // 串行采集，上一帧完成后再请求下一帧，避免两个进程同时占用相机。
@@ -1032,8 +1087,24 @@ function showRecipeChangeNotification(fromPos, toPos) {
   }, 3000);
 }
 function roiToRatio(roi, recipe) {
-  const w = Number(recipe.image_width || 1);
-  const h = Number(recipe.image_height || 1);
+  // 兼容两种格式：
+  // 1. 比例格式（新格式）：{x1r, y1r, x2r, y2r} 或数组 [x1r,y1r,x2r,y2r]，值在 0~1 之间
+  // 2. 像素格式（旧格式）：{x, y, width, height}，需要除以图像尺寸
+  
+  // 检测是否为比例格式（新格式）
+  if ('x1r' in roi) {
+    // 新格式：直接返回比例坐标
+    return [Number(roi.x1r), Number(roi.y1r), Number(roi.x2r), Number(roi.y2r)];
+  }
+  
+  // 旧格式（像素格式）：必须使用保存时记录的图像尺寸来还原比例
+  // ⚠️ 关键：必须用配方保存时的 image_width/image_height，而非当前显示图片的 naturalWidth
+  // 否则：如果当前预览图与保存时分辨率不同，比例坐标会错误
+  const w = Number(recipe.image_width || 1280);
+  const h = Number(recipe.image_height || 720);
+  
+  console.log(`[ROI转换] 配方图像尺寸=${w}x${h}, ROI像素=(${roi.x},${roi.y}), 尺寸=${roi.width}x${roi.height}`);
+  
   return [
     Number(roi.x || 0) / w,
     Number(roi.y || 0) / h,
@@ -1053,9 +1124,11 @@ function applyRecipeRoiToOverlay(recipe) {
 function refreshPreviewRecipeRoi() {
   const redraw = () => {
     const recipe = currentDetectionRecipe();
-    if (recipe?.roi_config) {
+    if (recipe?.roi_config && !cal.dirty) {
+      // 用户尚未手动画过 ROI，用配方数据初始化显示
       applyRecipeRoiToOverlay(recipe);
     } else {
+      // 用户已手动标注或无配方，只重绘已有 cal.rois
       renderRoiBoxes();
     }
   };
@@ -1678,22 +1751,30 @@ async function saveRoiToRecipe(targetPos) {
   let leftFoamROI = null;
   let rightFoamROI = null;
   
-  const imageWidth = 1280;
-  const imageHeight = 720;
+  // 使用当前预览图的实际尺寸；如果图片尚未加载则降级到 1280×720
+  const previewImg = document.getElementById('preview-image');
+  const imageWidth  = (previewImg && previewImg.naturalWidth  > 0) ? previewImg.naturalWidth  : 1280;
+  const imageHeight = (previewImg && previewImg.naturalHeight > 0) ? previewImg.naturalHeight : 720;
   
   if (cal.rois.left && cal.rois.right) {
-    // 从当前标定或预览的 ROI 中提取
+    // 从当前标定或预览的 ROI 中提取（cal.rois 存储的是 0~1 比例坐标）
+    // ✅ 新格式：同时保存比例坐标（x1r/y1r/x2r/y2r）和像素坐标（x/y/width/height）
+    //    加载时优先读取比例坐标，避免因分辨率不一致导致的偏移
+    const [lx1, ly1, lx2, ly2] = cal.rois.left;
+    const [rx1, ry1, rx2, ry2] = cal.rois.right;
     leftFoamROI = {
-      x: Math.round(cal.rois.left[0] * imageWidth),
-      y: Math.round(cal.rois.left[1] * imageHeight),
-      width: Math.round((cal.rois.left[2] - cal.rois.left[0]) * imageWidth),
-      height: Math.round((cal.rois.left[3] - cal.rois.left[1]) * imageHeight)
+      x1r: lx1, y1r: ly1, x2r: lx2, y2r: ly2,           // 比例坐标（主）
+      x: Math.round(lx1 * imageWidth),                    // 像素坐标（参考）
+      y: Math.round(ly1 * imageHeight),
+      width:  Math.round((lx2 - lx1) * imageWidth),
+      height: Math.round((ly2 - ly1) * imageHeight)
     };
     rightFoamROI = {
-      x: Math.round(cal.rois.right[0] * imageWidth),
-      y: Math.round(cal.rois.right[1] * imageHeight),
-      width: Math.round((cal.rois.right[2] - cal.rois.right[0]) * imageWidth),
-      height: Math.round((cal.rois.right[3] - cal.rois.right[1]) * imageHeight)
+      x1r: rx1, y1r: ry1, x2r: rx2, y2r: ry2,
+      x: Math.round(rx1 * imageWidth),
+      y: Math.round(ry1 * imageHeight),
+      width:  Math.round((rx2 - rx1) * imageWidth),
+      height: Math.round((ry2 - ry1) * imageHeight)
     };
   } else if (existingRecipe && existingRecipe.roi_config && existingRecipe.roi_config.leftFoamROI && existingRecipe.roi_config.rightFoamROI) {
     // 回退到配方原有的 ROI 配置（如果存在）
@@ -1736,7 +1817,7 @@ async function saveRoiToRecipe(targetPos) {
     pos: targetPos,
     name: `第${targetPos + 1}层泡棉检测配方`,
     camera_side: 'both',
-    image_width: imageWidth,
+    image_width: imageWidth,    // 保存时图片的实际尺寸（供旧格式解析参考）
     image_height: imageHeight,
     roi_config: {
       leftFoamROI,
@@ -1773,8 +1854,16 @@ async function saveRoiToRecipe(targetPos) {
       const savedRecipe = data.recipe || payload;
       upsertSavedRecipe(savedRecipe);
       document.getElementById('pos-selector-modal').style.display = 'none';
+      // 保存成功后清除 dirty，同步 cal.rois 为刚保存的 ROI
+      cal.dirty = false;
+      if (savedRecipe?.roi_config) {
+        const l = savedRecipe.roi_config.leftFoamROI;
+        const r = savedRecipe.roi_config.rightFoamROI;
+        if (l) cal.rois.left  = roiToRatio(l, savedRecipe);
+        if (r) cal.rois.right = roiToRatio(r, savedRecipe);
+      }
       renderRecipeCard();
-      refreshPreviewRecipeRoi();
+      renderRoiBoxes();  // 直接重绘，不覆盖 cal.rois
       showRecipeSaveSuccess(savedRecipe, leftFoamROI, rightFoamROI);
     } else {
       const errorMsg = data.error || '未知错误';
@@ -1818,7 +1907,8 @@ function showTempRecipeSelector() {
 
 
 // ── ROI 标定 ─────────────────────────────────────────────
-const cal = { rois: {}, drawing: false, start: null };
+// dirty=true 表示用户已手动画过 ROI，refreshPreviewRecipeRoi 不应覆盖
+const cal = { rois: {}, drawing: false, start: null, dirty: false };
 
 function getImgRect() {
   const img = document.getElementById('preview-image');
@@ -1829,16 +1919,31 @@ function getImgRect() {
 function renderRoiBoxes() {
   const overlay = document.getElementById('roi-overlay');
   overlay.querySelectorAll('.roi-box').forEach(b => b.remove());
-  const imgRect = getImgRect();
-  if (!imgRect) return;
-  const containerRect = overlay.getBoundingClientRect();
+
+  const img = document.getElementById('preview-image');
+  if (!img || img.style.display === 'none') return;
+
+  // ✅ 统一坐标系修复：全部使用 getBoundingClientRect() 视口坐标系
+  // overlay(position:absolute;inset:0) 与 viewport 完全重合
+  // 用 img 和 overlay 各自的 getBoundingClientRect() 计算 img 相对于 overlay 的偏移
+  // 这样与 ptrToRatio 的坐标系完全一致，页面滚动时也不会偏移
+  const overlayRect = overlay.getBoundingClientRect();
+  const imgRect     = img.getBoundingClientRect();
+
+  const imgOffsetLeft = imgRect.left - overlayRect.left;
+  const imgOffsetTop  = imgRect.top  - overlayRect.top;
+  const displayWidth  = imgRect.width;
+  const displayHeight = imgRect.height;
+
   Object.entries(cal.rois).forEach(([side, [x1r, y1r, x2r, y2r]]) => {
     const box = document.createElement('div');
     box.className = `roi-box ${side}`;
-    box.style.left   = `${imgRect.left - containerRect.left + x1r * imgRect.width}px`;
-    box.style.top    = `${imgRect.top  - containerRect.top  + y1r * imgRect.height}px`;
-    box.style.width  = `${(x2r - x1r) * imgRect.width}px`;
-    box.style.height = `${(y2r - y1r) * imgRect.height}px`;
+
+    box.style.left   = `${imgOffsetLeft + x1r * displayWidth}px`;
+    box.style.top    = `${imgOffsetTop  + y1r * displayHeight}px`;
+    box.style.width  = `${(x2r - x1r) * displayWidth}px`;
+    box.style.height = `${(y2r - y1r) * displayHeight}px`;
+
     const label = document.createElement('div');
     label.className = 'roi-box-label';
     label.textContent = side === 'left' ? '左泡棉' : '右泡棉';
@@ -1848,11 +1953,17 @@ function renderRoiBoxes() {
 }
 
 function ptrToRatio(e) {
-  const r = getImgRect();
-  if (!r) return null;
+  // ✅ 统一坐标系修复：直接使用 img.getBoundingClientRect() 视口坐标系
+  // 鼠标坐标 e.clientX/clientY 也是视口坐标，两者减法即为图片内相对坐标
+  // 无论页面是否滚动、flex 布局如何居中，都能精准定位
+  const img = document.getElementById('preview-image');
+  if (!img || img.style.display === 'none') return null;
+
+  const imgRect = img.getBoundingClientRect();
+
   return [
-    Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
-    Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height)),
+    Math.max(0, Math.min(1, (e.clientX - imgRect.left) / imgRect.width)),
+    Math.max(0, Math.min(1, (e.clientY - imgRect.top)  / imgRect.height)),
   ];
 }
 
@@ -1860,8 +1971,22 @@ document.getElementById('btn-start-roi').addEventListener('click', () => {
   const overlay = document.getElementById('roi-overlay');
   const active = overlay.classList.toggle('calibrating');
   const side = document.getElementById('calibration-side').value;
-  document.getElementById('calibration-status').textContent =
-    active ? `请在预览图上拖拽框选【${side === 'left' ? '左' : '右'}侧泡棉】区域` : '';
+
+  if (active) {
+    // 进入绘制模式：如果 cal.rois 某侧为空，先从配方预填，让用户可以在原位置微调
+    const recipe = currentDetectionRecipe();
+    if (recipe?.roi_config) {
+      const left = recipe.roi_config.leftFoamROI;
+      const right = recipe.roi_config.rightFoamROI;
+      if (left && !cal.rois.left)   cal.rois.left  = roiToRatio(left, recipe);
+      if (right && !cal.rois.right) cal.rois.right = roiToRatio(right, recipe);
+      renderRoiBoxes();
+    }
+    document.getElementById('calibration-status').textContent =
+      `请在预览图上拖拽框选【${side === 'left' ? '左' : '右'}侧泡棉】区域（可在现有框上重画）`;
+  } else {
+    document.getElementById('calibration-status').textContent = '';
+  }
 });
 
 document.getElementById('roi-overlay').addEventListener('mousedown', e => {
@@ -1881,7 +2006,11 @@ document.getElementById('roi-overlay').addEventListener('mousemove', e => {
   renderRoiBoxes();
 });
 document.getElementById('roi-overlay').addEventListener('mouseup', () => {
-  cal.drawing = false; cal.start = null;
+  if (cal.drawing) {
+    cal.dirty = true;  // 用户完成一次绘制，标记为 dirty，防止配方刷新覆盖
+  }
+  cal.drawing = false;
+  cal.start = null;
 });
 
 document.getElementById('btn-save-roi').addEventListener('click', async () => {
@@ -1944,9 +2073,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('pos-index')?.addEventListener('change', () => {
     manualSelectedRecipe = null;
     selectedRecipeForEdit = activeFoam2DRecipe();
+    // POS 切换时重置 ROI 状态，显示新 POS 的配方 ROI
+    cal.dirty = false;
+    cal.rois = {};
     renderRecipeCard();  // 更新配方卡片
     refreshPreviewRecipeRoi();
-    
+
     // 注意：不清除待检测图片，允许用户用同一张图片测试不同POS的配方
     // 如果需要重新拍照，用户可以点击「刷新预览」或「清除」按钮
   });
@@ -1959,8 +2091,16 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // 保存配方按钮
   document.getElementById('btn-save-recipe')?.addEventListener('click', () => {
+    // 允许只重画一侧：缺失的一侧自动从当前配方补全
+    const recipe = currentDetectionRecipe();
+    if (!cal.rois.left && recipe?.roi_config?.leftFoamROI) {
+      cal.rois.left = roiToRatio(recipe.roi_config.leftFoamROI, recipe);
+    }
+    if (!cal.rois.right && recipe?.roi_config?.rightFoamROI) {
+      cal.rois.right = roiToRatio(recipe.roi_config.rightFoamROI, recipe);
+    }
     if (!cal.rois.left || !cal.rois.right) {
-      alert('请先标定左右泡棉 ROI');
+      alert('请先框选左侧和右侧泡棉 ROI\n\n提示：点击"框选 ROI"后在预览图上拖拽绘制');
       return;
     }
     document.getElementById('pos-selector-modal').style.display = 'flex';

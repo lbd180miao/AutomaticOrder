@@ -10,6 +10,7 @@
 <div id="real-workbench"
      data-capture-url="{% url 'coordinates:api_capture_real' %}"
      data-last-capture-url="{% url 'coordinates:api_real_last_capture' %}"
+     data-workbench-url="{% url 'coordinates:api_workbench' %}"
      data-mock-url="{% url 'coordinates:workbench' %}">
   {% csrf_token %}
 
@@ -56,22 +57,38 @@
     <aside class="coordinate-editor">
 
       <section class="coordinate-card">
-        <header><span>01</span><div><h2>手眼矩阵</h2><p>T_flange_camera · mm（从示教器抄写）</p></div></header>
+        <header>
+          <span>01</span>
+          <div><h2>手眼矩阵</h2><p>T_flange_camera · mm（从示教器抄写）</p></div>
+          <div class="card-actions">
+            <button id="btn-matrix-reset" type="button" class="btn-card-act btn-card-reset" title="重置为系统默认值">↺ 重置</button>
+            <button id="btn-matrix-save"  type="button" class="btn-card-act btn-card-save"  title="保存当前矩阵到本地，下次打开自动填入">💾 保存</button>
+          </div>
+        </header>
         <div id="real-hand-eye-matrix" class="matrix-grid" aria-label="手眼矩阵">
           {% for row in "0123" %}{% for col in "0123" %}
           <input type="number" step="any" data-matrix-row="{{ row }}" data-matrix-col="{{ col }}"
                  aria-label="矩阵第 {{ row }} 行第 {{ col }} 列">
           {% endfor %}{% endfor %}
         </div>
+        <div id="matrix-save-tip" class="card-save-tip"></div>
         <div class="real-hint">💡 从手眼标定结果中复制，或参考 MOCK 模式中的矩阵</div>
       </section>
 
       <section class="coordinate-card">
-        <header><span>02</span><div><h2>机器人拍照位</h2><p>T_base_flange · mm / °（从示教器读取）</p></div></header>
+        <header>
+          <span>02</span>
+          <div><h2>机器人拍照位</h2><p>T_base_flange · mm / °（从示教器读取）</p></div>
+          <div class="card-actions">
+            <button id="btn-pose-reset" type="button" class="btn-card-act btn-card-reset" title="重置为系统默认值">↺ 重置</button>
+            <button id="btn-pose-save"  type="button" class="btn-card-act btn-card-save"  title="保存当前位姿到本地，下次打开自动填入">💾 保存</button>
+          </div>
+        </header>
         <div id="real-pose-fields" class="field-grid">
           {% for key in "xyz" %}<label>{{ key|upper }} <input type="number" step="any" data-pose="{{ key }}" placeholder="从示教器读取"></label>{% endfor %}
           {% for key in pose_rotation_keys %}<label>{{ key|upper }} <input type="number" step="any" data-pose="{{ key }}" placeholder="0"></label>{% endfor %}
         </div>
+        <div id="pose-save-tip" class="card-save-tip"></div>
         <div class="real-hint">💡 机器人移到拍照位后，从示教器读取 TCP 坐标填入</div>
       </section>
 
@@ -95,6 +112,7 @@
 
       <!-- 操作按钮 -->
       <div class="real-actions">
+        <button id="btn-load-defaults" type="button" class="btn btn-secondary" title="从系统配置加载手眼矩阵、机器人位姿和 ROI 默认值">🗂 加载默认参数</button>
         <button id="btn-load-last" type="button" class="btn btn-secondary">🔄 加载上次结果</button>
         <button id="btn-capture-real-2" type="button" class="btn real-capture-btn">📡 采集真实点云</button>
       </div>
@@ -159,5 +177,5 @@
   </div>
 </div>
 
-<script src="{% static 'coordinates/workbench_real.js' %}"></script>
+<script src="{% static 'coordinates/workbench_real.js' %}?v=20260716-4"></script>
 {% endblock %}

@@ -137,9 +137,20 @@ def api_capture_real(request):
             payload.get('theoretical', {'x': 0.0, 'y': 0.0, 'z': 0.0}),
             ('x', 'y', 'z')
         )
-        roi = svc._numbers(
-            payload.get('roi'), ('x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max')
+        roi_raw = payload.get('roi') or {}
+        # 若 ROI 全为零（前端未填写），先暂存 None，采集点云后自动计算
+        _roi_all_zero = isinstance(roi_raw, dict) and all(
+            float(roi_raw.get(k, 0)) == 0 for k in ('x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max')
         )
+        if _roi_all_zero:
+            # 占位，后面用点云实际范围替换
+            roi = {'x_min': -9999.0, 'x_max': 9999.0,
+                   'y_min': -9999.0, 'y_max': 9999.0,
+                   'z_min': -9999.0, 'z_max': 9999.0}
+        else:
+            roi = svc._numbers(
+                roi_raw, ('x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max')
+            )
 
         # ── 采集真实点云（直接绕过 RACK_3D_POSITIONING_MODE）──
         camera_provider = RealDepthCameraProvider()
@@ -160,6 +171,17 @@ def api_capture_real(request):
             raw_pts = raw_pts.reshape(-1, 3)
         valid = np.isfinite(raw_pts).all(axis=1) & (np.abs(raw_pts).sum(axis=1) > 1e-6)
         raw_pts = raw_pts[valid]
+
+        # ── 若 ROI 全零，用实际点云包围盒（±5mm 余量）自动计算 ──
+        if _roi_all_zero and len(base_pts) > 0:
+            lo, hi = base_pts.min(axis=0), base_pts.max(axis=0)
+            margin = 5.0
+            roi = {
+                'x_min': float(lo[0]) - margin, 'x_max': float(hi[0]) + margin,
+                'y_min': float(lo[1]) - margin, 'y_max': float(hi[1]) + margin,
+                'z_min': float(lo[2]) - margin, 'z_max': float(hi[2]) + margin,
+            }
+            logger.info('[REAL] ROI 自动计算（全零占位符）: %s', roi)
 
         # ── ROI 裁剪 ─────────────────────────────────────────
         mask = (
@@ -200,7 +222,8 @@ def api_capture_real(request):
         captured_at = _dt.now().strftime('%Y-%m-%d %H:%M:%S')
 
         result_payload = {
-            'source': 'REAL',
+            'source': pc_data.get('source', 'REAL'),   # 'dm_camera' 或 'sample_fallback'
+            'fallback_reason': pc_data.get('fallback_reason', ''),
             'captured_at': captured_at,
             'frame_index': pc_data.get('frame_index'),
             'camera_points':  _display(raw_pts),

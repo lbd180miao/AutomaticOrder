@@ -1,0 +1,15 @@
+{
+  "target_roi": {
+    "x": 134,
+    "y": 166,
+    "w": 235,
+    "h": 120,
+    "feature_type": "rack_reference"
+  },
+  "x_min": -100,
+  "x_max": 100,
+  "y_min": -100,
+  "y_max": 100,
+  "z_min": 500,
+  "z_max": 1400
+}
