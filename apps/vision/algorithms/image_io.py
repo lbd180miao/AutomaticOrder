@@ -197,6 +197,26 @@ def annotate_foam(img, roi, foam, result):
             if side_roi:
                 draw_roi(out, tuple(side_roi), color=COLOR_ROI, label=side_label, thickness=2)
             
+            # 绘制泡棉实际掩膜（红色半透明覆盖）
+            side_mask = data.get('mask')
+            if side_mask is not None and side_roi:
+                rx1, ry1, rx2, ry2 = side_roi
+                rx1, rx2 = max(0, rx1), min(out.shape[1], rx2)
+                ry1, ry2 = max(0, ry1), min(out.shape[0], ry2)
+                if rx2 > rx1 and ry2 > ry1:
+                    roi_out = out[ry1:ry2, rx1:rx2]
+                    mh, mw = side_mask.shape
+                    rh, rw = roi_out.shape[:2]
+                    if mh == rh and mw == rw:
+                        import cv2
+                        import numpy as np
+                        red_overlay = np.zeros_like(roi_out)
+                        red_overlay[:] = (0, 0, 255) # BGR Red
+                        alpha = 0.4
+                        blended = cv2.addWeighted(roi_out, 1 - alpha, red_overlay, alpha, 0)
+                        mask_indices = side_mask > 0
+                        roi_out[mask_indices] = blended[mask_indices]
+
             # 如果检测到泡棉，再绘制泡棉实际位置框（绿色/红色）
             if side_box:
                 box_color = COLOR_OK if data.get('is_aligned') else COLOR_FAIL
