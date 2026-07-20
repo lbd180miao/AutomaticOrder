@@ -757,12 +757,9 @@
           </div>
           <div class="threshold-grid">
             <label>最低覆盖率<input id="foam-min-coverage" type="number" min="0" max="1" step="0.01" value="0.75"></label>
-            <label>最低得分<input id="foam-min-score" type="number" min="0" max="1" step="0.01" value="0.8"></label>
-            <label>最低 IoU<input id="foam-min-iou" type="number" min="0" max="1" step="0.01" value="0.7"></label>
-            <label>最大偏移(px)<input id="foam-max-offset-px" type="number" min="0" step="1" value="30"></label>
-            <label>最大偏移(mm)<input id="foam-max-offset-mm" type="number" min="0" step="0.1" value="2"></label>
-            <label>X毫米/像素<input id="foam-mm-per-pixel-x" type="number" min="0" step="0.0001" value="0"></label>
-            <label>Y毫米/像素<input id="foam-mm-per-pixel-y" type="number" min="0" step="0.0001" value="0"></label>
+
+            <label>X像素/毫米<input id="foam-pixels-per-mm-x" type="number" min="0" step="0.1" value="0"></label>
+            <label>Y像素/毫米<input id="foam-pixels-per-mm-y" type="number" min="0" step="0.1" value="0"></label>
           </div>
           <div class="standard-mask-panel">
             <div class="sm-head">标准模板</div>
@@ -770,7 +767,7 @@
               <span class="sm-tip-icon">🎯</span>
               <div>
                 <strong>ROI 即标准模板</strong><br>
-                <small>每个配方的左/右 ROI 框即为标准区域，IoU 实时计算，<br>无需额外配置。画好 ROI 后直接检测即可。</small>
+                <small>每个配方的左/右 ROI 框即为标准区域，<br>无需额外配置。画好 ROI 后直接检测即可。</small>
               </div>
             </div>
             <div class="sm-list">
@@ -850,18 +847,12 @@
                 <td style="color:#6b7280;width:120px;"><strong>覆盖率:</strong></td>
                 <td id="left-coverage-detail" style="font-family:monospace;">-</td>
               </tr>
-              <tr>
-                <td style="color:#6b7280;"><strong>交并比(IoU):</strong></td>
-                <td id="left-iou-detail" style="font-family:monospace;">-</td>
-              </tr>
+
               <tr>
                 <td style="color:#6b7280;"><strong>位置偏移:</strong></td>
                 <td id="left-offset-detail" style="font-family:monospace;">-</td>
               </tr>
-              <tr>
-                <td style="color:#6b7280;"><strong>综合得分:</strong></td>
-                <td id="left-score" style="font-family:monospace;font-weight:700;">-</td>
-              </tr>
+
             </table>
           </div>
 
@@ -877,18 +868,12 @@
                 <td style="color:#6b7280;width:120px;"><strong>覆盖率:</strong></td>
                 <td id="right-coverage-detail" style="font-family:monospace;">-</td>
               </tr>
-              <tr>
-                <td style="color:#6b7280;"><strong>交并比(IoU):</strong></td>
-                <td id="right-iou-detail" style="font-family:monospace;">-</td>
-              </tr>
+
               <tr>
                 <td style="color:#6b7280;"><strong>位置偏移:</strong></td>
                 <td id="right-offset-detail" style="font-family:monospace;">-</td>
               </tr>
-              <tr>
-                <td style="color:#6b7280;"><strong>综合得分:</strong></td>
-                <td id="right-score" style="font-family:monospace;font-weight:700;">-</td>
-              </tr>
+
             </table>
           </div>
 
@@ -912,7 +897,6 @@
         <div class="detail-row" id="detail-row" style="display:none;">
           <div class="detail-chip">POS <strong id="d-pos">—</strong></div>
           <div class="detail-chip">配方 <strong id="d-recipe">默认配置</strong></div>
-          <div class="detail-chip">综合得分 <strong id="d-score">—</strong></div>
           <div class="detail-chip">覆盖率 <strong id="d-cov">—</strong></div>
           <div class="detail-chip">X偏移 <strong id="d-ox">—</strong></div>
           <div class="detail-chip">Y偏移 <strong id="d-oy">—</strong></div>
@@ -1275,6 +1259,70 @@ function refreshPreviewRecipeRoi() {
   }
 }
 
+async function requestDetection(url, options) {
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (error) {
+    return {
+      ok: false,
+      kind: 'network',
+      message: error?.message || '无法连接检测服务器',
+    };
+  }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (error) {
+    console.error('检测接口响应解析失败:', error);
+    return {
+      ok: false,
+      kind: 'response',
+      message: `服务器返回内容无法解析（HTTP ${response.status}）`,
+    };
+  }
+
+  if (!response.ok || !data?.success) {
+    return {
+      ok: false,
+      kind: 'detection',
+      message: data?.error || `检测服务返回 HTTP ${response.status}`,
+    };
+  }
+
+  if (!data.result || typeof data.result !== 'object') {
+    return {
+      ok: false,
+      kind: 'response',
+      message: '检测服务未返回有效的结果数据',
+    };
+  }
+
+  return { ok: true, result: data.result };
+}
+
+function showDetectionRequestError(outcome) {
+  const titles = {
+    network: '网络请求失败',
+    response: '服务器响应异常',
+    detection: '检测失败',
+  };
+  const title = titles[outcome.kind] || '检测失败';
+  alert(`${title}：${outcome.message}`);
+}
+
+function renderDetectionResultSafely(result) {
+  try {
+    renderResult(result);
+    return true;
+  } catch (error) {
+    console.error('检测成功，但结果界面渲染失败:', error, result);
+    alert(`检测已完成，但结果显示失败：${error?.message || '未知界面错误'}\n请刷新页面后重试。`);
+    return false;
+  }
+}
+
 // ── 拍照检测：自动判断使用相机还是导入图片 ───────────────────────────
 document.getElementById('btn-capture-inspect').addEventListener('click', async () => {
   const detectionPos = currentDetectionPos();
@@ -1289,14 +1337,12 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
     if (recipe?.id) fd.append('recipe_id', recipe.id);
     fd.append('use_recipe', 'true');
     try {
-      const res = await fetch(API.uploadAndInspect, {
+      const outcome = await requestDetection(API.uploadAndInspect, {
         method: 'POST',
         headers: { 'X-CSRFToken': getCsrf() },
         body: fd,
       });
-      const data = await res.json();
-      if (data.success) {
-        renderResult(data.result);
+      if (outcome.ok && renderDetectionResultSafely(outcome.result)) {
         // 自动递增配方到下一个POS
         autoIncrementRecipe();
         
@@ -1306,10 +1352,11 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
           img.src = pendingFileDataUrl;
         }
       } else {
-        alert('检测失败：' + (data.error || '未知错误'));
+        if (!outcome.ok) showDetectionRequestError(outcome);
       }
     } catch (e) {
-      alert('网络请求失败：' + e.message);
+      console.error('检测流程发生意外错误:', e);
+      alert('检测流程异常：' + e.message);
     } finally {
       hideLoading();
     }
@@ -1319,7 +1366,7 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
   // 无导入图片 → 走相机拍照接口
   showLoading('拍照检测中...');
   try {
-    const res = await fetch(API.captureAndInspect, {
+    const outcome = await requestDetection(API.captureAndInspect, {
       method: 'POST',
       headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1328,16 +1375,15 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
         use_recipe: true,
       }),
     });
-    const data = await res.json();
-    if (data.success) {
-      renderResult(data.result);
+    if (outcome.ok && renderDetectionResultSafely(outcome.result)) {
       // 自动递增配方到下一个POS
       autoIncrementRecipe();
     } else {
-      alert('检测失败：' + (data.error || '未知错误'));
+      if (!outcome.ok) showDetectionRequestError(outcome);
     }
   } catch (e) {
-    alert('网络请求失败：' + e.message);
+    console.error('检测流程发生意外错误:', e);
+    alert('检测流程异常：' + e.message);
   } finally {
     hideLoading();
   }
@@ -1480,18 +1526,19 @@ document.getElementById('file-upload').addEventListener('change', async (e) => {
   fd.append('use_recipe', 'true');
   showLoading('上传并检测图片...');
   try {
-    const res = await fetch(API.uploadAndInspect, {
+    const outcome = await requestDetection(API.uploadAndInspect, {
       method: 'POST',
       headers: { 'X-CSRFToken': getCsrf() },
       body: fd,
     });
-    const data = await res.json();
-    if (data.success) {
-      renderResult(data.result);
+    if (outcome.ok) {
+      renderDetectionResultSafely(outcome.result);
+    } else {
+      showDetectionRequestError(outcome);
     }
-    else alert('检测失败：' + (data.error || '未知错误'));
   } catch (e) {
-    alert('网络请求失败：' + e.message);
+    console.error('检测流程发生意外错误:', e);
+    alert('检测流程异常：' + e.message);
   } finally {
     hideLoading();
     e.target.value = '';
@@ -1583,8 +1630,9 @@ function renderResult(r) {
   // 详细数值（保留原有显示）
   document.getElementById('d-pos').textContent   = r.position_index;
   document.getElementById('d-recipe').textContent = r.recipe?.name || currentDetectionRecipe()?.name || '默认配置';
-  document.getElementById('d-score').textContent = Number(r.score).toFixed(3);
-  document.getElementById('d-cov').textContent   = (Number(r.coverage_ratio) * 100).toFixed(1) + '%';
+
+  const overallCoverage = Math.max(0, Math.min(1, Number(r.coverage_ratio) || 0));
+  document.getElementById('d-cov').textContent   = (overallCoverage * 100).toFixed(1) + '%';
   document.getElementById('d-ox').textContent    = (r.offset_x_px > 0 ? '+' : '') + Number(r.offset_x_px).toFixed(1) + ' px' + (r.offset_x_mm ? ' (' + (r.offset_x_mm > 0 ? '+' : '') + Number(r.offset_x_mm).toFixed(2) + ' mm)' : '');
   document.getElementById('d-oy').textContent    = (r.offset_y_px > 0 ? '+' : '') + Number(r.offset_y_px).toFixed(1) + ' px' + (r.offset_y_mm ? ' (' + (r.offset_y_mm > 0 ? '+' : '') + Number(r.offset_y_mm).toFixed(2) + ' mm)' : '');
   document.getElementById('detail-row').style.display = 'flex';
@@ -1623,33 +1671,22 @@ function renderSideResult(side, data, fullResult) {
   
   // 获取阈值
   const coverageThreshold = fullResult.sides?.[side]?.coverage_threshold || 0.85;
-  const iouThreshold = fullResult.sides?.[side]?.iou_threshold || 0.70;
+
   const maxOffsetMm = data.max_offset_mm;
   const maxOffsetPx = data.max_offset_px ?? 30;
   
   // 覆盖率
-  const coverage = data.coverage_ratio || 0;
+  // 后端覆盖率按 0~1 返回；这里再做一次边界保护，兼容旧检测记录。
+  const coverage = Math.max(0, Math.min(1, Number(data.coverage_ratio) || 0));
   const detectedPixels = data.detected_pixels || 0;
   const standardPixels = data.standard_pixels || 0;
   const coveragePercent = (coverage * 100).toFixed(1) + '%';
-  const pixelInfo = standardPixels ? ` (${detectedPixels} / ${standardPixels} 像素)` : '';
+  const pixelInfo = standardPixels ? ` (检测 ${detectedPixels} / 标准 ${standardPixels} 像素)` : '';
   const coverageWarning = coverage < coverageThreshold ? ' ⚠️ 低于' + (coverageThreshold * 100).toFixed(0) + '%阈值' : '';
   document.getElementById(`${prefix}-coverage-detail`).innerHTML = 
     `<strong style="color:${coverage < coverageThreshold ? '#dc2626' : '#059669'}">${coveragePercent}</strong>${pixelInfo}${coverageWarning}`;
   
-  // IoU
-  const iou = data.iou;
-  const hasStandardMask = standardPixels && standardPixels > 0;
 
-  if (iou !== null && iou !== undefined) {
-    const iouPercent = (iou * 100).toFixed(1) + '%';
-    const iouWarning = iou < iouThreshold ? ' ⚠️ 低于' + (iouThreshold * 100).toFixed(0) + '%阈值' : '';
-    document.getElementById(`${prefix}-iou-detail`).innerHTML = 
-      `<strong style="color:${iou < iouThreshold ? '#dc2626' : '#059669'}">${iouPercent}</strong>${iouWarning}`;
-  } else {
-    document.getElementById(`${prefix}-iou-detail`).innerHTML = 
-      `<span style="color:#9ca3af;">-</span>`;
-  }
   
   // 位置偏移
   const offsetMm = data.offset_distance_mm || 0;
@@ -1681,10 +1718,6 @@ function renderSideResult(side, data, fullResult) {
       `<span style="color:#9ca3af;">-</span>`;
   }
   
-  // 综合得分
-  const score = data.score || 0;
-  document.getElementById(`${prefix}-score`).innerHTML = 
-    `<strong style="color:${score >= 0.8 ? '#059669' : '#dc2626'}">${score.toFixed(3)}</strong>`;
 }
 
 // ── 获取缺陷原因（新增）────────────────────────────────────
@@ -1833,19 +1866,21 @@ function renderRecipeCard() {
   // 兼容新旧字段名：coverage_threshold(新) 或 minCoverage(旧)
   // 默认值与算法保持一致：覆盖率 0.08 (8%), 得分 0.8 (80%)
   const coverageThreshold = thresh.coverage_threshold || thresh.minCoverage || 0.08;
-  const scoreThreshold = thresh.score_threshold || thresh.minScore || 0.8;
-  const iouThreshold = thresh.iou_threshold ?? thresh.minIoU ?? 0.70;
+
+
   const maxOffsetPx = thresh.max_offset_px ?? Math.max(thresh.maxOffsetX ?? 30, thresh.maxOffsetY ?? 30);
   const maxOffsetMm = thresh.max_offset_mm ?? thresh.maxOffsetMm ?? 2.0;
   document.getElementById('recipe-thresholds').textContent = 
-    `覆盖率≥${coverageThreshold}, 得分≥${scoreThreshold}, IoU≥${iouThreshold}`;
+    `覆盖率≥${coverageThreshold}`;
   document.getElementById('foam-min-coverage').value = coverageThreshold;
-  document.getElementById('foam-min-score').value = scoreThreshold;
-  document.getElementById('foam-min-iou').value = iouThreshold;
-  document.getElementById('foam-max-offset-px').value = maxOffsetPx;
-  document.getElementById('foam-max-offset-mm').value = maxOffsetMm;
-  document.getElementById('foam-mm-per-pixel-x').value = thresh.mm_per_pixel_x ?? thresh.mmPerPixelX ?? 0;
-  document.getElementById('foam-mm-per-pixel-y').value = thresh.mm_per_pixel_y ?? thresh.mmPerPixelY ?? 0;
+
+  let pxPerMmX = thresh.pixels_per_mm_x ?? 0;
+  let pxPerMmY = thresh.pixels_per_mm_y ?? 0;
+  if (!pxPerMmX && (thresh.mm_per_pixel_x > 0)) pxPerMmX = Number((1 / thresh.mm_per_pixel_x).toFixed(1));
+  if (!pxPerMmY && (thresh.mm_per_pixel_y > 0)) pxPerMmY = Number((1 / thresh.mm_per_pixel_y).toFixed(1));
+
+  document.getElementById('foam-pixels-per-mm-x').value = pxPerMmX;
+  document.getElementById('foam-pixels-per-mm-y').value = pxPerMmY;
   // 更新配方标题，提示当前配方
   const titleEl = card.querySelector('.recipe-info-title');
   if (titleEl) {
@@ -1946,24 +1981,12 @@ async function saveRoiToRecipe(targetPos) {
   console.log('左侧 ROI (像素):', leftFoamROI);
   console.log('右侧 ROI (像素):', rightFoamROI);
   const existingThresholds = existingRecipe?.threshold_config || {};
-  const maxOffsetPx = Number(document.getElementById('foam-max-offset-px').value || 30);
   const thresholdConfig = {
     ...existingThresholds,
     minCoverage: Number(document.getElementById('foam-min-coverage').value || 0.75),
     coverage_threshold: Number(document.getElementById('foam-min-coverage').value || 0.75),
-    minScore: Number(document.getElementById('foam-min-score').value || 0.8),
-    score_threshold: Number(document.getElementById('foam-min-score').value || 0.8),
-    minIoU: Number(document.getElementById('foam-min-iou').value || 0.70),
-    iou_threshold: Number(document.getElementById('foam-min-iou').value || 0.70),
-    maxOffsetX: maxOffsetPx,
-    maxOffsetY: maxOffsetPx,
-    max_offset_px: maxOffsetPx,
-    maxOffsetMm: Number(document.getElementById('foam-max-offset-mm').value || 2.0),
-    max_offset_mm: Number(document.getElementById('foam-max-offset-mm').value || 2.0),
-    mmPerPixelX: Number(document.getElementById('foam-mm-per-pixel-x').value || 0),
-    mmPerPixelY: Number(document.getElementById('foam-mm-per-pixel-y').value || 0),
-    mm_per_pixel_x: Number(document.getElementById('foam-mm-per-pixel-x').value || 0),
-    mm_per_pixel_y: Number(document.getElementById('foam-mm-per-pixel-y').value || 0),
+    pixels_per_mm_x: Number(document.getElementById('foam-pixels-per-mm-x').value || 0),
+    pixels_per_mm_y: Number(document.getElementById('foam-pixels-per-mm-y').value || 0),
   };
   
   const payload = {
@@ -2276,7 +2299,7 @@ document.getElementById('btn-save-roi').addEventListener('click', async () => {
         position_index: pos,
         left:  cal.rois.left,
         right: cal.rois.right,
-        thresholds: { coverage_threshold: 0.3, max_offset_px: 30, require_dark_support: true },
+        thresholds: { coverage_threshold: 0.3, require_dark_support: true },
       }),
     });
     const data = await res.json();

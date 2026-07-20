@@ -209,19 +209,23 @@ def build_foam_inspection_config(recipe):
             f'(raw={right_roi_raw})。请重新标定右侧泡棉区域后保存配方。'
         )
 
-    max_offset = thresholds.get('max_offset_px')
-    max_offset_x = int(_threshold_value(thresholds, ('max_offset_x', 'maxOffsetX'), 150))
-    max_offset_y = int(_threshold_value(thresholds, ('max_offset_y', 'maxOffsetY'), 150))
     max_offset_mm = float(
         _threshold_value(thresholds, ('max_offset_mm', 'maxOffsetMm'), 2.0)
     )
-    # mm_per_pixel 标定系数（0 表示未标定，跳过 mm 换算）
-    mm_per_pixel_x = float(
-        _threshold_value(thresholds, ('mm_per_pixel_x', 'mmPerPixelX'), 0)
-    )
-    mm_per_pixel_y = float(
-        _threshold_value(thresholds, ('mm_per_pixel_y', 'mmPerPixelY'), 0)
-    )
+
+    # 优先读取 pixels_per_mm 配置，并换算为底层的 mm_per_pixel；兼容旧配置
+    px_per_mm_x = float(_threshold_value(thresholds, ('pixels_per_mm_x', 'pixelsPerMmX'), 0))
+    if px_per_mm_x > 0:
+        mm_per_pixel_x = round(1.0 / px_per_mm_x, 6)
+    else:
+        mm_per_pixel_x = float(_threshold_value(thresholds, ('mm_per_pixel_x', 'mmPerPixelX'), 0))
+
+    px_per_mm_y = float(_threshold_value(thresholds, ('pixels_per_mm_y', 'pixelsPerMmY'), 0))
+    if px_per_mm_y > 0:
+        mm_per_pixel_y = round(1.0 / px_per_mm_y, 6)
+    else:
+        mm_per_pixel_y = float(_threshold_value(thresholds, ('mm_per_pixel_y', 'mmPerPixelY'), 0))
+
     # 标准泡棉面积比（0 表示不启用）
     standard_foam_area_ratio = float(
         _threshold_value(thresholds, ('standard_foam_area_ratio', 'standardFoamAreaRatio'), 0)
@@ -253,7 +257,6 @@ def build_foam_inspection_config(recipe):
         'iou_threshold': float(
             _threshold_value(thresholds, ('iou_threshold', 'minIoU'), 0.70)
         ),
-        'max_offset_px': int(max_offset) if max_offset is not None else max(max_offset_x, max_offset_y),
         'max_offset_mm': max_offset_mm,
         'mm_per_pixel_x': mm_per_pixel_x,
         'mm_per_pixel_y': mm_per_pixel_y,
