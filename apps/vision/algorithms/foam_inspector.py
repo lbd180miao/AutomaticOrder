@@ -299,9 +299,12 @@ def _largest_mask_box(mask, origin):
     return (x1 + bx, y1 + by, x1 + bx + bw, y1 + by + bh)
 
 
-def _empty_side_result(roi, *, reason=None, coverage_threshold=0.0, extra=None):
+def _empty_side_result(roi, *, reason=None, coverage_threshold=0.0, extra=None,
+                       polygon_points=None):
     result = {
         'roi': roi,
+        'original_roi': roi,  # 矩形包围盒像素坐标
+        'polygon_points': polygon_points,  # 多边形顶点（全图比例坐标），None 表示矩形
         'box': None,
         'is_present': False,
         'is_aligned': False,
@@ -633,7 +636,8 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
     max_offset_mm = float(cfg.get('max_offset_mm', 0) or 0)
 
     if roi_width < 5 or roi_height < 5:
-        return _empty_side_result(roi, reason='roi_too_small', coverage_threshold=coverage_threshold)
+        return _empty_side_result(roi, reason='roi_too_small', coverage_threshold=coverage_threshold,
+                                   polygon_points=polygon_points)
 
     hsv = cv2.cvtColor(roi_img, cv2.COLOR_BGR2HSV)
     if cfg.get('require_dark_support'):
@@ -645,6 +649,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
                 reason='no_dark_support',
                 coverage_threshold=coverage_threshold,
                 extra={'dark_ratio': round(dark_ratio, 4)},
+                polygon_points=polygon_points,
             )
 
     mask = generate_foam_mask(roi_img, cfg)
@@ -695,6 +700,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
                 'standard_pixels': standard_pixels,
                 'box': box,
             },
+            polygon_points=polygon_points,
         )
         result['mask'] = mask
         return result
@@ -718,6 +724,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
                 'iou': iou,
                 'box': box,
             },
+            polygon_points=polygon_points,
         )
 
     if coverage_ratio < coverage_threshold:
@@ -734,6 +741,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
                 'iou': iou,
                 'score': round(coverage_ratio / max(coverage_threshold, 0.01), 3),
             },
+            polygon_points=polygon_points,
         )
         if offset:
             result.update(offset)
@@ -763,6 +771,8 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
 
     result = {
         'roi': roi,
+        'original_roi': roi,  # 矩形包围盒像素坐标 (x1,y1,x2,y2)
+        'polygon_points': polygon_points,  # 全图比例坐标顶点列表 [[xr,yr],...], None 表示矩形ROI
         'box': box,
         'mask': mask,
         'is_present': True,

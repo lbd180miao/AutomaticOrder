@@ -88,6 +88,30 @@ def draw_roi(img, box, color=COLOR_ROI, label=None, thickness=2):
     return img
 
 
+def draw_polygon_roi(img, points, color=COLOR_ROI, label=None, thickness=2):
+    """在图上绘制不规则多边形 ROI 轮廓。
+
+    Args:
+        img: 图像（BGR numpy array），原地修改
+        points: 多边形顶点列表，全图比例坐标 [[xr, yr], ...]，值域 [0, 1]
+        color: 轮廓颜色（BGR）
+        label: 可选标签文字
+        thickness: 线宽
+    """
+    if not points or len(points) < 3:
+        return img
+    h, w = img.shape[:2]
+    pts = np.array(
+        [[int(round(p[0] * w)), int(round(p[1] * h))] for p in points],
+        dtype=np.int32,
+    )
+    cv2.polylines(img, [pts], isClosed=True, color=color, thickness=thickness)
+    if label and len(pts) > 0:
+        lx, ly = int(pts[0][0]), max(int(pts[0][1]) - 4, 14)
+        _put_label(img, label, (lx, ly), COLOR_TEXT)
+    return img
+
+
 # ---------------- 2D 检测相机：泡棉场景 ----------------
 
 # 每个检测位置的背景色偏移，使不同位置在模拟图中有视觉差异（BGR 偏移量）
@@ -192,11 +216,16 @@ def annotate_foam(img, roi, foam, result):
             side_roi = data.get('roi')
             side_box = data.get('box')
             side_label = side_labels.get(side, side)
-            
-            # 始终绘制配方定义的ROI区域框（蓝色）
-            if side_roi:
-                draw_roi(out, tuple(side_roi), color=COLOR_ROI, label=side_label, thickness=2)
-            
+            polygon_points = data.get('polygon_points')  # 全图比例坐标顶点，None 表示矩形ROI
+            original_roi = data.get('original_roi', side_roi)
+
+            # 始终绘制用户定义的ROI区域（蓝色）——有多边形则画多边形轮廓，否则画矩形框
+            if polygon_points and len(polygon_points) >= 3:
+                draw_polygon_roi(out, polygon_points, color=COLOR_ROI,
+                                 label=side_label, thickness=2)
+            elif original_roi:
+                draw_roi(out, tuple(original_roi), color=COLOR_ROI, label=side_label, thickness=2)
+
             # 绘制泡棉实际掩膜（红色半透明覆盖）
             side_mask = data.get('mask')
             if side_mask is not None and side_roi:
@@ -221,9 +250,14 @@ def annotate_foam(img, roi, foam, result):
             if side_box:
                 box_color = COLOR_OK if data.get('is_aligned') else COLOR_FAIL
                 draw_roi(out, tuple(side_box), color=box_color, label=None, thickness=2)
-            elif side_roi:
-                # 如果ROI内未检测到泡棉，标注缺失警告
-                draw_roi(out, tuple(side_roi), color=COLOR_MISSING, label=f'{side_label} 缺失!', thickness=2)
+            elif original_roi:
+                # 如果ROI内未检测到泡棉，标注缺失警告（使用多边形或矩形）
+                if polygon_points and len(polygon_points) >= 3:
+                    draw_polygon_roi(out, polygon_points, color=COLOR_MISSING,
+                                     label=f'{side_label} 缺失!', thickness=2)
+                else:
+                    draw_roi(out, tuple(original_roi), color=COLOR_MISSING,
+                             label=f'{side_label} 缺失!', thickness=2)
 
     # 泡棉框（左右独立 ROI 已在上方分别画出，非 side 模式才画总泡棉框）
     if not sides and not is_missing and foam and (foam[2] - foam[0]) > 0:

@@ -21,6 +21,7 @@ from apps.vision.algorithms.foam_inspector import (
     FoamDefectType,
     FoamInspector,
     StandardMaskConfigurationError,
+    compute_coverage_ratio,
     compute_iou,
     compute_mask_centroid,
     generate_foam_mask,
@@ -60,6 +61,13 @@ class FoamPixelSegmentationTests(SimpleTestCase):
         mask2[50:100, 25:75] = 255
 
         self.assertAlmostEqual(compute_iou(mask1, mask2), 1 / 3, places=2)
+
+    def test_coverage_is_capped_when_detection_exceeds_standard_area(self):
+        detected = np.full((20, 20), 255, dtype=np.uint8)
+        standard = np.zeros((20, 20), dtype=np.uint8)
+        standard[5:15, 5:15] = 255
+
+        self.assertEqual(compute_coverage_ratio(detected, standard), 1.0)
 
     def test_calibrated_foam_uses_standard_mask_metrics(self):
         image = np.zeros((100, 200, 3), dtype=np.uint8)
@@ -116,7 +124,7 @@ class FoamPixelSegmentationTests(SimpleTestCase):
                 },
             )
 
-    def test_mm_calibration_uses_mm_alignment_limit(self):
+    def test_mm_calibration_reports_offset_without_failing_alignment(self):
         image = np.zeros((100, 200, 3), dtype=np.uint8)
         image[30:70, 29:69] = 245
         image[30:70, 129:169] = 245
@@ -142,7 +150,7 @@ class FoamPixelSegmentationTests(SimpleTestCase):
             },
         )
 
-        self.assertFalse(result['is_aligned'])
+        self.assertTrue(result['is_aligned'])
         self.assertEqual(result['sides']['left']['alignment_metric'], 'mm')
         self.assertGreater(result['sides']['left']['offset_distance_mm'], 2)
 
@@ -766,6 +774,26 @@ class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
         self.assertNotIn('highlightStep(', source)
         self.assertNotIn('刷新预览，确认白色泡棉在保险杆上清晰可见', source)
         self.assertNotIn('系统判定泡棉是否存在，输出 OK / NG', source)
+
+    def test_removed_score_fields_are_not_rendered(self):
+        source = self._template_source()
+
+        self.assertNotIn('id="left-score"', source)
+        self.assertNotIn('id="right-score"', source)
+        self.assertNotIn('id="d-score"', source)
+        self.assertNotIn('`${prefix}-score`', source)
+
+    def test_detection_errors_distinguish_request_and_render_failures(self):
+        source = self._template_source()
+
+        self.assertIn('async function requestDetection(url, options)', source)
+        self.assertIn('function renderDetectionResultSafely(result)', source)
+        self.assertIn("kind: 'network'", source)
+        self.assertIn("kind: 'response'", source)
+        self.assertIn("kind: 'detection'", source)
+        self.assertIn('检测已完成，但结果显示失败', source)
+        self.assertIn('Math.max(0, Math.min(1, Number(r.coverage_ratio) || 0))', source)
+        self.assertIn('Math.max(0, Math.min(1, Number(data.coverage_ratio) || 0))', source)
 
 
 @override_settings(MEDIA_ROOT=mkdtemp())

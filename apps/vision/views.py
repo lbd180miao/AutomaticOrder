@@ -626,7 +626,7 @@ def api_foam_recipe_create(request):
         threshold_config = body.get('threshold_config') or {
             'coverage_threshold': 0.08,  # 8% 覆盖率，适配大ROI场景
             'score_threshold': 0.8,      # 80% 综合得分
-            'max_offset_px': 30
+            'max_offset_mm': 2.0
         }
         
         recipe = VisionRecipe.objects.create(
@@ -898,7 +898,7 @@ def api_foam_upload_inspect(request):
         inspection_config = {
             'score_threshold': 0.8,
             'coverage_threshold': 0.35,  # 根据实际场景调整为35%
-            'max_offset_px': 30,
+            'max_offset_mm': 2.0,
         }
         inspection_config.update(recipe_config)
         # 使用真实图像检测，simulated_pass参数不影响结果
@@ -928,7 +928,7 @@ def api_foam_upload_inspect(request):
             is_present=result['is_present'],
             is_aligned=result['is_aligned'],
             has_lifted_edge=result.get('has_lifted_edge', False),
-            score=result['score'],
+            score=0.0,
             is_passed=result['is_passed'],
             offset_x_px=result['offset_x_px'],
             offset_y_px=result['offset_y_px'],
