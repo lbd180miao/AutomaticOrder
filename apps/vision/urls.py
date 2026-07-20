@@ -80,6 +80,7 @@ urlpatterns = [
     path('api/recipes/foam-2d/<int:recipe_id>/delete/', views.api_foam_recipe_delete, name='api_foam_recipe_delete'),
     path('api/foam/capture-inspect/', views.api_foam_capture_inspect, name='api_foam_capture_inspect'),
     path('api/foam/upload-inspect/', views.api_foam_upload_inspect, name='api_foam_upload_inspect'),
+    path('api/foam/inspection-records/', views.api_foam_inspection_records, name='api_foam_inspection_records'),
 
     # API — 料架定位（新增）
     path('api/rack/locate/', views.api_rack_locate, name='api_rack_locate'),
