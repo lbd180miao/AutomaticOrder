@@ -960,6 +960,40 @@ def api_foam_upload_inspect(request):
         }, status=500)
 
 
+def api_foam_inspection_records(request):
+    """获取2D泡棉检测历史记录（含原图URL），供「从记录导入」功能调用"""
+    try:
+        limit = min(int(request.GET.get('limit', 50)), 200)
+        records = (
+            FoamInspectionResult.objects
+            .select_related('vision_task')
+            .prefetch_related('vision_task__images')
+            .order_by('-created_at')[:limit]
+        )
+        data = []
+        for r in records:
+            task = r.vision_task
+            original_img = task.images.filter(image_type='ORIGINAL').first()
+            result_img = task.images.filter(image_type='RESULT').first()
+            if not original_img:
+                continue  # 没有原图则跳过（无法重新检测）
+            data.append({
+                'id': r.id,
+                'task_id': task.id,
+                'created_at': r.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'position_index': r.position_index,
+                'is_passed': r.is_passed,
+                'is_present': r.is_present,
+                'score': float(r.score),
+                'coverage_ratio': float(r.coverage_ratio),
+                'original_image_url': original_img.file.url,
+                'result_image_url': result_img.file.url if result_img else '',
+            })
+        return JsonResponse({'success': True, 'records': data})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
 # ------------------------------------------------------------------
 # 料架定位工作台
 # ------------------------------------------------------------------

@@ -526,6 +526,132 @@
 }
 
 
+/* ── 历史记录选择弹窗 ── */
+#records-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+}
+#records-modal-overlay.active { display: flex; }
+#records-modal {
+  background: var(--bg-card);
+  border-radius: 16px;
+  width: min(880px, 96vw);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+#records-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+#records-modal-header h3 { margin: 0; font-size: 16px; color: var(--text); }
+#records-modal-close {
+  background: none; border: none; font-size: 20px;
+  cursor: pointer; color: var(--text-muted); line-height:1;
+  padding: 4px 8px; border-radius: 6px;
+}
+#records-modal-close:hover { background: var(--bg); color: var(--text); }
+#records-modal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+#records-search {
+  flex: 1;
+  min-width: 160px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 12px;
+  font-size: 13px;
+}
+#records-filter-pass {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+#records-modal-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: 12px;
+}
+.records-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.record-card {
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.18s, transform 0.14s, box-shadow 0.18s;
+  background: var(--bg);
+}
+.record-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99,102,241,0.25);
+}
+.record-card img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  display: block;
+  background: #111;
+}
+.record-card-info {
+  padding: 7px 9px;
+}
+.record-card-info .rc-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+.record-card-info .rc-meta {
+  font-size: 12px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.rc-pass  { color: var(--success); font-weight: 600; }
+.rc-fail  { color: var(--danger);  font-weight: 600; }
+.records-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+#records-modal-loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+  display: none;
+}
+
 </style>
 
 <div class="foam-workbench">
@@ -601,6 +727,9 @@
             📂 导入图片
           </button>
           <input type="file" id="file-upload-preview" accept="image/*" style="display:none;">
+          <button id="btn-import-from-records" class="btn btn-secondary" title="从2D泡棉检测历史记录中选取图片">
+            🗂️ 从记录导入
+          </button>
         </div>
 
         <!-- POS 选择 -->
@@ -803,6 +932,7 @@ const API = {
   refreshPreview:   '{% url "vision:api_camera_preview" %}',
   captureAndInspect:'{% url "vision:api_foam_capture_inspect" %}',
   uploadAndInspect: '{% url "vision:api_foam_upload_inspect" %}',
+  inspectionRecords: '{% url "vision:api_foam_inspection_records" %}',
   calibration:      '{% url "vision:api_foam_calibration" %}',
   saveCalibration:  '{% url "vision:api_foam_calibration_save" %}',
   recipes:          '{% url "vision:api_vision_recipes" %}',
@@ -2313,5 +2443,188 @@ document.addEventListener('DOMContentLoaded', () => {
   color: #6b7280;
 }
 </style>
+
+<!-- ── 历史记录选择弹窗 ── -->
+<div id="records-modal-overlay">
+  <div id="records-modal">
+    <div id="records-modal-header">
+      <h3>🗂️ 从2D泡棉检测记录导入图片</h3>
+      <button id="records-modal-close">✕</button>
+    </div>
+    <div id="records-modal-toolbar">
+      <input id="records-search" type="text" placeholder="搜索时间、POS、状态...">
+      <select id="records-filter-pass">
+        <option value="all">全部记录</option>
+        <option value="pass">仅显示合格 (OK)</option>
+        <option value="fail">仅显示不合格 (NG)</option>
+      </select>
+      <span id="records-count" style="font-size:12px;color:var(--text-muted);"></span>
+    </div>
+    <div id="records-modal-loading">⏳ 加载中...</div>
+    <div id="records-modal-body">
+      <div class="records-grid" id="records-grid"></div>
+      <div class="records-empty" id="records-empty" style="display:none;">暂无检测记录</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 历史记录选择弹窗逻辑 ──
+let _allRecords = [];  // 已加载的全部记录
+let _recordsLoaded = false;
+
+// 开启弹窗
+async function openRecordsModal() {
+  document.getElementById('records-modal-overlay').classList.add('active');
+  if (!_recordsLoaded) {
+    await loadRecords();
+  } else {
+    renderRecords();
+  }
+}
+
+// 关闭弹窗
+function closeRecordsModal() {
+  document.getElementById('records-modal-overlay').classList.remove('active');
+}
+
+// 从后端获取记录
+async function loadRecords() {
+  document.getElementById('records-modal-loading').style.display = 'block';
+  document.getElementById('records-grid').innerHTML = '';
+  document.getElementById('records-empty').style.display = 'none';
+  try {
+    const res = await fetch(API.inspectionRecords + '?limit=100');
+    const data = await res.json();
+    if (data.success) {
+      _allRecords = data.records;
+      _recordsLoaded = true;
+    } else {
+      _allRecords = [];
+    }
+  } catch(e) {
+    _allRecords = [];
+  } finally {
+    document.getElementById('records-modal-loading').style.display = 'none';
+    renderRecords();
+  }
+}
+
+// 渲染记录卡片
+function renderRecords() {
+  const search = (document.getElementById('records-search')?.value || '').toLowerCase();
+  const passFilter = document.getElementById('records-filter-pass')?.value || 'all';
+
+  let filtered = _allRecords.filter(r => {
+    if (passFilter === 'pass' && !r.is_passed) return false;
+    if (passFilter === 'fail' && r.is_passed) return false;
+    if (search) {
+      const haystack = `${r.created_at} POS${r.position_index} ${r.is_passed ? 'OK' : 'NG'}`.toLowerCase();
+      if (!haystack.includes(search)) return false;
+    }
+    return true;
+  });
+
+  const grid = document.getElementById('records-grid');
+  const emptyEl = document.getElementById('records-empty');
+  const countEl = document.getElementById('records-count');
+
+  countEl.textContent = `共 ${filtered.length} 条`;
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  grid.innerHTML = filtered.map(r => {
+    const statusCls = r.is_passed ? 'rc-pass' : 'rc-fail';
+    const statusTxt = r.is_passed ? '✅ OK' : '❌ NG';
+    const score = (r.score * 100).toFixed(0);
+    const coverage = (r.coverage_ratio * 100).toFixed(1);
+    const imgSrc = r.result_image_url || r.original_image_url;
+    return `
+      <div class="record-card" data-record-id="${r.id}"
+           data-img-url="${r.original_image_url}"
+           data-time="${r.created_at}"
+           data-pos="${r.position_index}">
+        <img src="${imgSrc}" alt="检测图" loading="lazy"
+             onerror="this.style.background='#333';this.alt='图片加载失败';">
+        <div class="record-card-info">
+          <div class="rc-time">${r.created_at}</div>
+          <div class="rc-meta">
+            <span class="${statusCls}">${statusTxt}</span>
+            <span>POS ${r.position_index}</span>
+            <span>覆盖率${coverage}%</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // 绑定点击事件
+  grid.querySelectorAll('.record-card').forEach(card => {
+    card.addEventListener('click', () => selectRecordImage(card));
+  });
+}
+
+// 选择历史记录中的图片
+async function selectRecordImage(card) {
+  const imgUrl = card.dataset.imgUrl;
+  const time   = card.dataset.time;
+  const pos    = card.dataset.pos;
+
+  if (!imgUrl) {
+    alert('该记录无原图文件可用。');
+    return;
+  }
+
+  showLoading('加载记录图片...');
+  try {
+    // 通过 fetch 下载图片并转为 Blob / File
+    const resp = await fetch(imgUrl);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const blob = await resp.blob();
+    const filename = `记录_POS${pos}_${time.replace(/[: ]/g, '-')}.jpg`;
+    const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+
+    // 显示在左侧预览区（与「导入图片」按钮相同效果）
+    const dataUrl = URL.createObjectURL(blob);
+    const img = document.getElementById('preview-image');
+    img.src = dataUrl;
+    img.style.display = 'block';
+    document.getElementById('camera-placeholder').style.display = 'none';
+    refreshPreviewRecipeRoi();
+
+    // 暫存，等待「拍照检测」
+    pendingFile = file;
+    pendingFileDataUrl = dataUrl;
+    setPendingBadge(`记录图片 POS${pos} (${time})`);
+    updateCaptureButtonText();
+
+    closeRecordsModal();
+  } catch(e) {
+    alert('图片加载失败：' + e.message);
+  } finally {
+    hideLoading();
+  }
+}
+
+// 弹窗按钮监听
+document.getElementById('btn-import-from-records').addEventListener('click', openRecordsModal);
+document.getElementById('records-modal-close').addEventListener('click', closeRecordsModal);
+document.getElementById('records-modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('records-modal-overlay')) closeRecordsModal();
+});
+
+// 搜索 / 过滤实时渲染
+document.getElementById('records-search').addEventListener('input', renderRecords);
+document.getElementById('records-filter-pass').addEventListener('change', renderRecords);
+
+// Escape 键关闭弹窗
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeRecordsModal();
+});
+</script>
 
 {% endblock %}
