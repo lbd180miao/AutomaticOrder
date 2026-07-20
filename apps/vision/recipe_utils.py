@@ -101,13 +101,32 @@ def serialize_recipe(recipe):
 def _pixel_roi_to_ratio(roi, image_width, image_height):
     """将 ROI 配置转换为归一化比例坐标 [x1, y1, x2, y2]。
 
-    支持两种格式：
+    支持三种格式：
     1. 比例格式（新格式）：{x1r, y1r, x2r, y2r}，值在 [0, 1]，**优先使用**
-    2. 像素格式（旧格式）：{x, y, width, height}，需要除以图像尺寸
+    2. 多边形格式（画笔 ROI）：{type:'polygon', points:[[xr,yr],...]}，计算边界框
+    3. 像素格式（旧格式）：{x, y, width, height}，需要除以图像尺寸
 
     返回 None 表示 ROI 数据无效（负数、零面积等）。
     """
-    # 优先读取比例坐标（前端新格式，精确且不依赖分辨率）
+    # ── 多边形格式（画笔 ROI）──────────────────────────
+    if isinstance(roi, dict) and roi.get('type') == 'polygon':
+        points = roi.get('points', [])
+        if len(points) >= 3:
+            try:
+                pts = [[float(p[0]), float(p[1])] for p in points]
+                if all(0.0 <= p[0] <= 1.0 and 0.0 <= p[1] <= 1.0 for p in pts):
+                    xs = [p[0] for p in pts]
+                    ys = [p[1] for p in pts]
+                    x1r = round(min(xs), 6)
+                    y1r = round(min(ys), 6)
+                    x2r = round(max(xs), 6)
+                    y2r = round(max(ys), 6)
+                    if x1r < x2r and y1r < y2r:
+                        return [x1r, y1r, x2r, y2r]
+            except (TypeError, IndexError, ValueError):
+                pass
+
+    # ── 比例坐标格式（新矩形格式）────────────────────────
     if all(k in roi for k in ('x1r', 'y1r', 'x2r', 'y2r')):
         x1r = float(roi['x1r'])
         y1r = float(roi['y1r'])
@@ -117,7 +136,7 @@ def _pixel_roi_to_ratio(roi, image_width, image_height):
         if (0.0 <= x1r < x2r <= 1.0) and (0.0 <= y1r < y2r <= 1.0):
             return [round(x1r, 6), round(y1r, 6), round(x2r, 6), round(y2r, 6)]
 
-    # 回退到旧格式（像素坐标）
+    # ── 旧格式（像素坐标）────────────────────────────────
     x = float(roi.get('x', 0))
     y = float(roi.get('y', 0))
     w = float(roi.get('width', 0))
@@ -134,6 +153,24 @@ def _pixel_roi_to_ratio(roi, image_width, image_height):
     if x1 >= x2 or y1 >= y2:
         return None
     return [x1, y1, x2, y2]
+
+def _extract_polygon_points(roi):
+    """从 ROI 配置中提取多边形点列表（全图比例坐标）。
+
+    如果 ROI 不是多边形格式，返回 None。
+    """
+    if not isinstance(roi, dict) or roi.get('type') != 'polygon':
+        return None
+    points = roi.get('points', [])
+    if len(points) < 3:
+        return None
+    try:
+        pts = [[float(p[0]), float(p[1])] for p in points]
+        if all(0.0 <= p[0] <= 1.0 and 0.0 <= p[1] <= 1.0 for p in pts):
+            return pts
+    except (TypeError, IndexError, ValueError):
+        pass
+    return None
 
 
 def _threshold_value(thresholds, keys, default):
@@ -157,6 +194,9 @@ def build_foam_inspection_config(recipe):
 
     left = _pixel_roi_to_ratio(left_roi_raw, recipe.image_width, recipe.image_height)
     right = _pixel_roi_to_ratio(right_roi_raw, recipe.image_width, recipe.image_height)
+    
+    left_polygon = _extract_polygon_points(left_roi_raw)
+    right_polygon = _extract_polygon_points(right_roi_raw)
 
     if left is None:
         raise ValueError(
@@ -189,12 +229,20 @@ def build_foam_inspection_config(recipe):
     standard_mask_paths = _threshold_value(
         thresholds, ('standard_mask_paths', 'standardMaskPaths'), {}
     )
+    
+    pos_str = str(recipe.pos)
     return {
         'foam_rois': {
-            str(recipe.pos): {
+            pos_str: {
                 'left': left,
                 'right': right,
             },
+        },
+        'polygon_rois': {
+            pos_str: {
+                'left': left_polygon,
+                'right': right_polygon,
+            }
         },
         'coverage_threshold': float(
             _threshold_value(thresholds, ('coverage_threshold', 'minCoverage'), 0.75)

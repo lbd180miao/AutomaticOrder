@@ -704,7 +704,9 @@
         <!-- 预览区 -->
         <div class="camera-viewport" id="camera-viewport">
           <img id="preview-image" src="" alt="预览" style="display:none;">
-          <div id="roi-overlay" class="roi-overlay"></div>
+          <div id="roi-overlay" class="roi-overlay">
+            <canvas id="roi-canvas" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;"></canvas>
+          </div>
           <div id="camera-placeholder" class="camera-placeholder">
             <div class="cam-icon">📷</div>
             <p>点击「刷新预览」获取相机画面</p>
@@ -747,7 +749,8 @@
               <option value="left">左侧泡棉</option>
               <option value="right">右侧泡棉</option>
             </select>
-            <button id="btn-start-roi" class="btn btn-secondary btn-sm">框选 ROI</button>
+            <button id="btn-start-roi" class="btn btn-secondary btn-sm" title="框选矩形 ROI">框选 ROI</button>
+            <button id="btn-start-roi-polygon" class="btn btn-secondary btn-sm" title="自由绘制不规则 ROI">✏️ 画笔</button>
             <button id="btn-save-roi" class="btn btn-sm" style="background:var(--success);">保存标定</button>
             <button id="btn-save-recipe" class="btn btn-sm" style="background:var(--primary);">💾 保存到配方</button>
             <span id="calibration-status"></span>
@@ -1217,6 +1220,9 @@ function showRecipeChangeNotification(fromPos, toPos) {
   }, 3000);
 }
 function roiToRatio(roi, recipe) {
+  if (roi && roi.type === 'polygon') {
+    return roi;
+  }
   // 兼容两种格式：
   // 1. 比例格式（新格式）：{x1r, y1r, x2r, y2r} 或数组 [x1r,y1r,x2r,y2r]，值在 0~1 之间
   // 2. 像素格式（旧格式）：{x, y, width, height}，需要除以图像尺寸
@@ -1375,11 +1381,20 @@ function updateMaskPanelFromRecipe(recipe) {
     const detailEl = document.getElementById(`sm-${side}-detail`);
     if (!statusEl) continue;
 
-    if (roiData && roiData.width > 0 && roiData.height > 0) {
+    const hasValidRoi = roiData && (
+      (roiData.type === 'polygon' && roiData.points && roiData.points.length > 2) || 
+      (roiData.width > 0 && roiData.height > 0)
+    );
+
+    if (hasValidRoi) {
       statusEl.className = 'sm-status sm-ok';
       statusEl.innerHTML = '✅ ROI 已配置';
       if (detailEl) {
-        detailEl.innerHTML = `x:${roiData.x} y:${roiData.y} · ${roiData.width}×${roiData.height}px`;
+        if (roiData.type === 'polygon') {
+          detailEl.innerHTML = `多边形 (${roiData.points.length}个顶点)`;
+        } else {
+          detailEl.innerHTML = `x:${roiData.x || 0} y:${roiData.y || 0} · ${roiData.width || 0}×${roiData.height || 0}px`;
+        }
         detailEl.style.display = 'block';
       }
     } else {
@@ -1806,10 +1821,13 @@ function renderRecipeCard() {
   
   const left = recipe.roi_config?.leftFoamROI || {};
   const right = recipe.roi_config?.rightFoamROI || {};
-  document.getElementById('recipe-left-roi').textContent = 
-    `x=${left.x || 0}, y=${left.y || 0}, w=${left.width || 0}, h=${left.height || 0}`;
-  document.getElementById('recipe-right-roi').textContent = 
-    `x=${right.x || 0}, y=${right.y || 0}, w=${right.width || 0}, h=${right.height || 0}`;
+  const formatRoi = (roi) => {
+    if (!roi || Object.keys(roi).length === 0) return '未设置';
+    if (roi.type === 'polygon' && roi.points) return `多边形 (${roi.points.length}个顶点)`;
+    return `x=${roi.x || 0}, y=${roi.y || 0}, w=${roi.width || 0}, h=${roi.height || 0}`;
+  };
+  document.getElementById('recipe-left-roi').textContent = formatRoi(left);
+  document.getElementById('recipe-right-roi').textContent = formatRoi(right);
   
   const thresh = recipe.threshold_config || {};
   // 兼容新旧字段名：coverage_threshold(新) 或 minCoverage(旧)
@@ -1867,10 +1885,15 @@ function showRecipeSaveSuccess(recipe, leftFoamROI, rightFoamROI) {
   const status = document.getElementById('calibration-status');
   if (!status) return;
   const pos = recipe?.pos ?? currentPOS();
+  const formatRoiInfo = (roi) => {
+    if (!roi) return '未设置';
+    if (roi.type === 'polygon' && roi.points) return `多边形 (${roi.points.length}个顶点)`;
+    return `x=${roi.x || 0}, y=${roi.y || 0}`;
+  };
   status.textContent =
     '✅ 配方已保存到 POS ' + pos +
-    '；左ROI x=' + leftFoamROI.x + ', y=' + leftFoamROI.y +
-    '；右ROI x=' + rightFoamROI.x + ', y=' + rightFoamROI.y;
+    '；左ROI: ' + formatRoiInfo(leftFoamROI) +
+    '；右ROI: ' + formatRoiInfo(rightFoamROI);
 }
 
 // ── 保存配方到指定 POS ───────────────────────────────────────
@@ -1887,25 +1910,26 @@ async function saveRoiToRecipe(targetPos) {
   const imageHeight = (previewImg && previewImg.naturalHeight > 0) ? previewImg.naturalHeight : 720;
   
   if (cal.rois.left && cal.rois.right) {
-    // 从当前标定或预览的 ROI 中提取（cal.rois 存储的是 0~1 比例坐标）
-    // ✅ 新格式：同时保存比例坐标（x1r/y1r/x2r/y2r）和像素坐标（x/y/width/height）
-    //    加载时优先读取比例坐标，避免因分辨率不一致导致的偏移
-    const [lx1, ly1, lx2, ly2] = cal.rois.left;
-    const [rx1, ry1, rx2, ry2] = cal.rois.right;
-    leftFoamROI = {
-      x1r: lx1, y1r: ly1, x2r: lx2, y2r: ly2,           // 比例坐标（主）
-      x: Math.round(lx1 * imageWidth),                    // 像素坐标（参考）
-      y: Math.round(ly1 * imageHeight),
-      width:  Math.round((lx2 - lx1) * imageWidth),
-      height: Math.round((ly2 - ly1) * imageHeight)
+    const buildRoiObj = (roiData) => {
+      // 新格式：多边形
+      if (roiData.type === 'polygon') {
+        return {
+          type: 'polygon',
+          points: roiData.points, // [ [x, y], ... ] 比例坐标
+        };
+      }
+      // 老格式：矩形 [lx1, ly1, lx2, ly2]
+      const [x1, y1, x2, y2] = roiData;
+      return {
+        x1r: x1, y1r: y1, x2r: x2, y2r: y2,           // 比例坐标（主）
+        x: Math.round(x1 * imageWidth),                    // 像素坐标（参考）
+        y: Math.round(y1 * imageHeight),
+        width:  Math.round((x2 - x1) * imageWidth),
+        height: Math.round((y2 - y1) * imageHeight)
+      };
     };
-    rightFoamROI = {
-      x1r: rx1, y1r: ry1, x2r: rx2, y2r: ry2,
-      x: Math.round(rx1 * imageWidth),
-      y: Math.round(ry1 * imageHeight),
-      width:  Math.round((rx2 - rx1) * imageWidth),
-      height: Math.round((ry2 - ry1) * imageHeight)
-    };
+    leftFoamROI = buildRoiObj(cal.rois.left);
+    rightFoamROI = buildRoiObj(cal.rois.right);
   } else if (existingRecipe && existingRecipe.roi_config && existingRecipe.roi_config.leftFoamROI && existingRecipe.roi_config.rightFoamROI) {
     // 回退到配方原有的 ROI 配置（如果存在）
     leftFoamROI = existingRecipe.roi_config.leftFoamROI;
@@ -2025,7 +2049,7 @@ function showTempRecipeSelector() {
       <button class="btn-select-temp-recipe" data-recipe-id="${recipe.id}">
         <strong>POS ${recipe.pos} - ${recipe.name}</strong>
         <div class="recipe-roi-preview">
-          左: x=${left.x}, y=${left.y} | 右: x=${right.x}, y=${right.y}
+          左: ${left.type === 'polygon' ? '多边形' : `x=${left.x || 0}, y=${left.y || 0}`} | 右: ${right.type === 'polygon' ? '多边形' : `x=${right.x || 0}, y=${right.y || 0}`}
         </div>
       </button>
     `;
@@ -2038,7 +2062,7 @@ function showTempRecipeSelector() {
 
 // ── ROI 标定 ─────────────────────────────────────────────
 // dirty=true 表示用户已手动画过 ROI，refreshPreviewRecipeRoi 不应覆盖
-const cal = { rois: {}, drawing: false, start: null, dirty: false };
+const cal = { rois: {}, drawing: false, start: null, dirty: false, drawMode: 'rect', currentPoints: [] };
 
 function getImgRect() {
   const img = document.getElementById('preview-image');
@@ -2052,11 +2076,16 @@ function renderRoiBoxes() {
 
   const img = document.getElementById('preview-image');
   if (!img || img.style.display === 'none') return;
+  
+  const canvas = document.getElementById('roi-canvas');
+  if (canvas) {
+    // Resize canvas to match the overlay exactly
+    canvas.width = overlay.clientWidth;
+    canvas.height = overlay.clientHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
 
-  // ✅ 统一坐标系修复：全部使用 getBoundingClientRect() 视口坐标系
-  // overlay(position:absolute;inset:0) 与 viewport 完全重合
-  // 用 img 和 overlay 各自的 getBoundingClientRect() 计算 img 相对于 overlay 的偏移
-  // 这样与 ptrToRatio 的坐标系完全一致，页面滚动时也不会偏移
   const overlayRect = overlay.getBoundingClientRect();
   const imgRect     = img.getBoundingClientRect();
 
@@ -2065,20 +2094,80 @@ function renderRoiBoxes() {
   const displayWidth  = imgRect.width;
   const displayHeight = imgRect.height;
 
-  Object.entries(cal.rois).forEach(([side, [x1r, y1r, x2r, y2r]]) => {
-    const box = document.createElement('div');
-    box.className = `roi-box ${side}`;
+  // 如果正在画多边形，先画出当前正在绘制的线
+  if (cal.drawing && cal.drawMode === 'freehand' && cal.currentPoints.length > 0 && canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.beginPath();
+    cal.currentPoints.forEach((pt, i) => {
+      const x = imgOffsetLeft + pt[0] * displayWidth;
+      const y = imgOffsetTop + pt[1] * displayHeight;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    const side = document.getElementById('calibration-side').value;
+    ctx.strokeStyle = side === 'left' ? '#3b82f6' : '#10b981';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
-    box.style.left   = `${imgOffsetLeft + x1r * displayWidth}px`;
-    box.style.top    = `${imgOffsetTop  + y1r * displayHeight}px`;
-    box.style.width  = `${(x2r - x1r) * displayWidth}px`;
-    box.style.height = `${(y2r - y1r) * displayHeight}px`;
-
-    const label = document.createElement('div');
-    label.className = 'roi-box-label';
-    label.textContent = side === 'left' ? '左泡棉' : '右泡棉';
-    box.appendChild(label);
-    overlay.appendChild(box);
+  Object.entries(cal.rois).forEach(([side, roiData]) => {
+    if (roiData.type === 'polygon' && canvas) {
+      // Draw polygon
+      const points = roiData.points;
+      if (points && points.length > 0) {
+        const ctx = canvas.getContext('2d');
+        ctx.beginPath();
+        points.forEach((pt, i) => {
+          const x = imgOffsetLeft + pt[0] * displayWidth;
+          const y = imgOffsetTop + pt[1] * displayHeight;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        
+        ctx.fillStyle = side === 'left' ? 'rgba(59,130,246,0.1)' : 'rgba(16,185,129,0.1)';
+        ctx.fill();
+        ctx.strokeStyle = side === 'left' ? '#3b82f6' : '#10b981';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Draw label at the first point
+        if (points.length > 0) {
+           const label = document.createElement('div');
+           label.className = 'roi-box-label';
+           label.textContent = side === 'left' ? '左泡棉' : '右泡棉';
+           // Reusing roi-box styling to make label look similar
+           const dummyBox = document.createElement('div');
+           dummyBox.className = `roi-box ${side}`;
+           dummyBox.style.border = 'none';
+           dummyBox.style.background = 'none';
+           dummyBox.style.left = `${imgOffsetLeft + points[0][0] * displayWidth}px`;
+           dummyBox.style.top = `${imgOffsetTop + points[0][1] * displayHeight}px`;
+           dummyBox.style.width = '0px';
+           dummyBox.style.height = '0px';
+           
+           label.style.top = '-20px';
+           dummyBox.appendChild(label);
+           overlay.appendChild(dummyBox);
+        }
+      }
+    } else if (Array.isArray(roiData) && roiData.length === 4) {
+      // Draw rect
+      const [x1r, y1r, x2r, y2r] = roiData;
+      const box = document.createElement('div');
+      box.className = `roi-box ${side}`;
+  
+      box.style.left   = `${imgOffsetLeft + x1r * displayWidth}px`;
+      box.style.top    = `${imgOffsetTop  + y1r * displayHeight}px`;
+      box.style.width  = `${(x2r - x1r) * displayWidth}px`;
+      box.style.height = `${(y2r - y1r) * displayHeight}px`;
+  
+      const label = document.createElement('div');
+      label.className = 'roi-box-label';
+      label.textContent = side === 'left' ? '左泡棉' : '右泡棉';
+      box.appendChild(label);
+      overlay.appendChild(box);
+    }
   });
 }
 
@@ -2097,9 +2186,16 @@ function ptrToRatio(e) {
   ];
 }
 
-document.getElementById('btn-start-roi').addEventListener('click', () => {
+function startCalibration(mode) {
   const overlay = document.getElementById('roi-overlay');
+  
+  // 如果当前是其它模式正在标定，先关闭再开启新模式
+  if (overlay.classList.contains('calibrating') && cal.drawMode !== mode) {
+     overlay.classList.remove('calibrating');
+  }
+  
   const active = overlay.classList.toggle('calibrating');
+  cal.drawMode = mode;
   const side = document.getElementById('calibration-side').value;
 
   if (active) {
@@ -2108,16 +2204,24 @@ document.getElementById('btn-start-roi').addEventListener('click', () => {
     if (recipe?.roi_config) {
       const left = recipe.roi_config.leftFoamROI;
       const right = recipe.roi_config.rightFoamROI;
-      if (left && !cal.rois.left)   cal.rois.left  = roiToRatio(left, recipe);
-      if (right && !cal.rois.right) cal.rois.right = roiToRatio(right, recipe);
+      if (left && !cal.rois.left) {
+         cal.rois.left = left.type === 'polygon' ? left : roiToRatio(left, recipe);
+      }
+      if (right && !cal.rois.right) {
+         cal.rois.right = right.type === 'polygon' ? right : roiToRatio(right, recipe);
+      }
       renderRoiBoxes();
     }
+    const modeName = mode === 'rect' ? '拖拽框选' : '画笔涂绘';
     document.getElementById('calibration-status').textContent =
-      `请在预览图上拖拽框选【${side === 'left' ? '左' : '右'}侧泡棉】区域（可在现有框上重画）`;
+      `请在预览图上${modeName}【${side === 'left' ? '左' : '右'}侧泡棉】区域（可在现有框上重画）`;
   } else {
     document.getElementById('calibration-status').textContent = '';
   }
-});
+}
+
+document.getElementById('btn-start-roi').addEventListener('click', () => startCalibration('rect'));
+document.getElementById('btn-start-roi-polygon').addEventListener('click', () => startCalibration('freehand'));
 
 document.getElementById('roi-overlay').addEventListener('mousedown', e => {
   if (!e.currentTarget.classList.contains('calibrating')) return;
@@ -2125,22 +2229,36 @@ document.getElementById('roi-overlay').addEventListener('mousedown', e => {
   if (!pt) return;
   cal.drawing = true;
   cal.start   = pt;
+  if (cal.drawMode === 'freehand') {
+    cal.currentPoints = [pt];
+  }
 });
 document.getElementById('roi-overlay').addEventListener('mousemove', e => {
   if (!cal.drawing || !cal.start) return;
   const cur  = ptrToRatio(e);
   if (!cur) return;
   const side = document.getElementById('calibration-side').value;
-  const [sx, sy] = cal.start, [cx, cy] = cur;
-  cal.rois[side] = [Math.min(sx,cx), Math.min(sy,cy), Math.max(sx,cx), Math.max(sy,cy)];
+  
+  if (cal.drawMode === 'rect') {
+    const [sx, sy] = cal.start, [cx, cy] = cur;
+    cal.rois[side] = [Math.min(sx,cx), Math.min(sy,cy), Math.max(sx,cx), Math.max(sy,cy)];
+  } else if (cal.drawMode === 'freehand') {
+    cal.currentPoints.push(cur);
+  }
   renderRoiBoxes();
 });
 document.getElementById('roi-overlay').addEventListener('mouseup', () => {
   if (cal.drawing) {
+    if (cal.drawMode === 'freehand' && cal.currentPoints.length > 2) {
+      const side = document.getElementById('calibration-side').value;
+      cal.rois[side] = { type: 'polygon', points: cal.currentPoints };
+    }
     cal.dirty = true;  // 用户完成一次绘制，标记为 dirty，防止配方刷新覆盖
   }
   cal.drawing = false;
   cal.start = null;
+  cal.currentPoints = [];
+  renderRoiBoxes();
 });
 
 document.getElementById('btn-save-roi').addEventListener('click', async () => {
@@ -2224,10 +2342,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // 允许只重画一侧：缺失的一侧自动从当前配方补全
     const recipe = currentDetectionRecipe();
     if (!cal.rois.left && recipe?.roi_config?.leftFoamROI) {
-      cal.rois.left = roiToRatio(recipe.roi_config.leftFoamROI, recipe);
+      const l = recipe.roi_config.leftFoamROI;
+      cal.rois.left = l.type === 'polygon' ? l : roiToRatio(l, recipe);
     }
     if (!cal.rois.right && recipe?.roi_config?.rightFoamROI) {
-      cal.rois.right = roiToRatio(recipe.roi_config.rightFoamROI, recipe);
+      const r = recipe.roi_config.rightFoamROI;
+      cal.rois.right = r.type === 'polygon' ? r : roiToRatio(r, recipe);
     }
     if (!cal.rois.left || !cal.rois.right) {
       alert('请先框选左侧和右侧泡棉 ROI\n\n提示：点击"框选 ROI"后在预览图上拖拽绘制');
