@@ -1,12 +1,14 @@
 import json
 import logging
 import tempfile
+import time
 from pathlib import Path
 
 import cv2
 import numpy as np
 from django.conf import settings
 from django.contrib import messages
+from django.core import signing
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
@@ -248,6 +250,7 @@ def _result_payload(foam_result):
         'standard_pixels',
         'is_complete',
         'sides',
+        'timings_ms',
     ):
         if key in foam_result.result_data:
             payload[key] = foam_result.result_data[key]
@@ -731,7 +734,6 @@ def api_foam_calibration_save(request):
 
 
 @require_POST
-@require_POST
 def api_camera_preview(request):
     """获取相机实时预览画面（不保存到数据库）"""
     try:
@@ -751,6 +753,12 @@ def api_camera_preview(request):
             })
         
         # 转换为相对于MEDIA_ROOT的路径
+        raw_image_path = str(Path(image_path).resolve())
+        capture_token = signing.dumps(
+            {'image_path': raw_image_path},
+            salt='foam-camera-preview',
+            compress=True,
+        )
         image_path_obj = Path(image_path)
         media_root = Path(settings.MEDIA_ROOT)
 
@@ -809,6 +817,7 @@ def api_camera_preview(request):
         return JsonResponse({
             'success': True,
             'image_url': image_url,
+            'capture_token': capture_token,
             'timestamp': result.get('timestamp', ''),
         })
         
@@ -827,11 +836,34 @@ def api_camera_preview(request):
 @require_POST
 def api_foam_capture_inspect(request):
     """拍照并进行泡棉检测"""
+    request_started = time.perf_counter()
     try:
         body = json.loads(request.body)
         position_index = int(body.get('position_index', 0))
         recipe_id = body.get('recipe_id') or None
         use_recipe = _as_bool(body.get('use_recipe'), True)
+        captured_image_path = None
+        preview_capture_token = body.get('preview_capture_token') or ''
+        if preview_capture_token:
+            try:
+                token_data = signing.loads(
+                    preview_capture_token,
+                    salt='foam-camera-preview',
+                    max_age=10,
+                )
+                candidate = Path(token_data['image_path']).resolve(strict=True)
+                output_dir = Path(
+                    getattr(settings, 'AUTOMATIC_ORDER', {})
+                    .get('HIK_CAMERA', {})
+                    .get('OUTPUT_DIR', Path(settings.MEDIA_ROOT) / 'hik_captures')
+                ).resolve(strict=True)
+                candidate.relative_to(output_dir)
+                if candidate.suffix.lower() not in {'.bmp', '.png', '.jpg', '.jpeg', '.tif', '.tiff'}:
+                    raise ValueError('unsupported camera image format')
+                captured_image_path = str(candidate)
+            except (signing.BadSignature, signing.SignatureExpired, KeyError, OSError, ValueError):
+                # 令牌失效时自动回退为重新拍照，检测功能不受影响。
+                logger.info('Camera preview token unavailable; falling back to a fresh capture')
         
         vision_service = VisionService()
         foam_result = vision_service.inspect_foam(
@@ -842,11 +874,16 @@ def api_foam_capture_inspect(request):
             use_camera=True,
             recipe_id=recipe_id,
             use_recipe=use_recipe,
+            captured_image_path=captured_image_path,
         )
         
+        payload = _result_payload(foam_result)
+        timings = payload.setdefault('timings_ms', {})
+        timings['api_total'] = round((time.perf_counter() - request_started) * 1000, 1)
+        logger.info('Foam capture API timing timings_ms=%s', timings)
         return JsonResponse({
             'success': True,
-            'result': _result_payload(foam_result),
+            'result': payload,
         })
         
     except RuntimeError as e:

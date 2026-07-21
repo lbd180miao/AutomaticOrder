@@ -953,6 +953,22 @@ function hideLoading() {
 let cameraPreviewRequestInFlight = false;
 let livePreviewEnabled = false;
 let livePreviewTimer = null;
+let lastCameraCaptureToken = '';
+
+function stopLivePreview() {
+  livePreviewEnabled = false;
+  if (livePreviewTimer) window.clearTimeout(livePreviewTimer);
+  livePreviewTimer = null;
+  updateLivePreviewButton();
+}
+
+async function waitForCameraPreviewIdle(timeoutMs = 15000) {
+  const startedAt = Date.now();
+  while (cameraPreviewRequestInFlight && Date.now() - startedAt < timeoutMs) {
+    await new Promise(resolve => window.setTimeout(resolve, 50));
+  }
+  return !cameraPreviewRequestInFlight;
+}
 
 function isCameraBusyError(msg) {
   const patterns = [
@@ -999,6 +1015,7 @@ async function refreshCameraPreview({ background = false } = {}) {
     const data = await res.json();
     if (data.success) {
       clearPendingFile();
+      lastCameraCaptureToken = data.capture_token || '';
       setPreviewImage(data.image_url);
       return true;
     } else {
@@ -1084,20 +1101,23 @@ async function runLivePreviewFrame() {
     return;
   }
   // 串行采集，上一帧完成后再请求下一帧，避免两个进程同时占用相机。
-  livePreviewTimer = window.setTimeout(runLivePreviewFrame, 250);
+  if (livePreviewEnabled) {
+    livePreviewTimer = window.setTimeout(runLivePreviewFrame, 250);
+  }
 }
 
 document.getElementById('btn-live-preview').addEventListener('click', () => {
-  livePreviewEnabled = !livePreviewEnabled;
-  if (livePreviewTimer) window.clearTimeout(livePreviewTimer);
-  livePreviewTimer = null;
-  updateLivePreviewButton();
-  if (livePreviewEnabled) runLivePreviewFrame();
+  if (livePreviewEnabled) {
+    stopLivePreview();
+  } else {
+    livePreviewEnabled = true;
+    updateLivePreviewButton();
+    runLivePreviewFrame();
+  }
 });
 
 window.addEventListener('beforeunload', () => {
-  livePreviewEnabled = false;
-  if (livePreviewTimer) window.clearTimeout(livePreviewTimer);
+  stopLivePreview();
 });
 
 function setPreviewImage(url) {
@@ -1299,6 +1319,9 @@ async function requestDetection(url, options) {
     };
   }
 
+  if (data.result.timings_ms) {
+    console.info('泡棉检测分段耗时(ms):', data.result.timings_ms);
+  }
   return { ok: true, result: data.result };
 }
 
@@ -1325,6 +1348,9 @@ function renderDetectionResultSafely(result) {
 
 // ── 拍照检测：自动判断使用相机还是导入图片 ───────────────────────────
 document.getElementById('btn-capture-inspect').addEventListener('click', async () => {
+  const captureButton = document.getElementById('btn-capture-inspect');
+  if (captureButton.disabled) return;
+  captureButton.disabled = true;
   const detectionPos = currentDetectionPos();
 
   if (pendingFile) {
@@ -1359,13 +1385,20 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
       alert('检测流程异常：' + e.message);
     } finally {
       hideLoading();
+      captureButton.disabled = false;
     }
     return;
   }
 
   // 无导入图片 → 走相机拍照接口
-  showLoading('拍照检测中...');
+  const previewWasActive = livePreviewEnabled || cameraPreviewRequestInFlight;
+  stopLivePreview();
+  showLoading(previewWasActive ? '正在结束实时预览并拍照检测...' : '拍照检测中...');
   try {
+    // 若预览帧正在采集，先等它释放相机，避免正式检测触发 SDK busy 后
+    // 进入 1s/2s 退避重试。
+    await waitForCameraPreviewIdle();
+    const previewCaptureToken = previewWasActive ? lastCameraCaptureToken : '';
     const outcome = await requestDetection(API.captureAndInspect, {
       method: 'POST',
       headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
@@ -1373,6 +1406,7 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
         position_index: detectionPos,
         recipe_id: currentDetectionRecipe()?.id,
         use_recipe: true,
+        preview_capture_token: previewCaptureToken,
       }),
     });
     if (outcome.ok && renderDetectionResultSafely(outcome.result)) {
@@ -1386,6 +1420,7 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
     alert('检测流程异常：' + e.message);
   } finally {
     hideLoading();
+    captureButton.disabled = false;
   }
 });
 

@@ -900,6 +900,25 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
     return result, roi, foam, sides
 
 
+def _save_or_reuse_original(image, prefix, camera_image_path=''):
+    """复用相机已经落盘的原图，避免再次编码一份千万像素 PNG。"""
+    source_value = str(camera_image_path or '')
+    if source_value and not source_value.startswith('upload:'):
+        source_path = Path(source_value)
+        if not source_path.is_absolute():
+            source_path = Path(settings.BASE_DIR) / source_path
+        try:
+            resolved_source = source_path.resolve(strict=True)
+            media_root = Path(settings.MEDIA_ROOT).resolve(strict=True)
+            relative_path = resolved_source.relative_to(media_root)
+            height, width = image.shape[:2]
+            return relative_path.as_posix(), width, height
+        except (FileNotFoundError, OSError, ValueError):
+            # 非 media 文件或路径不可用时，沿用原来的归档行为。
+            pass
+    return image_io.save_image(image, prefix)
+
+
 class FoamDefectType(models.TextChoices):
     """泡棉缺陷分类。"""
     NONE = 'NONE', '无缺陷'
@@ -987,15 +1006,21 @@ class FoamInspector:
                     scene, side_roi_config, position_index, cfg
                 )
                 result['sides'] = side_details
-                original_path, w, h = image_io.save_image(
-                    scene, f'foam_raw_p{position_index}'
+                original_path, w, h = _save_or_reuse_original(
+                    scene,
+                    f'foam_raw_p{position_index}',
+                    camera_image_path,
                 )
                 annotated = image_io.annotate_foam(scene, roi, foam, result)
                 for details in side_details.values():
                     details.pop('mask', None)
                 
                 result_path, _, _ = image_io.save_image(
-                    annotated, f'foam_result_p{position_index}', rel_dir='vision/results',
+                    annotated,
+                    f'foam_result_p{position_index}',
+                    rel_dir='vision/results',
+                    extension='jpg',
+                    jpeg_quality=90,
                 )
                 result.update({
                     'position_index': position_index,
@@ -1108,14 +1133,20 @@ class FoamInspector:
         )
         
         # 保存原图和标注结果图
-        original_path, w, h = image_io.save_image(
-            scene, f'foam_raw_p{position_index}'
+        original_path, w, h = _save_or_reuse_original(
+            scene,
+            f'foam_raw_p{position_index}',
+            camera_image_path,
         )
         annotated = image_io.annotate_foam(scene, roi, foam, result)
         result.pop('mask', None)
         
         result_path, _, _ = image_io.save_image(
-            annotated, f'foam_result_p{position_index}', rel_dir='vision/results',
+            annotated,
+            f'foam_result_p{position_index}',
+            rel_dir='vision/results',
+            extension='jpg',
+            jpeg_quality=90,
         )
 
         # 构建完整返回结果

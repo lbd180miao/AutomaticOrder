@@ -2,6 +2,8 @@
 
 流程是否继续由 workflow 根据视觉结果和配方校验共同判断，本服务只产出结果。
 """
+import logging
+import time
 from decimal import Decimal
 from pathlib import Path
 
@@ -25,6 +27,9 @@ from .recipe_utils import (
     get_active_foam_2d_recipe_by_pos,
     serialize_recipe,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _within_tolerance(measured, expected, tolerance):
@@ -276,29 +281,52 @@ class VisionService:
     def inspect_foam(self, product, rack, position_index=0, simulated_pass=True,
                      inspection_config=None, use_camera=False,
                      camera_code='CAM-INSPECT-FOAM-01',
-                     recipe_id=None, use_recipe=True):
+                     recipe_id=None, use_recipe=True, captured_image_path=None):
         """泡棉贴附检测，保存 FoamInspectionResult。
 
         参数：
             inspection_config: 可选检测配置字典，透传给 FoamInspector.inspect()，
                 支持 score_threshold / coverage_threshold / max_offset_px。
         """
+        pipeline_started = time.perf_counter()
         task = self._new_task(VisionTaskType.FOAM_INSPECTION, product=product, rack=rack)
+        timings_ms = {
+            'task_create': round((time.perf_counter() - pipeline_started) * 1000, 1),
+        }
         try:
             image = None
             camera_image_path = ''
             if use_camera:
-                adapter = self.camera_adapter or get_device_adapter(
-                    device_type=DeviceType.INSPECT_CAMERA
-                )
-                capture = adapter.capture(camera_code, VisionTaskType.FOAM_INSPECTION)
-                camera_image_path = capture.get('image_path') or ''
+                if captured_image_path:
+                    # 实时预览刚取得的是同一台相机的全分辨率原图，直接复用，
+                    # 避免点击检测后再次完成一轮打开/拍照/关闭相机。
+                    camera_image_path = str(captured_image_path)
+                    timings_ms['camera_request'] = 0.0
+                    timings_ms['preview_frame_reused'] = 1
+                else:
+                    phase_started = time.perf_counter()
+                    adapter = self.camera_adapter or get_device_adapter(
+                        device_type=DeviceType.INSPECT_CAMERA
+                    )
+                    capture = adapter.capture(camera_code, VisionTaskType.FOAM_INSPECTION)
+                    timings_ms['camera_request'] = round(
+                        (time.perf_counter() - phase_started) * 1000,
+                        1,
+                    )
+                    timings_ms.update(capture.get('timings_ms') or {})
+                    camera_image_path = capture.get('image_path') or ''
                 if camera_image_path:
+                    phase_started = time.perf_counter()
                     image_path = Path(camera_image_path)
                     image = cv2.imread(str(image_path))
                     if image is None:
                         raise RuntimeError(f'相机图片读取失败: {image_path}')
+                    timings_ms['image_decode'] = round(
+                        (time.perf_counter() - phase_started) * 1000,
+                        1,
+                    )
 
+            phase_started = time.perf_counter()
             profile, calibration_config = self._foam_calibration_config(camera_code)
             recipe = None
             recipe_config = {}
@@ -318,7 +346,12 @@ class VisionService:
                 merged_config.update(inspection_config)
             merged_config.update(calibration_config)
             merged_config.update(recipe_config)
+            timings_ms['config_load'] = round(
+                (time.perf_counter() - phase_started) * 1000,
+                1,
+            )
 
+            phase_started = time.perf_counter()
             data = self.foam_inspector.inspect(
                 position_index=position_index,
                 simulated_pass=simulated_pass,
@@ -326,11 +359,21 @@ class VisionService:
                 image=image,
                 camera_image_path=camera_image_path,
             )
+            timings_ms['algorithm_and_archive'] = round(
+                (time.perf_counter() - phase_started) * 1000,
+                1,
+            )
             if profile:
                 data.setdefault('result_data', {})['calibration_profile'] = profile.name
                 data['result_data']['calibration_profile_id'] = profile.id
             if recipe:
                 data.setdefault('result_data', {})['recipe'] = serialize_recipe(recipe)
+            timings_ms['before_persist_total'] = round(
+                (time.perf_counter() - pipeline_started) * 1000,
+                1,
+            )
+            data.setdefault('result_data', {})['timings_ms'] = timings_ms
+            persist_started = time.perf_counter()
             result = FoamInspectionResult.objects.create(
                 vision_task=task,
                 product=product,
@@ -363,6 +406,20 @@ class VisionService:
                     f'偏移({ox:+.0f}px,{oy:+.0f}px) 覆盖率:{cov:.1%}'
                 )
             task.save(update_fields=['status', 'finished_at', 'error_message', 'updated_at'])
+            timings_ms['persistence'] = round(
+                (time.perf_counter() - persist_started) * 1000,
+                1,
+            )
+            timings_ms['total'] = round(
+                (time.perf_counter() - pipeline_started) * 1000,
+                1,
+            )
+            logger.info(
+                'Foam inspection timing task=%s pos=%s timings_ms=%s',
+                task.id,
+                position_index,
+                timings_ms,
+            )
             return result
         except Exception as exc:  # noqa: BLE001
             self._fail_task(task, str(exc))

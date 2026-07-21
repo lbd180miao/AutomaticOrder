@@ -1,13 +1,19 @@
 import importlib
 import json
+import logging
 import subprocess
 import sys
+import threading
+import time
 import uuid
 from pathlib import Path
 
 from django.conf import settings
 
 from .base import BaseDeviceAdapter
+
+
+logger = logging.getLogger(__name__)
 
 # ── 海康 MVS 相机占用 / 访问失败 相关错误特征 ─────────────────────────────
 # 0x80000203 = MV_E_RESOURCE_BUSY  (-2147483133)
@@ -42,6 +48,9 @@ class CameraAdapter(BaseDeviceAdapter):
     """Camera adapter backed by the Hikrobot ``chg_hik`` Python binding."""
 
     _dll_directory_handles = []
+    # 预览和正式检测可能由 Django 的不同请求线程同时触发。海康相机采用独占
+    # 打开方式，进程内串行化比让 SDK busy 后进行 1s/2s 退避重试更快且稳定。
+    _capture_lock = threading.Lock()
 
     def _prepare_runtime(self, sdk_lib_dir):
         """Expose the MVS runtime DLL directory to Python and Windows loader."""
@@ -259,6 +268,24 @@ class CameraAdapter(BaseDeviceAdapter):
                     sys.stderr.write(f'Warning: Failed to close camera: {close_exc}\n')
 
     def capture(self, camera_code, task_type):
+        """串行执行相机采集，并记录排队与实际采集耗时。"""
+        queued_at = time.perf_counter()
+        with type(self)._capture_lock:
+            lock_acquired_at = time.perf_counter()
+            result = self._capture_locked(camera_code, task_type)
+        finished_at = time.perf_counter()
+        queue_ms = round((lock_acquired_at - queued_at) * 1000, 1)
+        capture_ms = round((finished_at - lock_acquired_at) * 1000, 1)
+        logger.info(
+            'Hik camera timing code=%s task=%s queue_ms=%.1f capture_ms=%.1f',
+            camera_code,
+            task_type,
+            queue_ms,
+            capture_ms,
+        )
+        return result
+
+    def _capture_locked(self, camera_code, task_type):
         """Trigger capture and return image path plus metadata."""
         hik_settings = getattr(settings, 'AUTOMATIC_ORDER', {}).get('HIK_CAMERA', {})
         output_dir = Path(hik_settings.get('OUTPUT_DIR', settings.MEDIA_ROOT / 'hik_captures')).resolve()
