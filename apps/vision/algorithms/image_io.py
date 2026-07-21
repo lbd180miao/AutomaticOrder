@@ -7,6 +7,7 @@
 draw_* / save_image 等标注与归档函数可继续复用。
 """
 import os
+from functools import lru_cache
 
 import cv2
 import numpy as np
@@ -33,50 +34,68 @@ def _media_path(rel_dir):
     return abs_dir, os.path.join(rel_dir, date_dir).replace('\\', '/')
 
 
-def save_image(image, prefix, rel_dir='vision/captures'):
+def save_image(image, prefix, rel_dir='vision/captures', *, extension='png', jpeg_quality=90):
     """保存图像到 media，返回 (相对路径, 宽, 高)。"""
     abs_dir, rel = _media_path(rel_dir)
     stamp = timezone.now().strftime('%H%M%S_%f')
-    filename = f'{prefix}_{stamp}.png'
+    extension = str(extension).lower().lstrip('.')
+    if extension not in {'png', 'jpg', 'jpeg', 'bmp', 'tif', 'tiff'}:
+        raise ValueError(f'不支持的图像格式: {extension}')
+    filename = f'{prefix}_{stamp}.{extension}'
     abs_path = os.path.join(abs_dir, filename)
-    if not cv2.imwrite(abs_path, image):
+    params = []
+    if extension in {'jpg', 'jpeg'}:
+        params = [cv2.IMWRITE_JPEG_QUALITY, max(1, min(100, int(jpeg_quality)))]
+    if not cv2.imwrite(abs_path, image, params):
         raise OSError(f'图像保存失败: {abs_path}')
     h, w = image.shape[:2]
     return f'{rel}/{filename}', w, h
 
 
-def _put_label(img, text, org, color, scale=0.5, thickness=1):
-    """带背景底的文字标注，支持中文显示。"""
-    # 转换为PIL图像以支持中文
-    pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-    draw = ImageDraw.Draw(pil_img)
-    
-    # 尝试使用系统中文字体，如果失败则使用默认字体
+@lru_cache(maxsize=16)
+def _label_font(font_size):
+    """缓存字体对象，避免每个标签都重新读取字体文件。"""
     try:
-        # Windows系统中文字体
-        font_size = int(20 * scale)
-        font = ImageFont.truetype("msyh.ttc", font_size)  # 微软雅黑
+        return ImageFont.truetype("msyh.ttc", font_size)
     except OSError:
         try:
-            font = ImageFont.truetype("simsun.ttc", font_size)  # 宋体
+            return ImageFont.truetype("simsun.ttc", font_size)
         except OSError:
-            font = ImageFont.load_default()
-    
+            return ImageFont.load_default()
+
+
+def _put_label(img, text, org, color, scale=0.5, thickness=1):
+    """带背景底的文字标注，支持中文显示。
+
+    仅转换文字附近的小图块，避免在千万像素相机图上为每个标签重复执行
+    整图 OpenCV/PIL 颜色转换。
+    """
+    font = _label_font(max(1, int(20 * scale)))
+    measure_draw = ImageDraw.Draw(Image.new('RGB', (1, 1)))
     x, y = org
-    # 获取文本尺寸
-    bbox = draw.textbbox((0, 0), text, font=font)
+    bbox = measure_draw.textbbox((0, 0), text, font=font)
     tw = bbox[2] - bbox[0]
     th = bbox[3] - bbox[1]
-    
-    # 绘制背景矩形
-    draw.rectangle([x, y - th - 4, x + tw + 6, y + 2], fill=(30, 30, 30))
-    
+
+    height, width = img.shape[:2]
+    left = max(0, x)
+    top = max(0, y - th - 4)
+    right = min(width, x + tw + 7)
+    bottom = min(height, y + 3)
+    if right <= left or bottom <= top:
+        return
+
+    patch = img[top:bottom, left:right]
+    pil_patch = Image.fromarray(cv2.cvtColor(patch, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(pil_patch)
+    draw.rectangle(
+        [x - left, y - th - 4 - top, x + tw + 6 - left, y + 2 - top],
+        fill=(30, 30, 30),
+    )
     # 绘制文字（PIL使用RGB颜色顺序，需要转换）
     rgb_color = (color[2], color[1], color[0])
-    draw.text((x + 3, y - th - 2), text, font=font, fill=rgb_color)
-    
-    # 转换回OpenCV格式
-    img[:] = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+    draw.text((x + 3 - left, y - th - 2 - top), text, font=font, fill=rgb_color)
+    patch[:] = cv2.cvtColor(np.asarray(pil_patch), cv2.COLOR_RGB2BGR)
 
 
 def draw_roi(img, box, color=COLOR_ROI, label=None, thickness=2):
@@ -237,8 +256,6 @@ def annotate_foam(img, roi, foam, result):
                     mh, mw = side_mask.shape
                     rh, rw = roi_out.shape[:2]
                     if mh == rh and mw == rw:
-                        import cv2
-                        import numpy as np
                         red_overlay = np.zeros_like(roi_out)
                         red_overlay[:] = (0, 0, 255) # BGR Red
                         alpha = 0.4

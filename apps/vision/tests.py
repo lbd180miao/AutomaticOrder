@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 from django.conf import settings
 from django.apps import apps
+from django.core import signing
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -43,6 +44,26 @@ from apps.vision.services import VisionService
 
 
 class FoamPixelSegmentationTests(SimpleTestCase):
+    def test_camera_original_inside_media_is_reused_without_png_reencoding(self):
+        from apps.vision.algorithms.foam_inspector import _save_or_reuse_original
+
+        with TemporaryDirectory() as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            capture_dir = Path(tmpdir) / 'hik_captures'
+            capture_dir.mkdir(parents=True)
+            image_path = capture_dir / 'frame.bmp'
+            image = np.full((40, 60, 3), 110, dtype=np.uint8)
+            cv2.imwrite(str(image_path), image)
+
+            relative_path, width, height = _save_or_reuse_original(
+                image,
+                'foam_raw_p0',
+                str(image_path),
+            )
+
+            self.assertEqual(relative_path, 'hik_captures/frame.bmp')
+            self.assertEqual((width, height), (60, 40))
+            self.assertEqual(list(capture_dir.iterdir()), [image_path])
+
     def test_compute_mask_centroid_uses_actual_mask_pixels(self):
         mask = np.zeros((100, 100), dtype=np.uint8)
         mask[10:80, 10:35] = 255
@@ -734,8 +755,18 @@ class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
     def test_imported_preview_image_remains_detection_source_until_refresh_preview(self):
         source = self._template_source()
 
-        self.assertIn('clearPendingFile();\n      setPreviewImage(data.image_url);', source)
+        self.assertIn('clearPendingFile();', source)
+        self.assertIn('setPreviewImage(data.image_url);', source)
         self.assertNotIn('clearPendingFile();   // 检测完成后清除暂存', source)
+
+    def test_live_preview_frame_is_reused_for_detection(self):
+        source = self._template_source()
+
+        self.assertIn("let lastCameraCaptureToken = '';", source)
+        self.assertIn("lastCameraCaptureToken = data.capture_token || '';", source)
+        self.assertIn('await waitForCameraPreviewIdle();', source)
+        self.assertIn('previewWasActive ? lastCameraCaptureToken', source)
+        self.assertIn('preview_capture_token: previewCaptureToken,', source)
 
     def test_successful_detection_keeps_preview_on_result_recipe(self):
         source = self._template_source()
@@ -1083,6 +1114,50 @@ class VisionRecipeApiTests(TestCase):
         self.assertTrue(kwargs['use_recipe'])
         self.assertEqual(response.json()['result']['recipe']['id'], recipe.id)
 
+    def test_capture_inspect_api_accepts_a_signed_recent_preview_frame(self):
+        task = VisionTask.objects.create(
+            task_type=VisionTaskType.FOAM_INSPECTION,
+            status=ResultStatus.SUCCESS,
+        )
+        foam_result = FoamInspectionResult.objects.create(
+            vision_task=task,
+            position_index=0,
+            is_present=True,
+            is_aligned=True,
+            has_lifted_edge=False,
+            score=0.95,
+            is_passed=True,
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            image_path = Path(tmpdir) / 'preview.bmp'
+            cv2.imwrite(str(image_path), np.full((40, 60, 3), 110, dtype=np.uint8))
+            camera_settings = {
+                **settings.AUTOMATIC_ORDER,
+                'HIK_CAMERA': {
+                    **settings.AUTOMATIC_ORDER.get('HIK_CAMERA', {}),
+                    'OUTPUT_DIR': Path(tmpdir),
+                },
+            }
+            token = signing.dumps(
+                {'image_path': str(image_path.resolve())},
+                salt='foam-camera-preview',
+                compress=True,
+            )
+            with override_settings(AUTOMATIC_ORDER=camera_settings), patch(
+                'apps.vision.views.VisionService'
+            ) as service_cls:
+                service_cls.return_value.inspect_foam.return_value = foam_result
+                response = self.client.post(
+                    reverse('vision:api_foam_capture_inspect'),
+                    data={'position_index': 0, 'preview_capture_token': token},
+                    content_type='application/json',
+                )
+
+        self.assertEqual(response.status_code, 200)
+        kwargs = service_cls.return_value.inspect_foam.call_args.kwargs
+        self.assertEqual(kwargs['captured_image_path'], str(image_path.resolve()))
+
     def test_upload_inspect_api_accepts_recipe_id_and_returns_recipe_payload(self):
         recipe = ensure_default_foam_2d_recipes()[0]
         image = np.full((80, 120, 3), 220, dtype=np.uint8)
@@ -1258,6 +1333,30 @@ class VisionServiceTests(TestCase):
         self.assertEqual(result.result_data.get('algorithm'), 'camera_foam_inspector')
         self.assertEqual(result.result_data.get('camera_image_path'), image_path)
         self.assertEqual(result.vision_task.images.count(), 2)
+
+    def test_inspect_foam_reuses_a_supplied_preview_frame_without_recapturing(self):
+        class UnexpectedCameraAdapter:
+            def capture(self, camera_code, task_type):
+                raise AssertionError('camera should not capture again')
+
+        with TemporaryDirectory() as tmpdir:
+            image_path = str(Path(tmpdir) / 'preview-frame.bmp')
+            cv2.imwrite(image_path, np.full((120, 160, 3), 110, dtype=np.uint8))
+            service = VisionService(camera_adapter=UnexpectedCameraAdapter())
+
+            result = service.inspect_foam(
+                self.product,
+                self.rack,
+                position_index=2,
+                use_camera=True,
+                captured_image_path=image_path,
+            )
+
+        self.assertEqual(result.result_data.get('camera_image_path'), image_path)
+        self.assertEqual(result.result_data['timings_ms']['camera_request'], 0.0)
+        self.assertEqual(result.result_data['timings_ms']['preview_frame_reused'], 1)
+        self.assertIn('algorithm_and_archive', result.result_data['timings_ms'])
+        self.assertIn('total', result.result_data['timings_ms'])
 
     def test_real_camera_foam_inspection_uses_configured_roi_instead_of_full_frame(self):
         image = np.zeros((100, 200, 3), dtype=np.uint8)
