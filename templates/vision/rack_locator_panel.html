@@ -158,6 +158,115 @@
     margin-right: 4px;
   }
 
+  .rl-v2-config-card {
+    margin: 14px 18px;
+    border: 1px solid #bfdbfe;
+    border-radius: 10px;
+    background: #eff6ff;
+    overflow: hidden;
+  }
+
+  .rl-v2-config-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .rl-v2-config-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e3a8a;
+  }
+
+  .rl-algorithm-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .rl-algorithm-badge.v2 {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .rl-v2-config-message {
+    margin: 0;
+    padding: 0 14px 12px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #475569;
+  }
+
+  .rl-v2-editor {
+    padding: 14px;
+    border-top: 1px solid #bfdbfe;
+    background: #fff;
+  }
+
+  .rl-v2-quick {
+    display: flex;
+    align-items: end;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .rl-v2-quick label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #475569;
+  }
+
+  .rl-v2-quick input {
+    width: 130px;
+    padding: 6px 8px;
+  }
+
+  .rl-v2-points-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .rl-v2-points-table th,
+  .rl-v2-points-table td {
+    padding: 6px;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: center;
+  }
+
+  .rl-v2-points-table input {
+    width: 100%;
+    min-width: 92px;
+    padding: 5px 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .rl-v2-editor-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  @media (max-width: 760px) {
+    .rl-v2-editor { overflow-x: auto; }
+  }
+
   /* 高级选项（可折叠） */
   .rl-advanced-options {
     border-top: 1px solid var(--border);
@@ -727,6 +836,8 @@
     </div>
     {% endif %}
 
+
+
     <div class="rl-advanced-options">
       <button type="button" class="advanced-toggle" onclick="toggleAdvancedOptions()">
         <span id="advanced-toggle-icon">▼</span> 生产定位参数
@@ -794,8 +905,7 @@
           <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
           <button id="btn-redraw" class="btn btn-secondary" disabled>重画 ROI</button>
           <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" disabled>🎯
-            计算偏差</button>
-          <button id="btn-production-locate" class="btn btn-secondary">正式定位</button>
+            开始计算</button>
         </div>
         <div class="rl-actions rl-offline-actions">
           <button id="btn-export-package" class="btn" style="background:#0ea5e9;" disabled>💾 保存数据包</button>
@@ -876,6 +986,38 @@
             <span style="color: var(--text-muted); font-size: 13px;">有效点云数量</span>
             <strong style="font-size: 14px; color: var(--text);" id="d-points">—</strong>
           </div>
+          <div id="rl-algorithm-note" style="font-size: 12px; color: var(--text-muted); padding: 2px 4px;">算法：—</div>
+          <section id="rl-v2-detail" style="display:block; margin-top: 4px;">
+            <h3 style="font-size:14px; margin:0 0 8px; color:var(--text);">开口矩形五点坐标（机器人基坐标系 / mm）</h3>
+            <div id="v2-result-state" style="margin-bottom:8px;padding:8px 10px;border-radius:7px;background:#fef3c7;color:#92400e;font-size:12px;">
+              尚未计算。采集点云后画 ROI，点击「🎯 开始计算」，后端会从实体深度四边自动提取五点并显示。
+            </div>
+            <div style="overflow-x:auto; border:1px solid var(--border-color); border-radius:8px;">
+              <table style="width:100%; border-collapse:collapse; font-size:12px; font-family:monospace;">
+                <thead style="background:var(--bg-hover);">
+                  <tr><th style="padding:7px;">点</th><th>X</th><th>Y</th><th>Z</th><th>来源</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td style="padding:7px;">P1 左上</td><td id="v2-p1-x">—</td><td id="v2-p1-y">—</td><td id="v2-p1-z">—</td><td>四边拟合</td></tr>
+                  <tr><td style="padding:7px;">P2 右上</td><td id="v2-p2-x">—</td><td id="v2-p2-y">—</td><td id="v2-p2-z">—</td><td>四边拟合</td></tr>
+                  <tr><td style="padding:7px;">P3 右下</td><td id="v2-p3-x">—</td><td id="v2-p3-y">—</td><td id="v2-p3-z">—</td><td>四边拟合</td></tr>
+                  <tr><td style="padding:7px;">P4 左下</td><td id="v2-p4-x">—</td><td id="v2-p4-y">—</td><td id="v2-p4-z">—</td><td>四边拟合</td></tr>
+                  <tr style="font-weight:700; color:var(--primary);"><td style="padding:7px;">P5 中心</td><td id="v2-p5-x">—</td><td id="v2-p5-y">—</td><td id="v2-p5-z">—</td><td>P1～P4派生</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:8px; font-size:12px;">
+              <div>宽度：<strong id="v2-width">—</strong> mm</div>
+              <div>高度：<strong id="v2-height">—</strong> mm</div>
+              <div>平面 RMSE：<strong id="v2-plane-rmse">—</strong> mm</div>
+              <div>规则矩形拟合 RMSE：<strong id="v2-rectangle-fit-rmse">—</strong> mm</div>
+
+            </div>
+            <div id="rl-v2-canvas-wrap" style="margin-top:12px;display:none;">
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">📐 开口五点示意（单位：mm）</div>
+              <canvas id="v2-points-canvas" style="width:100%;border-radius:8px;border:1px solid var(--border-color);background:#0f172a;display:block;"></canvas>
+            </div>
+          </section>
         </div>
       </div>
     </div>
@@ -1228,9 +1370,10 @@
     legacySaveUrl: '{% url "vision:api_rack_location_workbench_save" %}',
     triggerUrl: '{% url "vision:api_rack_location_trigger" %}',
     resultsUrl: '{% url "vision:api_rack_location_results" %}',
+    recipeApiUrl: '{% url "vision:api_vision_3d_recipes" %}',
     offlinePackagesUrl: '{% url "vision:offline_packages" %}',
   };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}"></script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=8"></script>
 <script src="{% static 'vision/js/offline_package_manager.js' %}"></script>
 {% endblock %}
