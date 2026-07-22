@@ -531,7 +531,7 @@ def pointcloud_to_preview(pointcloud):
 
 
 def annotate_pointcloud_roi(preview, roi, *, offsets=None, confidence=None,
-                            actual=None, locate_ok=True):
+                            actual=None, locate_ok=True, feature_points=None):
     """在点云伪彩预览图上叠加 target ROI 框、补偿向量与坐标/置信度文字。
 
     3D 工作台专用。roi 接受 {x, y, w, h}（原始图像像素坐标）。
@@ -555,6 +555,29 @@ def annotate_pointcloud_roi(preview, roi, *, offsets=None, confidence=None,
     end = (int(cx + ox * 8), int(cy + oy * 8))
     cv2.arrowedLine(out, (cx, cy), end, COLOR_TEXT, 2, tipLength=0.3)
     cv2.circle(out, (cx, cy), 4, COLOR_TEXT, -1)
+
+    if feature_points and all(key in feature_points for key in ('p1', 'p2', 'p3', 'p4')):
+        colors = {
+            'p1': (0, 0, 255),
+            'p2': (0, 165, 255),
+            'p3': (0, 255, 0),
+            'p4': (255, 0, 0),
+            'p5': (255, 0, 255),
+        }
+        corners = []
+        for key in ('p1', 'p2', 'p3', 'p4'):
+            point = feature_points[key]
+            pixel = (int(round(float(point['x']))), int(round(float(point['y']))))
+            corners.append(pixel)
+        cv2.polylines(out, [np.asarray(corners, dtype=np.int32)], True, COLOR_TEXT, 2)
+        for key, pixel in zip(('p1', 'p2', 'p3', 'p4'), corners):
+            cv2.circle(out, pixel, 6, colors[key], -1)
+            _put_label(out, key.upper(), (pixel[0] + 7, pixel[1] - 7), colors[key], scale=0.45, thickness=1)
+        if feature_points.get('p5'):
+            p5 = feature_points['p5']
+            center_pixel = (int(round(float(p5['x']))), int(round(float(p5['y']))))
+            cv2.drawMarker(out, center_pixel, colors['p5'], cv2.MARKER_CROSS, 16, 2)
+            _put_label(out, 'P5', (center_pixel[0] + 7, center_pixel[1] - 7), colors['p5'], scale=0.45, thickness=1)
 
     verdict = '定位 OK' if locate_ok else '定位 NG'
     _put_label(out, verdict, (12, 28), box_color, scale=0.6, thickness=2)

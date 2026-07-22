@@ -30,6 +30,14 @@ from apps.dm_camera.models import DMCameraConfig
 from apps.dm_camera.sdk_wrapper import DMCameraConfigurationError
 
 from .algorithms import image_io
+from .algorithms.rack_opening_rectangle import (
+    AUTO_ALGORITHM_VERSION,
+    RackOpeningRectangleLocator,
+    RectangleLocationError,
+    get_algorithm_version,
+    is_rectangle_v2,
+    standard_geometry,
+)
 from .models import RackLocationROI3D, RackLocationRecipe, RackLocationResult, VisionImage, VisionTask
 
 
@@ -187,6 +195,11 @@ class RackLocationOutput:
     def to_payload(self) -> dict:
         payload = asdict(self)
         payload['result_data'] = self.result_data or {}
+        if payload['result_data'].get('opening_rectangle'):
+            payload['opening_rectangle'] = payload['result_data']['opening_rectangle']
+        payload['algorithm_version'] = payload['result_data'].get(
+            'algorithm_version', get_algorithm_version(None),
+        )
         payload['plc_payload'] = {
             'task_kind': 'RACK_3D_LOCATION',
             'rack_side': self.rack_side,
@@ -310,6 +323,31 @@ class PointCloudProcessor:
             logger.error(f"    - 确认点云坐标系是否正确")
         
         return cropped
+
+    def crop_by_roi_3d_with_pixels(self, organized_pointcloud, roi: dict):
+        """使用3D ROI裁剪组织化点云，同时保留每个点对应的像素坐标。"""
+        pointcloud = np.asarray(organized_pointcloud, dtype=float)
+        if pointcloud.ndim != 3 or pointcloud.shape[2] != 3:
+            return self.crop_by_roi_3d(pointcloud, roi), None
+        bounds = self._normalized_roi_3d(roi)
+        points = pointcloud.reshape(-1, 3)
+        pixel_y, pixel_x = np.indices(pointcloud.shape[:2])
+        pixels = np.column_stack((pixel_x.reshape(-1), pixel_y.reshape(-1)))
+        valid = (
+            np.isfinite(points).all(axis=1)
+            & (np.abs(points[:, 2]) > 1e-9)
+            & (np.abs(points).max(axis=1) <= self.max_abs_coordinate)
+        )
+        inside = (
+            valid
+            & (points[:, 0] >= bounds['x_min'])
+            & (points[:, 0] <= bounds['x_max'])
+            & (points[:, 1] >= bounds['y_min'])
+            & (points[:, 1] <= bounds['y_max'])
+            & (points[:, 2] >= bounds['z_min'])
+            & (points[:, 2] <= bounds['z_max'])
+        )
+        return points[inside], pixels[inside]
 
     def filter_valid_points(self, points):
         points = np.asarray(points, dtype=float).reshape(-1, 3)
@@ -973,7 +1011,9 @@ class Rack3DLocator:
             'pointcloud_view_url': settings.MEDIA_URL + point_rel,
         }
 
-    def _output_from_points(self, *, points, recipe, rack_side, layer_no, roi_source, roi_id=None, token='') -> RackLocationOutput:
+    def _output_from_points(self, *, points, recipe, rack_side, layer_no, roi_source,
+                            roi_id=None, token='', pixel_coordinates=None,
+                            auto_extract_corners=False) -> RackLocationOutput:
         """从裁剪后的点云计算定位结果。
         
         先尝试通过手眼矩阵将点云变换到机器人基坐标系，再计算实测 actual_x/y/z。
@@ -987,6 +1027,8 @@ class Rack3DLocator:
         if points.shape[0] == 0:
             logger.error("[_output_from_points] ❌ 点云为空，无法计算位置！")
             return RackLocationOutput(
+                position_no=int(getattr(recipe, 'position_no', 1) or 1),
+                layer_no=int(layer_no),
                 locate_ok=False,
                 error_code='EMPTY_POINTCLOUD',
                 error_message='ROI裁剪后点云为空，请检查ROI配置',
@@ -1011,6 +1053,10 @@ class Rack3DLocator:
         # ── 尝试将相机坐标系点云变换到机器人基坐标系 ─────────────────
         coordinate_system = 'camera'  # 默认：相机坐标系
         robot_points = points  # 默认不做变换
+        # 保留原始相机坐标（变换前），供 locate_auto() 使用：
+        #   camera_points 需要是相机坐标系下的点（用于深度边缘检测）
+        #   depth_values 需要是相机Z轴方向的深度（非机器人坐标系的Z高度）
+        camera_points_orig = np.asarray(points, dtype=float)
         
         try:
             from apps.vision.coordinate_transform import CoordinateTransformService
@@ -1033,6 +1079,9 @@ class Rack3DLocator:
                 T_fc = CoordinateTransformService.parse_matrix_from_json(
                     hand_eye_config['T_flange_camera']
                 )
+            elif hand_eye_config.get('matrix') == 'identity' and hand_eye_config.get('skip_validation'):
+                # 仅供离线/开发数据：显式声明跳过校验时，identity 才是有效变换。
+                T_fc = np.eye(4, dtype=np.float64)
             
             # 从配方中加载机器人位姿（法兰→基坐标系）
             capture_pose = recipe.capture_pose or {}
@@ -1046,6 +1095,8 @@ class Rack3DLocator:
                     float(capture_pose.get('ry', 0)),
                     float(capture_pose.get('rz', 0)),
                 )
+            elif hand_eye_config.get('matrix') == 'identity' and hand_eye_config.get('skip_validation'):
+                T_bf = np.eye(4, dtype=np.float64)
             
             if T_fc is not None and T_bf is not None:
                 # 执行坐标变换：相机坐标系 → 法兰坐标系 → 机器人基坐标系
@@ -1066,12 +1117,142 @@ class Rack3DLocator:
             logger.warning(f"[_output_from_points] ⚠ 坐标变换失败，使用原始相机坐标: {transform_exc}")
             robot_points = points
             coordinate_system = 'camera'
+
+        if auto_extract_corners or is_rectangle_v2(recipe.reference_feature_config):
+            try:
+                if auto_extract_corners:
+                    # camera_points 必须是相机坐标系下的点（变换前），用于深度边缘检测
+                    # depth_values 必须是相机Z轴方向的深度值（非机器人坐标系的Z高度方向）
+                    rectangle = RackOpeningRectangleLocator().locate_auto(
+                        robot_points,
+                        recipe.reference_feature_config,
+                        camera_points=camera_points_orig,
+                        depth_values=camera_points_orig[:, 2],
+                        coordinate_system=coordinate_system,
+                        pixel_coordinates=pixel_coordinates,
+                        confidence_threshold=float(recipe.confidence_threshold),
+                    )
+                else:
+                    rectangle = RackOpeningRectangleLocator().locate(
+                        robot_points,
+                        recipe.reference_feature_config,
+                        coordinate_system=coordinate_system,
+                        pixel_coordinates=pixel_coordinates,
+                        confidence_threshold=float(recipe.confidence_threshold),
+                    )
+                center = rectangle['center']
+                if rectangle.get('standard_geometry_configured') is False:
+                    standard_center = np.asarray([
+                        float(recipe.standard_x),
+                        float(recipe.standard_y),
+                        float(recipe.standard_z),
+                    ])
+                    offset_rz = 0.0
+                else:
+                    reference = standard_geometry(recipe.reference_feature_config)
+                    standard_center = reference['center_array']
+                    deviation_rotation = np.asarray(
+                        rectangle['deviation_transform']['matrix'], dtype=float,
+                    )[:3, :3]
+                    offset_rz = float(np.degrees(np.arctan2(
+                        deviation_rotation[1, 0], deviation_rotation[0, 0],
+                    )))
+                center_offsets = {
+                    'x': float(center['x']) - float(standard_center[0]),
+                    'y': float(center['y']) - float(standard_center[1]),
+                    'z': float(center['z']) - float(standard_center[2]),
+                    'rz': offset_rz,
+                }
+                offset_limits = {
+                    'x': float(recipe.max_offset_x),
+                    'y': float(recipe.max_offset_y),
+                    'z': float(recipe.max_offset_z),
+                    'rz': float(recipe.max_offset_rz),
+                }
+                exceeded = [
+                    axis for axis in ('x', 'y', 'z', 'rz')
+                    if abs(center_offsets[axis]) > offset_limits[axis]
+                ]
+                if exceeded:
+                    limit_message = '定位偏差超出配方上限: ' + ', '.join(
+                        f"{axis.upper()}={center_offsets[axis]:+.3f}/{offset_limits[axis]:.3f}"
+                        for axis in exceeded
+                    )
+                    rectangle['locate_ok'] = False
+                    rectangle['error_code'] = 'OFFSET_OUT_OF_RANGE'
+                    rectangle['error_message'] = '; '.join(filter(None, [
+                        rectangle.get('error_message'), limit_message,
+                    ]))
+                    rectangle['quality']['failures'].append({
+                        'code': 'OFFSET_OUT_OF_RANGE', 'message': limit_message,
+                    })
+                return RackLocationOutput(
+                    rack_side=rack_side,
+                    position_no=int(getattr(recipe, 'position_no', 1) or 1),
+                    layer_no=int(layer_no),
+                    locate_ok=bool(rectangle['locate_ok']),
+                    actual_x=round(float(center['x']), 3),
+                    actual_y=round(float(center['y']), 3),
+                    actual_z=round(float(center['z']), 3),
+                    offset_x=round(center_offsets['x'], 3),
+                    offset_y=round(center_offsets['y'], 3),
+                    offset_z=round(center_offsets['z'], 3),
+                    offset_rz=round(offset_rz, 3),
+                    confidence=float(rectangle['quality']['confidence']),
+                    error_code=rectangle.get('error_code', ''),
+                    error_message=rectangle.get('error_message', ''),
+                    raw_data_path=token,
+                    result_data={
+                        'algorithm_version': rectangle['algorithm_version'],
+                        'source': 'rack_3d_roi',
+                        'roi_id': roi_id,
+                        'roi_source': roi_source,
+                        'coordinate_system': coordinate_system,
+                        'point_count': int(robot_points.shape[0]),
+                        'valid_point_count': int(rectangle['quality']['valid_point_count']),
+                        'opening_rectangle': rectangle,
+                        'reference_mode': rectangle.get('reference_mode', 'standard_four_points'),
+                    },
+                )
+            except RectangleLocationError as exc:
+                logger.warning('V2矩形开口定位失败: %s %s', exc.code, exc.message)
+                return RackLocationOutput(
+                    rack_side=rack_side,
+                    position_no=int(getattr(recipe, 'position_no', 1) or 1),
+                    layer_no=int(layer_no),
+                    locate_ok=False,
+                    actual_x=0.0,
+                    actual_y=0.0,
+                    actual_z=0.0,
+                    offset_x=0.0,
+                    offset_y=0.0,
+                    offset_z=0.0,
+                    offset_rz=0.0,
+                    confidence=0.0,
+                    error_code=exc.code,
+                    error_message=exc.message,
+                    raw_data_path=token,
+                    result_data={
+                        'algorithm_version': (
+                            AUTO_ALGORITHM_VERSION if auto_extract_corners
+                            else get_algorithm_version(recipe.reference_feature_config)
+                        ),
+                        'source': 'rack_3d_roi',
+                        'roi_id': roi_id,
+                        'roi_source': roi_source,
+                        'coordinate_system': coordinate_system,
+                        'point_count': int(robot_points.shape[0]),
+                        'error_detail': exc.details,
+                    },
+                )
         
         try:
             actual_x, actual_y, actual_z = self.processor.calculate_median_xyz(robot_points)
         except ValueError as e:
             logger.error(f"[_output_from_points] ❌ 计算中位数失败: {e}")
             return RackLocationOutput(
+                position_no=int(getattr(recipe, 'position_no', 1) or 1),
+                layer_no=int(layer_no),
                 locate_ok=False,
                 error_code='INSUFFICIENT_POINTS',
                 error_message=str(e),
@@ -1208,13 +1389,15 @@ class Rack3DLocator:
             'plc_payload': plc_payload,
         }
 
-    def test_locate(self, *, token, roi_3d, roi_config=None, recipe_id=None, rack_side=RackSide.LEFT, layer_no=1, save_record=False) -> dict:
+    def test_locate(self, *, token, roi_3d, roi_config=None, recipe_id=None, rack_side=RackSide.LEFT,
+                    layer_no=1, save_record=False, auto_extract_corners=False) -> dict:
         """测试定位（不保存到数据库，除非指定save_record=True）"""
         recipe = self._select_recipe(recipe_id=recipe_id, layer_no=layer_no)
         pointcloud = self._load_pointcloud(token)
         
         target_roi = None
         new_camera_roi = None
+        pixel_coordinates = None
         if roi_config and roi_config.get('target_roi'):
             target_roi = roi_config['target_roi']
             
@@ -1230,6 +1413,9 @@ class Rack3DLocator:
                 pts = cropped_cloud.reshape(-1, 3)
                 valid = np.isfinite(pts[:, 2]) & (np.abs(pts[:, 2]) > 1e-9)
                 points = pts[valid]
+                pixel_y, pixel_x = np.indices(cropped_cloud.shape[:2])
+                all_pixels = np.column_stack((pixel_x.reshape(-1) + x, pixel_y.reshape(-1) + y))
+                pixel_coordinates = all_pixels[valid]
                 
                 # 自动计算该 2D 框覆盖点云的 3D 包围框（相当于将其保存成3D指标）
                 if len(points) > 0:
@@ -1244,7 +1430,9 @@ class Rack3DLocator:
             else:
                 points = np.array([])
         else:
-            points = self.processor.crop_by_roi_3d(pointcloud, roi_3d)
+            points, pixel_coordinates = self.processor.crop_by_roi_3d_with_pixels(
+                pointcloud, roi_3d,
+            )
             
         if points.shape[0] < self.processor.min_valid_points:
             raise ValueError('ROI 内有效点数太少')
@@ -1256,6 +1444,8 @@ class Rack3DLocator:
             layer_no=int(layer_no),
             roi_source='request',
             token=token,
+            pixel_coordinates=pixel_coordinates,
+            auto_extract_corners=auto_extract_corners,
         )
         
         # 生成带ROI框和结果标注的图像
@@ -1274,6 +1464,7 @@ class Rack3DLocator:
                 confidence=output.confidence,
                 actual=(output.actual_x, output.actual_y, output.actual_z),
                 locate_ok=output.locate_ok,
+                feature_points=(output.result_data or {}).get('opening_rectangle', {}).get('pixel_points'),
             )
         else:
             # 没有2D ROI，只在图像上添加结果文字（不绘制框）
@@ -1407,7 +1598,9 @@ class Rack3DLocator:
 
         captured = self.capture(recipe_id=recipe.id, rack_side=rack_side, layer_no=layer_no)
         pointcloud = self._load_pointcloud(captured['pointcloud_token'])
-        points = self.processor.crop_by_roi_3d(pointcloud, roi3d_to_dict(roi))
+        points, pixel_coordinates = self.processor.crop_by_roi_3d_with_pixels(
+            pointcloud, roi3d_to_dict(roi),
+        )
         output = self._output_from_points(
             points=points,
             recipe=recipe,
@@ -1416,6 +1609,7 @@ class Rack3DLocator:
             roi_source=roi_source,
             roi_id=roi.id,
             token=captured['pointcloud_token'],
+            pixel_coordinates=pixel_coordinates,
         )
         payload = output.to_payload()
         semantic_data = self._semantic_result_data(
@@ -1523,12 +1717,31 @@ class RackLocationService:
             if field in recipe_data:
                 setattr(recipe, field, recipe_data[field])
         recipe.roi_config = roi_config or {}
+        if recipe_data.get('reference_feature_config') is not None:
+            recipe.reference_feature_config = recipe_data.get('reference_feature_config') or {}
         if recipe_data.get('hand_eye_config') is not None:
             recipe.hand_eye_config = recipe_data.get('hand_eye_config') or {}
         elif not recipe.hand_eye_config:
             recipe.hand_eye_config = {'matrix': 'identity'}
 
         layer_count = int(recipe_data.get('layer_count') or getattr(recipe, 'layer_count', 3) or 3)
+        if is_rectangle_v2(recipe.reference_feature_config):
+            return RackLocationOutput(
+                rack_side=recipe.rack_side or RackSide.BOTH,
+                position_no=int(getattr(recipe, 'position_no', 1) or 1),
+                layer_no=int(recipe_data.get('layer_no') or getattr(recipe, 'layer_no', 1) or 1),
+                locate_ok=False,
+                actual_x=0.0,
+                actual_y=0.0,
+                actual_z=0.0,
+                offset_x=0.0,
+                offset_y=0.0,
+                offset_z=0.0,
+                confidence=0.0,
+                error_code='REAL_CAMERA_REQUIRED',
+                error_message='矩形四角点V2预览必须使用真实/离线点云工作台，不能用中位数模拟结果',
+                result_data={'algorithm_version': get_algorithm_version(recipe.reference_feature_config)},
+            )
         pointcloud = build_sample_pointcloud(side='LEFT', layer_count=layer_count)
         frame = {
             'source': 'sample_pointcloud',
@@ -1672,6 +1885,8 @@ class RackLocationService:
             recipe.hand_eye_config = recipe_data.get('hand_eye_config') or {'matrix': 'identity'}
         elif not recipe.hand_eye_config:
             recipe.hand_eye_config = {'matrix': 'identity'}
+        if recipe_data.get('reference_feature_config') is not None:
+            recipe.reference_feature_config = recipe_data.get('reference_feature_config') or {}
         return recipe
 
     def capture_workbench(self, recipe_id=None) -> dict:
@@ -1738,14 +1953,36 @@ class RackLocationService:
 
         pointcloud = self._load_workbench_pointcloud(token)
         recipe.roi_config = roi_config
-        frame = {
-            'source': 'workbench',
-            'organized_pointcloud': pointcloud,
-            'roi_config': roi_config,
-        }
-        output = self.estimator.calculate_rack_offset(
-            frame, recipe, rack_side=recipe.rack_side or RackSide.BOTH, layer_no=int(layer_no),
-        )
+        if is_rectangle_v2(recipe.reference_feature_config):
+            height, width = pointcloud.shape[:2]
+            x, y, w, h = self.estimator.processor._normalized_roi(target_roi, width, height)
+            cropped = pointcloud[y:y + h, x:x + w]
+            flat_points = cropped.reshape(-1, 3)
+            valid = np.isfinite(flat_points[:, 2]) & (np.abs(flat_points[:, 2]) > 1e-9)
+            pixel_y, pixel_x = np.indices(cropped.shape[:2])
+            all_pixels = np.column_stack((pixel_x.reshape(-1) + x, pixel_y.reshape(-1) + y))
+            output = Rack3DLocator(
+                frame_provider=self.frame_provider,
+                processor=self.estimator.processor,
+                plc_writer=self.plc_writer,
+            )._output_from_points(
+                points=flat_points[valid],
+                recipe=recipe,
+                rack_side=recipe.rack_side or RackSide.BOTH,
+                layer_no=int(layer_no),
+                roi_source='target_roi',
+                token=token,
+                pixel_coordinates=all_pixels[valid],
+            )
+        else:
+            frame = {
+                'source': 'workbench',
+                'organized_pointcloud': pointcloud,
+                'roi_config': roi_config,
+            }
+            output = self.estimator.calculate_rack_offset(
+                frame, recipe, rack_side=recipe.rack_side or RackSide.BOTH, layer_no=int(layer_no),
+            )
 
         preview = image_io.pointcloud_to_preview(pointcloud)
         annotated = image_io.annotate_pointcloud_roi(
@@ -1754,6 +1991,7 @@ class RackLocationService:
             confidence=output.confidence,
             actual=(output.actual_x, output.actual_y, output.actual_z),
             locate_ok=output.locate_ok,
+            feature_points=(output.result_data or {}).get('opening_rectangle', {}).get('pixel_points'),
         )
         result_rel, _, _ = image_io.save_image(
             annotated, 'rack_workbench_result', rel_dir='vision/rack_workbench',
@@ -1762,7 +2000,8 @@ class RackLocationService:
 
     def calculate_workbench(self, *, token, roi_config, recipe_id=None,
                             recipe_data=None, layer_no=1, roi_3d=None,
-                            rack_side=RackSide.LEFT, save_record=False) -> dict:
+                            rack_side=RackSide.LEFT, save_record=False,
+                            auto_extract_corners=False) -> dict:
         """工作台「计算偏差」：计算并可选择保存到视觉记录。
         
         Args:
@@ -1781,6 +2020,7 @@ class RackLocationService:
                 rack_side=rack_side,
                 layer_no=layer_no,
                 save_record=save_record,
+                auto_extract_corners=auto_extract_corners,
             )
             return result
             
@@ -1950,6 +2190,23 @@ class RackLocationService:
         if rack_side not in {RackSide.LEFT, RackSide.RIGHT, RackSide.BOTH}:
             raise ValueError('rack_side must be LEFT, RIGHT, or BOTH')
         layer_no = int(layer_no)
+        recipe = self._select_recipe(
+            recipe_id=recipe_id, position_no=position_no, layer_no=layer_no,
+        )
+        if is_rectangle_v2(recipe.reference_feature_config):
+            return Rack3DLocator(
+                frame_provider=self.frame_provider,
+                processor=self.estimator.processor,
+                plc_writer=self.plc_writer,
+            ).locate(
+                rack_side=rack_side,
+                layer_no=layer_no,
+                recipe_id=recipe.id,
+                write_plc=write_plc,
+                product=product,
+                rack=rack,
+                workflow=workflow,
+            )
         task = VisionTask.objects.create(
             task_type=VisionTaskType.RACK_LOCATING,
             product=product,
@@ -1958,7 +2215,6 @@ class RackLocationService:
             started_at=timezone.now(),
         )
         try:
-            recipe = self._select_recipe(recipe_id=recipe_id, position_no=position_no, layer_no=layer_no)
             frame = self.frame_provider.capture(recipe, position_no, layer_no)
             output = self.estimator.calculate_rack_offset(frame, recipe, rack_side=rack_side, layer_no=layer_no)
             payload = output.to_payload()
@@ -2088,6 +2344,7 @@ def result_payload(result: RackLocationResult) -> dict:
         layer=layer,
         final=final,
     )
+    opening_rectangle = data.get('opening_rectangle') or None
     return {
         'id': result.id,
         'task_id': result.vision_task_id,
@@ -2129,5 +2386,9 @@ def result_payload(result: RackLocationResult) -> dict:
         'plc_write_status': result.plc_write_status,
         'plc_error_message': result.plc_error_message,
         'plc_payload': plc_payload,
+        'algorithm_version': data.get('algorithm_version') or get_algorithm_version(None),
+        'opening_rectangle': opening_rectangle,
+        'tcp_verification': data.get('tcp_verification'),
+        'result_data': data,
         'created_at': result.created_at.isoformat() if result.created_at else '',
     }

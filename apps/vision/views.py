@@ -11,6 +11,7 @@ from django.contrib import messages
 from django.core import signing
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_http_methods
 
@@ -18,6 +19,12 @@ from apps.core.constants import RackSide
 from apps.devices.models import Device
 from apps.production.models import Rack, RackRecipe
 from .algorithms.standard_mask_manager import StandardMaskManager
+from .algorithms.rack_opening_rectangle import (
+    calculate_tcp_verification,
+    is_rectangle_v2,
+    normalize_reference_feature_config,
+    standard_geometry,
+)
 from .models import (
     CalibrationProfile,
     FoamInspectionResult,
@@ -1625,7 +1632,14 @@ def _save_rack_location_recipe_from_request(request, recipe=None):
         }
     recipe.roi_config = roi_config
     
-    recipe.reference_feature_config = _json_config(data.get('reference_feature_config'), {})
+    recipe.reference_feature_config = normalize_reference_feature_config(
+        _json_config(data.get('reference_feature_config'), {}),
+    )
+    if is_rectangle_v2(recipe.reference_feature_config):
+        reference = standard_geometry(recipe.reference_feature_config)
+        recipe.standard_x = float(reference['center_array'][0])
+        recipe.standard_y = float(reference['center_array'][1])
+        recipe.standard_z = float(reference['center_array'][2])
     recipe.hand_eye_config = _json_config(data.get('hand_eye_config'), {'matrix': 'identity'})
     recipe.capture_pose = _json_config(data.get('capture_pose'), recipe.capture_pose or {})
     
@@ -1767,12 +1781,21 @@ def api_vision_3d_recipes(request):
                 recipe.standard_rz = _as_float(data['standard_rz'], recipe.standard_rz)
             if 'roi_config' in data:
                 recipe.roi_config = data['roi_config']
+            if 'reference_feature_config' in data:
+                recipe.reference_feature_config = normalize_reference_feature_config(
+                    data['reference_feature_config'] or {},
+                )
             if data.get('hand_eye_config'):
                 recipe.hand_eye_config = data['hand_eye_config']
             if data.get('capture_pose'):
                 recipe.capture_pose = data['capture_pose']
             if 'enabled' in data:
                 recipe.enabled = _as_bool(data['enabled'])
+            if is_rectangle_v2(recipe.reference_feature_config):
+                reference = standard_geometry(recipe.reference_feature_config)
+                recipe.standard_x = float(reference['center_array'][0])
+                recipe.standard_y = float(reference['center_array'][1])
+                recipe.standard_z = float(reference['center_array'][2])
             
             recipe.save()
             return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
@@ -1795,6 +1818,10 @@ def api_vision_3d_recipes(request):
     # POST - 创建新配方
     try:
         data = _request_data(request)
+        reference_feature_config = normalize_reference_feature_config(
+            data.get('reference_feature_config') or {},
+        )
+        reference = standard_geometry(reference_feature_config) if is_rectangle_v2(reference_feature_config) else None
         recipe = RackLocationRecipe.objects.create(
             recipe_name=data.get('recipe_name') or f"3D-L{data.get('layer_no', 1)}",
             rack_side=str(data.get('rack_side') or RackSide.BOTH).upper(),
@@ -1802,12 +1829,13 @@ def api_vision_3d_recipes(request):
             position_no=_as_int(data.get('position_no'), 1),
             layer_no=_as_int(data.get('layer_no'), 1),
             layer_count=_as_int(data.get('layer_count'), 3),
-            standard_x=_as_float(data.get('standard_x'), 0),
-            standard_y=_as_float(data.get('standard_y'), 0),
-            standard_z=_as_float(data.get('standard_z'), 0),
+            standard_x=float(reference['center_array'][0]) if reference else _as_float(data.get('standard_x'), 0),
+            standard_y=float(reference['center_array'][1]) if reference else _as_float(data.get('standard_y'), 0),
+            standard_z=float(reference['center_array'][2]) if reference else _as_float(data.get('standard_z'), 0),
             standard_rz=_as_float(data.get('standard_rz'), 0),
             roi_config=data.get('roi_config') or {},
             capture_pose=data.get('capture_pose') or {},
+            reference_feature_config=reference_feature_config,
             hand_eye_config=data.get('hand_eye_config') or {
                 'matrix': 'identity',
                 'skip_validation': True,
@@ -1830,10 +1858,19 @@ def api_vision_3d_recipe_detail(request, recipe_id):
         for field in (
             'recipe_name', 'rack_side', 'rack_type', 'capture_pose_name',
             'standard_x', 'standard_y', 'standard_z', 'standard_rz',
-            'hand_eye_config', 'enabled',
+            'roi_config', 'reference_feature_config', 'hand_eye_config',
+            'capture_pose', 'enabled',
         ):
             if field in data:
                 setattr(recipe, field, _as_bool(data[field]) if field == 'enabled' else data[field])
+        recipe.reference_feature_config = normalize_reference_feature_config(
+            recipe.reference_feature_config or {},
+        )
+        if is_rectangle_v2(recipe.reference_feature_config):
+            reference = standard_geometry(recipe.reference_feature_config)
+            recipe.standard_x = float(reference['center_array'][0])
+            recipe.standard_y = float(reference['center_array'][1])
+            recipe.standard_z = float(reference['center_array'][2])
         for field in ('position_no', 'layer_no', 'layer_count'):
             if field in data:
                 setattr(recipe, field, _as_int(data[field], getattr(recipe, field)))
@@ -2111,6 +2148,7 @@ def api_rack_location_workbench_calculate(request):
             roi_3d=data.get('roi_3d') or data.get('roi'),
             rack_side=data.get('rack_side') or 'LEFT',
             save_record=save_record,
+            auto_extract_corners=_as_bool(data.get('auto_extract_corners'), False),
         )
         
         # 自动将用户绘制的 2D 像素 target_roi 持久化保存到配方 roi_config，
@@ -2260,6 +2298,10 @@ def api_rack_location_recipes(request):
                 'success': False,
                 'error': f'层号 {layer_no} 已存在启用的配方，请先禁用或编辑现有配方',
             }, status=400)
+        reference_feature_config = normalize_reference_feature_config(
+            data.get('reference_feature_config') or {},
+        )
+        reference = standard_geometry(reference_feature_config) if is_rectangle_v2(reference_feature_config) else None
         recipe = RackLocationRecipe.objects.create(
             recipe_name=data.get('recipe_name') or f"3D-L{layer_no}",
             rack_type=data.get('rack_type') or '',
@@ -2268,12 +2310,12 @@ def api_rack_location_recipes(request):
             layer_count=_as_int(data.get('layer_count'), 3),
             layer_no=layer_no,
             capture_pose_name=data.get('capture_pose_name') or '',
-            standard_x=data.get('standard_x') or 0,
-            standard_y=data.get('standard_y') or 0,
-            standard_z=data.get('standard_z') or 0,
+            standard_x=float(reference['center_array'][0]) if reference else data.get('standard_x') or 0,
+            standard_y=float(reference['center_array'][1]) if reference else data.get('standard_y') or 0,
+            standard_z=float(reference['center_array'][2]) if reference else data.get('standard_z') or 0,
             standard_rz=data.get('standard_rz') or 0,
             roi_config=data.get('roi_config') or {},
-            reference_feature_config=data.get('reference_feature_config') or {},
+            reference_feature_config=reference_feature_config,
             hand_eye_config=data.get('hand_eye_config') or {'matrix': 'identity'},
             max_offset_x=data.get('max_offset_x') or 10,
             max_offset_y=data.get('max_offset_y') or 10,
@@ -2302,6 +2344,14 @@ def api_rack_location_recipe_update(request, recipe_id):
         for field in updatable:
             if field in data:
                 setattr(recipe, field, _as_bool(data[field]) if field == 'enabled' else data[field])
+        recipe.reference_feature_config = normalize_reference_feature_config(
+            recipe.reference_feature_config or {},
+        )
+        if is_rectangle_v2(recipe.reference_feature_config):
+            reference = standard_geometry(recipe.reference_feature_config)
+            recipe.standard_x = float(reference['center_array'][0])
+            recipe.standard_y = float(reference['center_array'][1])
+            recipe.standard_z = float(reference['center_array'][2])
         # 固定position_no=1
         recipe.position_no = 1
         if 'layer_no' in data:
@@ -2363,6 +2413,44 @@ def api_rack_location_results(request):
         'success': True,
         'results': [rack_location_result_payload(result) for result in qs[:100]],
     })
+
+
+@require_POST
+def api_rack_location_tcp_verification(request, result_id):
+    """保存机器人低速探测得到的Q1-Q4，并与视觉P1-P4进行比较。"""
+    try:
+        result = get_object_or_404(
+            RackLocationResult.objects.select_related('recipe'), pk=result_id,
+        )
+        data = _request_data(request)
+        result_data = dict(result.result_data or {})
+        opening_rectangle = result_data.get('opening_rectangle') or {}
+        recipe_config = (result.recipe.reference_feature_config if result.recipe else {}) or {}
+        opening_config = recipe_config.get('opening_rectangle') or {}
+        thresholds = opening_config.get('thresholds') or {}
+        tolerance_mm = float(thresholds.get('tcp_verification_tolerance_mm', 3.0))
+        verification = calculate_tcp_verification(
+            opening_rectangle,
+            data.get('measured_points') or {},
+            coordinate_system=str(data.get('coordinate_system') or 'robot_base'),
+            tolerance_mm=tolerance_mm,
+        )
+        verification.update({
+            'verified_at': timezone.now().isoformat(),
+            'tcp_name': str(data.get('tcp_name') or ''),
+            'operator': str(data.get('operator') or ''),
+            'notes': str(data.get('notes') or ''),
+        })
+        result_data['tcp_verification'] = verification
+        result.result_data = result_data
+        result.save(update_fields=['result_data', 'updated_at'])
+        return JsonResponse({
+            'success': True,
+            'tcp_verification': verification,
+            'result': rack_location_result_payload(result),
+        })
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
 

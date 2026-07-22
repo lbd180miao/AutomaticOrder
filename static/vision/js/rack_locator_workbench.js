@@ -218,7 +218,6 @@
     setButton('btn-capture', true);
     setButton('btn-redraw', Boolean(state.token));
     setButton('btn-calculate', Boolean(state.token));
-    setButton('btn-production-locate', Boolean($('recipe-id')?.value));
     setButton('btn-auto-align', Boolean(state.token));
     setButton('btn-save-roi', Boolean(state.alignmentToken));
     setButton('btn-write-plc', Boolean(state.lastResultId && state.lastResultOk));
@@ -289,6 +288,8 @@
     }
     return data;
   }
+
+
 
   // ── 自动加载并显示配方 ROI ─────────────────────────────
   function normalizePixelRoi(targetRoi) {
@@ -621,27 +622,7 @@
     return data.results || [];
   }
 
-  $('btn-production-locate')?.addEventListener('click', async () => {
-    showLoading('执行正式 3D 定位...');
-    try {
-      const raw = await postJson(CFG.locateUrl, semanticPayload({
-        recipe_id: $('recipe-id')?.value || null,
-        rack_side: currentRackSide(),
-        write_plc: false,
-      }));
-      const data = apiPayload(raw);
-      if (!data.success) { setStatus(data.error || '正式定位失败'); return; }
-      state.lastResultId = data.result?.id || data.result?.result_id || null;
-      renderResult(data.result);
-      await fetchRecentResults();
-      setStatus(data.result?.is_success ? '正式定位完成，可确认后写入 PLC。' : '正式定位未通过，请检查结果。');
-    } catch (e) {
-      setStatus('正式定位失败：' + e.message);
-    } finally {
-      hideLoading();
-      refreshActionState();
-    }
-  });
+  // btn-production-locate 已合并到》开始计算《，不再单独绑定。
 
   // ── 计算偏差 ─────────────────────────────────────────────
   $('btn-calculate').addEventListener('click', async () => {
@@ -661,6 +642,8 @@
         recipe_id: $('recipe-id').value || null,
         recipe_data: currentRecipeData(),
         save_record: true,
+        auto_extract_corners: true,
+        algorithm_version: 'RECTANGLE_CORNERS_AUTO_V2',
       };
       const raw = await postJson(calculateApiUrl, semanticPayload(calculation));
       const data = apiPayload(raw);
@@ -819,7 +802,89 @@
 
     $('d-points').textContent = meta.valid_point_count ?? meta.point_count ?? '—';
 
+    const rectangle = r.opening_rectangle || meta.opening_rectangle;
+    const algorithmVersion = r.algorithm_version || meta.algorithm_version || 'MEDIAN_V1';
+    const isRectangleAlgorithm = ['RECTANGLE_CORNERS_V2', 'RECTANGLE_CORNERS_AUTO_V2'].includes(algorithmVersion);
+    if ($('rl-algorithm-note')) {
+      $('rl-algorithm-note').textContent = algorithmVersion === 'RECTANGLE_CORNERS_AUTO_V2'
+        ? '算法：ROI 深度四边自动提取 V2（P5 由 P1～P4 后端计算）'
+        : algorithmVersion === 'RECTANGLE_CORNERS_V2'
+          ? '算法：矩形四边拟合 V2（P5 由 P1～P4 后端计算）'
+        : '算法：历史中位数 V1（该结果不包含 P1～P5）';
+    }
+    if (rectangle && rectangle.points && rectangle.center) {
+      ['p1', 'p2', 'p3', 'p4'].forEach((key) => {
+        const point = rectangle.points[key] || {};
+        ['x', 'y', 'z'].forEach((axis) => {
+          const node = $('v2-' + key + '-' + axis);
+          if (node) node.textContent = Number(point[axis]).toFixed(3);
+        });
+      });
+      ['x', 'y', 'z'].forEach((axis) => {
+        const node = $('v2-p5-' + axis);
+        if (node) node.textContent = Number(rectangle.center[axis]).toFixed(3);
+      });
+      const geometry = rectangle.geometry || {};
+      const quality = rectangle.quality || {};
+      if ($('v2-width')) $('v2-width').textContent = Number(geometry.width_mm || 0).toFixed(3);
+      if ($('v2-height')) $('v2-height').textContent = Number(geometry.height_mm || 0).toFixed(3);
+      const metricText = (value) => value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toFixed(3);
+      if ($('v2-plane-rmse')) $('v2-plane-rmse').textContent = metricText(quality.plane_rmse_mm);
+      if ($('v2-rectangle-fit-rmse')) $('v2-rectangle-fit-rmse').textContent = metricText(quality.rectangle_fit_rmse_mm);
+      if ($('v2-result-state')) {
+        $('v2-result-state').textContent = rectangle.reference_mode === 'roi_auto_only'
+          ? '已从当前 ROI 自动提取实体四边并拟合 P1～P4；P5 为四角派生中心。标准四点未配置，不影响五点输出。'
+          : '已从当前 ROI 自动提取实体开口四角 P1～P4；P5 为后端根据四角计算的矩形中心。';
+        $('v2-result-state').style.background = '#dcfce7';
+        $('v2-result-state').style.color = '#166534';
+      }
+      $('rl-v2-detail').style.display = 'block';
+    } else {
+      ['p1', 'p2', 'p3', 'p4', 'p5'].forEach((key) => {
+        ['x', 'y', 'z'].forEach((axis) => {
+          const node = $('v2-' + key + '-' + axis);
+          if (node) node.textContent = '—';
+        });
+      });
+      ['v2-width', 'v2-height', 'v2-plane-rmse', 'v2-rectangle-fit-rmse'].forEach((id) => {
+        if ($(id)) $(id).textContent = '—';
+      });
+      if ($('v2-result-state')) {
+        let stateMsg;
+        if (isRectangleAlgorithm) {
+          const msg = r.error_message || r.error_code || '';
+          // 检查是否包含线条数量提示
+          const hMatch = msg.match(/水平线不足[（(]当前(\d+)/);
+          const vMatch = msg.match(/垂直线不足[（(]当前(\d+)/);
+          if (vMatch && parseInt(vMatch[1]) < 2) {
+            stateMsg = `⚠ 左/右边缘检测失败（当前垂直线${vMatch[1]}条）\n💡 请重新画 ROI：确保框住料架开口的左立柱和右立柱，ROI 不能只是一个横条，需要同时包含四条边线。`;
+          } else if (hMatch && parseInt(hMatch[1]) < 2) {
+            stateMsg = `⚠ 上/下边缘检测失败（当前水平线${hMatch[1]}条）\n💡 请重新画 ROI：确保框住料架开口的上下横梁。`;
+          } else {
+            stateMsg = `⚠ 自动提取未得到五点：${msg || '请让 ROI 完整框住料架开口四边（上/下/左/右）'}`;
+          }
+        } else {
+          stateMsg = '这是升级前保存的中位数 V1 历史结果，不包含 P1～P5。重新画 ROI 并点击「🎯 开始计算」即可生成。';
+        }
+        $('v2-result-state').textContent = stateMsg;
+        $('v2-result-state').style.background = '#fef3c7';
+        $('v2-result-state').style.color = '#92400e';
+        $('v2-result-state').style.whiteSpace = 'pre-line';
+      }
+      $('rl-v2-detail').style.display = 'block';
+    }
+
     $('rl-detail').style.display = 'flex';
+
+    // 五点示意图
+    const rectangle2 = r.opening_rectangle || (r.result_data || {}).opening_rectangle;
+    if (rectangle2 && rectangle2.points && rectangle2.center) {
+      drawV2Points(rectangle2);
+    } else {
+      const wrap = $('rl-v2-canvas-wrap');
+      if (wrap) wrap.style.display = 'none';
+    }
+
     refreshActionState();
   }
 
@@ -836,6 +901,113 @@
     else cell.classList.add('negative');
   }
 
+
+  // ── P1～P5 五点 Canvas 示意图 ──────────────────────────────
+  function drawV2Points(rectangle) {
+    const wrap = $('rl-v2-canvas-wrap');
+    const cv = $('v2-points-canvas');
+    if (!wrap || !cv) return;
+
+    const pts = rectangle.points || {};
+    const center = rectangle.center || {};
+    const labeledPoints = [
+      { key: 'p1', label: 'P1左上', x: Number(pts.p1?.x || 0), z: Number(pts.p1?.z || 0) },
+      { key: 'p2', label: 'P2右上', x: Number(pts.p2?.x || 0), z: Number(pts.p2?.z || 0) },
+      { key: 'p3', label: 'P3右下', x: Number(pts.p3?.x || 0), z: Number(pts.p3?.z || 0) },
+      { key: 'p4', label: 'P4左下', x: Number(pts.p4?.x || 0), z: Number(pts.p4?.z || 0) },
+      { key: 'p5', label: 'P5中心', x: Number(center?.x || 0), z: Number(center?.z || 0) },
+    ];
+
+    // 计算边界加边距
+    const xs = labeledPoints.map((p) => p.x);
+    const zs = labeledPoints.map((p) => p.z);
+    const xMin = Math.min(...xs), xMax = Math.max(...xs);
+    const zMin = Math.min(...zs), zMax = Math.max(...zs);
+    const xRange = (xMax - xMin) || 1;
+    const zRange = (zMax - zMin) || 1;
+    const PAD = 48;
+
+    // 设置 canvas 尺寸
+    const W = cv.offsetWidth || 320;
+    const H = Math.max(180, Math.round(W * zRange / xRange) + PAD * 2);
+    cv.width = W;
+    cv.height = H;
+    const ctx2 = cv.getContext('2d');
+    ctx2.clearRect(0, 0, W, H);
+
+    // 坐标映射函数：mm → canvas像素
+    const toCanvasX = (mmX) => PAD + ((mmX - xMin) / xRange) * (W - PAD * 2);
+    // Z轴：小 z 在下，大 z 在上（翻转 Y轴）
+    const toCanvasY = (mmZ) => H - PAD - ((mmZ - zMin) / zRange) * (H - PAD * 2);
+
+    // 画矩形边框（P1→P2→P3→P4→P1）
+    ctx2.save();
+    ctx2.strokeStyle = '#22c55e';
+    ctx2.lineWidth = 2;
+    ctx2.setLineDash([6, 3]);
+    ctx2.beginPath();
+    ['p1', 'p2', 'p3', 'p4'].forEach((key, i) => {
+      const p = labeledPoints.find((lp) => lp.key === key);
+      if (i === 0) ctx2.moveTo(toCanvasX(p.x), toCanvasY(p.z));
+      else ctx2.lineTo(toCanvasX(p.x), toCanvasY(p.z));
+    });
+    ctx2.closePath();
+    ctx2.stroke();
+    ctx2.restore();
+
+    // 画对角线（P1-P3、P2-P4）
+    ctx2.save();
+    ctx2.strokeStyle = 'rgba(99,102,241,0.4)';
+    ctx2.lineWidth = 1;
+    ctx2.setLineDash([3, 4]);
+    const p1c = labeledPoints.find((p) => p.key === 'p1');
+    const p3c = labeledPoints.find((p) => p.key === 'p3');
+    const p2c = labeledPoints.find((p) => p.key === 'p2');
+    const p4c = labeledPoints.find((p) => p.key === 'p4');
+    ctx2.beginPath();
+    ctx2.moveTo(toCanvasX(p1c.x), toCanvasY(p1c.z));
+    ctx2.lineTo(toCanvasX(p3c.x), toCanvasY(p3c.z));
+    ctx2.moveTo(toCanvasX(p2c.x), toCanvasY(p2c.z));
+    ctx2.lineTo(toCanvasX(p4c.x), toCanvasY(p4c.z));
+    ctx2.stroke();
+    ctx2.restore();
+
+    // 画点 + 标签
+    const colors = { p1: '#f59e0b', p2: '#f59e0b', p3: '#f59e0b', p4: '#f59e0b', p5: '#6366f1' };
+    labeledPoints.forEach((p) => {
+      const cx2 = toCanvasX(p.x);
+      const cy = toCanvasY(p.z);
+      const isCenter = p.key === 'p5';
+
+      // 圆点
+      ctx2.save();
+      ctx2.fillStyle = colors[p.key];
+      ctx2.beginPath();
+      ctx2.arc(cx2, cy, isCenter ? 7 : 5, 0, Math.PI * 2);
+      ctx2.fill();
+      if (isCenter) {
+        ctx2.strokeStyle = '#a5b4fc';
+        ctx2.lineWidth = 1.5;
+        ctx2.stroke();
+      }
+      ctx2.restore();
+
+      // 标签文字
+      ctx2.save();
+      ctx2.fillStyle = '#e2e8f0';
+      ctx2.font = `bold ${isCenter ? 11 : 10}px monospace`;
+      const labelX = cx2 + (p.x >= (xMin + xMax) / 2 ? -52 : 10);
+      const labelY = cy + (p.z >= (zMin + zMax) / 2 ? -10 : 16);
+      ctx2.fillText(p.label, labelX, labelY);
+      // XZ 数字
+      ctx2.fillStyle = '#94a3b8';
+      ctx2.font = '9px monospace';
+      ctx2.fillText(`(${p.x.toFixed(1)}, ${p.z.toFixed(1)})`, labelX, labelY + 12);
+      ctx2.restore();
+    });
+
+    wrap.style.display = 'block';
+  }
 
   window.addEventListener('resize', resizeCanvas);
   image.addEventListener('load', resizeCanvas);
