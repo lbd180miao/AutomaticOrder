@@ -27,25 +27,6 @@ def api_workbench(request):
 
 
 @require_POST
-def api_preview(request):
-    try:
-        data = CoordinateWorkbenchService().preview(_json_body(request))
-        return _success(data)
-    except Exception as exc:
-        return _failure(exc)
-
-
-@require_POST
-def api_save(request):
-    try:
-        service = CoordinateWorkbenchService()
-        saved = service.save(_json_body(request))
-        return _success(service.preview(saved))
-    except Exception as exc:
-        return _failure(exc)
-
-
-@require_POST
 def api_transform_roi(request):
     try:
         payload = _json_body(request)
@@ -90,23 +71,13 @@ def _failure(exc):
     }, status=500)
 
 
-# ─────────────────────────────────────────────────────────
-# REAL 模式（以下为新增，不影响上方任何已有接口）
-# ─────────────────────────────────────────────────────────
 
 _REAL_CACHE_KEY = 'coordinates_real_last_pointcloud'
 _REAL_CACHE_TTL = 86400  # 24 小时
 
 
-def workbench_real(request):
-    """REAL 实机模式工作台页面。"""
-    return render(request, 'coordinates/workbench_real.html', {
-        'pose_rotation_keys': ('rx', 'ry', 'rz'),
-    })
-
-
 @require_POST
-def api_capture_real(request):
+def api_capture(request):
     """
     调用真实 3D 相机采集点云，使用前端传入的手眼矩阵和机器人位姿做坐标转换。
 
@@ -275,7 +246,7 @@ def api_capture_real(request):
 
 
 @require_GET
-def api_real_last_capture(request):
+def api_last_capture(request):
     """返回最近一次 REAL 模式采集的结果（来自 Django Cache），供页面初始化使用。"""
     from django.core.cache import cache
     data = cache.get(_REAL_CACHE_KEY)

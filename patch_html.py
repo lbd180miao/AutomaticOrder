@@ -1,51 +1,27 @@
-﻿import sys
+﻿
+import os
+path = 'D:/workspace2/AutomaticOrder/templates/coordinates/workbench.html'
+with open(path, 'r', encoding='utf-8') as f:
+    text = f.read()
 
-file_path = "templates/vision/foam_inspector_interactive.html"
-with open(file_path, "r", encoding="utf-8") as f:
-    content = f.read()
+# Make changes
+text = text.replace('REAL 实机模式 · 坐标模块', '坐标模块')
+text = text.replace('<link rel=\"stylesheet\" href=\"{% static \'coordinates/workbench_real.css\' %}\">', '')
+text = text.replace('id=\"real-workbench\"', 'id=\"coordinate-workbench\"')
+text = text.replace('api_capture_real', 'api_capture')
+text = text.replace('api_real_last_capture', 'api_last_capture')
+text = text.replace('data-mock-url=\"{% url \'coordinates:workbench\' %}\"', '')
+text = text.replace('<span class=\"coordinate-kicker real-kicker\">📡 REAL MODE · 实机测试</span>', '<span class=\"coordinate-kicker real-kicker\">📡 坐标系设置与转换</span>')
+text = text.replace('<h1>坐标模块 · REAL 实机模式</h1>', '<h1>坐标转换工作台</h1>')
+text = text.replace('<a href=\"{% url \'coordinates:workbench\' %}\" class=\"btn btn-secondary\">← 返回 MOCK 模式</a>', '<a href=\"{% url \'vision:hand_eye_page\' %}\" class=\"btn btn-secondary\">手眼标定</a>')
+text = text.replace('<span class=\"real-mode-badge\">🟢 REAL 实机模式</span>', '')
+text = text.replace('class=\"coordinate-hero real-hero\"', 'class=\"coordinate-hero\"')
+text = text.replace('class=\"coordinate-toolbar real-status-bar\"', 'class=\"coordinate-toolbar\"')
+text = text.replace('class=\"coordinate-results real-results\"', 'class=\"coordinate-results\"')
+text = text.replace('<span class=\"real-result-badge\">REAL MEASUREMENT</span>', '<span class=\"real-result-badge\">MEASUREMENT</span>')
+text = text.replace('workbench_real.js', 'workbench.js')
+text = text.replace('💡 从手眼标定结果中复制，或参考 MOCK 模式中的矩阵', '💡 从手眼标定结果中复制矩阵数据')
 
-target1 = '''            <label>最低得分<input id="foam-min-score" type="number" min="0" max="1" step="0.01" value="0.8"></label>
-            <label>最低 IoU<input id="foam-min-iou" type="number" min="0" max="1" step="0.01" value="0.7"></label>'''
-replace1 = ""
+with open(path, 'w', encoding='utf-8') as f:
+    f.write(text)
 
-target2 = '''  const scoreThreshold = thresh.score_threshold ?? thresh.minScore ?? 0.80;
-  const iouThreshold = thresh.iou_threshold ?? thresh.minIoU ?? 0.70;'''
-replace2 = ""
-
-target3 = '''  document.getElementById('recipe-thresholds').textContent = 
-    覆盖率≥, 得分≥, IoU≥;'''
-replace3 = '''  document.getElementById('recipe-thresholds').textContent = 
-    覆盖率≥;'''
-
-target4 = '''  document.getElementById('foam-min-score').value = scoreThreshold;
-  document.getElementById('foam-min-iou').value = iouThreshold;'''
-replace4 = ""
-
-target5 = '''    score_threshold: Number(document.getElementById('foam-min-score').value || 0.80),
-    iou_threshold: Number(document.getElementById('foam-min-iou').value || 0.70),'''
-replace5 = ""
-
-target6 = '''            <tr>
-              <td>交并比(IoU):</td>
-              <td id="res-iou"></td>
-            </tr>
-            <tr>
-              <td>综合得分:</td>
-              <td id="res-score"></td>
-            </tr>'''
-replace6 = ""
-
-target7 = '''        document.getElementById('res-iou').textContent = sideData.iou ? ${(sideData.iou * 100).toFixed(1)}% : '--';
-        document.getElementById('res-score').textContent = sideData.score ? sideData.score.toFixed(3) : '--';'''
-replace7 = ""
-
-for t, r in [(target1, replace1), (target2, replace2), (target3, replace3), (target4, replace4), (target5, replace5), (target6, replace6), (target7, replace7)]:
-    if t in content:
-        content = content.replace(t, r)
-        print("Patched target")
-    else:
-        print("Target not found:\n" + t[:100])
-
-with open(file_path, "w", encoding="utf-8") as f:
-    f.write(content)
-print("Done html")
