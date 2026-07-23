@@ -30,42 +30,33 @@
     captureRecipeId: null,
     captureLayerNo: null,
     lastCalculation: null,
+    // ── 画笔（多边形）模式 ──
+    drawMode: 'rect',        // 'rect' | 'polygon'
+    polyPoints: [],          // 绘制中的多边形顶点（display 坐标）
+    polyDrawing: false,      // 是否正在添加多边形顶点
+    polyMousePos: null,      // 鼠标当前位置（用于实时预览连线）
   };
 
   // ── 暴露设置 ROI 的接口供外部调用 ────────────────────────
   window.rackLocatorSetRoi = function(targetRoi) {
     if (!targetRoi) return;
-    
-    // 如果已经有点云图像，立即应用
+
     if (state.token && image.style.display !== 'none') {
-      state.roi = {
-        x: targetRoi.x,
-        y: targetRoi.y,
-        w: targetRoi.w,
-        h: targetRoi.h,
-        feature_type: targetRoi.feature_type || 'rack_reference'
-      };
-      
-      // 转换为显示坐标
-      const nat = naturalDims();
-      const scaleX = canvas.width / nat.w;
-      const scaleY = canvas.height / nat.h;
-      state.displayRoi = {
-        x: state.roi.x * scaleX,
-        y: state.roi.y * scaleY,
-        w: state.roi.w * scaleX,
-        h: state.roi.h * scaleY,
-      };
-      
-      draw();
-      setReadout();
-      setStatus('已加载配方 ROI，可直接点击「计算偏差」。');
-      console.log('ROI 已应用到画布');
-      syncRoiToRightSide();
+      // 直接委托 applyPixelRoi，它已正确处理矩形和多边形两种情况
+      if (applyPixelRoi(targetRoi)) {
+        const roiType = (targetRoi.polygon && targetRoi.polygon.length >= 3)
+          ? `多边形(${targetRoi.polygon.length}点)`
+          : `矩形(${targetRoi.w}×${targetRoi.h})`;
+        setStatus(`已加载配方 ROI [${roiType}]，可直接点击「开始计算」。`);
+        console.log('[rackLocatorSetRoi] ROI 已应用到画布', targetRoi);
+      } else {
+        state.pendingRoi = targetRoi;
+        console.log('[rackLocatorSetRoi] applyPixelRoi 暂不可用，已存入 pendingRoi');
+      }
     } else {
-      // 如果还没有点云，保存到待应用状态
+      // 还没有点云，存入待应用状态
       state.pendingRoi = targetRoi;
-      console.log('ROI 已保存，等待点云采集后应用');
+      console.log('[rackLocatorSetRoi] ROI 已存储，等待点云采集后应用');
     }
   };
 
@@ -217,6 +208,8 @@
   function refreshActionState() {
     setButton('btn-capture', true);
     setButton('btn-redraw', Boolean(state.token));
+    setButton('btn-polygon', Boolean(state.token));
+    setButton('btn-save-recipe', Boolean(state.roi));
     setButton('btn-calculate', Boolean(state.token));
     setButton('btn-auto-align', Boolean(state.token));
     setButton('btn-save-roi', Boolean(state.alignmentToken));
@@ -304,6 +297,10 @@
     if (![roi.x, roi.y, roi.w, roi.h].every(Number.isFinite) || roi.w <= 0 || roi.h <= 0) {
       return null;
     }
+    // 保留多边形顶点（不能丢弃！）
+    if (targetRoi.polygon && Array.isArray(targetRoi.polygon) && targetRoi.polygon.length >= 3) {
+      roi.polygon = targetRoi.polygon;
+    }
     return roi;
   }
 
@@ -315,12 +312,28 @@
     if (!nat.w || !nat.h || !canvas.width || !canvas.height) return false;
 
     state.roi = roi;
-    state.displayRoi = {
-      x: roi.x * canvas.width / nat.w,
-      y: roi.y * canvas.height / nat.h,
-      w: roi.w * canvas.width / nat.w,
-      h: roi.h * canvas.height / nat.h,
-    };
+
+    // 如果保存的 ROI 包含多边形顶点，重建 displayPolygon
+    if (targetRoi.polygon && Array.isArray(targetRoi.polygon) && targetRoi.polygon.length >= 3) {
+      const scaleX = canvas.width / nat.w;
+      const scaleY = canvas.height / nat.h;
+      state.roi = {
+        ...roi,
+        polygon: targetRoi.polygon,
+        displayPolygon: targetRoi.polygon.map(pt => ({
+          x: pt.x * scaleX,
+          y: pt.y * scaleY,
+        })),
+      };
+      state.displayRoi = null;  // 多边形模式下不使用 displayRoi
+    } else {
+      state.displayRoi = {
+        x: roi.x * canvas.width / nat.w,
+        y: roi.y * canvas.height / nat.h,
+        w: roi.w * canvas.width / nat.w,
+        h: roi.h * canvas.height / nat.h,
+      };
+    }
     draw();
     setReadout();
     syncRoiToRightSide();
@@ -330,18 +343,21 @@
 
   async function recipePixelRoi(recipeId) {
     if (!recipeId) return null;
-    const res = await fetch(`/vision/api/vision/3d/recipes/${encodeURIComponent(recipeId)}/`);
-    
+    // 正确的 URL：使用 ?id= 查询参数，而不是路径参数（后者会 404）
+    const res = await fetch(`/vision/api/vision/3d/recipes/?id=${encodeURIComponent(recipeId)}`);
+
     const contentType = res.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-       console.error('recipePixelRoi returned non-JSON:', res.status);
-       throw new Error(`读取3D配方失败，服务器返回了非JSON数据 (HTTP ${res.status})`);
+      console.error('recipePixelRoi returned non-JSON:', res.status);
+      throw new Error(`读取3D配方失败，服务器返回非JSON (HTTP ${res.status})`);
     }
-    
+
     if (!res.ok) throw new Error(`读取3D配方失败（HTTP ${res.status}）`);
     const data = apiPayload(await res.json());
     if (!data.success) throw new Error(data.error || '读取3D配方失败');
-    const recipe = data.recipe || null;
+    // 后端返回 {success, recipes: [...], data: {recipes: [...]}}，取第一条
+    const recipes = data.recipes || (data.data && data.data.recipes) || [];
+    const recipe = recipes[0] || null;
     return normalizePixelRoi(recipe?.roi_config?.target_roi || recipe?.roi_info?.target_roi);
   }
 
@@ -401,6 +417,62 @@
 
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // ── 绘制多边形 ROI ──
+    if (state.roi && state.roi.displayPolygon && state.roi.displayPolygon.length >= 2) {
+      const poly = state.roi.displayPolygon; // display 坐标（对应画布像素）
+      ctx.save();
+      ctx.strokeStyle = '#a855f7';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 3]);
+      ctx.beginPath();
+      ctx.moveTo(poly[0].x, poly[0].y);
+      for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(168,85,247,0.14)';
+      ctx.fill();
+      ctx.setLineDash([]);
+      // 绘制顶点圆点
+      poly.forEach((pt) => {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#a855f7';
+        ctx.fill();
+      });
+      ctx.fillStyle = '#a855f7';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('✏ target ROI', poly[0].x + 8, Math.max(18, poly[0].y - 6));
+      ctx.restore();
+      return;
+    }
+
+    // ── 绘制正在描绘中的多边形（实时预览） ──
+    if (state.polyDrawing && state.polyPoints.length > 0) {
+      const pts = state.polyPoints;
+      ctx.save();
+      ctx.strokeStyle = '#a855f7';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      // 绘制预览连线到当前鼠标位置
+      if (state.polyMousePos) ctx.lineTo(state.polyMousePos.x, state.polyMousePos.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // 绘制顶点
+      pts.forEach((pt, idx) => {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, idx === 0 ? 6 : 4, 0, Math.PI * 2);
+        ctx.fillStyle = idx === 0 ? '#f59e0b' : '#a855f7';
+        ctx.fill();
+      });
+      ctx.restore();
+      return;
+    }
+
+    // ── 绘制矩形 ROI（原有逻辑） ──
     const roi = state.displayRoi;
     if (!roi) return;
     ctx.save();
@@ -437,19 +509,33 @@
   function setReadout() {
     const n = $('rl-roi-readout');
     if (!n) return;
-    if (!state.roi) { n.textContent = '拖拽绘制 ROI'; return; }
+    if (!state.roi) { n.textContent = state.drawMode === 'polygon' ? '✏️ 单击添加顶点，双击闭合' : '拖拽绘制 ROI'; return; }
     const r = state.roi;
-    n.textContent = `ROI  x=${r.x}  y=${r.y}  w=${r.w}  h=${r.h}`;
+    if (r.polygon && r.polygon.length > 0) {
+      n.textContent = `多边形 ROI: ${r.polygon.length} 个顶点  包围盒 w=${r.w}  h=${r.h}`;
+    } else {
+      n.textContent = `ROI  x=${r.x}  y=${r.y}  w=${r.w}  h=${r.h}`;
+    }
   }
 
+  // ── 矩形拖拽绘制（原有模式） ────────────────────────────
   canvas.addEventListener('mousedown', (e) => {
     if (!state.token) return;
+    if (state.drawMode === 'polygon') return;  // 多边形模式由 click 处理
     state.drawing = true;
     state.start = pointerToCanvas(e);
     state.displayRoi = { x: state.start.x, y: state.start.y, w: 0, h: 0 };
     draw();
   });
   canvas.addEventListener('mousemove', (e) => {
+    if (state.drawMode === 'polygon') {
+      // 多边形模式：实时更新预览连线
+      if (state.polyDrawing) {
+        state.polyMousePos = pointerToCanvas(e);
+        draw();
+      }
+      return;
+    }
     if (!state.drawing || !state.start) return;
     const c = pointerToCanvas(e);
     state.displayRoi = {
@@ -459,6 +545,7 @@
     draw();
   });
   window.addEventListener('mouseup', () => {
+    if (state.drawMode === 'polygon') return;  // 多边形模式不使用 mouseup
     if (!state.drawing || !state.displayRoi) return;
     state.drawing = false;
     state.start = null;
@@ -471,6 +558,145 @@
     
     // 自动保存新坐标到配方中
     autoSaveRoiToRecipe();
+  });
+
+  // ── 多边形画笔模式 ────────────────────────────────────
+  // 将 display 坐标多边形转为真实像素坐标
+  function displayPolyToReal(displayPts) {
+    const n = naturalDims();
+    const sx = n.w / canvas.width, sy = n.h / canvas.height;
+    return displayPts.map(pt => ({ x: Math.round(pt.x * sx), y: Math.round(pt.y * sy) }));
+  }
+
+  // 从多边形点集计算包围盒（real 坐标）
+  function polyBoundingBox(realPts) {
+    const xs = realPts.map(p => p.x), ys = realPts.map(p => p.y);
+    const minX = Math.min(...xs), minY = Math.min(...ys);
+    const maxX = Math.max(...xs), maxY = Math.max(...ys);
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  // 闭合多边形并保存到 state.roi
+  function closePolygon() {
+    const pts = state.polyPoints;
+    if (pts.length < 3) {
+      setStatus('多边形至少需要 3 个顶点，请继续添加。');
+      return;
+    }
+    const realPts = displayPolyToReal(pts);
+    const bbox = polyBoundingBox(realPts);
+    state.roi = {
+      ...bbox,
+      polygon: realPts,
+      displayPolygon: pts.map(p => ({ x: p.x, y: p.y })),
+      feature_type: 'rack_reference',
+    };
+    state.polyPoints = [];
+    state.polyDrawing = false;
+    state.polyMousePos = null;
+    draw();
+    setReadout();
+    syncRoiToRightSide();
+    refreshActionState();
+    autoSaveRoiToRecipe();
+    setStatus(`✅ 多边形 ROI 已闭合（${realPts.length} 个顶点），正在自动保存...`);
+  }
+
+  // 单击：在多边形模式下添加顶点
+  canvas.addEventListener('click', (e) => {
+    if (!state.token || state.drawMode !== 'polygon') return;
+    // 避免 dblclick 时触发两次 click
+    if (e.detail >= 2) return;
+    const pt = pointerToCanvas(e);
+    if (!state.polyDrawing) {
+      // 开始新多边形
+      state.polyPoints = [pt];
+      state.polyDrawing = true;
+    } else {
+      // 检查是否点击了起点（闭合）
+      const first = state.polyPoints[0];
+      const dist = Math.hypot(pt.x - first.x, pt.y - first.y);
+      if (dist < 12 && state.polyPoints.length >= 3) {
+        closePolygon();
+      } else {
+        state.polyPoints.push(pt);
+      }
+    }
+    draw();
+  });
+
+  // 双击：闭合多边形
+  canvas.addEventListener('dblclick', (e) => {
+    if (!state.token || state.drawMode !== 'polygon') return;
+    e.preventDefault();
+    if (state.polyDrawing && state.polyPoints.length >= 3) {
+      closePolygon();
+    }
+  });
+
+  // 右键：删除最后一个顶点
+  canvas.addEventListener('contextmenu', (e) => {
+    if (state.drawMode !== 'polygon') return;
+    e.preventDefault();
+    if (state.polyPoints.length > 1) {
+      state.polyPoints.pop();
+      draw();
+    } else if (state.polyPoints.length === 1) {
+      state.polyPoints = [];
+      state.polyDrawing = false;
+      state.polyMousePos = null;
+      draw();
+    }
+  });
+
+  // ── 画笔模式切换按钮 ─────────────────────────────────
+  function enterPolygonMode() {
+    state.drawMode = 'polygon';
+    state.polyPoints = [];
+    state.polyDrawing = false;
+    state.polyMousePos = null;
+    state.drawing = false;     // 停止矩形绘制
+    const btn = $('btn-polygon');
+    if (btn) btn.classList.add('polygon-active');
+    const stage = $('rl-stage');
+    if (stage) stage.classList.add('polygon-mode');
+    setReadout();
+    setStatus('已进入画笔模式：在点云图上单击逐点绘制不规则 ROI，双击或点击起点闭合，右键撤销末点。');
+  }
+
+  function exitPolygonMode() {
+    state.drawMode = 'rect';
+    state.polyPoints = [];
+    state.polyDrawing = false;
+    state.polyMousePos = null;
+    const btn = $('btn-polygon');
+    if (btn) btn.classList.remove('polygon-active');
+    const stage = $('rl-stage');
+    if (stage) stage.classList.remove('polygon-mode');
+    setReadout();
+  }
+
+  $('btn-polygon')?.addEventListener('click', () => {
+    if (!state.token) { setStatus('请先采集点云。'); return; }
+    if (state.drawMode === 'polygon') {
+      exitPolygonMode();
+      setStatus('已退出画笔模式，可拖拽绘制矩形 ROI。');
+    } else {
+      enterPolygonMode();
+    }
+  });
+
+  // ── 保存配方按钮（手动保存当前 ROI 到配方）─────────────────
+  $('btn-save-recipe')?.addEventListener('click', async () => {
+    if (!state.roi) { setStatus('请先画好 ROI 再保存。'); return; }
+    const btn = $('btn-save-recipe');
+    const origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '保存中...';
+    await autoSaveRoiToRecipe();
+    btn.textContent = origText;
+    btn.disabled = false;
+    refreshActionState();
   });
 
   // ── 采集点云 ─────────────────────────────────────────────
@@ -546,8 +772,14 @@
   $('btn-redraw').addEventListener('click', () => {
     state.roi = null; state.displayRoi = null;
     state.alignmentToken = null;
+    // 同时清除多边形状态
+    state.polyPoints = [];
+    state.polyDrawing = false;
+    state.polyMousePos = null;
+    // 退出画笔模式，回到矩形模式
+    exitPolygonMode();
     draw(); setReadout();
-    setStatus('请重新拖拽绘制 ROI。');
+    setStatus('请重新绘制 ROI（矩形：拖拽 · 不规则：点击「画笔」按钮）。');
     refreshActionState();
   });
 
@@ -633,11 +865,21 @@
       const calculateApiUrl = CFG.calculateUrl || CFG.legacyCalculateUrl || CFG.testLocateUrl || '/vision/api/rack-location/workbench/calculate/';
       console.log('[计算偏差] 使用API端点:', calculateApiUrl);
 
+      // 构建干净的 target_roi（去掉 displayPolygon 等前端内部字段，不传给后端）
+      const cleanTargetRoi = state.roi ? {
+        x: state.roi.x,
+        y: state.roi.y,
+        w: state.roi.w,
+        h: state.roi.h,
+        feature_type: state.roi.feature_type || 'rack_reference',
+        ...(state.roi.polygon ? { polygon: state.roi.polygon } : {}),
+      } : null;
+
       const calculation = {
         pointcloud_token: state.token,
         roi: currentRoi3D(),
         roi_3d: currentRoi3D(),
-        roi_config: { target_roi: state.roi },
+        roi_config: { target_roi: cleanTargetRoi },
         rack_side: currentRackSide(),
         recipe_id: $('recipe-id').value || null,
         recipe_data: currentRecipeData(),
@@ -676,32 +918,37 @@
   // ── 自动保存 ROI 到配方 ──────────────────────────────────
   async function autoSaveRoiToRecipe() {
     const recipeId = $('recipe-id')?.value;
-    if (!recipeId) return;
-    if (!state.roi) return;
-    
-    // showLoading('自动保存新坐标中...'); // 为了体验顺畅，可以不显示全屏 loading，直接在 status 显示
-    setStatus('正在自动保存 ROI 坐标到配方...');
+    if (!recipeId) { setStatus('未找到配方·请先选择配方'); return; }
+    if (!state.roi) { setStatus('请先在画布上绘制 ROI 区域'); return; }
+
+    setStatus('正在保存 ROI 到配方...');
     try {
-      const currentRecipe = currentRecipeData() || {};
-      const newRoiConfig = Object.assign({}, currentRecipe.roi_config || {}, { target_roi: state.roi });
-      
+      // 构建干净的 target_roi：去掉 displayPolygon 等前端内部字段
+      const targetRoi = {
+        x: state.roi.x,
+        y: state.roi.y,
+        w: state.roi.w,
+        h: state.roi.h,
+        feature_type: state.roi.feature_type || 'rack_reference',
+      };
+      if (state.roi.polygon && state.roi.polygon.length > 0) {
+        targetRoi.polygon = state.roi.polygon;
+      }
+
+      // 直接发送包含 target_roi 的 roi_config，后端会 merge 到现有配置中
       const payload = {
         id: recipeId,
-        roi_config: newRoiConfig
+        roi_config: { target_roi: targetRoi },
       };
-      
+
       const raw = await postJson('/vision/api/vision/3d/recipes/', semanticPayload(payload), 'PATCH');
       const data = apiPayload(raw);
-      if (!data.success) { setStatus(data.error || '自动保存失败'); return; }
-      
-      setStatus('✅ 新的 ROI 坐标已自动保存到配方，可点击「计算偏差」。');
-      
-      // 更新本地状态
-      if (state.lastCalculation && state.lastCalculation.recipe_data) {
-        state.lastCalculation.recipe_data.roi_config = newRoiConfig;
-      }
+      if (!data.success) { setStatus(data.error || '保存失败，请查看控制台'); return; }
+
+      const roiType = state.roi.polygon ? `多边形（${state.roi.polygon.length} 点）` : '矩形';
+      setStatus(`✅ ${roiType} ROI 已保存到配方，可点击「开始计算」。`);
     } catch (e) {
-      setStatus('自动保存请求失败：' + e.message);
+      setStatus('保存失败：' + e.message);
     }
   }
 
@@ -778,9 +1025,11 @@
     lab.textContent = (conf * 100).toFixed(1) + '%';
 
     if (r.result_image_url) {
-      $('rl-result-img').src = r.result_image_url + '?t=' + Date.now();
-      $('rl-result-img').style.display = 'block';
+      const resultImg = $('rl-result-img');
+      resultImg.src = r.result_image_url + '?t=' + Date.now();
+      resultImg.style.display = 'block';
       $('rl-result-ph').style.display = 'none';
+      resultImg.onload = null;
     }
 
     const meta = r.result_data || {};
@@ -886,6 +1135,86 @@
     }
 
     refreshActionState();
+  }
+
+  // ── 在右侧结果图上叠加绘制当前 ROI 框 ─────────────────────
+  function drawRoiOnResultCanvas() {
+    const resultImg = $('rl-result-img');
+    const overlayCanvas = $('rl-result-roi-canvas');
+    if (!overlayCanvas || !resultImg || !state.roi) {
+      if (overlayCanvas) overlayCanvas.style.display = 'none';
+      return;
+    }
+
+    // 结果图的实际显示尺寸
+    const imgRect = resultImg.getBoundingClientRect();
+    const dispW = imgRect.width;
+    const dispH = imgRect.height;
+    if (!dispW || !dispH) { overlayCanvas.style.display = 'none'; return; }
+
+    // 自然像素尺寸（结果图与点云图一般同尺寸，用图像自然宽高）
+    const natW = resultImg.naturalWidth || dispW;
+    const natH = resultImg.naturalHeight || dispH;
+
+    // 设置 canvas 像素大小与 CSS 显示大小匹配
+    overlayCanvas.width = Math.round(dispW);
+    overlayCanvas.height = Math.round(dispH);
+    overlayCanvas.style.display = 'block';
+
+    const rctx = overlayCanvas.getContext('2d');
+    rctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+    const scaleX = dispW / natW;
+    const scaleY = dispH / natH;
+
+    if (state.roi.polygon && state.roi.polygon.length >= 3) {
+      // ── 多边形 ROI ──
+      const pts = state.roi.polygon;
+      rctx.save();
+      rctx.strokeStyle = '#a855f7';
+      rctx.lineWidth = 2.5;
+      rctx.setLineDash([6, 3]);
+      rctx.beginPath();
+      rctx.moveTo(pts[0].x * scaleX, pts[0].y * scaleY);
+      for (let i = 1; i < pts.length; i++) {
+        rctx.lineTo(pts[i].x * scaleX, pts[i].y * scaleY);
+      }
+      rctx.closePath();
+      rctx.stroke();
+      rctx.fillStyle = 'rgba(168,85,247,0.14)';
+      rctx.fill();
+      rctx.setLineDash([]);
+      // 顶点圆点
+      pts.forEach((pt) => {
+        rctx.beginPath();
+        rctx.arc(pt.x * scaleX, pt.y * scaleY, 3, 0, Math.PI * 2);
+        rctx.fillStyle = '#a855f7';
+        rctx.fill();
+      });
+      // 标签
+      rctx.fillStyle = '#a855f7';
+      rctx.font = 'bold 13px sans-serif';
+      rctx.fillText('✏ ROI', pts[0].x * scaleX + 6, Math.max(16, pts[0].y * scaleY - 4));
+      rctx.restore();
+    } else {
+      // ── 矩形 ROI ──
+      const rx = state.roi.x * scaleX;
+      const ry = state.roi.y * scaleY;
+      const rw = state.roi.w * scaleX;
+      const rh = state.roi.h * scaleY;
+      rctx.save();
+      rctx.strokeStyle = '#22c55e';
+      rctx.lineWidth = 2.5;
+      rctx.setLineDash([8, 4]);
+      rctx.strokeRect(rx, ry, rw, rh);
+      rctx.fillStyle = 'rgba(34,197,94,0.12)';
+      rctx.fillRect(rx, ry, rw, rh);
+      rctx.setLineDash([]);
+      rctx.fillStyle = '#22c55e';
+      rctx.font = 'bold 13px sans-serif';
+      rctx.fillText('target ROI', rx + 6, Math.max(16, ry + 16));
+      rctx.restore();
+    }
   }
 
 

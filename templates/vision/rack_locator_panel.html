@@ -775,6 +775,39 @@
   .rl-package-foot { border-top: 1px solid var(--border-color); border-bottom: 0; }
   #offline-package-message { color: var(--text-muted); font-size: 12px; }
   @media (max-width: 760px) { .rl-package-body { grid-template-columns: 1fr; } .rl-package-list-pane { max-height: 240px; border-right: 0; border-bottom: 1px solid var(--border-color); } .rl-package-foot { align-items: flex-start; flex-direction: column; } }
+
+  /* 画笔（多边形）模式样式 */
+  #btn-polygon.polygon-active {
+    background: #7c3aed;
+    color: #fff;
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
+  }
+  #btn-polygon.polygon-active:hover {
+    background: #6d28d9;
+  }
+  .rl-image-stage.polygon-mode canvas {
+    cursor: crosshair;
+  }
+  .rl-polygon-hint {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: rgba(124, 58, 237, 0.85);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 10;
+    display: none;
+  }
+  .polygon-mode .rl-polygon-hint {
+    display: block;
+  }
 </style>
 
 <div class="rl-workbench">
@@ -900,10 +933,13 @@
             <p>点击「采集点云」获取 3D 深度相机画面</p>
           </div>
           <div class="rl-roi-readout" id="rl-roi-readout" style="display:none;">拖拽绘制 ROI</div>
+          <div class="rl-polygon-hint" id="rl-polygon-hint">✏️ 画笔模式：单击添加顶点 · 双击闭合多边形 · 右键取消末点</div>
         </div>
         <div class="rl-actions">
           <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
           <button id="btn-redraw" class="btn btn-secondary" disabled>重画 ROI</button>
+          <button id="btn-polygon" class="btn btn-secondary" disabled title="点击切换为多边形画笔模式，在画布上逐点点击绘制不规则ROI区域，双击闭合">✏️ 画笔</button>
+          <button id="btn-save-recipe" class="btn btn-secondary" disabled title="将当前画布上的ROI框保存到配方中">💾 保存配方</button>
           <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" disabled>🎯
             开始计算</button>
         </div>
@@ -1177,7 +1213,6 @@
 
   // 兼容性：保留旧的selectRecipeCard函数（供外部调用）
   function selectRecipeCard(el) {
-    // 不再使用，但保留以免破坏外部引用
     console.warn('selectRecipeCard is deprecated, use dropdown instead');
   }
   window.selectRecipeCard = selectRecipeCard;
@@ -1185,73 +1220,55 @@
   // ── 加载配方保存的 ROI 并显示在画布上 ──────────────────────
   async function loadRecipeRoi(recipeId) {
     if (!recipeId) return;
-
     try {
-      // 1. 首先从配方的 dataset 中获取 ROI（如果配方卡片中包含）
-      const card = document.querySelector(`.rl-recipe-card[data-recipe-id="${recipeId}"]`);
-
-      // 2. 查询该配方保存的 3D ROI 参数
+      // 1. 查询该配方保存的 3D ROI 参数（点云空间坐标框）
       const query = new URLSearchParams({ recipe_id: recipeId });
       const res = await fetch(`{% url "vision:api_vision_3d_rois" %}?${query.toString()}`);
-      
       const contentType1 = res.headers.get('content-type');
       if (!contentType1 || !contentType1.includes('application/json')) {
-         console.error('api_vision_3d_rois returned non-JSON:', res.status, await res.text());
-         throw new Error('api_vision_3d_rois returned non-JSON');
-      }
-      const data = await res.json();
-
-      if (data.success && data.data && data.data.rois && data.data.rois.length > 0) {
-        // 使用第一个匹配的 ROI
-        const roi = data.data.rois[0];
-
-        // 更新 3D ROI 输入框
-        const roiFields = {
-          'roi-x-min': roi.x_min,
-          'roi-x-max': roi.x_max,
-          'roi-y-min': roi.y_min,
-          'roi-y-max': roi.y_max,
-          'roi-z-min': roi.z_min,
-          'roi-z-max': roi.z_max,
-        };
-
-        Object.entries(roiFields).forEach(([id, value]) => {
-          const input = document.getElementById(id);
-          if (input && value != null) {
-            input.value = Number(value).toFixed(3);
-          }
-        });
-
-        console.log('已加载配方 3D ROI 参数');
-      }
-
-      // 3. 尝试获取完整配方信息（包含 roi_config 中的 2D ROI）
-      // 构建查询参数：按recipe_id过滤
-      const recipeQuery = new URLSearchParams();
-      // 注意：后端API可能不支持通过id查询，尝试通过recipe_id路由
-      const recipeDetailRes = await fetch(`{% url "vision:api_vision_3d_recipes" %}${recipeId}/`);
-      
-      const contentType2 = recipeDetailRes.headers.get('content-type');
-      if (!contentType2 || !contentType2.includes('application/json')) {
-         console.error('api_vision_3d_recipe_detail returned non-JSON:', recipeDetailRes.status, await recipeDetailRes.text());
-         throw new Error('api_vision_3d_recipe_detail returned non-JSON');
-      }
-      const recipeDetailData = await recipeDetailRes.json();
-
-      if (recipeDetailData.success && recipeDetailData.data && recipeDetailData.data.recipe) {
-        const recipe = recipeDetailData.data.recipe;
-        const roiConfig = recipe.roi_config || {};
-        const targetRoi = roiConfig.target_roi;
-
-        // 如果配方中保存了 2D target_roi，在画布上显示
-        if (targetRoi && targetRoi.x != null && targetRoi.y != null && targetRoi.w != null && targetRoi.h != null) {
-          console.log('找到配方的 2D ROI:', targetRoi);
-          showRoiOnCanvas(targetRoi);
+        console.warn('api_vision_3d_rois returned non-JSON:', res.status);
+      } else {
+        const data = await res.json();
+        if (data.success && data.data && data.data.rois && data.data.rois.length > 0) {
+          const roi = data.data.rois[0];
+          const roiFields = {
+            'roi-x-min': roi.x_min, 'roi-x-max': roi.x_max,
+            'roi-y-min': roi.y_min, 'roi-y-max': roi.y_max,
+            'roi-z-min': roi.z_min, 'roi-z-max': roi.z_max,
+          };
+          Object.entries(roiFields).forEach(([id, value]) => {
+            const input = document.getElementById(id);
+            if (input && value != null) input.value = Number(value).toFixed(3);
+          });
+          console.log('已加载配方 3D ROI 参数');
         }
       }
 
+      // 2. 获取完整配方信息（含 roi_config 中保存的 2D 像素 target_roi）
+      // 注意：正确 URL 是 ?id=，不是 /recipes/{id}/ 路径（后者会 404）
+      const recipeDetailRes = await fetch(`{% url "vision:api_vision_3d_recipes" %}?id=${encodeURIComponent(recipeId)}`);
+      const contentType2 = recipeDetailRes.headers.get('content-type');
+      if (!contentType2 || !contentType2.includes('application/json')) {
+        console.warn('api_vision_3d_recipes returned non-JSON:', recipeDetailRes.status);
+        return;
+      }
+      const recipeDetailData = await recipeDetailRes.json();
+      if (recipeDetailData.success) {
+        // 后端返回 {success, recipes:[...], data:{recipes:[...]}}，取第一条
+        const recipeList = recipeDetailData.recipes
+          || (recipeDetailData.data && recipeDetailData.data.recipes)
+          || [];
+        const recipe = recipeList[0] || null;
+        if (recipe) {
+          const targetRoi = (recipe.roi_config || {}).target_roi;
+          if (targetRoi && targetRoi.x != null && targetRoi.y != null &&
+              targetRoi.w != null && targetRoi.h != null) {
+            console.log('找到配方的 2D ROI:', targetRoi);
+            showRoiOnCanvas(targetRoi);
+          }
+        }
+      }
     } catch (e) {
-      // 静默失败，不影响用户操作
       console.warn('加载配方 ROI 失败：', e);
     }
   }
@@ -1309,22 +1326,45 @@
       const roiW = (targetRoi.w || 100) * scale;
       const roiH = (targetRoi.h || 100) * scale;
 
-      // 绘制 ROI 框（绿色）
-      ctx.strokeStyle = '#22c55e';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([8, 4]);
-      ctx.strokeRect(roiX, roiY, roiW, roiH);
-
-      // 填充半透明绿色
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.16)';
-      ctx.fillRect(roiX, roiY, roiW, roiH);
-
-      // 绘制 ROI 标签
-      ctx.fillStyle = '#22c55e';
-      ctx.font = '14px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.setLineDash([]);
-      ctx.fillText('target ROI', roiX + 8, Math.max(roiY + 18, 18));
+      // 根据 ROI 类型绘制（多边形或矩形）
+      if (targetRoi.polygon && Array.isArray(targetRoi.polygon) && targetRoi.polygon.length >= 3) {
+        // ── 多边形 ROI ──
+        const pts = targetRoi.polygon;
+        ctx.strokeStyle = '#a855f7';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 3]);
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x * scale, pts[0].y * scale);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * scale, pts[i].y * scale);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(168,85,247,0.14)';
+        ctx.fill();
+        ctx.setLineDash([]);
+        pts.forEach((pt) => {
+          ctx.beginPath();
+          ctx.arc(pt.x * scale, pt.y * scale, 4, 0, Math.PI * 2);
+          ctx.fillStyle = '#a855f7';
+          ctx.fill();
+        });
+        ctx.fillStyle = '#a855f7';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`✐ target ROI (${pts.length}点)`, pts[0].x * scale + 8, Math.max(pts[0].y * scale - 4, 18));
+      } else {
+        // ── 矩形 ROI ──
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([8, 4]);
+        ctx.strokeRect(roiX, roiY, roiW, roiH);
+        ctx.fillStyle = 'rgba(34, 197, 94, 0.16)';
+        ctx.fillRect(roiX, roiY, roiW, roiH);
+        ctx.fillStyle = '#22c55e';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.setLineDash([]);
+        ctx.fillText('target ROI', roiX + 8, Math.max(roiY + 18, 18));
+      }
 
       // 更新 ROI 读数显示
       if (roiReadout) {
@@ -1374,6 +1414,6 @@
     offlinePackagesUrl: '{% url "vision:offline_packages" %}',
   };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=8"></script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=13"></script>
 <script src="{% static 'vision/js/offline_package_manager.js' %}"></script>
 {% endblock %}

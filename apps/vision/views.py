@@ -1780,7 +1780,11 @@ def api_vision_3d_recipes(request):
             if 'standard_rz' in data:
                 recipe.standard_rz = _as_float(data['standard_rz'], recipe.standard_rz)
             if 'roi_config' in data:
-                recipe.roi_config = data['roi_config']
+                # 合并而非覆盖：只更新传入的字段，保留现有的其他配置（如3D坐标、camera_roi等）
+                existing_roi_config = recipe.roi_config or {}
+                new_roi_config = data['roi_config'] or {}
+                merged = {**existing_roi_config, **new_roi_config}
+                recipe.roi_config = merged
             if 'reference_feature_config' in data:
                 recipe.reference_feature_config = normalize_reference_feature_config(
                     data['reference_feature_config'] or {},

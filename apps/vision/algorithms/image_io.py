@@ -439,69 +439,6 @@ def generate_depth_scene(side='LEFT', layer_count=3, width=640, height=480):
             ly = region[1] + i * lh + lh // 2
             _put_label(color, f'L{layer_count - i}', (region[2] + 4, ly),
                        COLOR_TEXT, scale=0.4)
-
-    return color, pillar, region
-
-
-def annotate_depth(img, pillar, region, side, offsets,
-                   confidence=None, layer_heights=None, recipe_matched=True):
-    """在深度伪彩色图上叠加立柱基准 ROI、装箱区 ROI 与标注。
-
-    标注内容：
-    - 立柱基准框（青色）
-    - 装箱区 ROI 框（蓝色）
-    - X/Y 偏差箭头 + Z 文字
-    - 左上角第一行：料架侧别 + 补偿值
-    - 左上角第二行：置信度 conf=0.93
-    - 底部：各层实测高度列表
-    - recipe_matched=False 时：顶部橙色警告条
-    """
-    out = img.copy()
-    h = height_of(out)
-    w = out.shape[1]
-
-    # 配方不匹配：顶部橙色警告条
-    if not recipe_matched:
-        cv2.rectangle(out, (0, 0), (w, 22), (0, 140, 255), -1)
-        _put_label(out, '! 层高/层距超差 — 配方校验不通过 !',
-                   (w // 2 - 120, 16), (255, 255, 255), scale=0.5, thickness=1)
-
-    draw_roi(out, pillar, color=COLOR_AXIS, label='立柱基准')
-    draw_roi(out, region, color=COLOR_ROI, label='装箱区 ROI')
-
-    # 补偿向量：从装箱区中心画箭头表示 X/Y 偏差。
-    cx = (region[0] + region[2]) // 2
-    cy = (region[1] + region[3]) // 2
-    ox = float(offsets.get('offset_x', 0))
-    oy = float(offsets.get('offset_y', 0))
-    oz = float(offsets.get('offset_z', 0))
-    end = (int(cx + ox * 8), int(cy + oy * 8))
-    cv2.arrowedLine(out, (cx, cy), end, COLOR_TEXT, 2, tipLength=0.3)
-    cv2.circle(out, (cx, cy), 4, COLOR_TEXT, -1)
-
-    # 左上角：侧别 + 补偿值
-    side_label = '左侧' if side == 'LEFT' else '右侧'
-    top_y = 28 if recipe_matched else 42  # 有警告条时下移
-    _put_label(out, f'{side_label}料架补偿', (12, top_y), COLOR_AXIS,
-               scale=0.6, thickness=2)
-    _put_label(out, f'X={ox:+.2f}  Y={oy:+.2f}  Z={oz:+.2f} mm',
-               (12, top_y + 20), COLOR_TEXT, scale=0.5)
-
-    # 置信度（第三行）
-    if confidence is not None:
-        conf_color = COLOR_OK if confidence >= 0.80 else COLOR_WARN
-        _put_label(out, f'置信度: {confidence:.2%}', (12, top_y + 40),
-                   conf_color, scale=0.5)
-
-    # 底部：各层实测高度
-    if layer_heights:
-        heights_str = '  '.join(f'L{i+1}:{v:.1f}' for i, v in enumerate(layer_heights))
-        _put_label(out, f'层高(mm): {heights_str}', (12, h - 14),
-                   COLOR_TEXT, scale=0.45)
-
-    return out
-
-
 def pointcloud_to_preview(pointcloud):
     """将组织化点云 (H x W x 3, mm) 渲染为伪彩 BGR 预览图（按 Z 通道着色）。
 
@@ -539,19 +476,6 @@ def annotate_pointcloud_roi(preview, roi, *, offsets=None, confidence=None,
     """
     out = preview.copy()
     h = height_of(out)
-    x = int(round(float(roi.get('x', 0))))
-    y = int(round(float(roi.get('y', 0))))
-    w = int(round(float(roi.get('w', roi.get('width', 0)) or 0)))
-    hh = int(round(float(roi.get('h', roi.get('height', 0)) or 0)))
-
-    box_color = COLOR_OK if locate_ok else COLOR_FAIL
-    draw_roi(out, (x, y, x + w, y + hh), color=box_color, label='target ROI', thickness=2)
-
-    offsets = offsets or {}
-    ox = float(offsets.get('offset_x', 0))
-    oy = float(offsets.get('offset_y', 0))
-    oz = float(offsets.get('offset_z', 0))
-    cx, cy = x + w // 2, y + hh // 2
     end = (int(cx + ox * 8), int(cy + oy * 8))
     cv2.arrowedLine(out, (cx, cy), end, COLOR_TEXT, 2, tipLength=0.3)
     cv2.circle(out, (cx, cy), 4, COLOR_TEXT, -1)
