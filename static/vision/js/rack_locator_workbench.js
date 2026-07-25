@@ -1061,6 +1061,8 @@
           ? '算法：矩形四边拟合 V2（P5 由 P1～P4 后端计算）'
         : '算法：历史中位数 V1（该结果不包含 P1～P5）';
     }
+    const isLocateOk = r.locate_ok !== false && (rectangle || {}).locate_ok !== false;
+    // 即使定位失败（如偏差超限），只要提取到了五点数据就显示出来，方便用户排查问题
     if (rectangle && rectangle.points && rectangle.center) {
       ['p1', 'p2', 'p3', 'p4'].forEach((key) => {
         const point = rectangle.points[key] || {};

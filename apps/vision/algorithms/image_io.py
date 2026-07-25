@@ -351,7 +351,7 @@ def _defect_label(defect_type_str):
 
 
 # ---------------- 深度相机：料架场景 ----------------
-def build_depth_field(side='LEFT', layer_count=3, width=640, height=480):
+def build_depth_field(side='LEFT', layer_count=3, width=640, height=480, seed=None):
     """构造模拟料架场景的原始深度场（float32，单位近似 mm 前的相对量）。
 
     这是 generate_depth_scene（生成伪彩图）与 depth_field_to_pointcloud
@@ -382,6 +382,12 @@ def build_depth_field(side='LEFT', layer_count=3, width=640, height=480):
             y1 = region[1] + i * layer_h
             y2 = min(region[1] + (i + 1) * layer_h, region[3])
             depth[y1:y2, region[0]:region[2]] += float(i) * 8
+
+    # seed: add tiny deterministic noise so same recipe always yields same cloud
+    if seed is not None:
+        rng = __import__('numpy').random.default_rng(int(seed))
+        noise = rng.uniform(-0.3, 0.3, depth.shape).astype(depth.dtype)
+        depth = depth + noise
 
     return depth, pillar, region
 
@@ -476,32 +482,74 @@ def annotate_pointcloud_roi(preview, roi, *, offsets=None, confidence=None,
     """
     out = preview.copy()
     h = height_of(out)
+    
+    # 提取 ROI 中心点
+    x, y, w, h_roi = roi.get('x', 0), roi.get('y', 0), roi.get('w', 0), roi.get('h', 0)
+    cx, cy = x + w // 2, y + h_roi // 2
+    
+    # 提取偏移量
+    ox, oy, oz = 0.0, 0.0, 0.0
+    if offsets:
+        ox = float(offsets.get('x', 0))
+        oy = float(offsets.get('y', 0))
+        oz = float(offsets.get('z', 0))
+    
+    # 绘制 ROI 框
+    box_color = COLOR_OK if locate_ok else COLOR_FAIL
+    cv2.rectangle(out, (x, y), (x + w, y + h_roi), box_color, 2)
+    
+    # 绘制补偿向量箭头
     end = (int(cx + ox * 8), int(cy + oy * 8))
     cv2.arrowedLine(out, (cx, cy), end, COLOR_TEXT, 2, tipLength=0.3)
     cv2.circle(out, (cx, cy), 4, COLOR_TEXT, -1)
 
-    if feature_points and all(key in feature_points for key in ('p1', 'p2', 'p3', 'p4')):
-        colors = {
-            'p1': (0, 0, 255),
-            'p2': (0, 165, 255),
-            'p3': (0, 255, 0),
-            'p4': (255, 0, 0),
-            'p5': (255, 0, 255),
-        }
-        corners = []
-        for key in ('p1', 'p2', 'p3', 'p4'):
-            point = feature_points[key]
-            pixel = (int(round(float(point['x']))), int(round(float(point['y']))))
-            corners.append(pixel)
-        cv2.polylines(out, [np.asarray(corners, dtype=np.int32)], True, COLOR_TEXT, 2)
-        for key, pixel in zip(('p1', 'p2', 'p3', 'p4'), corners):
-            cv2.circle(out, pixel, 6, colors[key], -1)
-            _put_label(out, key.upper(), (pixel[0] + 7, pixel[1] - 7), colors[key], scale=0.45, thickness=1)
-        if feature_points.get('p5'):
-            p5 = feature_points['p5']
-            center_pixel = (int(round(float(p5['x']))), int(round(float(p5['y']))))
-            cv2.drawMarker(out, center_pixel, colors['p5'], cv2.MARKER_CROSS, 16, 2)
-            _put_label(out, 'P5', (center_pixel[0] + 7, center_pixel[1] - 7), colors['p5'], scale=0.45, thickness=1)
+    # 绘制特征点（P1-P5）及其XYZ空间坐标
+    # feature_points 现在接收完整的 opening_rectangle 数据结构
+    if feature_points and isinstance(feature_points, dict):
+        pixel_points = feature_points.get('pixel_points', {})
+        space_points = feature_points.get('points', {})
+        center_point = feature_points.get('center', {})
+        
+        # 检查是否有有效的像素坐标数据
+        if pixel_points and all(key in pixel_points for key in ('p1', 'p2', 'p3', 'p4')):
+            colors = {
+                'p1': (0, 0, 255),      # 红色 - 左上
+                'p2': (0, 165, 255),    # 橙色 - 右上
+                'p3': (0, 255, 0),      # 绿色 - 右下
+                'p4': (255, 0, 0),      # 蓝色 - 左下
+                'p5': (255, 0, 255),    # 紫色 - 中心
+            }
+            corners = []
+            for key in ('p1', 'p2', 'p3', 'p4'):
+                point = pixel_points[key]
+                pixel = (int(round(float(point['x']))), int(round(float(point['y']))))
+                corners.append(pixel)
+            
+            # 绘制四边形轮廓
+            cv2.polylines(out, [np.asarray(corners, dtype=np.int32)], True, COLOR_TEXT, 2)
+            
+            # 绘制每个角点及其坐标信息
+            for key, pixel in zip(('p1', 'p2', 'p3', 'p4'), corners):
+                cv2.circle(out, pixel, 6, colors[key], -1)
+                # 显示点标签（P1/P2/P3/P4）
+                label_text = key.upper()
+                _put_label(out, label_text, (pixel[0] + 7, pixel[1] - 7), colors[key], scale=0.45, thickness=1)
+                # 显示XYZ空间坐标值（从 space_points 获取，注意是小写 x/y/z）
+                space_coord = space_points.get(key, {})
+                if 'x' in space_coord and 'y' in space_coord and 'z' in space_coord:
+                    xyz_text = f'({space_coord["x"]:.1f}, {space_coord["y"]:.1f}, {space_coord["z"]:.1f})'
+                    _put_label(out, xyz_text, (pixel[0] + 7, pixel[1] + 10), colors[key], scale=0.35, thickness=1)
+            
+            # 绘制中心点P5（如果存在）
+            if pixel_points.get('p5') and center_point:
+                p5_pixel = pixel_points['p5']
+                center_pixel = (int(round(float(p5_pixel['x']))), int(round(float(p5_pixel['y']))))
+                cv2.drawMarker(out, center_pixel, colors['p5'], cv2.MARKER_CROSS, 16, 2)
+                _put_label(out, 'P5', (center_pixel[0] + 7, center_pixel[1] - 7), colors['p5'], scale=0.45, thickness=1)
+                # 显示P5的XYZ空间坐标值（从 center_point 获取）
+                if 'x' in center_point and 'y' in center_point and 'z' in center_point:
+                    xyz_text = f'({center_point["x"]:.1f}, {center_point["y"]:.1f}, {center_point["z"]:.1f})'
+                    _put_label(out, xyz_text, (center_pixel[0] + 7, center_pixel[1] + 10), colors['p5'], scale=0.35, thickness=1)
 
     verdict = '定位 OK' if locate_ok else '定位 NG'
     _put_label(out, verdict, (12, 28), box_color, scale=0.6, thickness=2)

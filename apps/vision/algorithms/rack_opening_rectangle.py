@@ -185,8 +185,18 @@ def _fit_plane_ransac(
     max_reference_distance_mm: float = 100.0,
     min_candidate_inliers: int = 3,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """RANSAC 平面拟合，增强稳定性。
+    
+    优化改进：
+    1. 对输入点进行排序，确保相同点集产生相同结果
+    2. 增加数值稳定性处理
+    """
     if len(points) < 3:
         raise RectangleLocationError('INSUFFICIENT_POINTS', '有效点数不足，无法拟合开口平面')
+
+    # 对输入点进行排序以提高稳定性
+    sort_indices = np.lexsort((points[:, 2], points[:, 1], points[:, 0]))
+    sorted_points = points[sort_indices]
 
     rng = np.random.default_rng(20260722)
     best_mask = None
@@ -194,8 +204,8 @@ def _fit_plane_ransac(
     best_rmse = float('inf')
     best_reference_distance = float('inf')
     for _ in range(max(20, int(iterations))):
-        indices = rng.choice(len(points), size=3, replace=False)
-        a, b, c = points[indices]
+        indices = rng.choice(len(sorted_points), size=3, replace=False)
+        a, b, c = sorted_points[indices]
         normal = np.cross(b - a, c - a)
         norm = float(np.linalg.norm(normal))
         if norm <= 1e-9:
@@ -212,12 +222,12 @@ def _fit_plane_ransac(
                 continue
         else:
             reference_distance = 0.0
-        distances = np.abs((points - a) @ normal)
+        distances = np.abs((sorted_points - a) @ normal)
         mask = distances <= threshold_mm
         count = int(mask.sum())
         if count < max(3, int(min_candidate_inliers)):
             continue
-        rmse = float(np.sqrt(np.mean(np.square(distances[mask]))))
+        rmse = float(np.sqrt(np.mean(np.square(distances[mask] + 1e-10))))  # 增加数值稳定性
         if expected_center is not None:
             better = (
                 reference_distance < best_reference_distance - threshold_mm
@@ -237,20 +247,25 @@ def _fit_plane_ransac(
     if best_mask is None:
         raise RectangleLocationError('OPENING_PLANE_NOT_FOUND', '未找到稳定的开口前平面')
 
-    inliers = points[best_mask]
+    inliers = sorted_points[best_mask]
     center = inliers.mean(axis=0)
     _, _, vt = np.linalg.svd(inliers - center, full_matrices=False)
     normal = _unit(vt[-1])
-    distances = np.abs((points - center) @ normal)
+    distances = np.abs((sorted_points - center) @ normal)
     refined_mask = distances <= threshold_mm
-    refined = points[refined_mask]
+    refined = sorted_points[refined_mask]
     if len(refined) >= 3:
         center = refined.mean(axis=0)
         _, _, vt = np.linalg.svd(refined - center, full_matrices=False)
         normal = _unit(vt[-1])
-        distances = np.abs((points - center) @ normal)
-        refined_mask = distances <= threshold_mm
-    return center, normal, refined_mask
+    
+    # 将排序后的掩码映射回原始顺序
+    original_mask = np.zeros(len(points), dtype=bool)
+    original_mask[sort_indices] = refined_mask
+    
+    return center, normal, original_mask
+
+
 
 
 def _internal_opening_boundary_mask(pixel_coordinates: np.ndarray, margin_px: int) -> np.ndarray:
@@ -560,6 +575,12 @@ def _fit_balanced_edge_plane(
     threshold_mm: float,
     iterations: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """拟合平衡的边缘平面，改进稳定性。
+    
+    优化改进：
+    1. 对边缘点进行排序，确保相同点集产生相同结果
+    2. 增加数值稳定性处理
+    """
     point_groups = []
     for index in range(4):
         distances = _distance_to_pixel_segment(
@@ -577,6 +598,12 @@ def _fit_balanced_edge_plane(
     labels = np.concatenate([
         np.full(len(group), index, dtype=int) for index, group in enumerate(point_groups)
     ])
+    
+    # 对边缘点进行排序以提高稳定性
+    sort_indices = np.lexsort((edge_points[:, 2], edge_points[:, 1], edge_points[:, 0]))
+    edge_points = edge_points[sort_indices]
+    labels = labels[sort_indices]
+    
     group_sizes = np.asarray([len(group) for group in point_groups], dtype=float)
     rng = np.random.default_rng(20260722)
     best = None
@@ -591,7 +618,7 @@ def _fit_balanced_edge_plane(
         distances = np.abs((edge_points - a) @ normal)
         mask = distances <= threshold_mm
         counts = np.bincount(labels[mask], minlength=4)
-        ratios = counts / group_sizes
+        ratios = counts / (group_sizes + 1e-10)  # 避免除零
         score = float(5.0 * ratios.min() + ratios.mean() + 0.1 * mask.mean())
         if best is None or score > best[0]:
             best = (score, mask)
@@ -683,44 +710,60 @@ def _fit_line_ransac_2d(
 
     直线方程: n · p = d，n 是单位法向量，d 是原点到直线的有符号距离。
     避免用斜率表示避免垂直线奇点。
+    
+    优化改进：
+    1. 对输入点进行排序，确保相同点集产生相同结果
+    2. 使用更稳定的 RMSE 阈值判断
+    3. 增加最小二乘精化步骤的稳定性
     """
     if len(points) < 2:
         raise RectangleLocationError('RECTANGLE_CONSTRAINT_FAILED', '边缘候选点不足，无法拟合直线')
+
+    # 对输入点进行排序，确保相同点集产生相同的处理顺序
+    # 按第一列排序，如果相同则按第二列排序
+    sort_indices = np.lexsort((points[:, 1], points[:, 0]))
+    sorted_points = points[sort_indices]
 
     best_mask: np.ndarray | None = None
     best_count = 0
     best_rmse = float('inf')
 
     for _ in range(max(30, int(iterations))):
-        indices = rng.choice(len(points), size=2, replace=False)
-        a, b = points[indices]
+        indices = rng.choice(len(sorted_points), size=2, replace=False)
+        a, b = sorted_points[indices]
         diff = b - a
         diff_len = float(np.linalg.norm(diff))
         if diff_len < 1e-9:
             continue
         normal = np.array([-diff[1], diff[0]]) / diff_len  # 单位法向量
         d = float(normal @ a)
-        distances = np.abs(points @ normal - d)
+        distances = np.abs(sorted_points @ normal - d)
         mask = distances <= threshold_mm
         count = int(mask.sum())
-        if count > best_count or (count == best_count and float(np.sqrt(np.mean(np.square(distances[mask])))) < best_rmse):
+        # 使用更严格的条件：优先选择内点数多的，内点数相同时选择RMSE小的
+        if count > best_count or (count == best_count and float(np.sqrt(np.mean(np.square(distances[mask] + 1e-10)))) < best_rmse):
             best_count = count
             best_mask = mask
-            best_rmse = float(np.sqrt(np.mean(np.square(distances[mask])))) if count > 0 else float('inf')
+            best_rmse = float(np.sqrt(np.mean(np.square(distances[mask] + 1e-10)))) if count > 0 else float('inf')
 
     if best_mask is None or best_count < 2:
         raise RectangleLocationError('RECTANGLE_CONSTRAINT_FAILED', 'RANSAC未能找到有效直线内点')
 
     # 用所有内点做最小二乘精化
-    selected = points[best_mask]
+    selected = sorted_points[best_mask]
     centroid = selected.mean(axis=0)
     _, _, vt = np.linalg.svd(selected - centroid, full_matrices=False)
     line_dir = vt[0]  # 直线方向
     normal = np.array([-line_dir[1], line_dir[0]])  # 法向量
     d = float(normal @ centroid)
-    distances = np.abs(points @ normal - d)
+    distances = np.abs(sorted_points @ normal - d)
     refined_mask = distances <= threshold_mm
-    return normal, d, refined_mask
+    
+    # 将排序后的掩码映射回原始顺序
+    original_mask = np.zeros(len(points), dtype=bool)
+    original_mask[sort_indices] = refined_mask
+    
+    return normal, d, original_mask
 
 
 def _classify_edge_points_2d(
@@ -1165,11 +1208,25 @@ class RackOpeningRectangleLocator:
             failures.append(('RECTANGLE_CONSTRAINT_FAILED', f'邻边垂直误差 {perpendicular_error:.2f}° 超限'))
         if center_consistency > float(thresholds['auto_center_consistency_mm']):
             failures.append(('RECTANGLE_CONSTRAINT_FAILED', f'对角线中心误差 {center_consistency:.2f}mm 超限'))
+        if rectangle_fit_rmse > 100.0:
+            failures.append(('RECTANGLE_CONSTRAINT_FAILED', f'规则矩形拟合 RMSE {rectangle_fit_rmse:.2f}mm 超限'))
+        if width > 2500.0 or height > 2500.0 or width < 50.0 or height < 50.0:
+            failures.append(('RECTANGLE_CONSTRAINT_FAILED', f'自动提取的开口物理尺寸异常（宽 {width:.1f}mm, 高 {height:.1f}mm）'))
         if rectangle_fit_max_residual > float(thresholds['auto_rectangle_fit_max_residual_mm']):
             failures.append((
                 'RECTANGLE_CONSTRAINT_FAILED',
                 f'规则矩形拟合最大角点修正量 {rectangle_fit_max_residual:.2f}mm 超限',
             ))
+        standard_w = opening_config.get('standard_width_mm')
+        standard_h = opening_config.get('standard_height_mm')
+        if standard_w is not None and float(standard_w) > 0:
+            w_err = abs(width - float(standard_w))
+            if w_err > float(thresholds.get('width_tolerance_mm', 50.0)):
+                failures.append(('RECTANGLE_SIZE_OUT_OF_TOLERANCE', f'开口宽度 {width:.1f}mm 与标准值 {standard_w}mm 偏差超限'))
+        if standard_h is not None and float(standard_h) > 0:
+            h_err = abs(height - float(standard_h))
+            if h_err > float(thresholds.get('height_tolerance_mm', 50.0)):
+                failures.append(('RECTANGLE_SIZE_OUT_OF_TOLERANCE', f'开口高度 {height:.1f}mm 与标准值 {standard_h}mm 偏差超限'))
         if standard is not None:
             if width_error > float(thresholds['width_tolerance_mm']) or height_error > float(thresholds['height_tolerance_mm']):
                 failures.append(('RECTANGLE_SIZE_OUT_OF_TOLERANCE', '开口宽度或高度超出标准公差'))

@@ -14,11 +14,22 @@
 算法只输出结构化结果，不决定产线流程是否继续。
 后期可在 _analyse_side() 内接入真实深度图/点云处理替换模拟部分。
 """
+import hashlib
 import random
 from dataclasses import dataclass, field
 from typing import Optional
 
 from . import image_io
+
+
+def _stable_seed(key: str) -> int:
+    """根据字符串生成跨进程稳定的确定性种子（不受 PYTHONHASHSEED 影响）。
+
+    【Bug 修复】Python 3.3+ 的 hash() 在每次进程启动时都会随机化
+    （受 PYTHONHASHSEED 环境变量控制），不能用作可重复随机数种子。
+    改用 MD5 哈希确保：同一字符串在任何进程/任何时刻产生相同的种子值。
+    """
+    return int(hashlib.md5(key.encode()).hexdigest(), 16) % (2 ** 32)
 
 
 @dataclass
@@ -88,7 +99,10 @@ class RackLocator:
 
         # ---- 3. 模拟各层实测高度（单次拍摄，算法内推导） -----------------
         # 真实实现：从深度点云按层分割，提取各层中心面Z坐标差值
-        rng = random.Random(hash(side) % (2 ** 32))   # 确定性随机（同侧同值）
+        # 【Bug 修复】使用 MD5 稳定种子代替 hash(side)：
+        # hash() 在 Python 3.3+ 受 PYTHONHASHSEED 影响，每次进程启动都不同，
+        # 导致同一配方两次计算结果不一致。MD5 哈希与进程无关，结果稳定可复现。
+        rng = random.Random(_stable_seed(side))
 
         def _noisy(base):
             return round(base + rng.gauss(0, cfg.noise_std_mm), 3)
@@ -277,7 +291,9 @@ class RackLocator:
             nominal_height  = 120.0
             nominal_spacing = 150.0
 
-        rng = random.Random(hash(side) % (2 ** 32))
+        # 【Bug 修复】使用 MD5 稳定种子代替 hash(side)：
+        # hash() 在 Python 3.3+ 受 PYTHONHASHSEED 影响，每次进程启动都不同。
+        rng = random.Random(_stable_seed(side))
 
         def noisy(base):
             return round(base + rng.gauss(0, cfg.noise_std_mm), 3)
