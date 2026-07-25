@@ -158,7 +158,10 @@ class MockDepthCameraProvider(DepthCameraProvider):
         layer_no: Optional[int] = None,
     ) -> Dict[str, Any]:
         logger.info("[MOCK] 生成模拟点云数据")
-        rng = np.random.default_rng(self.seed)
+        # 【Bug 修复】seed=None 时改用固定种子 42，确保 Mock 点云每次一致。
+        # 原代码 np.random.default_rng(self.seed) 在 seed=None 时产生随机点云，
+        # 导致同一配方两次计算结果完全不同。
+        rng = np.random.default_rng(self.seed if self.seed is not None else 42)
 
         # 1) 支撑面（水平面，用于算 Z）
         xs = np.linspace(*MOCK_SUPPORT_X_RANGE, 60)
@@ -201,7 +204,8 @@ class MockDepthCameraProvider(DepthCameraProvider):
             'data': organized,
             'width': width,
             'height': height,
-            'frame_index': int(np.random.randint(1000, 9999)),
+            # 【Bug 修复】使用本地 rng 而非全局 np.random，避免污染全局随机状态。
+            'frame_index': int(rng.integers(1000, 9999)),
             'confidence': 0.95,
             'raw_data_path': '',
             'result_image_path': '',
@@ -358,8 +362,9 @@ class RealDepthCameraProvider(DepthCameraProvider):
         # 如果相机采集失败，使用模拟点云
         if data is None:
             logger.warning("[REAL] 相机采集失败，回退到模拟点云: %s", fallback_reason or "未知原因")
-            # 生成模拟点云
-            rng = np.random.default_rng()
+            # 【Bug 修复】使用固定种子 42，避免回退点云每次不同导致结果不一致。
+            # 原代码 np.random.default_rng() 无种子，每次回退点云都不同。
+            rng = np.random.default_rng(42)
             xs = np.linspace(-100.0, 100.0, 60)
             ys = np.linspace(-60.0, 60.0, 30)
             gx, gy = np.meshgrid(xs, ys)
@@ -378,7 +383,9 @@ class RealDepthCameraProvider(DepthCameraProvider):
             'data': data,
             'width': width,
             'height': height,
-            'frame_index': int(np.random.randint(1000, 9999)),
+            # 【Bug 修复】使用固定种子本地 rng 而非全局 np.random.randint，
+            # 避免污染全局随机状态（data 在此处必不为 None）。
+            'frame_index': int(np.random.default_rng(42).integers(1000, 9999)),
             'confidence': 0.95,
             'raw_data_path': '',
             'result_image_path': '',

@@ -88,7 +88,9 @@ class PositioningAlgorithm:
 
     @staticmethod
     def _segment_plane_numpy(pts, threshold, iterations):
-        rng = np.random.default_rng()
+        # 【Bug 修复】使用固定种子 42，避免每次 RANSAC 采样结果不同导致 Z 轴定位不稳定。
+        # 原代码 np.random.default_rng() 无种子，每次结果随机波动。
+        rng = np.random.default_rng(42)
         best_model, best_inliers, best_score = None, np.array([], dtype=int), 0
         n = pts.shape[0]
         for _ in range(iterations):

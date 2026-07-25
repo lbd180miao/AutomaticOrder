@@ -192,10 +192,14 @@ class RackPositioningAlgorithm:
         best_plane = None
         best_inliers = None
         best_score = 0
-        
+
+        # 【Bug 修复】使用本地固定种子 RNG，避免全局 np.random 状态污染导致每次结果不同。
+        # 原代码使用全局 np.random.choice，受进程中其他随机操作影响，结果不可复现。
+        rng = np.random.default_rng(42)
+
         for _ in range(num_iterations):
             # 随机选择3个点
-            sample_indices = np.random.choice(pointcloud.shape[0], 3, replace=False)
+            sample_indices = rng.choice(pointcloud.shape[0], 3, replace=False)
             sample_points = pointcloud[sample_indices]
             
             # 计算平面方程 ax + by + cz + d = 0

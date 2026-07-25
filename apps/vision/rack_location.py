@@ -233,29 +233,115 @@ class PointCloudProcessor:
     max_abs_coordinate = 10000.0
 
     def _normalized_roi(self, roi: dict, width: int, height: int) -> tuple[int, int, int, int]:
+        """将 ROI 字典解析并 clamp 到图像范围内，返回 (x, y, w, h)。
+
+        使用 math.floor/ceil 确保不同精度的浮点输入产生一致的整数边界，
+        同时对超出图像边界的情况做截断（而非抛错），提高鲁棒性。
+        """
+        import math
         try:
-            x = int(round(float(roi.get('x'))))
-            y = int(round(float(roi.get('y'))))
-            w = int(round(float(roi.get('w', roi.get('width')))))
-            h = int(round(float(roi.get('h', roi.get('height')))))
+            x = int(math.floor(float(roi.get('x', 0))))
+            y = int(math.floor(float(roi.get('y', 0))))
+            w = int(math.ceil(float(roi.get('w', roi.get('width', 0)))))
+            h = int(math.ceil(float(roi.get('h', roi.get('height', 0)))))
         except (TypeError, ValueError) as exc:
             raise ValueError('ROI 参数必须包含有效的 x/y/w/h') from exc
 
         if w <= 0 or h <= 0:
             raise ValueError('ROI 宽高必须大于 0')
-        if x < 0 or y < 0 or x + w > width or y + h > height:
-            raise ValueError('ROI 超出图像范围')
+
+        # 边界 clamp：防止因浮点取整或轻微越界导致 IndexError
+        x = max(0, min(x, width - 1))
+        y = max(0, min(y, height - 1))
+        w = max(1, min(w, width - x))
+        h = max(1, min(h, height - y))
         return x, y, w, h
 
     def crop_by_roi(self, organized_pointcloud, roi: dict):
+        """矩形 ROI 裁剪组织化点云。若 roi 包含 polygon 字段则委托多边形裁剪。"""
         pointcloud = np.asarray(organized_pointcloud, dtype=float)
         if pointcloud.ndim != 3 or pointcloud.shape[2] != 3:
             raise ValueError('organized pointcloud 必须是 H x W x 3')
+
+        # 若前端传入了多边形顶点，优先使用精确多边形蒙版裁剪
+        polygon = roi.get('polygon')
+        if polygon and isinstance(polygon, (list, tuple)) and len(polygon) >= 3:
+            return self.crop_by_polygon_roi(organized_pointcloud, polygon)
 
         height, width, _ = pointcloud.shape
         x, y, w, h = self._normalized_roi(roi, width, height)
         points = pointcloud[y:y + h, x:x + w, :].reshape(-1, 3)
         return self.filter_valid_points(points)
+
+    def crop_by_polygon_roi(
+        self, organized_pointcloud, polygon_pts, *, return_pixel_coords: bool = False
+    ):
+        """使用多边形蒙版精确裁剪组织化点云 (H x W x 3)。
+
+        Args:
+            organized_pointcloud: H x W x 3 点云数组（像素坐标对应物理点）
+            polygon_pts: 多边形顶点列表，每个元素为 {x, y} 或 (x, y)，
+                         单位为图像像素坐标（与点云的行列索引对应）
+            return_pixel_coords: 若为 True，同时返回每个裁剪点对应的像素 (px, py)
+
+        Returns:
+            valid_points: shape (M, 3) 的裁剪点云
+            pixel_coords: 仅当 return_pixel_coords=True 时返回，shape (M, 2)
+        """
+        import cv2 as _cv2
+        import logging as _log
+        _logger = _log.getLogger(__name__)
+
+        pointcloud = np.asarray(organized_pointcloud, dtype=np.float64)
+        if pointcloud.ndim != 3 or pointcloud.shape[2] != 3:
+            raise ValueError('organized pointcloud 必须是 H x W x 3')
+
+        height, width, _ = pointcloud.shape
+
+        # 将多边形顶点转为整数 numpy 数组，供 cv2.fillPoly 使用
+        try:
+            if isinstance(polygon_pts[0], dict):
+                pts_arr = np.array(
+                    [[int(round(p['x'])), int(round(p['y']))] for p in polygon_pts],
+                    dtype=np.int32,
+                )
+            else:
+                pts_arr = np.array(
+                    [[int(round(p[0])), int(round(p[1]))] for p in polygon_pts],
+                    dtype=np.int32,
+                )
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ValueError(f'多边形顶点格式错误: {exc}') from exc
+
+        # 边界 clamp，防止顶点坐标轻微越界
+        pts_arr[:, 0] = np.clip(pts_arr[:, 0], 0, width - 1)
+        pts_arr[:, 1] = np.clip(pts_arr[:, 1], 0, height - 1)
+
+        # 用 cv2.fillPoly 生成多边形蒙版（比逐点判断快几十倍）
+        mask = np.zeros((height, width), dtype=np.uint8)
+        _cv2.fillPoly(mask, [pts_arr], color=1)
+
+        # 有效点过滤：同时满足「在蒙版内」+「坐标有限」+「Z≠0」
+        pts_flat = pointcloud.reshape(-1, 3)
+        mask_flat = mask.reshape(-1).astype(bool)
+        finite_mask = np.isfinite(pts_flat).all(axis=1)
+        nonzero_z = np.abs(pts_flat[:, 2]) > 1e-9
+        inside = mask_flat & finite_mask & nonzero_z
+
+        valid_points = pts_flat[inside]
+        _logger.info(
+            '[crop_by_polygon_roi] 多边形顶点=%d, 蒙版像素=%d/%d, '
+            '有效点=%d/%d',
+            len(pts_arr), int(mask.sum()), height * width,
+            valid_points.shape[0], pts_flat.shape[0],
+        )
+
+        if return_pixel_coords:
+            pixel_y, pixel_x = np.indices((height, width))
+            pixels = np.column_stack((pixel_x.reshape(-1), pixel_y.reshape(-1)))
+            return valid_points, pixels[inside]
+
+        return valid_points
 
     def _normalized_roi_3d(self, roi: dict) -> dict:
         required = ('x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max')
@@ -619,6 +705,7 @@ def build_sample_pointcloud(
     layer_count: int = 3,
     width: int = 640,
     height: int = 480,
+    seed: int = None,
     **_legacy,
 ):
     """Build an organized sample point-cloud (H x W x 3, mm) from the canonical
@@ -633,7 +720,7 @@ def build_sample_pointcloud(
     历史调用，但坐标不再被强行覆盖，而是完全由场景几何决定。
     """
     depth, _pillar, _region = image_io.build_depth_field(
-        side, int(layer_count or 3), width, height,
+        side, int(layer_count or 3), width, height, seed=seed,
     )
     return image_io.depth_field_to_pointcloud(depth)
 
@@ -954,7 +1041,10 @@ class Rack3DLocator:
             fallback_reason = str(exc)
 
         if pointcloud is None:
-            pointcloud = build_sample_pointcloud(side=side_key, layer_count=layer_count)
+            # 使用配方ID+层号的哈希作为固定种子，确保同一配方每次生成相同的模拟点云，
+            # 消除因随机性导致多次计算结果不一致的问题。
+            _sim_seed = hash((str(recipe_id or 'default'), int(layer_no))) & 0x7FFFFFFF
+            pointcloud = build_sample_pointcloud(side=side_key, layer_count=layer_count, seed=_sim_seed)
             source = 'sample'
 
         token, preview_url, width, height = self._persist_frame(pointcloud)
@@ -1404,31 +1494,47 @@ class Rack3DLocator:
         if target_roi:
             # 优先使用前端传入的 2D target_roi (手工画的框) 来截取点云，保证计算结果与画框完全一致
             cloud = np.asarray(pointcloud, dtype=float)
-            x = int(round(float(target_roi.get('x', 0))))
-            y = int(round(float(target_roi.get('y', 0))))
-            w = int(round(float(target_roi.get('w', 0))))
-            h = int(round(float(target_roi.get('h', 0))))
-            if cloud.ndim == 3 and cloud.shape[2] == 3 and w > 0 and h > 0:
-                cropped_cloud = cloud[y:y+h, x:x+w]
-                pts = cropped_cloud.reshape(-1, 3)
-                valid = np.isfinite(pts[:, 2]) & (np.abs(pts[:, 2]) > 1e-9)
-                points = pts[valid]
-                pixel_y, pixel_x = np.indices(cropped_cloud.shape[:2])
-                all_pixels = np.column_stack((pixel_x.reshape(-1) + x, pixel_y.reshape(-1) + y))
-                pixel_coordinates = all_pixels[valid]
-                
-                # 自动计算该 2D 框覆盖点云的 3D 包围框（相当于将其保存成3D指标）
-                if len(points) > 0:
-                    new_camera_roi = {
-                        'x_min': float(points[:, 0].min()),
-                        'x_max': float(points[:, 0].max()),
-                        'y_min': float(points[:, 1].min()),
-                        'y_max': float(points[:, 1].max()),
-                        'z_min': float(points[:, 2].min()),
-                        'z_max': float(points[:, 2].max()),
-                    }
+
+            polygon = target_roi.get('polygon')
+            if polygon and isinstance(polygon, (list, tuple)) and len(polygon) >= 3:
+                # ── 多边形ROI：使用精确多边形蒙版裁剪，不再降级为矩形包围盒 ──
+                import logging as _log
+                _log.getLogger(__name__).info(
+                    '[test_locate] 使用多边形ROI裁剪，顶点数=%d', len(polygon)
+                )
+                if cloud.ndim == 3 and cloud.shape[2] == 3:
+                    points, pixel_coordinates = self.processor.crop_by_polygon_roi(
+                        cloud, polygon, return_pixel_coords=True,
+                    )
+                else:
+                    points = np.empty((0, 3), dtype=float)
+                    pixel_coordinates = None
             else:
-                points = np.array([])
+                # ── 矩形ROI：使用 _normalized_roi 的 clamp 逻辑，防止浮点取整越界 ──
+                if cloud.ndim == 3 and cloud.shape[2] == 3:
+                    h_img, w_img, _ = cloud.shape
+                    x, y, w, h = self.processor._normalized_roi(target_roi, w_img, h_img)
+                    cropped_cloud = cloud[y:y + h, x:x + w]
+                    pts = cropped_cloud.reshape(-1, 3)
+                    valid = np.isfinite(pts[:, 2]) & (np.abs(pts[:, 2]) > 1e-9)
+                    points = pts[valid]
+                    pixel_y, pixel_x = np.indices(cropped_cloud.shape[:2])
+                    all_pixels = np.column_stack((pixel_x.reshape(-1) + x, pixel_y.reshape(-1) + y))
+                    pixel_coordinates = all_pixels[valid]
+                else:
+                    points = np.empty((0, 3), dtype=float)
+                    pixel_coordinates = None
+
+            # 自动计算该 2D 框覆盖点云的 3D 包围框（保存到配方 camera_roi 以供后续参考）
+            if len(points) > 0:
+                new_camera_roi = {
+                    'x_min': float(points[:, 0].min()),
+                    'x_max': float(points[:, 0].max()),
+                    'y_min': float(points[:, 1].min()),
+                    'y_max': float(points[:, 1].max()),
+                    'z_min': float(points[:, 2].min()),
+                    'z_max': float(points[:, 2].max()),
+                }
         else:
             points, pixel_coordinates = self.processor.crop_by_roi_3d_with_pixels(
                 pointcloud, roi_3d,
@@ -1458,13 +1564,15 @@ class Rack3DLocator:
         
         # 如果有2D ROI，则绘制标注；否则只添加结果文字
         if target_roi:
+            # 获取完整的开口矩形数据（包含 pixel_points 和 points）
+            opening_rectangle = (output.result_data or {}).get('opening_rectangle', {})
             annotated = image_io.annotate_pointcloud_roi(
                 preview, target_roi,
-                offsets={'offset_x': output.offset_x, 'offset_y': output.offset_y, 'offset_z': output.offset_z},
+                offsets={'x': output.offset_x, 'y': output.offset_y, 'z': output.offset_z},
                 confidence=output.confidence,
                 actual=(output.actual_x, output.actual_y, output.actual_z),
                 locate_ok=output.locate_ok,
-                feature_points=(output.result_data or {}).get('opening_rectangle', {}).get('pixel_points'),
+                feature_points=opening_rectangle,
             )
         else:
             # 没有2D ROI，只在图像上添加结果文字（不绘制框）
