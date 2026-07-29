@@ -1200,16 +1200,43 @@
     loadRecipeRoi(id);
   }
 
-  // 监听配方下拉框变化
-  document.getElementById('recipe-select')?.addEventListener('change', applyRecipeFromDropdown);
+  // ── 监听配方下拉框 ──
+  // Bug修复：当配方1已被默认选中时，再次点击配方1不会触发 change 事件。
+  // 使用 mousedown 记录"打开前的值"，blur 时若值未变化则手动触发应用。
+  (function setupRecipeSelectEvents() {
+    const sel = document.getElementById('recipe-select');
+    if (!sel) return;
+    let _valueBeforeOpen = sel.value;
 
-  // 初始化：应用第一个配方
-  document.addEventListener('DOMContentLoaded', function () {
+    // change 事件：正常切换时触发
+    sel.addEventListener('change', function () {
+      _valueBeforeOpen = this.value;
+      applyRecipeFromDropdown();
+    });
+
+    // mousedown：记录打开下拉前的值
+    sel.addEventListener('mousedown', function () {
+      _valueBeforeOpen = this.value;
+    });
+
+    // blur：下拉关闭后，若值没变（重选了同一项）也触发一次
+    sel.addEventListener('blur', function () {
+      if (this.value && this.value === _valueBeforeOpen) {
+        applyRecipeFromDropdown();
+      }
+    });
+  })();
+
+  // 初始化：在外部 JS (rack_locator_workbench.js) 加载完成后再应用第一个配方，
+  // 确保 window.rackLocatorSetRoi 已经就绪。
+  // 注：这个函数会在下方 <script src="..."> 的 onload 回调中调用。
+  function initFirstRecipeOnJsReady() {
     const select = document.getElementById('recipe-select');
     if (select && select.options.length > 0 && select.options[0].value) {
       applyRecipeFromDropdown();
     }
-  });
+  }
+  window._rlInitFirstRecipe = initFirstRecipeOnJsReady;
 
   // 兼容性：保留旧的selectRecipeCard函数（供外部调用）
   function selectRecipeCard(el) {
@@ -1263,8 +1290,19 @@
           const targetRoi = (recipe.roi_config || {}).target_roi;
           if (targetRoi && targetRoi.x != null && targetRoi.y != null &&
               targetRoi.w != null && targetRoi.h != null) {
-            console.log('找到配方的 2D ROI:', targetRoi);
-            showRoiOnCanvas(targetRoi);
+            console.log('[loadRecipeRoi] 找到配方 2D ROI，调用统一接口:', targetRoi);
+            // 修复：统一通过 workbench.js 暴露的 rackLocatorSetRoi 接口设置 ROI，
+            // 该函数内部会正确判断：
+            //   有点云(state.token) → 立即画到画布
+            //   无点云             → 存入 state.pendingRoi，采集后自动应用
+            // 不再调用 showRoiOnCanvas，避免其"image.src 非空但 display:none"
+            // 时的错误分支判断导致 ROI 没有存进 state.pendingRoi。
+            if (typeof window.rackLocatorSetRoi === 'function') {
+              window.rackLocatorSetRoi(targetRoi);
+            } else {
+              // 兜底：workbench.js 尚未加载（极少情况），暂存全局
+              window.tempPendingRoi = targetRoi;
+            }
           }
         }
       }
@@ -1414,6 +1452,6 @@
     offlinePackagesUrl: '{% url "vision:offline_packages" %}',
   };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=14"></script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=16" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
 <script src="{% static 'vision/js/offline_package_manager.js' %}"></script>
 {% endblock %}

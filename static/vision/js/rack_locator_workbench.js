@@ -41,6 +41,13 @@
   window.rackLocatorSetRoi = function(targetRoi) {
     if (!targetRoi) return;
 
+    // 外部JS初始化完成时，将页面初始化阶段暂存的 tempPendingRoi 迁移进来
+    if (window.tempPendingRoi) {
+      state.pendingRoi = window.tempPendingRoi;
+      window.tempPendingRoi = null;
+      console.log('[rackLocatorSetRoi] 已将 tempPendingRoi 迁移到 state.pendingRoi');
+    }
+
     if (state.token && image.style.display !== 'none') {
       // 直接委托 applyPixelRoi，它已正确处理矩形和多边形两种情况
       if (applyPixelRoi(targetRoi)) {
@@ -367,7 +374,14 @@
     if (!token || !image.src || image.style.display === 'none') return false;
 
     try {
-      const roi = normalizePixelRoi(targetRoi) || await recipePixelRoi(recipeId);
+      // 优先级：① 调用方直接传入的 targetRoi
+      //         ② 用户切换配方时已存入 state.pendingRoi
+      //         ③ 页面初始化时外部JS尚未加载导致暂存的 window.tempPendingRoi（兜底）
+      //         ④ 远程拉取 recipePixelRoi(recipeId)
+      const roi = normalizePixelRoi(targetRoi)
+        || normalizePixelRoi(state.pendingRoi)
+        || normalizePixelRoi(window.tempPendingRoi)
+        || await recipePixelRoi(recipeId);
       // 等待接口期间如果又加载了另一帧，旧 ROI 不再覆盖新画布。
       if (state.token !== token) return false;
       if (!roi) {
