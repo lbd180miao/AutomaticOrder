@@ -798,6 +798,20 @@ async function loadRecipes() {
   }
 }
 
+// ── ROI 配置检测辅助函数（支持矩形/多边形/比例坐标三种格式）──
+function isRoiConfigured(r) {
+  if (!r || typeof r !== 'object') return false;
+  if (r.type === 'polygon') return Array.isArray(r.points) && r.points.length >= 3;
+  if ('x1r' in r && 'x2r' in r) return r.x2r > r.x1r && r.y2r > r.y1r;
+  return (r.width || 0) > 0 && (r.height || 0) > 0;
+}
+function roiLabel(r) {
+  if (!r || typeof r !== 'object') return '⚠️ 未配置';
+  if (r.type === 'polygon') return `✅ 多边形(${(r.points || []).length}点)`;
+  if ('x1r' in r) return `✅ 比例坐标 [${r.x1r?.toFixed(3)},${r.y1r?.toFixed(3)}→${r.x2r?.toFixed(3)},${r.y2r?.toFixed(3)}]`;
+  return `✅ x=${r.x}, y=${r.y}, w=${r.width}, h=${r.height}`;
+}
+
 // ── 渲染配方卡片 ───────────────────────────────────
 function renderRecipeCards() {
   document.getElementById('recipe-current-pos').textContent = currentPOS();
@@ -821,8 +835,8 @@ function renderRecipeCards() {
     const right = roi.rightFoamROI || {};
     const thresh = recipe.threshold_config || {};
 
-    const hasLeftRoi = (left.width || 0) > 0 && (left.height || 0) > 0;
-    const hasRightRoi = (right.width || 0) > 0 && (right.height || 0) > 0;
+    const hasLeftRoi = isRoiConfigured(left);
+    const hasRightRoi = isRoiConfigured(right);
     
     return `
       <div class="${classes.join(' ')}">
@@ -831,10 +845,10 @@ function renderRecipeCards() {
           <strong>POS ${recipe.pos}</strong> / 第${recipe.pos + 1}层
         </div>
         <div class="recipe-card-row">
-          左ROI: ${hasLeftRoi ? `✅ x=${left.x}, y=${left.y}, w=${left.width}, h=${left.height}` : '⚠️ 未配置'}
+          左ROI: ${hasLeftRoi ? roiLabel(left) : '⚠️ 未配置'}
         </div>
         <div class="recipe-card-row">
-          右ROI: ${hasRightRoi ? `✅ x=${right.x}, y=${right.y}, w=${right.width}, h=${right.height}` : '⚠️ 未配置'}
+          右ROI: ${hasRightRoi ? roiLabel(right) : '⚠️ 未配置'}
         </div>
         <div class="recipe-card-row">
           阈值: 覆盖率 ≥ ${thresh.coverage_threshold || 0.08}, 得分 ≥ ${thresh.score_threshold || 0.8}
