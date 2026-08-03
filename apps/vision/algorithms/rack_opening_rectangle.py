@@ -1060,6 +1060,12 @@ class RackOpeningRectangleLocator:
         if (np.abs(denominator) <= 1e-7).any():
             raise RectangleLocationError('OPENING_PLANE_NOT_FOUND', '开口角点射线与前平面近似平行')
         distance = float(np.dot(plane_normal_camera, plane_center_camera))
+        # SVD 拟合的法向量方向任意；确保法向量指向相机（distance > 0），
+        # 否则 ray_scale = distance/denominator 可能为负（交点在相机背后）。
+        if distance < 0:
+            plane_normal_camera = -plane_normal_camera
+            distance = -distance
+            denominator = -denominator
         ray_scale = distance / denominator
         actual_camera = rays * ray_scale[:, None]
         if not np.isfinite(actual_camera).all() or (ray_scale <= 0).any():
