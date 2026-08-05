@@ -31,14 +31,22 @@ from apps.dm_camera.sdk_wrapper import DMCameraConfigurationError
 
 from .algorithms import image_io
 from .algorithms.rack_opening_rectangle import (
+    ALGORITHM_VERSION,
     AUTO_ALGORITHM_VERSION,
     RackOpeningRectangleLocator,
     RectangleLocationError,
     get_algorithm_version,
     is_rectangle_v2,
+    normalize_reference_feature_config,
     standard_geometry,
 )
 from .models import RackLocationROI3D, RackLocationRecipe, RackLocationResult, VisionImage, VisionTask
+from .rack_compensation import (
+    combine_compensations,
+    compensation_from_output,
+    compensation_from_result,
+    pose6d_from_matrix,
+)
 
 
 def _decimal(value: Any, places: str = '0.001') -> Decimal:
@@ -47,6 +55,131 @@ def _decimal(value: Any, places: str = '0.001') -> Decimal:
 
 LOCATE_TYPE_GLOBAL = 'GLOBAL'
 LOCATE_TYPE_LAYER = 'LAYER'
+
+
+def _standard_rack_member(*, member_id: str, label: str, start: dict, end: dict,
+                          point_count=None, rmse_mm=None) -> dict:
+    """Describe one fitted steel member centerline from its two intersections."""
+    start_array = np.asarray([start['x'], start['y'], start['z']], dtype=float)
+    end_array = np.asarray([end['x'], end['y'], end['z']], dtype=float)
+    vector = end_array - start_array
+    length = float(np.linalg.norm(vector))
+    direction = vector / length if length > 1e-9 else np.zeros(3, dtype=float)
+    center = (start_array + end_array) / 2.0
+    return {
+        'id': member_id,
+        'label': label,
+        'centerline': {
+            'start': {'x': float(start_array[0]), 'y': float(start_array[1]), 'z': float(start_array[2])},
+            'end': {'x': float(end_array[0]), 'y': float(end_array[1]), 'z': float(end_array[2])},
+            'center': {'x': round(float(center[0]), 6), 'y': round(float(center[1]), 6), 'z': round(float(center[2]), 6)},
+            'direction': direction.round(8).tolist(),
+            'length_mm': round(length, 4),
+        },
+        'fit': {
+            'point_count': int(point_count) if point_count is not None else None,
+            'rmse_mm': round(float(rmse_mm), 4) if rmse_mm is not None else None,
+        },
+    }
+
+
+def build_standard_rack_model(opening_rectangle: dict, *, result=None, note='') -> dict:
+    """Build the persisted three-member standard rack model from a V2 fit."""
+    points = opening_rectangle.get('points') or {}
+    missing = [key for key in ('p1', 'p2', 'p3', 'p4') if key not in points]
+    if missing:
+        raise ValueError(f"标准料架建模缺少角点: {', '.join(missing)}")
+
+    quality = opening_rectangle.get('quality') or {}
+    geometry = opening_rectangle.get('geometry') or {}
+    edge_counts = quality.get('edge_point_count') or {}
+    edge_rmse = quality.get('edge_rmse_mm') or {}
+
+    def edge_metric(values, key, index):
+        if isinstance(values, dict):
+            return values.get(key)
+        if isinstance(values, (list, tuple)) and len(values) > index:
+            return values[index]
+        return None
+
+    members = {
+        'left_upright': _standard_rack_member(
+            member_id='left_upright', label='左立柱', start=points['p4'], end=points['p1'],
+            point_count=edge_metric(edge_counts, 'left', 3),
+            rmse_mm=edge_metric(edge_rmse, 'left', 3),
+        ),
+        'top_crossbeam': _standard_rack_member(
+            member_id='top_crossbeam', label='顶部横梁', start=points['p1'], end=points['p2'],
+            point_count=edge_metric(edge_counts, 'top', 0),
+            rmse_mm=edge_metric(edge_rmse, 'top', 0),
+        ),
+        'right_upright': _standard_rack_member(
+            member_id='right_upright', label='右立柱', start=points['p3'], end=points['p2'],
+            point_count=edge_metric(edge_counts, 'right', 1),
+            rmse_mm=edge_metric(edge_rmse, 'right', 1),
+        ),
+    }
+
+    center = opening_rectangle.get('center') or {}
+    normal = geometry.get('normal_out') or [0.0, 0.0, 1.0]
+    center_array = np.asarray([center.get('x', 0), center.get('y', 0), center.get('z', 0)], dtype=float)
+    normal_array = np.asarray(normal, dtype=float)
+    pose_matrix = (opening_rectangle.get('pose') or {}).get('matrix') or np.eye(4).tolist()
+    coordinate_system = opening_rectangle.get('coordinate_system') or 'unknown'
+    pose6d = pose6d_from_matrix(pose_matrix)
+    source_result_id = getattr(result, 'id', None)
+    raw_data_path = getattr(result, 'raw_data_path', '') if result else ''
+    roi_snapshot = getattr(result, 'roi_data', {}) if result else {}
+
+    return {
+        'model_version': 'THREE_MEMBER_RIGID_V1',
+        'status': 'READY',
+        'coordinate_system': coordinate_system,
+        'point_unit': opening_rectangle.get('point_unit') or 'mm',
+        'members': members,
+        'front_plane': {
+            'center': {'x': float(center_array[0]), 'y': float(center_array[1]), 'z': float(center_array[2])},
+            'normal_out': normal_array.round(8).tolist(),
+            'equation_d': round(float(np.dot(normal_array, center_array)), 6),
+            'inlier_count': quality.get('plane_inlier_count'),
+            'inlier_ratio': quality.get('plane_inlier_ratio'),
+            'rmse_mm': quality.get('plane_rmse_mm'),
+        },
+        'relative_geometry': {
+            'upright_spacing_mm': geometry.get('width_mm'),
+            'left_upright_height_mm': geometry.get('height_left_mm'),
+            'right_upright_height_mm': geometry.get('height_right_mm'),
+            'upright_parallel_error_deg': quality.get('parallel_error_deg'),
+            'crossbeam_perpendicular_error_deg': quality.get('perpendicular_error_deg'),
+            'center_consistency_mm': quality.get('center_consistency_mm'),
+        },
+        'rack_coordinate_system': {
+            'origin': {'x': float(center_array[0]), 'y': float(center_array[1]), 'z': float(center_array[2])},
+            'x_axis': geometry.get('x_axis'),
+            'y_axis': geometry.get('y_axis_in'),
+            'z_axis': geometry.get('z_axis'),
+            'pose_matrix': pose_matrix,
+        },
+        'rack_pose': {
+            'coordinate_system': coordinate_system,
+            'pose6d': pose6d,
+            'matrix': pose_matrix,
+            'robot_base_pose_available': coordinate_system == 'robot_base',
+        },
+        'pointcloud_template': {
+            'source_result_id': source_result_id,
+            'raw_data_path': raw_data_path,
+            'point_count': quality.get('valid_point_count'),
+            'roi_snapshot': roi_snapshot,
+        },
+        'quality': {
+            'confidence': quality.get('confidence'),
+            'rigid_fit_rmse_mm': quality.get('rigid_fit_rmse_mm'),
+            'max_corner_residual_mm': quality.get('max_corner_residual_mm'),
+        },
+        'saved_at': timezone.now().isoformat(),
+        'note': note,
+    }
 
 
 def normalize_locate_type(value: Any = None) -> str:
@@ -195,6 +328,17 @@ class RackLocationOutput:
     def to_payload(self) -> dict:
         payload = asdict(self)
         payload['result_data'] = self.result_data or {}
+        rack_compensation = compensation_from_output(
+            offset_x=self.offset_x,
+            offset_y=self.offset_y,
+            offset_z=self.offset_z,
+            offset_rz=self.offset_rz,
+            result_data=payload['result_data'],
+        )
+        payload['result_data']['rack_compensation'] = rack_compensation
+        payload['result_data']['compensation_transform'] = rack_compensation
+        payload['rack_compensation'] = rack_compensation
+        payload['compensation_matrix'] = rack_compensation['matrix']
         if payload['result_data'].get('opening_rectangle'):
             payload['opening_rectangle'] = payload['result_data']['opening_rectangle']
         payload['algorithm_version'] = payload['result_data'].get(
@@ -215,8 +359,14 @@ class RackLocationOutput:
             'offset_y': self.offset_y,
             'offset_z': self.offset_z,
             'offset_rz': self.offset_rz,
+            'offset_rx': rack_compensation['rotation_deg']['rx'],
+            'offset_ry': rack_compensation['rotation_deg']['ry'],
             'confidence': self.confidence,
             'compensation_valid': self.locate_ok,
+            'rack_compensation': rack_compensation,
+            'compensation_matrix': rack_compensation['matrix'],
+            'robot_taught_place_pose_count': 15,
+            'vision_managed_place_pose_count': 0,
             'error_code': self.error_code,
         }
         return payload
@@ -1003,6 +1153,99 @@ class Rack3DLocator:
             enabled=enabled,
         )
 
+    def calibrate_standard_template(self, *, recipe_id, result_id=None,
+                                    opening_rectangle=None, note='') -> dict:
+        """Persist the current three-member standard rack model into the recipe.
+
+        This implements the one-time "标准料架标定" step: under the mechanical
+        zero position, save the fitted left/right uprights, top crossbeam,
+        front plane, coordinate frame, point-cloud template and rack pose on
+        the vision host. Taught placement poses remain in the robot controller.
+        """
+        recipe = RackLocationRecipe.objects.get(pk=recipe_id)
+        result = None
+        if result_id:
+            result = RackLocationResult.objects.get(pk=result_id)
+            if result.recipe_id and result.recipe_id != recipe.id:
+                raise ValueError('定位结果与配方不匹配，不能作为该配方的标准模板')
+            opening_rectangle = (result.result_data or {}).get('opening_rectangle')
+
+        opening_rectangle = opening_rectangle or {}
+        if not opening_rectangle.get('locate_ok', False):
+            raise ValueError('标准料架模型只能从定位 OK 的三钢架拟合结果生成')
+        points = opening_rectangle.get('points') or {}
+        standard_points = {}
+        for key in ('p1', 'p2', 'p3', 'p4'):
+            point = points.get(key) or {}
+            standard_points[key] = {
+                'x': float(point['x']),
+                'y': float(point['y']),
+                'z': float(point['z']),
+            }
+
+        thresholds = (
+            (opening_rectangle.get('quality') or {}).get('thresholds')
+            or ((recipe.reference_feature_config or {}).get('opening_rectangle') or {}).get('thresholds')
+            or {}
+        )
+        standard_rack_model = build_standard_rack_model(
+            opening_rectangle,
+            result=result,
+            note=note,
+        )
+        reference_feature_config = normalize_reference_feature_config(
+            recipe.reference_feature_config or {},
+        )
+        reference_feature_config.update({
+            'algorithm_version': ALGORITHM_VERSION,
+            'standard_template': {
+                'template_type': 'three_member_rack_model',
+                'model_version': standard_rack_model['model_version'],
+                'source_result_id': result.id if result else None,
+                'saved_at': standard_rack_model['saved_at'],
+                'note': note,
+                'robot_taught_place_pose_count': 15,
+                'vision_managed_place_pose_count': 0,
+            },
+            'standard_rack_model': standard_rack_model,
+            'opening_rectangle': {
+                **((reference_feature_config.get('opening_rectangle') or {})),
+                'coordinate_system': opening_rectangle.get('coordinate_system') or 'robot_base',
+                'standard_points': standard_points,
+                'thresholds': thresholds,
+            },
+        })
+        reference_feature_config = normalize_reference_feature_config(reference_feature_config)
+        reference = standard_geometry(reference_feature_config)
+        recipe.reference_feature_config = reference_feature_config
+        recipe.standard_x = float(reference['center_array'][0])
+        recipe.standard_y = float(reference['center_array'][1])
+        recipe.standard_z = float(reference['center_array'][2])
+        recipe.standard_rz = float((opening_rectangle.get('pose') or {}).get('rz') or 0)
+        recipe.save(update_fields=[
+            'reference_feature_config',
+            'standard_x',
+            'standard_y',
+            'standard_z',
+            'standard_rz',
+            'updated_at',
+        ])
+        return {
+            'recipe_id': recipe.id,
+            'recipe_name': recipe.recipe_name,
+            'reference_feature_config': recipe.reference_feature_config,
+            'standard_rack_model': standard_rack_model,
+            'standard_pose': {
+                'x': float(recipe.standard_x),
+                'y': float(recipe.standard_y),
+                'z': float(recipe.standard_z),
+                'rz': float(recipe.standard_rz),
+            },
+            'source_result_id': result.id if result else None,
+            'robot_taught_place_pose_count': 15,
+            'vision_managed_place_pose_count': 0,
+        }
+
     def capture(self, *, recipe_id=None, layer_no=1, rack_side=None, **_kwargs) -> dict:
         """采集点云数据（每次调用都重新采集一帧实时数据）。
         
@@ -1448,14 +1691,30 @@ class Rack3DLocator:
             layer_index=layer_no,
         )
         measured = self._output_offset(output)
+        measured_compensation = compensation_from_output(
+            offset_x=measured['x'],
+            offset_y=measured['y'],
+            offset_z=measured['z'],
+            offset_rz=measured['rz'],
+            result_data=payload.get('result_data') or output.result_data or {},
+        )
         global_result = None
         if semantics['locate_type'] == LOCATE_TYPE_GLOBAL:
             overall = measured
             layer = self._offset_dict()
+            overall_compensation = measured_compensation
+            layer_compensation = compensation_from_output()
+            final_compensation = measured_compensation
         else:
             global_result = self._latest_global_result(recipe=recipe, rack_side=rack_side)
             overall = self._result_offset(global_result)
             layer = measured
+            overall_compensation = compensation_from_result(
+                global_result.result_data if global_result else {},
+                fallback_offset=overall,
+            )
+            layer_compensation = measured_compensation
+            final_compensation = combine_compensations(overall_compensation, layer_compensation)
         final = self._combine_offsets(overall, layer)
         plc_payload = {
             **(payload.get('plc_payload') or {}),
@@ -1464,10 +1723,16 @@ class Rack3DLocator:
             'offset_x': final['x'],
             'offset_y': final['y'],
             'offset_z': final['z'],
-            'offset_rz': final['rz'],
             'overall_offset': overall,
             'layer_offset': layer,
             'final_offset': final,
+            'rack_compensation': final_compensation,
+            'compensation_matrix': final_compensation['matrix'],
+            'offset_rx': final_compensation['rotation_deg']['rx'],
+            'offset_ry': final_compensation['rotation_deg']['ry'],
+            'offset_rz': final_compensation['rotation_deg']['rz'],
+            'robot_taught_place_pose_count': 15,
+            'vision_managed_place_pose_count': 0,
         }
         return {
             'locate_type': semantics['locate_type'],
@@ -1475,6 +1740,12 @@ class Rack3DLocator:
             'overall_offset': overall,
             'layer_offset': layer,
             'final_offset': final,
+            'measured_compensation': measured_compensation,
+            'overall_compensation': overall_compensation,
+            'layer_compensation': layer_compensation,
+            'rack_compensation': final_compensation,
+            'compensation_transform': final_compensation,
+            'compensation_matrix': final_compensation['matrix'],
             'global_result_id': global_result.id if global_result else None,
             'plc_payload': plc_payload,
         }
@@ -1594,6 +1865,7 @@ class Rack3DLocator:
             annotated, 'rack_3d_result', rel_dir='vision/rack_3d',
         )
         saved_result = None
+        payload = output.to_payload()
         
         # 如果需要保存记录，创建VisionTask和RackLocationResult
         if save_record:
@@ -1641,7 +1913,7 @@ class Rack3DLocator:
                 raw_data_path=token or '',
                 result_image_path=result_rel,
                 roi_data=roi_snapshot,
-                result_data={**(output.result_data or {}), 'roi': roi_snapshot},
+                result_data={**(payload.get('result_data') or {}), 'roi': roi_snapshot},
             )
 
             depth_rel, depth_width, depth_height = image_io.save_image(
@@ -1664,7 +1936,6 @@ class Rack3DLocator:
                 captured_at=timezone.now(),
             )
         
-        payload = output.to_payload()
         payload.update({
             'roi_source': 'request',
             'cropped_preview_url': settings.MEDIA_URL + result_rel,
@@ -2137,6 +2408,7 @@ class RackLocationService:
         output, result_rel = self._compute_workbench(
             token=token, roi_config=roi_config, recipe=recipe, layer_no=layer_no,
         )
+        payload = output.to_payload()
         
         # 如果需要保存记录，创建VisionTask和RackLocationResult
         if save_record:
@@ -2170,7 +2442,7 @@ class RackLocationService:
                 error_message=output.error_message,
                 raw_data_path='',
                 result_image_path=result_rel,
-                result_data=output.result_data or {},
+                result_data=payload.get('result_data') or {},
             )
             
             # 创建结果图像记录
@@ -2181,7 +2453,6 @@ class RackLocationService:
                 captured_at=timezone.now(),
             )
         
-        payload = output.to_payload()
         payload['result_image_url'] = settings.MEDIA_URL + result_rel
         payload['result_image_path'] = result_rel
         payload['source'] = (output.result_data or {}).get('source', 'workbench')
@@ -2412,6 +2683,15 @@ def _normalized_plc_payload(result: RackLocationResult, *, locate_type: str,
                             layer_index: int, overall: dict, layer: dict,
                             final: dict) -> dict:
     payload = dict((result.result_data or {}).get('plc_payload') or {})
+    rack_compensation = compensation_from_result(
+        result.result_data or {},
+        fallback_offset={
+            'x': float(final.get('x', result.offset_x)),
+            'y': float(final.get('y', result.offset_y)),
+            'z': float(final.get('z', result.offset_z)),
+            'rz': float(final.get('rz', result.offset_rz)),
+        },
+    )
     final_offset = {
         'x': float(final.get('x', result.offset_x)),
         'y': float(final.get('y', result.offset_y)),
@@ -2428,6 +2708,12 @@ def _normalized_plc_payload(result: RackLocationResult, *, locate_type: str,
         'overall_offset': payload.get('overall_offset') or overall or {},
         'layer_offset': payload.get('layer_offset') or layer or {},
         'final_offset': payload.get('final_offset') or final_offset,
+        'offset_rx': float(payload.get('offset_rx', rack_compensation['rotation_deg']['rx'])),
+        'offset_ry': float(payload.get('offset_ry', rack_compensation['rotation_deg']['ry'])),
+        'rack_compensation': payload.get('rack_compensation') or rack_compensation,
+        'compensation_matrix': payload.get('compensation_matrix') or rack_compensation['matrix'],
+        'robot_taught_place_pose_count': int(payload.get('robot_taught_place_pose_count', 15)),
+        'vision_managed_place_pose_count': int(payload.get('vision_managed_place_pose_count', 0)),
         'compensation_valid': bool(payload.get('compensation_valid', result.is_success)),
     })
     return payload
@@ -2451,6 +2737,15 @@ def result_payload(result: RackLocationResult) -> dict:
         overall=overall,
         layer=layer,
         final=final,
+    )
+    rack_compensation = compensation_from_result(
+        data,
+        fallback_offset={
+            'x': float(final.get('x', result.offset_x)),
+            'y': float(final.get('y', result.offset_y)),
+            'z': float(final.get('z', result.offset_z)),
+            'rz': float(final.get('rz', result.offset_rz)),
+        },
     )
     opening_rectangle = data.get('opening_rectangle') or None
     return {
@@ -2494,6 +2789,9 @@ def result_payload(result: RackLocationResult) -> dict:
         'plc_write_status': result.plc_write_status,
         'plc_error_message': result.plc_error_message,
         'plc_payload': plc_payload,
+        'rack_compensation': rack_compensation,
+        'compensation_matrix': rack_compensation['matrix'],
+        'compensation_pose6d': rack_compensation['pose6d'],
         'algorithm_version': data.get('algorithm_version') or get_algorithm_version(None),
         'opening_rectangle': opening_rectangle,
         'tcp_verification': data.get('tcp_verification'),

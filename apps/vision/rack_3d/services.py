@@ -18,6 +18,8 @@ import numpy as np
 from django.conf import settings
 from django.db import transaction
 
+from apps.vision.rack_compensation import compensation_from_output
+
 from .providers import ProviderFactory
 from .processors import PointCloudProcessor
 from .algorithms import PositioningAlgorithm
@@ -105,6 +107,12 @@ class RackPositioningService:
             x_res['x_actual'], y_res['y_actual'], z_res['z_actual'], std_x, std_y, std_z
         )
         compensations = self.calculator.calculate_compensations(**offsets)
+        rack_compensation = compensation_from_output(
+            offset_x=offsets['offset_x'],
+            offset_y=offsets['offset_y'],
+            offset_z=offsets['offset_z'],
+            offset_rz=0,
+        )
 
         # 7) 校验
         confidence = self.calculator.calculate_overall_confidence(
@@ -126,6 +134,11 @@ class RackPositioningService:
             'standard_x': std_x, 'standard_y': std_y, 'standard_z': std_z,
             **offsets,
             **compensations,
+            'rack_compensation': rack_compensation,
+            'compensation_transform': rack_compensation,
+            'compensation_matrix': rack_compensation['matrix'],
+            'robot_taught_place_pose_count': 15,
+            'vision_managed_place_pose_count': 0,
             'confidence': confidence,
             'is_success': is_valid,
             'error_message': error_msg or '',
@@ -137,6 +150,8 @@ class RackPositioningService:
                 'z_detection': z_res,
                 'y_detection': y_res,
                 'x_detection': x_res,
+                'rack_compensation': rack_compensation,
+                'compensation_transform': rack_compensation,
             },
         }
 

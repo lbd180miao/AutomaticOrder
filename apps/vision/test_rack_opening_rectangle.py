@@ -253,6 +253,65 @@ class RackOpeningRectangleIntegrationTests(TestCase):
         self.assertEqual(payload['algorithm_version'], 'RECTANGLE_CORNERS_V2')
         self.assertEqual(len(payload['opening_rectangle']['points']), 4)
         self.assertAlmostEqual(output.actual_x, float(expected.mean(axis=0)[0]), delta=1.0)
+        self.assertEqual(payload['rack_compensation']['meaning'], 'standard_rack_to_current_rack')
+        self.assertEqual(payload['rack_compensation']['source'], 'opening_rectangle_deviation')
+        self.assertEqual(payload['plc_payload']['robot_taught_place_pose_count'], 15)
+        np.testing.assert_allclose(
+            np.asarray(payload['compensation_matrix']),
+            np.asarray(payload['opening_rectangle']['deviation_transform']['matrix']),
+            atol=1e-8,
+        )
+
+    def test_standard_template_calibration_persists_current_zero_pose(self):
+        cloud, expected = rectangle_edge_cloud()
+        opening = RackOpeningRectangleLocator().locate(cloud, self.config)
+        task = VisionTask.objects.create(task_type=VisionTaskType.RACK_LOCATING)
+        result = RackLocationResult.objects.create(
+            vision_task=task,
+            recipe=self.recipe,
+            side=RackSide.BOTH,
+            position_no=1,
+            layer_no=1,
+            actual_x=opening['center']['x'],
+            actual_y=opening['center']['y'],
+            actual_z=opening['center']['z'],
+            confidence=opening['quality']['confidence'],
+            is_success=True,
+            result_data={
+                'algorithm_version': 'RECTANGLE_CORNERS_V2',
+                'opening_rectangle': opening,
+            },
+        )
+
+        response = self.client.post(
+            reverse('vision:api_rack_location_calibrate_standard', args=[self.recipe.id]),
+            data=json.dumps({'result_id': result.id, 'note': 'zero pose'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()['standard_template']
+        self.assertEqual(payload['robot_taught_place_pose_count'], 15)
+        model = payload['standard_rack_model']
+        self.assertEqual(model['model_version'], 'THREE_MEMBER_RIGID_V1')
+        self.assertEqual(
+            set(model['members']),
+            {'left_upright', 'top_crossbeam', 'right_upright'},
+        )
+        self.assertIn('front_plane', model)
+        self.assertIn('rack_coordinate_system', model)
+        self.assertIn('pointcloud_template', model)
+        self.assertEqual(model['pointcloud_template']['source_result_id'], result.id)
+        self.recipe.refresh_from_db()
+        self.assertEqual(
+            self.recipe.reference_feature_config['standard_template']['source_result_id'],
+            result.id,
+        )
+        self.assertEqual(
+            self.recipe.reference_feature_config['standard_template']['template_type'],
+            'three_member_rack_model',
+        )
+        self.assertAlmostEqual(float(self.recipe.standard_x), float(expected.mean(axis=0)[0]), delta=1.0)
 
     def test_tcp_verification_api_persists_audit_data(self):
         cloud, _ = rectangle_edge_cloud()
