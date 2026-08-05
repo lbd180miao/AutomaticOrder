@@ -316,6 +316,8 @@ class Rack3DSerializationSemanticsTests(TestCase):
         self.assertEqual(payload['overall_offset_x'], 10.0)
         self.assertEqual(payload['layer_offset_x'], 1.0)
         self.assertEqual(payload['final_offset_x'], 11.0)
+        self.assertEqual(payload['rack_compensation']['meaning'], 'standard_rack_to_current_rack')
+        self.assertEqual(len(payload['compensation_matrix']), 4)
 
 
 @override_settings(MEDIA_ROOT=mkdtemp())
@@ -2437,6 +2439,13 @@ class RackLocation3DViewTests(TestCase):
         self.assertContains(response, 'btn-auto-align')
         self.assertContains(response, 'btn-save-roi')
         self.assertContains(response, 'btn-write-plc')
+        self.assertContains(response, '标准料架建模')
+        self.assertContains(response, 'model-left-upright')
+        self.assertContains(response, 'model-top-crossbeam')
+        self.assertContains(response, 'model-right-upright')
+        self.assertContains(response, 'model-front-plane')
+        self.assertContains(response, 'model-step-frame')
+        self.assertContains(response, '建立标准料架模型')
         self.assertNotContains(response, 'btn-sdk-debug')
         self.assertNotContains(response, 'sdk-debug-drawer')
         self.assertNotContains(response, 'sdk-frame-rate')

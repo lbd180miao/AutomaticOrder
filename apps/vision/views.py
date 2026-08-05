@@ -2369,6 +2369,26 @@ def api_rack_location_recipe_update(request, recipe_id):
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
+@require_POST
+def api_rack_location_calibrate_standard(request, recipe_id):
+    """将标准零位下的一次三钢架拟合结果固化为标准料架模型。"""
+    try:
+        data = _request_data(request)
+        payload = Rack3DLocator().calibrate_standard_template(
+            recipe_id=recipe_id,
+            result_id=data.get('result_id') or None,
+            opening_rectangle=data.get('opening_rectangle') or None,
+            note=data.get('note') or '',
+        )
+        return JsonResponse({'success': True, 'standard_template': payload})
+    except RackLocationRecipe.DoesNotExist:
+        return JsonResponse({'success': False, 'error': '未找到3D料架定位配方'}, status=404)
+    except RackLocationResult.DoesNotExist:
+        return JsonResponse({'success': False, 'error': '未找到定位结果'}, status=404)
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
 @require_http_methods(['GET'])
 def api_rack_location_recipe_detail(request, recipe_id):
     """获取配方详情，包含已保存的ROI坐标"""

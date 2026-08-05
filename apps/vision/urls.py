@@ -110,6 +110,7 @@ urlpatterns = [
     path('api/rack-location/recipes/', views.api_rack_location_recipes, name='api_rack_location_recipes'),
     path('api/rack-location/recipes/<int:recipe_id>/', views.api_rack_location_recipe_detail, name='api_rack_location_recipe_detail'),
     path('api/rack-location/recipes/<int:recipe_id>/update/', views.api_rack_location_recipe_update, name='api_rack_location_recipe_update'),
+    path('api/rack-location/recipes/<int:recipe_id>/calibrate-standard/', views.api_rack_location_calibrate_standard, name='api_rack_location_calibrate_standard'),
     path('api/rack-location/results/', views.api_rack_location_results, name='api_rack_location_results'),
     path('api/rack-location/results/<int:result_id>/tcp-verification/', views.api_rack_location_tcp_verification, name='api_rack_location_tcp_verification'),
 ]

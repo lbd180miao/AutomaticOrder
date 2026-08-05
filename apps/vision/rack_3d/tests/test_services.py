@@ -63,6 +63,9 @@ class RackPositioningServiceMockTest(TestCase):
         # 补偿 = 偏移，且接近 0（standard 设为期望实际值）
         self.assertLess(abs(result['offset_z']), 5)
         self.assertEqual(result['compensation_z'], result['offset_z'])
+        self.assertEqual(result['rack_compensation']['meaning'], 'standard_rack_to_current_rack')
+        self.assertEqual(result['rack_compensation']['robot_taught_place_pose_count'], 15)
+        self.assertEqual(len(result['compensation_matrix']), 4)
 
         # 结果落库
         self.assertIn('result_id', result)
@@ -70,6 +73,7 @@ class RackPositioningServiceMockTest(TestCase):
         self.assertTrue(rec.is_success)
         self.assertEqual(rec.layer_no, LAYER)
         self.assertIn('z_detection', rec.result_data)
+        self.assertIn('rack_compensation', rec.result_data)
 
     def test_no_save_when_save_false(self):
         self._service().execute_positioning(self.recipe.id, LAYER, save=False)
