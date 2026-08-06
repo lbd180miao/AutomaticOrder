@@ -602,3 +602,182 @@ class RackPositioningAlgorithm:
                 'confidence': float(result.pillar_result.confidence)
             } if result.pillar_result else None,
         }
+
+
+# =============================================================================
+# V2 刚体变换补偿算法（局部三维几何模板方案）
+# =============================================================================
+
+import datetime
+
+
+class RackStructureError(Exception):
+    """料架结构异常（校验失败时抛出，禁止执行补偿）"""
+    def __init__(self, message: str, error_code: str = "UNKNOWN", detail: dict = None):
+        super().__init__(message)
+        self.error_code = error_code
+        self.detail = detail or {}
+
+
+class RigidBodyCompensationAlgorithm:
+    """
+    料架定位补偿算法 V2 —— 局部三维几何模板刚体变换方案。
+
+    与旧版本 RackPositioningAlgorithm 的区别：
+      - 旧版：分别检测 Z（支撑面）、Y（前边缘）、X（立柱），数值相减求偏差
+      - 新版：拟合区域1/2/3三个平面建立局部坐标系，通过 ΔT = T_cur @ inv(T_std)
+              直接求解 6DoF 刚体偏差矩阵，更稳定、更精确、避免坐标解耦假设
+
+    视觉系统仅输出 6DoF 偏差量给 PLC，机器人控制器负责对 15 个装箱点统一补偿。
+
+    使用示例：
+        algo = RigidBodyCompensationAlgorithm()
+
+        # 示教阶段
+        template = algo.teach_mode_build_template(roi1_pts, roi2_pts, roi3_pts)
+        recipe.local_template_std = template   # 存入数据库
+
+        # 生产阶段
+        result = algo.production_mode_compute(recipe.local_template_std,
+                                              roi1_pts, roi2_pts, roi3_pts)
+        # result["compensation"] → {dX, dY, dZ, dRx, dRy, dRz} 发给 PLC
+    """
+
+    def __init__(
+        self,
+        w1: float = 0.5,
+        w3: float = 0.5,
+        ransac_distance_threshold: float = 2.0,
+        ransac_num_iterations: int = 1000,
+        ransac_min_inliers: int = 50,
+        angle_tolerance_deg: float = 3.0,
+        z_diff_tolerance_mm: float = 5.0,
+        orthogonal_tolerance_deg: float = 5.0,
+        min_inlier_ratio: float = 0.70,
+    ):
+        from apps.vision.algorithms.local_template_3d import LocalTemplate3D
+        from apps.vision.algorithms.rack_structure_validator import RackStructureValidator
+
+        self._template_algo = LocalTemplate3D(
+            w1=w1, w3=w3,
+            ransac_distance_threshold=ransac_distance_threshold,
+            ransac_num_iterations=ransac_num_iterations,
+            ransac_min_inliers=ransac_min_inliers,
+        )
+        self._validator = RackStructureValidator(
+            angle_tolerance_deg=angle_tolerance_deg,
+            z_diff_tolerance_mm=z_diff_tolerance_mm,
+            orthogonal_tolerance_deg=orthogonal_tolerance_deg,
+            min_inlier_ratio=min_inlier_ratio,
+        )
+
+    def teach_mode_build_template(
+        self,
+        roi1_cloud: np.ndarray,
+        roi2_cloud: np.ndarray,
+        roi3_cloud: np.ndarray,
+    ) -> dict:
+        """
+        示教阶段：采集三个基准区域点云，建立标准局部坐标系模板。
+
+        Returns:
+            可序列化字典，直接存入 Recipe.local_template_std
+        """
+        logger.info("示教模式：开始建立标准局部坐标系模板")
+        frame = self._template_algo.build_local_frame(roi1_cloud, roi2_cloud, roi3_cloud)
+
+        validation = self._validator.validate(frame_cur=frame, frame_std=None)
+        if not validation.is_valid:
+            raise RackStructureError(
+                f"示教数据质量不合格，无法建立标准模板：{validation.message}",
+                error_code=validation.error_code.value,
+                detail=validation.to_dict(),
+            )
+
+        result = frame.to_dict()
+        result["build_timestamp"] = datetime.datetime.now().isoformat()
+        result["algorithm_version"] = "v2_rigid_body"
+        result["template_summary"] = {
+            "plane1_inlier_pct": round(frame.plane1.inlier_ratio * 100, 1),
+            "plane2_inlier_pct": round(frame.plane2.inlier_ratio * 100, 1),
+            "plane3_inlier_pct": round(frame.plane3.inlier_ratio * 100, 1),
+            "plane1_point_count": frame.plane1.point_count,
+            "plane2_point_count": frame.plane2.point_count,
+            "plane3_point_count": frame.plane3.point_count,
+        }
+
+        logger.info(
+            "标准模板建立完成 | 时间=%s | 内点率 ROI1=%.1f%% ROI2=%.1f%% ROI3=%.1f%%",
+            result["build_timestamp"],
+            frame.plane1.inlier_ratio * 100,
+            frame.plane2.inlier_ratio * 100,
+            frame.plane3.inlier_ratio * 100,
+        )
+        return result
+
+    def production_mode_compute(
+        self,
+        template_std_dict: dict,
+        roi1_cloud: np.ndarray,
+        roi2_cloud: np.ndarray,
+        roi3_cloud: np.ndarray,
+        raise_on_invalid: bool = True,
+    ) -> dict:
+        """
+        生产阶段：计算相对于标准模板的刚体变换偏差。
+
+        Returns:
+            {
+                "is_valid": bool,
+                "compensation": {"dX", "dY", "dZ", "dRx", "dRy", "dRz"},
+                "delta_T": [[4x4]],
+                "validation": {...},
+                "confidence": float,
+                "compute_timestamp": str
+            }
+        """
+        logger.info("生产模式：开始计算补偿偏差")
+
+        from apps.vision.algorithms.local_template_3d import LocalFrameResult
+
+        frame_std = LocalFrameResult.from_dict(template_std_dict)
+        frame_cur = self._template_algo.build_local_frame(roi1_cloud, roi2_cloud, roi3_cloud)
+
+        validation = self._validator.validate(frame_cur=frame_cur, frame_std=frame_std)
+
+        if not validation.is_valid and raise_on_invalid:
+            raise RackStructureError(
+                f"料架结构校验失败，拒绝执行补偿：{validation.message}",
+                error_code=validation.error_code.value,
+                detail=validation.to_dict(),
+            )
+
+        delta = self._template_algo.compute_delta_T(frame_std, frame_cur)
+
+        confidence = float(
+            (frame_cur.plane1.inlier_ratio +
+             frame_cur.plane2.inlier_ratio +
+             frame_cur.plane3.inlier_ratio) / 3.0
+        )
+
+        logger.info(
+            "补偿计算完成 | ΔX=%.2f ΔY=%.2f ΔZ=%.2f ΔRx=%.3f° ΔRy=%.3f° ΔRz=%.3f° | 置信度=%.1f%%",
+            delta.dX, delta.dY, delta.dZ,
+            delta.dRx, delta.dRy, delta.dRz,
+            confidence * 100,
+        )
+
+        return {
+            "is_valid": validation.is_valid,
+            "compensation": {
+                "dX": delta.dX, "dY": delta.dY, "dZ": delta.dZ,
+                "dRx": delta.dRx, "dRy": delta.dRy, "dRz": delta.dRz,
+            },
+            "delta_T": delta.delta_T.tolist(),
+            "local_template_cur": frame_cur.to_dict(),
+            "validation": validation.to_dict(),
+            "confidence": round(confidence, 4),
+            "compute_timestamp": datetime.datetime.now().isoformat(),
+            "translation_magnitude_mm": round(delta.translation_magnitude, 3),
+            "rotation_magnitude_deg": round(delta.rotation_magnitude, 3),
+        }

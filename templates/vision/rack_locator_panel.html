@@ -37,336 +37,13 @@
     vertical-align: -3px;
   }
 
-  .rl-flow-strip {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-    margin-bottom: 18px;
-  }
 
-  .rl-flow-step {
-    display: grid;
-    grid-template-columns: 32px minmax(0, 1fr);
-    gap: 10px;
-    align-items: center;
-    min-height: 72px;
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: #fff;
-    box-shadow: var(--shadow-sm);
-  }
-
-  .rl-flow-step.active {
-    border-color: #0284c7;
-    background: #f0f9ff;
-  }
-
-  .rl-flow-step.done {
-    border-color: #16a34a;
-    background: #f0fdf4;
-  }
-
-  .rl-flow-index {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: #e5e7eb;
-    color: #374151;
-    font-weight: 800;
-    font-size: 13px;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .rl-flow-step.active .rl-flow-index {
-    background: #0284c7;
-    color: #fff;
-  }
-
-  .rl-flow-step.done .rl-flow-index {
-    background: #16a34a;
-    color: #fff;
-  }
-
-  .rl-flow-title {
-    display: block;
-    font-size: 13px;
-    font-weight: 800;
-    color: var(--text);
-    overflow-wrap: anywhere;
-  }
-
-  .rl-flow-sub {
-    display: block;
-    margin-top: 4px;
-    font-size: 12px;
-    color: var(--text-muted);
-    line-height: 1.4;
-    overflow-wrap: anywhere;
-  }
-
-  @media (max-width: 820px) {
-    .rl-flow-strip {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  /* 标准料架一次性建模 */
-  .rl-model-workspace {
-    margin-bottom: 18px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: #fff;
-    box-shadow: var(--shadow-sm);
-    overflow: hidden;
-  }
-
-  .rl-model-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--border);
-    background: #f8fafc;
-  }
-
-  .rl-model-head h2 {
-    margin: 0;
-    font-size: 16px;
-    color: #111827;
-  }
-
-  .rl-model-head p {
-    margin: 4px 0 0;
-    color: var(--text-muted);
-    font-size: 12px;
-  }
-
-  .rl-model-head-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 0 0 auto;
-  }
-
-  .rl-model-body {
-    display: grid;
-    grid-template-columns: minmax(300px, .85fr) minmax(520px, 1.5fr);
-    min-width: 0;
-  }
-
-  .rl-model-visual {
-    padding: 18px;
-    border-right: 1px solid var(--border);
-    background: #f8fafc;
-  }
-
-  .rl-rack-figure {
-    position: relative;
-    width: min(100%, 390px);
-    aspect-ratio: 16 / 10;
-    margin: 0 auto;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    background: #e2e8f0;
-    overflow: hidden;
-  }
-
-  .rl-rack-plane {
-    position: absolute;
-    inset: 14% 15% 13%;
-    border: 1px dashed #38bdf8;
-    background: rgba(14, 165, 233, .08);
-  }
-
-  .rl-rack-plane.ready {
-    border-color: #0284c7;
-    background: rgba(14, 165, 233, .16);
-  }
 
   .badge-warning {
     background: #fef3c7;
     color: #92400e;
   }
 
-  .rl-rack-member {
-    position: absolute;
-    z-index: 2;
-    background: #64748b;
-    border: 1px solid #475569;
-    transition: background .2s, border-color .2s;
-  }
-
-  .rl-rack-member.ready {
-    background: #16a34a;
-    border-color: #15803d;
-  }
-
-  .rl-rack-member.left,
-  .rl-rack-member.right {
-    top: 18%;
-    bottom: 12%;
-    width: 18px;
-  }
-
-  .rl-rack-member.left { left: 18%; }
-  .rl-rack-member.right { right: 18%; }
-
-  .rl-rack-member.top {
-    top: 17%;
-    left: 18%;
-    right: 18%;
-    height: 18px;
-  }
-
-  .rl-rack-label {
-    position: absolute;
-    z-index: 3;
-    padding: 3px 6px;
-    border-radius: 4px;
-    background: rgba(15, 23, 42, .86);
-    color: #fff;
-    font-size: 10px;
-    line-height: 1.2;
-  }
-
-  .rl-rack-label.left { left: 7%; top: 48%; }
-  .rl-rack-label.right { right: 7%; top: 48%; }
-  .rl-rack-label.top { left: 43%; top: 7%; }
-  .rl-rack-label.plane { left: 39%; top: 47%; background: #0369a1; }
-
-  .rl-rack-axis {
-    position: absolute;
-    left: 50%;
-    bottom: 20%;
-    z-index: 4;
-    font-size: 10px;
-    font-weight: 800;
-  }
-
-  .rl-rack-axis.x { color: #dc2626; transform: translateX(22px); }
-  .rl-rack-axis.y { color: #2563eb; transform: translate(-6px, -22px); }
-  .rl-rack-axis.z { color: #16a34a; transform: translate(-28px, 7px); }
-
-  .rl-model-caption {
-    margin-top: 10px;
-    color: var(--text-muted);
-    font-size: 12px;
-    line-height: 1.5;
-  }
-
-  .rl-model-data {
-    min-width: 0;
-    padding: 16px 18px;
-  }
-
-  .rl-model-progress {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-  }
-
-  .rl-model-step {
-    min-width: 0;
-    padding: 9px 7px;
-    border-right: 1px solid var(--border);
-    background: #f8fafc;
-    color: #64748b;
-    font-size: 11px;
-    font-weight: 700;
-    text-align: center;
-    overflow-wrap: anywhere;
-  }
-
-  .rl-model-step:last-child { border-right: 0; }
-  .rl-model-step.ready { background: #f0fdf4; color: #166534; }
-
-  .rl-model-metrics {
-    width: 100%;
-    margin-top: 12px;
-    border-collapse: collapse;
-    table-layout: fixed;
-    font-size: 12px;
-  }
-
-  .rl-model-metrics th,
-  .rl-model-metrics td {
-    padding: 8px 9px;
-    border: 1px solid var(--border);
-    text-align: left;
-    overflow-wrap: anywhere;
-  }
-
-  .rl-model-metrics th {
-    width: 19%;
-    background: #f8fafc;
-    color: #475569;
-    font-weight: 700;
-  }
-
-  .rl-model-metrics td {
-    width: 31%;
-    color: #111827;
-    font-family: monospace;
-  }
-
-  .rl-model-pose {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 6px;
-    margin-top: 12px;
-  }
-
-  .rl-model-pose > div {
-    min-width: 0;
-    padding: 7px 6px;
-    border-top: 2px solid #0284c7;
-    background: #f0f9ff;
-    text-align: center;
-  }
-
-  .rl-model-pose span { display: block; color: #64748b; font-size: 10px; font-weight: 700; }
-  .rl-model-pose strong { display: block; margin-top: 3px; color: #0f172a; font: 700 12px monospace; overflow-wrap: anywhere; }
-
-  .rl-model-meta {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    padding: 11px 18px;
-    border-top: 1px solid var(--border);
-    background: #f8fafc;
-    color: #475569;
-    font-size: 11px;
-  }
-
-  .rl-model-meta strong {
-    display: block;
-    margin-top: 3px;
-    color: #111827;
-    font-weight: 700;
-    overflow-wrap: anywhere;
-  }
-
-  @media (max-width: 1100px) {
-    .rl-model-body { grid-template-columns: 1fr; }
-    .rl-model-visual { border-right: 0; border-bottom: 1px solid var(--border); }
-  }
-
-  @media (max-width: 720px) {
-    .rl-model-head { align-items: flex-start; flex-direction: column; }
-    .rl-model-head-actions { width: 100%; justify-content: space-between; }
-    .rl-model-progress { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .rl-model-step:nth-child(3) { border-right: 0; }
-    .rl-model-step:nth-child(-n+3) { border-bottom: 1px solid var(--border); }
-    .rl-model-pose { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .rl-model-meta { grid-template-columns: 1fr; }
-  }
 
   /* ── 配方选择区（下拉选择，仿2D风格）── */
   .rl-recipe-section {
@@ -1278,29 +955,7 @@
     </div>
   </div>
 
-  <div class="rl-flow-strip" aria-label="料架定位流程">
-    <div class="rl-flow-step active" id="flow-step-standard">
-      <span class="rl-flow-index">1</span>
-      <span>
-        <span class="rl-flow-title">标准料架标定</span>
-        <span class="rl-flow-sub" id="flow-standard-text">提取三根钢架并建立料架坐标系</span>
-      </span>
-    </div>
-    <div class="rl-flow-step" id="flow-step-locate">
-      <span class="rl-flow-index">2</span>
-      <span>
-        <span class="rl-flow-title">生产定位</span>
-        <span class="rl-flow-sub" id="flow-locate-text">匹配三钢架模型并计算当前料架位姿</span>
-      </span>
-    </div>
-    <div class="rl-flow-step" id="flow-step-plc">
-      <span class="rl-flow-index">3</span>
-      <span>
-        <span class="rl-flow-title">下发整架补偿 T</span>
-        <span class="rl-flow-sub" id="flow-plc-text">15 个放件点由机器人示教，视觉只输出补偿</span>
-      </span>
-    </div>
-  </div>
+
 
   <!-- ── 配方选择区（下拉选择，仿2D风格）── -->
   <div class="rl-recipe-section">
@@ -1396,67 +1051,7 @@
   <!-- 隐藏的 recipe-id 字段（供 JS 读取） -->
   <input type="hidden" id="recipe-id" value="{% if recipes %}{{ recipes.0.id }}{% endif %}">
 
-  <section class="rl-model-workspace" id="standard-rack-model">
-    <header class="rl-model-head">
-      <div>
-        <h2>标准料架建模</h2>
-        <p>从标准零位点云拟合左右立柱、顶部横梁和正面平面，建立料架坐标系并保存点云模板。</p>
-      </div>
-      <div class="rl-model-head-actions">
-        <span class="badge badge-muted" id="rack-model-status">未建立</span>
-        <button type="button" id="btn-calibrate-standard" class="btn btn-secondary btn-sm" disabled>建立标准料架模型</button>
-      </div>
-    </header>
-    <div class="rl-model-body">
-      <div class="rl-model-visual">
-        <div class="rl-rack-figure" aria-label="三钢架标准模型示意">
-          <div class="rl-rack-plane" id="model-front-plane"></div>
-          <div class="rl-rack-member left" id="model-left-upright"></div>
-          <div class="rl-rack-member top" id="model-top-crossbeam"></div>
-          <div class="rl-rack-member right" id="model-right-upright"></div>
-          <span class="rl-rack-label left">左立柱</span>
-          <span class="rl-rack-label top">顶部横梁</span>
-          <span class="rl-rack-label right">右立柱</span>
-          <span class="rl-rack-label plane">正面平面</span>
-          <span class="rl-rack-axis x">X</span>
-          <span class="rl-rack-axis y">Y</span>
-          <span class="rl-rack-axis z">Z</span>
-        </div>
-        <div class="rl-model-caption" id="rack-model-caption">采集标准零位点云并完成一次定位后，可检查拟合结果并建立标准模型。</div>
-      </div>
-      <div class="rl-model-data">
-        <div class="rl-model-progress" aria-label="标准模型要素状态">
-          <div class="rl-model-step" id="model-step-cloud">点云模板</div>
-          <div class="rl-model-step" id="model-step-left">左立柱</div>
-          <div class="rl-model-step" id="model-step-top">顶部横梁</div>
-          <div class="rl-model-step" id="model-step-right">右立柱</div>
-          <div class="rl-model-step" id="model-step-plane">正面平面</div>
-          <div class="rl-model-step" id="model-step-frame">料架坐标系</div>
-        </div>
-        <table class="rl-model-metrics" aria-label="三钢架拟合参数">
-          <tbody>
-            <tr><th>左立柱</th><td><span id="model-left-length">—</span> mm / RMSE <span id="model-left-rmse">—</span></td><th>右立柱</th><td><span id="model-right-length">—</span> mm / RMSE <span id="model-right-rmse">—</span></td></tr>
-            <tr><th>顶部横梁</th><td><span id="model-top-length">—</span> mm / RMSE <span id="model-top-rmse">—</span></td><th>立柱间距</th><td><span id="model-upright-spacing">—</span> mm</td></tr>
-            <tr><th>正面平面</th><td>RMSE <span id="model-plane-rmse">—</span> mm</td><th>平面法向</th><td id="model-plane-normal">—</td></tr>
-            <tr><th>平行误差</th><td><span id="model-parallel-error">—</span> deg</td><th>垂直误差</th><td><span id="model-perpendicular-error">—</span> deg</td></tr>
-          </tbody>
-        </table>
-        <div class="rl-model-pose" aria-label="标准料架六自由度位姿">
-          <div><span>X mm</span><strong id="model-pose-x">—</strong></div>
-          <div><span>Y mm</span><strong id="model-pose-y">—</strong></div>
-          <div><span>Z mm</span><strong id="model-pose-z">—</strong></div>
-          <div><span>Rx deg</span><strong id="model-pose-rx">—</strong></div>
-          <div><span>Ry deg</span><strong id="model-pose-ry">—</strong></div>
-          <div><span>Rz deg</span><strong id="model-pose-rz">—</strong></div>
-        </div>
-      </div>
-    </div>
-    <footer class="rl-model-meta">
-      <span>位姿坐标系<strong id="model-pose-coordinate">—</strong></span>
-      <span>点云模板<strong id="model-template-path">未保存</strong></span>
-      <span>模型来源<strong id="model-source-result">—</strong></span>
-    </footer>
-  </section>
+
 
   <!-- 双栏主体 -->
   <div class="rl-main">
@@ -1542,6 +1137,44 @@
           <span class="rl-conf-label" id="conf-val">—</span>
         </div>
 
+
+        <section class="rl-template-panel" id="rl-template-panel" style="margin-bottom: 16px;">
+          <div class="rl-comp-head" style="justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h3>局部 3D 模板对比</h3>
+              <span class="badge badge-muted" id="template-status">未加载</span>
+            </div>
+            <button id="btn-save-as-std" class="btn btn-sm btn-secondary" style="background:#22c55e; color:white; border:none; display:none;">保存为标准模板</button>
+          </div>
+          <div class="rl-comp-body" style="background:#f8fafc; padding:12px; border-radius:6px; border:1px solid #e2e8f0; font-size:12px;">
+            <table style="width:100%; text-align:left; border-collapse: collapse;">
+              <thead>
+                <tr style="border-bottom: 1px solid #cbd5e1;">
+                  <th style="padding: 4px;">区域</th>
+                  <th style="padding: 4px;">M_std 标准模板 (Normal, D)</th>
+                  <th style="padding: 4px;">M_cur 现场模板 (Normal, D)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom: 1px dashed #e2e8f0;">
+                  <td style="padding: 4px;"><strong>顶部横梁 (Π1)</strong></td>
+                  <td style="padding: 4px;" id="tpl-std-p1">—</td>
+                  <td style="padding: 4px;" id="tpl-cur-p1">—</td>
+                </tr>
+                <tr style="border-bottom: 1px dashed #e2e8f0;">
+                  <td style="padding: 4px;"><strong>左侧立柱 (Π2)</strong></td>
+                  <td style="padding: 4px;" id="tpl-std-p2">—</td>
+                  <td style="padding: 4px;" id="tpl-cur-p2">—</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px;"><strong>底部横梁 (Π3)</strong></td>
+                  <td style="padding: 4px;" id="tpl-std-p3">—</td>
+                  <td style="padding: 4px;" id="tpl-cur-p3">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
         <section class="rl-comp-panel" id="rl-comp-panel">
           <div class="rl-comp-head">
             <h3>整架补偿矩阵 T</h3>
@@ -1579,63 +1212,10 @@
           <img id="rl-result-img" src="" alt="计算结果" style="display:none;">
         </div>
 
-        <div class="rl-detail-row" id="rl-detail" style="display:none; flex-direction: column; gap: 8px; border-top: 1px dashed var(--border-color); padding-top: 16px; margin-top: 16px;">
-          <h3 style="font-size: 14px; margin: 0 0 4px 0; color: var(--text);">📍 坐标明细对比 (X, Y, Z)</h3>
-          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-hover); padding: 10px 14px; border-radius: 8px;">
-            <span style="color: var(--text-muted); font-size: 13px;">标准值</span>
-            <strong style="font-size: 15px; color: var(--text); font-family: monospace; letter-spacing: 0.5px;">
-              <span id="d-sx">—</span>, <span id="d-sy">—</span>, <span id="d-sz">—</span>
-            </strong>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-hover); padding: 10px 14px; border-radius: 8px;">
-            <span style="color: var(--text-muted); font-size: 13px;">实测值</span>
-            <strong style="font-size: 15px; color: var(--primary); font-family: monospace; letter-spacing: 0.5px;">
-              <span id="d-ax">—</span>, <span id="d-ay">—</span>, <span id="d-az">—</span>
-            </strong>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-hover); padding: 10px 14px; border-radius: 8px;">
-            <span style="color: var(--text-muted); font-size: 13px;">有效点云数量</span>
-            <strong style="font-size: 14px; color: var(--text);" id="d-points">—</strong>
-          </div>
-          <div id="rl-algorithm-note" style="font-size: 12px; color: var(--text-muted); padding: 2px 4px;">算法：—</div>
-          <section id="rl-v2-detail" style="display:block; margin-top: 4px;">
-            <h3 style="font-size:14px; margin:0 0 8px; color:var(--text);">开口矩形五点坐标（机器人基坐标系 / mm）</h3>
-            <div id="v2-result-state" style="margin-bottom:8px;padding:8px 10px;border-radius:7px;background:#fef3c7;color:#92400e;font-size:12px;">
-              尚未计算。采集点云后画 ROI，点击「🎯 开始计算」，后端会从实体深度四边自动提取五点并显示。
-            </div>
-            <div style="overflow-x:auto; border:1px solid var(--border-color); border-radius:8px;">
-              <table style="width:100%; border-collapse:collapse; font-size:12px; font-family:monospace;">
-                <thead style="background:var(--bg-hover);">
-                  <tr><th style="padding:7px;">点</th><th>X</th><th>Y</th><th>Z</th><th>来源</th></tr>
-                </thead>
-                <tbody>
-                  <tr><td style="padding:7px;">P1 左上</td><td id="v2-p1-x">—</td><td id="v2-p1-y">—</td><td id="v2-p1-z">—</td><td>四边拟合</td></tr>
-                  <tr><td style="padding:7px;">P2 右上</td><td id="v2-p2-x">—</td><td id="v2-p2-y">—</td><td id="v2-p2-z">—</td><td>四边拟合</td></tr>
-                  <tr><td style="padding:7px;">P3 右下</td><td id="v2-p3-x">—</td><td id="v2-p3-y">—</td><td id="v2-p3-z">—</td><td>四边拟合</td></tr>
-                  <tr><td style="padding:7px;">P4 左下</td><td id="v2-p4-x">—</td><td id="v2-p4-y">—</td><td id="v2-p4-z">—</td><td>四边拟合</td></tr>
-                  <tr style="font-weight:700; color:var(--primary);"><td style="padding:7px;">P5 中心</td><td id="v2-p5-x">—</td><td id="v2-p5-y">—</td><td id="v2-p5-z">—</td><td>P1～P4派生</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:8px; font-size:12px;">
-              <div>宽度：<strong id="v2-width">—</strong> mm</div>
-              <div>高度：<strong id="v2-height">—</strong> mm</div>
-              <div>平面 RMSE：<strong id="v2-plane-rmse">—</strong> mm</div>
-              <div>规则矩形拟合 RMSE：<strong id="v2-rectangle-fit-rmse">—</strong> mm</div>
-
-            </div>
-            <div id="rl-v2-canvas-wrap" style="margin-top:12px;display:none;">
-              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">📐 开口五点示意（单位：mm）</div>
-              <canvas id="v2-points-canvas" style="width:100%;border-radius:8px;border:1px solid var(--border-color);background:#0f172a;display:block;"></canvas>
-            </div>
-          </section>
-        </div>
       </div>
     </div>
 
   </div>
-
-
 
   <!-- 新增：离线数据包管理弹窗；独立于现有工作台交互。 -->
   <div class="rl-package-modal" id="packages-modal" hidden aria-hidden="true">

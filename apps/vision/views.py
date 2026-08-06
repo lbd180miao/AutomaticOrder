@@ -1449,6 +1449,7 @@ def _serialize_rack_location_recipe(recipe):
         'max_offset_rz': float(recipe.max_offset_rz),
         'confidence_threshold': float(recipe.confidence_threshold),
         'enabled': recipe.enabled,
+        'local_template_std': recipe.local_template_std,
     }
 
 

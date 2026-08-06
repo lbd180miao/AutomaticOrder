@@ -265,148 +265,67 @@
     };
   }
 
-  function memberFromCorners(id, label, start, end, rmse) {
-    const dx = Number(end?.x || 0) - Number(start?.x || 0);
-    const dy = Number(end?.y || 0) - Number(start?.y || 0);
-    const dz = Number(end?.z || 0) - Number(start?.z || 0);
-    return {
-      id,
-      label,
-      centerline: { length_mm: Math.sqrt(dx * dx + dy * dy + dz * dz) },
-      fit: { rmse_mm: rmse },
+
+
+  function renderLocalTemplate(result) {
+    // curTpl 可能在结果顶层(V2)，也可能在 result_data 内(V1)
+    const curTpl = result?.local_template_cur
+      || result?.result_data?.local_template_cur
+      || null;
+    const stdTpl = state.currentRecipe?.local_template_std || null;
+    const status = $('template-status');
+
+    const btnSaveStd = $('btn-save-as-std');
+    if (curTpl) {
+      if (btnSaveStd) {
+        btnSaveStd.style.display = 'inline-block';
+        btnSaveStd.disabled = false;
+        // 暂存供保存按钮使用
+        window._tempCurTpl = curTpl;
+      }
+    } else {
+      if (btnSaveStd) btnSaveStd.style.display = 'none';
+    }
+
+    if (!curTpl) {
+      if (status) {
+        status.textContent = '未计算现场模板';
+        status.className = 'badge badge-muted';
+      }
+    } else if (!stdTpl) {
+      if (status) {
+        status.textContent = '无标准模板';
+        status.className = 'badge badge-muted';
+      }
+    } else {
+      if (status) {
+        status.textContent = '匹配成功';
+        status.className = 'badge badge-ok';
+      }
+    }
+
+    function formatPlane(plane) {
+      if (!plane) return '—';
+      const normal = plane.normal || [0, 0, 0];
+      const d = typeof plane.d === 'number' ? plane.d.toFixed(2) : 0;
+      const nx = normal[0].toFixed(3);
+      const ny = normal[1].toFixed(3);
+      const nz = normal[2].toFixed(3);
+      return `N:[${nx}, ${ny}, ${nz}], D:${d}`;
+    }
+
+    const setHtml = (id, html) => {
+      const node = $(id);
+      if (node) node.innerHTML = html;
     };
+
+    setHtml('tpl-std-p1', formatPlane(stdTpl?.plane1));
+    setHtml('tpl-cur-p1', formatPlane(curTpl?.plane1));
+    setHtml('tpl-std-p2', formatPlane(stdTpl?.plane2));
+    setHtml('tpl-cur-p2', formatPlane(curTpl?.plane2));
+    setHtml('tpl-std-p3', formatPlane(stdTpl?.plane3));
+    setHtml('tpl-cur-p3', formatPlane(curTpl?.plane3));
   }
-
-  function rackModelCandidate(result, rectangle) {
-    const points = rectangle?.points || {};
-    if (!points.p1 || !points.p2 || !points.p3 || !points.p4) return null;
-    const quality = rectangle.quality || {};
-    const geometry = rectangle.geometry || {};
-    const edgeRmse = quality.edge_rmse_mm || {};
-    const edgeValue = (key, index) => Array.isArray(edgeRmse) ? edgeRmse[index] : edgeRmse[key];
-    const poseMatrix = rectangle.pose?.matrix;
-    return {
-      model_version: 'THREE_MEMBER_RIGID_V1',
-      status: 'CANDIDATE',
-      coordinate_system: rectangle.coordinate_system || 'unknown',
-      members: {
-        left_upright: memberFromCorners('left_upright', '左立柱', points.p4, points.p1, edgeValue('left', 3)),
-        top_crossbeam: memberFromCorners('top_crossbeam', '顶部横梁', points.p1, points.p2, edgeValue('top', 0)),
-        right_upright: memberFromCorners('right_upright', '右立柱', points.p3, points.p2, edgeValue('right', 1)),
-      },
-      front_plane: {
-        normal_out: geometry.normal_out,
-        rmse_mm: quality.plane_rmse_mm,
-      },
-      relative_geometry: {
-        upright_spacing_mm: geometry.width_mm,
-        upright_parallel_error_deg: quality.parallel_error_deg,
-        crossbeam_perpendicular_error_deg: quality.perpendicular_error_deg,
-      },
-      rack_pose: {
-        coordinate_system: rectangle.coordinate_system || 'unknown',
-        pose6d: poseFromMatrix(poseMatrix) || rectangle.pose || {},
-        matrix: poseMatrix,
-      },
-      pointcloud_template: {
-        source_result_id: result?.result_id || result?.id || null,
-        raw_data_path: result?.raw_data_path || '',
-        point_count: quality.valid_point_count,
-      },
-    };
-  }
-
-  function setModelValue(id, value, digits = 3) {
-    const node = $(id);
-    if (node) node.textContent = fmtNumber(value, digits);
-  }
-
-  function renderStandardRackModel(model, options = {}) {
-    const candidate = Boolean(options.candidate);
-    const members = model?.members || {};
-    const hasMembers = Boolean(members.left_upright && members.top_crossbeam && members.right_upright);
-    const hasPlane = Boolean(model?.front_plane);
-    const hasFrame = Boolean(model?.rack_pose || model?.rack_coordinate_system);
-    const hasCloud = Boolean(model?.pointcloud_template?.raw_data_path || model?.pointcloud_template?.point_count);
-    const ready = Boolean(model && hasMembers && hasPlane && hasFrame);
-
-    const status = $('rack-model-status');
-    if (status) {
-      status.className = ready ? (candidate ? 'badge badge-warning' : 'badge badge-ok') : 'badge badge-muted';
-      status.textContent = ready ? (candidate ? '本次拟合待固化' : '标准模型已建立') : '未建立';
-    }
-    if ($('rack-model-caption')) {
-      $('rack-model-caption').textContent = ready
-        ? (candidate
-          ? '三根钢架和正面平面已拟合。核对参数后，点击“建立标准料架模型”固化本次结果。'
-          : '标准模型已保存。生产定位将以该料架坐标系计算标准料架到当前料架的变换 T。')
-        : '采集标准零位点云并完成一次定位后，可检查拟合结果并建立标准模型。';
-    }
-
-    const readiness = {
-      'model-step-cloud': hasCloud,
-      'model-step-left': Boolean(members.left_upright),
-      'model-step-top': Boolean(members.top_crossbeam),
-      'model-step-right': Boolean(members.right_upright),
-      'model-step-plane': hasPlane,
-      'model-step-frame': hasFrame,
-    };
-    Object.entries(readiness).forEach(([id, isReady]) => $(id)?.classList.toggle('ready', isReady));
-    $('model-left-upright')?.classList.toggle('ready', Boolean(members.left_upright));
-    $('model-top-crossbeam')?.classList.toggle('ready', Boolean(members.top_crossbeam));
-    $('model-right-upright')?.classList.toggle('ready', Boolean(members.right_upright));
-    $('model-front-plane')?.classList.toggle('ready', hasPlane);
-
-    setModelValue('model-left-length', members.left_upright?.centerline?.length_mm);
-    setModelValue('model-left-rmse', members.left_upright?.fit?.rmse_mm);
-    setModelValue('model-top-length', members.top_crossbeam?.centerline?.length_mm);
-    setModelValue('model-top-rmse', members.top_crossbeam?.fit?.rmse_mm);
-    setModelValue('model-right-length', members.right_upright?.centerline?.length_mm);
-    setModelValue('model-right-rmse', members.right_upright?.fit?.rmse_mm);
-    setModelValue('model-upright-spacing', model?.relative_geometry?.upright_spacing_mm);
-    setModelValue('model-plane-rmse', model?.front_plane?.rmse_mm);
-    setModelValue('model-parallel-error', model?.relative_geometry?.upright_parallel_error_deg);
-    setModelValue('model-perpendicular-error', model?.relative_geometry?.crossbeam_perpendicular_error_deg);
-
-    const normal = model?.front_plane?.normal_out;
-    if ($('model-plane-normal')) {
-      $('model-plane-normal').textContent = Array.isArray(normal)
-        ? `[${normal.map((value) => fmtNumber(value, 5)).join(', ')}]`
-        : '—';
-    }
-    const pose = model?.rack_pose?.pose6d || poseFromMatrix(model?.rack_pose?.matrix) || {};
-    ['x', 'y', 'z', 'rx', 'ry', 'rz'].forEach((axis) => setModelValue(`model-pose-${axis}`, pose[axis], axis.length === 1 ? 3 : 4));
-    if ($('model-pose-coordinate')) $('model-pose-coordinate').textContent = model?.rack_pose?.coordinate_system || model?.coordinate_system || '—';
-    if ($('model-template-path')) $('model-template-path').textContent = model?.pointcloud_template?.raw_data_path || (hasCloud ? '当前采集点云' : '未保存');
-    if ($('model-source-result')) {
-      const sourceId = model?.pointcloud_template?.source_result_id;
-      $('model-source-result').textContent = sourceId ? `定位记录 #${sourceId}` : (candidate ? '本次计算结果' : '—');
-    }
-  }
-
-  async function loadStandardRackModel(recipeId) {
-    if (!recipeId || !CFG.recipeDetailUrlTemplate) {
-      state.standardRackModel = null;
-      renderStandardRackModel(null);
-      return;
-    }
-    try {
-      const url = CFG.recipeDetailUrlTemplate.replace('__RECIPE_ID__', encodeURIComponent(recipeId));
-      const res = await fetch(url);
-      const data = apiPayload(await res.json());
-      const recipe = data.recipe || null;
-      const model = recipe?.reference_feature_config?.standard_rack_model || null;
-      state.currentRecipe = recipe || state.currentRecipe;
-      state.standardRackModel = model;
-      state.standardRackCandidate = null;
-      renderStandardRackModel(model);
-      refreshActionState();
-    } catch (error) {
-      state.standardRackModel = null;
-      renderStandardRackModel(null);
-    }
-  }
-  window.rackLocatorLoadStandardModel = loadStandardRackModel;
 
   function renderCompensation(result) {
     const comp = compensationOf(result);
@@ -463,27 +382,12 @@
     }
   }
 
-  function setFlowStep(id, mode) {
     const node = $(id);
     if (!node) return;
     node.classList.remove('active', 'done');
     if (mode) node.classList.add(mode);
   }
 
-  function renderWorkflowState(canCalibrate, canWritePlc) {
-    const hasCloud = Boolean(state.token);
-    const hasOkResult = Boolean(state.lastResultId && state.lastResultOk);
-    const standardConfigured = Boolean(state.standardRackModel?.saved_at);
-
-    setFlowStep('flow-step-standard', standardConfigured ? 'done' : 'active');
-    setFlowStep('flow-step-locate', hasOkResult ? 'done' : (hasCloud ? 'active' : ''));
-    setFlowStep('flow-step-plc', canWritePlc ? 'active' : '');
-
-    if ($('flow-standard-text')) {
-      $('flow-standard-text').textContent = standardConfigured
-        ? '三钢架模型、点云模板与标准位姿已保存'
-        : (canCalibrate ? '本次三钢架拟合可建立标准模型' : '提取三根钢架并建立料架坐标系');
-    }
     if ($('flow-locate-text')) {
       $('flow-locate-text').textContent = hasOkResult
         ? '已生成 P1-P5 与整架补偿'
@@ -512,9 +416,7 @@
     setButton('btn-auto-align', Boolean(state.token));
     setButton('btn-save-roi', Boolean(state.alignmentToken));
     setButton('btn-write-plc', canWritePlc);
-    setButton('btn-calibrate-standard', canCalibrate);
     setButton('btn-export-package', Boolean(state.token));
-    renderWorkflowState(canCalibrate, canWritePlc);
   }
 
   async function refreshCurrentRecipe() {
@@ -1423,6 +1325,7 @@
     setOffset('y', r.final_offset_y ?? r.offset_y, null);
     setOffset('z', r.final_offset_z ?? r.offset_z, null);
     setOffset('rz', r.final_offset_rz ?? r.offset_rz, null);
+    renderLocalTemplate(r);
     renderCompensation(r);
 
     const conf = Number(r.confidence || 0);
@@ -1444,109 +1347,7 @@
     const actY = Number(r.actual_y || 0);
     const actZ = Number(r.actual_z || 0);
     
-    // 更新标准值（从当前选中的配方中获取）
-    const recipeData = currentRecipeData();
-    if ($('d-sx')) $('d-sx').textContent = (recipeData.standard_x || 0).toFixed(2);
-    if ($('d-sy')) $('d-sy').textContent = (recipeData.standard_y || 0).toFixed(2);
-    if ($('d-sz')) $('d-sz').textContent = (recipeData.standard_z || 0).toFixed(2);
 
-    // 更新实测值
-    if ($('d-ax')) $('d-ax').textContent = actX.toFixed(2);
-    if ($('d-ay')) $('d-ay').textContent = actY.toFixed(2);
-    if ($('d-az')) $('d-az').textContent = actZ.toFixed(2);
-
-
-    $('d-points').textContent = meta.valid_point_count ?? meta.point_count ?? '—';
-
-    const rectangle = r.opening_rectangle || meta.opening_rectangle;
-    const modelCandidate = rackModelCandidate(r, rectangle);
-    if (modelCandidate) {
-      state.standardRackCandidate = modelCandidate;
-      renderStandardRackModel(modelCandidate, { candidate: true });
-    }
-    const algorithmVersion = r.algorithm_version || meta.algorithm_version || 'MEDIAN_V1';
-    const isRectangleAlgorithm = ['RECTANGLE_CORNERS_V2', 'RECTANGLE_CORNERS_AUTO_V2'].includes(algorithmVersion);
-    if ($('rl-algorithm-note')) {
-      $('rl-algorithm-note').textContent = algorithmVersion === 'RECTANGLE_CORNERS_AUTO_V2'
-        ? '算法：ROI 深度四边自动提取 V2（P5 由 P1～P4 后端计算）'
-        : algorithmVersion === 'RECTANGLE_CORNERS_V2'
-          ? '算法：矩形四边拟合 V2（P5 由 P1～P4 后端计算）'
-        : '算法：历史中位数 V1（该结果不包含 P1～P5）';
-    }
-    const isLocateOk = r.locate_ok !== false && (rectangle || {}).locate_ok !== false;
-    // 即使定位失败（如偏差超限），只要提取到了五点数据就显示出来，方便用户排查问题
-    if (rectangle && rectangle.points && rectangle.center) {
-      ['p1', 'p2', 'p3', 'p4'].forEach((key) => {
-        const point = rectangle.points[key] || {};
-        ['x', 'y', 'z'].forEach((axis) => {
-          const node = $('v2-' + key + '-' + axis);
-          if (node) node.textContent = Number(point[axis]).toFixed(3);
-        });
-      });
-      ['x', 'y', 'z'].forEach((axis) => {
-        const node = $('v2-p5-' + axis);
-        if (node) node.textContent = Number(rectangle.center[axis]).toFixed(3);
-      });
-      const geometry = rectangle.geometry || {};
-      const quality = rectangle.quality || {};
-      if ($('v2-width')) $('v2-width').textContent = Number(geometry.width_mm || 0).toFixed(3);
-      if ($('v2-height')) $('v2-height').textContent = Number(geometry.height_mm || 0).toFixed(3);
-      const metricText = (value) => value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toFixed(3);
-      if ($('v2-plane-rmse')) $('v2-plane-rmse').textContent = metricText(quality.plane_rmse_mm);
-      if ($('v2-rectangle-fit-rmse')) $('v2-rectangle-fit-rmse').textContent = metricText(quality.rectangle_fit_rmse_mm);
-      if ($('v2-result-state')) {
-        $('v2-result-state').textContent = rectangle.reference_mode === 'roi_auto_only'
-          ? '已从当前 ROI 自动提取实体四边并拟合 P1～P4；P5 为四角派生中心。标准四点未配置，不影响五点输出。'
-          : '已从当前 ROI 自动提取实体开口四角 P1～P4；P5 为后端根据四角计算的矩形中心。';
-        $('v2-result-state').style.background = '#dcfce7';
-        $('v2-result-state').style.color = '#166534';
-      }
-      $('rl-v2-detail').style.display = 'block';
-    } else {
-      ['p1', 'p2', 'p3', 'p4', 'p5'].forEach((key) => {
-        ['x', 'y', 'z'].forEach((axis) => {
-          const node = $('v2-' + key + '-' + axis);
-          if (node) node.textContent = '—';
-        });
-      });
-      ['v2-width', 'v2-height', 'v2-plane-rmse', 'v2-rectangle-fit-rmse'].forEach((id) => {
-        if ($(id)) $(id).textContent = '—';
-      });
-      if ($('v2-result-state')) {
-        let stateMsg;
-        if (isRectangleAlgorithm) {
-          const msg = r.error_message || r.error_code || '';
-          // 检查是否包含线条数量提示
-          const hMatch = msg.match(/水平线不足[（(]当前(\d+)/);
-          const vMatch = msg.match(/垂直线不足[（(]当前(\d+)/);
-          if (vMatch && parseInt(vMatch[1]) < 2) {
-            stateMsg = `⚠ 左/右边缘检测失败（当前垂直线${vMatch[1]}条）\n💡 请重新画 ROI：确保框住料架开口的左立柱和右立柱，ROI 不能只是一个横条，需要同时包含四条边线。`;
-          } else if (hMatch && parseInt(hMatch[1]) < 2) {
-            stateMsg = `⚠ 上/下边缘检测失败（当前水平线${hMatch[1]}条）\n💡 请重新画 ROI：确保框住料架开口的上下横梁。`;
-          } else {
-            stateMsg = `⚠ 自动提取未得到五点：${msg || '请让 ROI 完整框住料架开口四边（上/下/左/右）'}`;
-          }
-        } else {
-          stateMsg = '这是升级前保存的中位数 V1 历史结果，不包含 P1～P5。重新画 ROI 并点击「🎯 开始计算」即可生成。';
-        }
-        $('v2-result-state').textContent = stateMsg;
-        $('v2-result-state').style.background = '#fef3c7';
-        $('v2-result-state').style.color = '#92400e';
-        $('v2-result-state').style.whiteSpace = 'pre-line';
-      }
-      $('rl-v2-detail').style.display = 'block';
-    }
-
-    $('rl-detail').style.display = 'flex';
-
-    // 五点示意图
-    const rectangle2 = r.opening_rectangle || (r.result_data || {}).opening_rectangle;
-    if (rectangle2 && rectangle2.points && rectangle2.center) {
-      drawV2Points(rectangle2);
-    } else {
-      const wrap = $('rl-v2-canvas-wrap');
-      if (wrap) wrap.style.display = 'none';
-    }
 
     refreshActionState();
   }
@@ -1645,112 +1446,6 @@
   }
 
 
-  // ── P1～P5 五点 Canvas 示意图 ──────────────────────────────
-  function drawV2Points(rectangle) {
-    const wrap = $('rl-v2-canvas-wrap');
-    const cv = $('v2-points-canvas');
-    if (!wrap || !cv) return;
-
-    const pts = rectangle.points || {};
-    const center = rectangle.center || {};
-    const labeledPoints = [
-      { key: 'p1', label: 'P1左上', x: Number(pts.p1?.x || 0), z: Number(pts.p1?.z || 0) },
-      { key: 'p2', label: 'P2右上', x: Number(pts.p2?.x || 0), z: Number(pts.p2?.z || 0) },
-      { key: 'p3', label: 'P3右下', x: Number(pts.p3?.x || 0), z: Number(pts.p3?.z || 0) },
-      { key: 'p4', label: 'P4左下', x: Number(pts.p4?.x || 0), z: Number(pts.p4?.z || 0) },
-      { key: 'p5', label: 'P5中心', x: Number(center?.x || 0), z: Number(center?.z || 0) },
-    ];
-
-    // 计算边界加边距
-    const xs = labeledPoints.map((p) => p.x);
-    const zs = labeledPoints.map((p) => p.z);
-    const xMin = Math.min(...xs), xMax = Math.max(...xs);
-    const zMin = Math.min(...zs), zMax = Math.max(...zs);
-    const xRange = (xMax - xMin) || 1;
-    const zRange = (zMax - zMin) || 1;
-    const PAD = 48;
-
-    // 设置 canvas 尺寸
-    const W = cv.offsetWidth || 320;
-    const H = Math.max(180, Math.round(W * zRange / xRange) + PAD * 2);
-    cv.width = W;
-    cv.height = H;
-    const ctx2 = cv.getContext('2d');
-    ctx2.clearRect(0, 0, W, H);
-
-    // 坐标映射函数：mm → canvas像素
-    const toCanvasX = (mmX) => PAD + ((mmX - xMin) / xRange) * (W - PAD * 2);
-    // Z轴：小 z 在下，大 z 在上（翻转 Y轴）
-    const toCanvasY = (mmZ) => H - PAD - ((mmZ - zMin) / zRange) * (H - PAD * 2);
-
-    // 画矩形边框（P1→P2→P3→P4→P1）
-    ctx2.save();
-    ctx2.strokeStyle = '#22c55e';
-    ctx2.lineWidth = 2;
-    ctx2.setLineDash([6, 3]);
-    ctx2.beginPath();
-    ['p1', 'p2', 'p3', 'p4'].forEach((key, i) => {
-      const p = labeledPoints.find((lp) => lp.key === key);
-      if (i === 0) ctx2.moveTo(toCanvasX(p.x), toCanvasY(p.z));
-      else ctx2.lineTo(toCanvasX(p.x), toCanvasY(p.z));
-    });
-    ctx2.closePath();
-    ctx2.stroke();
-    ctx2.restore();
-
-    // 画对角线（P1-P3、P2-P4）
-    ctx2.save();
-    ctx2.strokeStyle = 'rgba(99,102,241,0.4)';
-    ctx2.lineWidth = 1;
-    ctx2.setLineDash([3, 4]);
-    const p1c = labeledPoints.find((p) => p.key === 'p1');
-    const p3c = labeledPoints.find((p) => p.key === 'p3');
-    const p2c = labeledPoints.find((p) => p.key === 'p2');
-    const p4c = labeledPoints.find((p) => p.key === 'p4');
-    ctx2.beginPath();
-    ctx2.moveTo(toCanvasX(p1c.x), toCanvasY(p1c.z));
-    ctx2.lineTo(toCanvasX(p3c.x), toCanvasY(p3c.z));
-    ctx2.moveTo(toCanvasX(p2c.x), toCanvasY(p2c.z));
-    ctx2.lineTo(toCanvasX(p4c.x), toCanvasY(p4c.z));
-    ctx2.stroke();
-    ctx2.restore();
-
-    // 画点 + 标签
-    const colors = { p1: '#f59e0b', p2: '#f59e0b', p3: '#f59e0b', p4: '#f59e0b', p5: '#6366f1' };
-    labeledPoints.forEach((p) => {
-      const cx2 = toCanvasX(p.x);
-      const cy = toCanvasY(p.z);
-      const isCenter = p.key === 'p5';
-
-      // 圆点
-      ctx2.save();
-      ctx2.fillStyle = colors[p.key];
-      ctx2.beginPath();
-      ctx2.arc(cx2, cy, isCenter ? 7 : 5, 0, Math.PI * 2);
-      ctx2.fill();
-      if (isCenter) {
-        ctx2.strokeStyle = '#a5b4fc';
-        ctx2.lineWidth = 1.5;
-        ctx2.stroke();
-      }
-      ctx2.restore();
-
-      // 标签文字
-      ctx2.save();
-      ctx2.fillStyle = '#e2e8f0';
-      ctx2.font = `bold ${isCenter ? 11 : 10}px monospace`;
-      const labelX = cx2 + (p.x >= (xMin + xMax) / 2 ? -52 : 10);
-      const labelY = cy + (p.z >= (zMin + zMax) / 2 ? -10 : 16);
-      ctx2.fillText(p.label, labelX, labelY);
-      // XZ 数字
-      ctx2.fillStyle = '#94a3b8';
-      ctx2.font = '9px monospace';
-      ctx2.fillText(`(${p.x.toFixed(1)}, ${p.z.toFixed(1)})`, labelX, labelY + 12);
-      ctx2.restore();
-    });
-
-    wrap.style.display = 'block';
-  }
 
   window.addEventListener('resize', resizeCanvas);
   image.addEventListener('load', resizeCanvas);
@@ -1840,4 +1535,51 @@
     refreshActionState();
     refreshCurrentRecipe();
   }
+
+  // ── 保存为标准模板 ────────────────────────────────────────
+  const _btnSaveStd = $('btn-save-as-std');
+  if (_btnSaveStd) {
+    _btnSaveStd.addEventListener('click', async () => {
+      const recipeId = $('recipe-id')?.value;
+      if (!recipeId) { setStatus('无选中配方'); return; }
+      if (!window._tempCurTpl) { setStatus('无现场模板可保存，请先点击「开始计算」'); return; }
+
+      const btn = _btnSaveStd;
+      const oldText = btn.textContent;
+      btn.textContent = '保存中...';
+      btn.disabled = true;
+
+      try {
+        const payload = { recipe_id: recipeId, template: window._tempCurTpl };
+        // 正确 URL: /vision/rack-positioning/v2/template/save/
+        const res = await fetch('/vision/rack-positioning/v2/template/save/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+          },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (json.success) {
+          setStatus('标准模板保存成功，下次定位将以此作为基准。');
+          if (state.currentRecipe) {
+            state.currentRecipe.local_template_std = window._tempCurTpl;
+          }
+          // 立即刷新模板对比面板，让 Std 列显示新保存的数据
+          renderLocalTemplate({ local_template_cur: window._tempCurTpl });
+        } else {
+          setStatus('保存失败: ' + (json.error || '未知错误'));
+        }
+      } catch (e) {
+        console.error('[保存标准模板]', e);
+        setStatus('保存失败: ' + e.message);
+      } finally {
+        btn.textContent = oldText;
+        btn.disabled = false;
+      }
+    });
+  }
+
 }());
+

@@ -360,3 +360,191 @@ def get_default_algorithm_params(request):
     except Exception as e:
         logger.exception("获取默认参数失败")
         return api_response(error=str(e), status=500)
+
+
+# =============================================================================
+# V2 刚体变换补偿 API 端点
+# =============================================================================
+
+from .rack_positioning_service import RigidBodyCompensationService
+from .rack_positioning_algorithm import RackStructureError
+
+# 服务单例
+_v2_service = RigidBodyCompensationService()
+
+
+def _parse_cloud(raw) -> np.ndarray:
+    """
+    将前端传来的点云数据解析为 (N, 3) numpy 数组。
+    支持格式：
+      - [[x,y,z], [x,y,z], ...]  (列表嵌套)
+      - [x,y,z,x,y,z,...]        (扁平列表，长度必须为3的倍数)
+    """
+    arr = np.asarray(raw, dtype=np.float64)
+    if arr.ndim == 1:
+        if len(arr) % 3 != 0:
+            raise ValueError("扁平点云数据长度必须为3的倍数")
+        arr = arr.reshape(-1, 3)
+    if arr.ndim != 2 or arr.shape[1] != 3:
+        raise ValueError(f"点云数据格式错误，期望 (N,3)，实际 shape={arr.shape}")
+    return arr
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def v2_build_template(request):
+    """
+    POST /api/rack/v2/template/build/
+
+    示教阶段：采集三个基准区域点云，建立标准局部坐标系模板并保存到配方。
+
+    请求体 (JSON)：
+    {
+        "recipe_id": 1,
+        "roi1_points": [[x,y,z], ...],   // 区域1（上水平面）点云
+        "roi2_points": [[x,y,z], ...],   // 区域2（左竖直面）点云
+        "roi3_points": [[x,y,z], ...]    // 区域3（下水平面）点云
+    }
+
+    响应体 (JSON)：
+    {
+        "success": true,
+        "data": {
+            "status": "ok",
+            "recipe_id": 1,
+            "recipe_name": "前保险杠料架",
+            "template_summary": {"plane1_inlier_pct": 92.3, ...},
+            "built_at": "2026-08-05T14:00:00"
+        }
+    }
+    """
+    try:
+        body = json.loads(request.body)
+        recipe_id = int(body["recipe_id"])
+        roi1 = _parse_cloud(body["roi1_points"])
+        roi2 = _parse_cloud(body["roi2_points"])
+        roi3 = _parse_cloud(body["roi3_points"])
+    except (KeyError, ValueError, json.JSONDecodeError) as e:
+        return api_response(error=f"请求参数错误：{e}", status=400)
+
+    try:
+        result = _v2_service.build_standard_template(recipe_id, roi1, roi2, roi3)
+        return api_response(data=result)
+    except RackStructureError as e:
+        return api_response(error={"code": e.error_code, "message": str(e), "detail": e.detail}, status=422)
+    except Exception as e:
+        logger.exception("建立标准模板失败 | recipe_id=%s", recipe_id)
+        return api_response(error=str(e), status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def v2_compute_compensation(request):
+    """
+    POST /api/rack/v2/compensation/compute/
+
+    生产阶段：重新采集三个基准区域点云，计算相对于标准模板的 6DoF 刚体补偿偏差。
+
+    请求体 (JSON)：
+    {
+        "recipe_id": 1,
+        "roi1_points": [[x,y,z], ...],
+        "roi2_points": [[x,y,z], ...],
+        "roi3_points": [[x,y,z], ...],
+        "save_result": true   // 可选，是否写入历史记录，默认 true
+    }
+
+    响应体 (JSON)：
+    {
+        "success": true,
+        "data": {
+            "status": "ok",
+            "is_valid": true,
+            "compensation": {"dX": 2.3, "dY": -1.1, "dZ": 4.7, "dRx": 0.3, "dRy": -0.1, "dRz": 0.2},
+            "validation": {"is_valid": true, "error_code": "NORMAL", "checks": [...]},
+            "confidence": 0.97,
+            "delta_T": [[4x4矩阵]],
+            "compute_timestamp": "2026-08-05T14:30:00"
+        }
+    }
+    """
+    try:
+        body = json.loads(request.body)
+        recipe_id = int(body["recipe_id"])
+        roi1 = _parse_cloud(body["roi1_points"])
+        roi2 = _parse_cloud(body["roi2_points"])
+        roi3 = _parse_cloud(body["roi3_points"])
+        save_result = bool(body.get("save_result", True))
+    except (KeyError, ValueError, json.JSONDecodeError) as e:
+        return api_response(error=f"请求参数错误：{e}", status=400)
+
+    try:
+        result = _v2_service.compute_compensation(recipe_id, roi1, roi2, roi3, save_result=save_result)
+        http_status = 200 if result.get("status") == "ok" else 422
+        return api_response(data=result, status=http_status)
+    except Exception as e:
+        logger.exception("计算补偿偏差失败 | recipe_id=%s", recipe_id)
+        return api_response(error=str(e), status=500)
+
+
+@require_http_methods(["GET"])
+def v2_template_status(request, recipe_id: int):
+    """
+    GET /api/rack/v2/template/status/<recipe_id>/
+
+    查询配方的标准模板状态（是否已示教、建立时间、三平面摘要）。
+    """
+    try:
+        status = _v2_service.get_template_status(recipe_id)
+        return api_response(data=status)
+    except Exception as e:
+        logger.exception("查询模板状态失败 | recipe_id=%s", recipe_id)
+        return api_response(error=str(e), status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def v2_clear_template(request, recipe_id: int):
+    """
+    POST /api/rack/v2/template/clear/<recipe_id>/
+
+    清除指定配方的标准模板（重新示教前调用）。
+    """
+    try:
+        result = _v2_service.clear_template(recipe_id)
+        return api_response(data=result)
+    except Exception as e:
+        logger.exception("清除模板失败 | recipe_id=%s", recipe_id)
+        return api_response(error=str(e), status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def v2_save_as_standard_template(request):
+    """
+    POST /api/rack/v2/template/save/
+
+    将前端传来的当前模板作为标准模板保存到配方中。
+    请求体:
+    {
+        "recipe_id": 1,
+        "template": {...}
+    }
+    """
+    try:
+        body = json.loads(request.body)
+        recipe_id = int(body["recipe_id"])
+        template = body["template"]
+        
+        recipe = RackLocationRecipe.objects.get(pk=recipe_id)
+        recipe.local_template_std = template
+        from django.utils import timezone
+        recipe.local_template_built_at = timezone.now()
+        recipe.save(update_fields=["local_template_std", "local_template_built_at"])
+        
+        return api_response(data={"status": "ok", "message": "已成功更新为标准模板"})
+    except RackLocationRecipe.DoesNotExist:
+        return api_response(error="配方不存在", status=404)
+    except Exception as e:
+        logger.exception("保存标准模板失败 | recipe_id=%s", body.get("recipe_id"))
+        return api_response(error=str(e), status=500)

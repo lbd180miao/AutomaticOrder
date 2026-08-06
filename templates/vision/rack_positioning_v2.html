@@ -1,0 +1,674 @@
+{% extends "base.html" %}
+{% block title %}料架定位补偿工作台 V2{% endblock %}
+
+{% block content %}
+<style>
+  /* ===== 全局补充样式 ===== */
+  .v2-wrap { padding: 16px; font-size: 14px; }
+
+  /* 页头 */
+  .v2-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .v2-header h3 { margin: 0; font-size: 18px; }
+  .v2-header label { font-weight: 500; }
+  .v2-header select { padding: 4px 8px; border: 1px solid #ced4da; border-radius: 4px; font-size: 14px; min-width: 220px; }
+  .v2-status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
+  .dot-green { background: #27ae60; }
+  .dot-amber { background: #e67e22; }
+  .dot-red   { background: #e74c3c; }
+  .dot-gray  { background: #aaa; }
+
+  /* 模式切换标签 */
+  .v2-tabs { display: flex; gap: 0; border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; margin-bottom: 16px; width: fit-content; }
+  .v2-tab { padding: 7px 22px; cursor: pointer; background: #f8f9fa; color: #495057; font-size: 13px; font-weight: 500; border: none; transition: background 0.15s; }
+  .v2-tab.active { background: #2c7be5; color: #fff; }
+  .v2-tab:hover:not(.active) { background: #e9ecef; }
+
+  /* 两列布局 */
+  .v2-layout { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 860px) { .v2-layout { grid-template-columns: 1fr; } }
+
+  /* 卡片 */
+  .v2-card { border: 1px solid #dee2e6; border-radius: 6px; background: #fff; margin-bottom: 12px; }
+  .v2-card-head { padding: 10px 14px; border-bottom: 1px solid #dee2e6; background: #f8f9fa; border-radius: 6px 6px 0 0; font-weight: 600; font-size: 13px; color: #343a40; display: flex; align-items: center; justify-content: space-between; }
+  .v2-card-body { padding: 14px; }
+
+  /* 模板状态条 */
+  .v2-tpl-status { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 4px; font-size: 13px; margin-bottom: 12px; }
+  .tpl-ok  { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+  .tpl-no  { background: #fff3cd; border: 1px solid #ffc107; color: #856404; }
+
+  /* 三区域采集 */
+  .v2-roi-list { display: flex; flex-direction: column; gap: 8px; }
+  .v2-roi-row { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid #dee2e6; border-radius: 4px; background: #f8f9fa; }
+  .v2-roi-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .roi-c1 { background: #3498db; }
+  .roi-c2 { background: #27ae60; }
+  .roi-c3 { background: #e67e22; }
+  .v2-roi-label { flex: 1; font-size: 13px; }
+  .v2-roi-label small { display: block; color: #6c757d; font-size: 11px; margin-top: 1px; }
+  .v2-roi-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .badge-pending { background: #e9ecef; color: #6c757d; border: 1px solid #dee2e6; }
+  .badge-ready   { background: #d4edda; color: #155724; }
+  .badge-busy    { background: #fff3cd; color: #856404; }
+
+  /* 6DoF 结果表格 */
+  .v2-dof-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .v2-dof-cell { border: 1px solid #dee2e6; border-radius: 4px; padding: 12px 14px; background: #f8f9fa; }
+  .v2-dof-axis { font-size: 11px; color: #6c757d; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .v2-dof-val  { font-family: 'Courier New', monospace; font-size: 22px; font-weight: 700; margin: 4px 0; color: #212529; }
+  .v2-dof-val.pos  { color: #2c7be5; }
+  .v2-dof-val.neg  { color: #e67e22; }
+  .v2-dof-val.zero { color: #adb5bd; }
+  .v2-dof-val.over { color: #e74c3c; }
+  .v2-dof-unit { font-size: 11px; color: #6c757d; }
+  .v2-dof-cell.alert-cell { border-color: #f5c6cb; background: #fff5f5; }
+
+  /* 校验清单 */
+  .v2-check-list { display: flex; flex-direction: column; gap: 5px; }
+  .v2-check-row  { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
+  .v2-check-row:last-child { border-bottom: none; }
+  .v2-check-icon { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .icon-pass { background: #d4edda; color: #155724; }
+  .icon-fail { background: #f8d7da; color: #721c24; }
+  .icon-pend { background: #e9ecef; color: #6c757d; }
+  .v2-check-name  { flex: 1; color: #495057; }
+  .v2-check-val   { font-family: 'Courier New', monospace; font-size: 12px; color: #343a40; }
+
+  /* 置信度 */
+  .v2-conf-bar { height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .v2-conf-fill { height: 100%; background: linear-gradient(90deg, #27ae60, #2c7be5); border-radius: 3px; transition: width 0.5s; }
+
+  /* 按钮辅助 */
+  .btn-block { width: 100%; }
+  .v2-btn-group { display: flex; flex-direction: column; gap: 7px; }
+  .v2-send-row { display: flex; gap: 8px; }
+  .v2-send-row .btn { flex: 1; }
+  #last-send-info { font-size: 12px; color: #6c757d; margin-top: 6px; }
+
+  /* Toast */
+  #v2-toast { position: fixed; top: 64px; right: 18px; z-index: 9999; display: flex; flex-direction: column; gap: 6px; }
+  .v2-toast-item { padding: 10px 16px; border-radius: 4px; font-size: 13px; min-width: 220px; box-shadow: 0 2px 8px rgba(0,0,0,.15); animation: toast-in .2s ease; }
+  @keyframes toast-in { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+  .v2-toast-item.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+  .v2-toast-item.error   { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+  .v2-toast-item.warn    { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+  .v2-toast-item.info    { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+</style>
+
+<div id="v2-toast"></div>
+
+<div class="v2-wrap">
+
+  <!-- 页头 -->
+  <div class="v2-header">
+    <h3>料架定位补偿工作台 <small class="text-muted" style="font-size:13px;font-weight:400">V2 · 局部刚体变换补偿</small></h3>
+    <label>配方：</label>
+    <select id="recipe-select" onchange="onRecipeChange()">
+      <option value="">-- 加载中 --</option>
+    </select>
+    <span id="system-status">
+      <span class="v2-status-dot dot-green"></span>就绪
+    </span>
+  </div>
+
+  <!-- 模式切换 -->
+  <div class="v2-tabs">
+    <button class="v2-tab active" id="tab-teach" onclick="switchMode('teach')">&#9655; 示教模式</button>
+    <button class="v2-tab" id="tab-prod"  onclick="switchMode('prod')">&#9654; 生产模式</button>
+  </div>
+
+  <!-- 主布局 -->
+  <div class="v2-layout">
+
+    <!-- ===== 左侧操作栏 ===== -->
+    <div class="v2-left">
+
+      <!-- 基准区域采集 -->
+      <div class="v2-card">
+        <div class="v2-card-head">基准区域采集</div>
+        <div class="v2-card-body">
+          <div class="v2-roi-list">
+
+            <div class="v2-roi-row">
+              <div class="v2-roi-dot roi-c1"></div>
+              <div class="v2-roi-label">
+                区域 1 — 上水平面
+                <small>提供 Z / Rx / Ry</small>
+              </div>
+              <span class="v2-roi-badge badge-pending" id="roi1-badge">待采集</span>
+            </div>
+            <button class="btn btn-sm btn-outline-primary btn-block" id="btn-roi1" onclick="collectROI(1)">采集区域 1 点云</button>
+
+            <div class="v2-roi-row" style="margin-top:6px">
+              <div class="v2-roi-dot roi-c2"></div>
+              <div class="v2-roi-label">
+                区域 2 — 左竖直面
+                <small>提供 X / Rz</small>
+              </div>
+              <span class="v2-roi-badge badge-pending" id="roi2-badge">待采集</span>
+            </div>
+            <button class="btn btn-sm btn-outline-primary btn-block" id="btn-roi2" onclick="collectROI(2)">采集区域 2 点云</button>
+
+            <div class="v2-roi-row" style="margin-top:6px">
+              <div class="v2-roi-dot roi-c3"></div>
+              <div class="v2-roi-label">
+                区域 3 — 下水平面
+                <small>提供 Z 校验</small>
+              </div>
+              <span class="v2-roi-badge badge-pending" id="roi3-badge">待采集</span>
+            </div>
+            <button class="btn btn-sm btn-outline-primary btn-block" id="btn-roi3" onclick="collectROI(3)">采集区域 3 点云</button>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- 示教操作 -->
+      <div class="v2-card" id="teach-panel">
+        <div class="v2-card-head">
+          示教操作
+          <span class="badge badge-warning" style="font-size:11px">TEACH</span>
+        </div>
+        <div class="v2-card-body">
+          <div id="tpl-status-box" class="v2-tpl-status tpl-no">
+            &#9888; 尚未建立标准模板，请采集三区域后建立
+          </div>
+          <div class="v2-btn-group">
+            <button class="btn btn-sm btn-primary btn-block" id="btn-build" onclick="buildTemplate()" disabled>
+              建立标准模板
+            </button>
+            <button class="btn btn-sm btn-outline-danger btn-block" id="btn-clear" onclick="clearTemplate()" disabled>
+              清除模板（重新示教）
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 生产操作 -->
+      <div class="v2-card" id="prod-panel" style="display:none">
+        <div class="v2-card-head">
+          生产操作
+          <span class="badge badge-success" style="font-size:11px">PROD</span>
+        </div>
+        <div class="v2-card-body">
+          <div class="v2-btn-group">
+            <button class="btn btn-sm btn-primary btn-block" id="btn-compute" onclick="computeCompensation()" disabled>
+              计算补偿偏差
+            </button>
+            <div class="v2-send-row">
+              <button class="btn btn-sm btn-success" id="btn-send" onclick="sendToPLC()" disabled>
+                发送至 PLC
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="resetROI()">
+                重新采集
+              </button>
+            </div>
+            <div id="last-send-info">尚未发送</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 结构校验 -->
+      <div class="v2-card">
+        <div class="v2-card-head">结构校验</div>
+        <div class="v2-card-body">
+          <div class="v2-check-list" id="check-list">
+            <div class="v2-check-row">
+              <div class="v2-check-icon icon-pend">-</div>
+              <span class="v2-check-name">上下水平面平行性</span>
+              <span class="v2-check-val">--</span>
+            </div>
+            <div class="v2-check-row">
+              <div class="v2-check-icon icon-pend">-</div>
+              <span class="v2-check-name">ΔZ 一致性</span>
+              <span class="v2-check-val">--</span>
+            </div>
+            <div class="v2-check-row">
+              <div class="v2-check-icon icon-pend">-</div>
+              <span class="v2-check-name">竖直面正交性</span>
+              <span class="v2-check-val">--</span>
+            </div>
+            <div class="v2-check-row">
+              <div class="v2-check-icon icon-pend">-</div>
+              <span class="v2-check-name">点云质量 (ROI1/2/3)</span>
+              <span class="v2-check-val">--</span>
+            </div>
+          </div>
+          <div style="margin-top:10px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#6c757d">
+              <span>综合置信度</span>
+              <span id="conf-pct">--</span>
+            </div>
+            <div class="v2-conf-bar">
+              <div class="v2-conf-fill" id="conf-fill" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /left -->
+
+    <!-- ===== 右侧结果区 ===== -->
+    <div class="v2-right">
+
+      <!-- 6DoF 补偿量 -->
+      <div class="v2-card">
+        <div class="v2-card-head">
+          6DoF 补偿偏差
+          <small style="font-weight:400;color:#6c757d;font-size:12px">ΔT = T<sub>cur</sub> · T<sub>std</sub><sup>-1</sup></small>
+        </div>
+        <div class="v2-card-body">
+          <div class="v2-dof-grid">
+            <div class="v2-dof-cell" id="cell-dx">
+              <div class="v2-dof-axis">ΔX — 平移</div>
+              <div class="v2-dof-val zero" id="val-dx">--</div>
+              <div class="v2-dof-unit">mm</div>
+            </div>
+            <div class="v2-dof-cell" id="cell-dy">
+              <div class="v2-dof-axis">ΔY — 平移</div>
+              <div class="v2-dof-val zero" id="val-dy">--</div>
+              <div class="v2-dof-unit">mm</div>
+            </div>
+            <div class="v2-dof-cell" id="cell-dz">
+              <div class="v2-dof-axis">ΔZ — 平移</div>
+              <div class="v2-dof-val zero" id="val-dz">--</div>
+              <div class="v2-dof-unit">mm</div>
+            </div>
+            <div class="v2-dof-cell" id="cell-drx">
+              <div class="v2-dof-axis">ΔRx — 旋转</div>
+              <div class="v2-dof-val zero" id="val-drx">--</div>
+              <div class="v2-dof-unit">°</div>
+            </div>
+            <div class="v2-dof-cell" id="cell-dry">
+              <div class="v2-dof-axis">ΔRy — 旋转</div>
+              <div class="v2-dof-val zero" id="val-dry">--</div>
+              <div class="v2-dof-unit">°</div>
+            </div>
+            <div class="v2-dof-cell" id="cell-drz">
+              <div class="v2-dof-axis">ΔRz — 旋转</div>
+              <div class="v2-dof-val zero" id="val-drz">--</div>
+              <div class="v2-dof-unit">°</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 计算日志 -->
+      <div class="v2-card">
+        <div class="v2-card-head">
+          运行日志
+          <button class="btn btn-sm btn-outline-secondary" style="font-size:11px;padding:2px 8px" onclick="clearLog()">清空</button>
+        </div>
+        <div class="v2-card-body" style="padding:0">
+          <div id="v2-log" style="font-family:'Courier New',monospace;font-size:12px;height:220px;overflow-y:auto;padding:10px 14px;background:#f8f9fa;color:#333;line-height:1.7;"></div>
+        </div>
+      </div>
+
+    </div><!-- /right -->
+
+  </div><!-- /layout -->
+</div><!-- /wrap -->
+
+<script>
+// =============================================================================
+// 配置
+// =============================================================================
+const API = {
+  templateBuild:  '/vision/rack-positioning/v2/template/build/',
+  templateStatus: (id) => `/vision/rack-positioning/v2/template/status/${id}/`,
+  templateClear:  (id) => `/vision/rack-positioning/v2/template/clear/${id}/`,
+  compensation:   '/vision/rack-positioning/v2/compensation/compute/',
+  recipes:        '/vision/api/rack-location/recipes/',
+};
+
+// 超出阈值时卡片变红
+const THR = { trans: 15, rot: 2.0 };
+
+// =============================================================================
+// 全局状态
+// =============================================================================
+let gState = {
+  mode: 'teach',
+  recipeId: null,
+  roi: { 1: null, 2: null, 3: null },
+  roiReady: { 1: false, 2: false, 3: false },
+  hasTemplate: false,
+  lastResult: null,
+};
+
+// =============================================================================
+// 页面初始化
+// =============================================================================
+window.addEventListener('DOMContentLoaded', () => {
+  loadRecipes();
+  log('工作台已就绪 · 请选择配方并切换操作模式');
+});
+
+// =============================================================================
+// 配方加载
+// =============================================================================
+async function loadRecipes() {
+  try {
+    const r = await fetch(API.recipes);
+    const d = await r.json();
+    const list = d.data || d.results || (Array.isArray(d) ? d : []);
+    const sel = document.getElementById('recipe-select');
+    if (list.length === 0) {
+      sel.innerHTML = '<option value="">（暂无配方）</option>';
+      return;
+    }
+    sel.innerHTML = list.map(x => `<option value="${x.id}">${x.recipe_name}</option>`).join('');
+    gState.recipeId = list[0].id;
+    await loadTemplateStatus();
+  } catch (e) {
+    // 接口不通时用占位符
+    const sel = document.getElementById('recipe-select');
+    sel.innerHTML = '<option value="1">前保险杠料架（示例）</option>';
+    gState.recipeId = 1;
+    log('[WARN] 配方接口未响应，使用示例数据');
+  }
+}
+
+async function onRecipeChange() {
+  gState.recipeId = parseInt(document.getElementById('recipe-select').value) || null;
+  resetROI();
+  if (gState.recipeId) await loadTemplateStatus();
+}
+
+async function loadTemplateStatus() {
+  try {
+    const r = await fetch(API.templateStatus(gState.recipeId));
+    if (!r.ok) return;
+    const d = await r.json();
+    applyTemplateStatus(d.data || {});
+  } catch (_) {}
+}
+
+function applyTemplateStatus(info) {
+  gState.hasTemplate = !!info.has_template;
+  const box = document.getElementById('tpl-status-box');
+  if (gState.hasTemplate) {
+    const t = info.built_at ? new Date(info.built_at).toLocaleString('zh') : '';
+    box.className = 'v2-tpl-status tpl-ok';
+    box.innerHTML = `&#10003; 标准模板已建立 <small style="margin-left:8px;color:#555">${t}</small>`;
+    document.getElementById('btn-clear').disabled = false;
+  } else {
+    box.className = 'v2-tpl-status tpl-no';
+    box.innerHTML = '&#9888; 尚未建立标准模板，请采集三区域后建立';
+    document.getElementById('btn-clear').disabled = true;
+  }
+  updateButtons();
+}
+
+// =============================================================================
+// 模式切换
+// =============================================================================
+function switchMode(m) {
+  gState.mode = m;
+  document.getElementById('tab-teach').classList.toggle('active', m === 'teach');
+  document.getElementById('tab-prod').classList.toggle('active',  m === 'prod');
+  document.getElementById('teach-panel').style.display = m === 'teach' ? '' : 'none';
+  document.getElementById('prod-panel').style.display  = m === 'prod'  ? '' : 'none';
+  resetROI();
+  log(`已切换至【${m === 'teach' ? '示教' : '生产'}模式】`);
+}
+
+// =============================================================================
+// ROI 采集（调用真实相机 API 或 mock）
+// =============================================================================
+async function collectROI(idx) {
+  const btn = document.getElementById(`btn-roi${idx}`);
+  const badge = document.getElementById(`roi${idx}-badge`);
+  btn.disabled = true;
+  btn.textContent = '采集中...';
+  badge.className = 'v2-roi-badge badge-busy';
+  badge.textContent = '采集中';
+
+  try {
+    // TODO: 替换为真实相机 SDK 采集 API，返回点云数据
+    // const r = await fetch('/vision/api/rack/capture-roi/', { method:'POST', ... });
+    // gState.roi[idx] = (await r.json()).points;
+    await sleep(900);  // 模拟采集耗时
+    gState.roi[idx] = makeSimCloud(idx);   // 仿真点云（测试用）
+    gState.roiReady[idx] = true;
+
+    badge.className = 'v2-roi-badge badge-ready';
+    badge.textContent = `${gState.roi[idx].length}pts`;
+    log(`[ROI${idx}] 采集完成，${gState.roi[idx].length} 个点`);
+    toast(`区域 ${idx} 采集完成`, 'success');
+  } catch (e) {
+    badge.className = 'v2-roi-badge badge-pending';
+    badge.textContent = '失败';
+    log(`[ROI${idx}] 采集失败：${e.message}`, 'error');
+    toast(`区域 ${idx} 采集失败`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = `采集区域 ${idx} 点云`;
+    updateButtons();
+  }
+}
+
+// 仿真点云（生产中删除，替换为真实 SDK 数据）
+function makeSimCloud(idx) {
+  const n = 500 + Math.floor(Math.random() * 200);
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const x = Math.random() * 500;
+    const y = Math.random() * 300;
+    const z = idx === 1 ? 400 + (Math.random()-.5)*.5
+             : idx === 3 ? 200 + (Math.random()-.5)*.5
+             : Math.random() * 400;
+    pts.push(idx === 2 ? [0+(Math.random()-.5)*.5, y, z] : [x, y, z]);
+  }
+  return pts;
+}
+
+function resetROI() {
+  [1,2,3].forEach(i => {
+    gState.roi[i] = null;
+    gState.roiReady[i] = false;
+    document.getElementById(`roi${i}-badge`).className = 'v2-roi-badge badge-pending';
+    document.getElementById(`roi${i}-badge`).textContent = '待采集';
+  });
+  gState.lastResult = null;
+  resetDOF();
+  resetChecks();
+  updateButtons();
+}
+
+// =============================================================================
+// 示教：建立标准模板
+// =============================================================================
+async function buildTemplate() {
+  if (!gState.recipeId) { toast('请先选择配方', 'warn'); return; }
+  setBtn('btn-build', true, '建立中...');
+  try {
+    const body = { recipe_id: gState.recipeId, roi1_points: gState.roi[1], roi2_points: gState.roi[2], roi3_points: gState.roi[3] };
+    const r = await fetch(API.templateBuild, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.success) {
+      applyTemplateStatus({ has_template: true, built_at: d.data.built_at });
+      log(`[示教] 标准模板建立成功，置信度合格`);
+      toast('标准模板建立成功！', 'success');
+    } else {
+      const err = d.error || {};
+      log(`[示教] 建立失败 (${err.code || 'ERR'})：${err.message || JSON.stringify(err)}`, 'error');
+      toast(`建立失败：${err.message || '请查看日志'}`, 'error');
+    }
+  } catch (e) {
+    log(`[示教] 网络错误：${e.message}`, 'error');
+    toast(e.message, 'error');
+  } finally {
+    setBtn('btn-build', false, '建立标准模板');
+  }
+}
+
+async function clearTemplate() {
+  if (!confirm('确定清除标准模板？清除后需要重新示教。')) return;
+  try {
+    const r = await fetch(API.templateClear(gState.recipeId), { method:'POST' });
+    const d = await r.json();
+    if (d.success) {
+      applyTemplateStatus({ has_template: false });
+      log('[示教] 标准模板已清除');
+      toast('模板已清除', 'info');
+    }
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// =============================================================================
+// 生产：计算补偿偏差
+// =============================================================================
+async function computeCompensation() {
+  if (!gState.recipeId) { toast('请先选择配方', 'warn'); return; }
+  setBtn('btn-compute', true, '计算中...');
+  try {
+    const body = { recipe_id: gState.recipeId, roi1_points: gState.roi[1], roi2_points: gState.roi[2], roi3_points: gState.roi[3] };
+    const r = await fetch(API.compensation, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+
+    if (d.success && d.data) {
+      const res = d.data;
+      gState.lastResult = res;
+      applyDOF(res.compensation);
+      applyChecks(res.validation);
+      applyConf(res.confidence);
+      const comp = res.compensation;
+      log(`[生产] ΔX=${comp.dX.toFixed(3)} ΔY=${comp.dY.toFixed(3)} ΔZ=${comp.dZ.toFixed(3)} | ΔRx=${comp.dRx.toFixed(3)}° ΔRy=${comp.dRy.toFixed(3)}° ΔRz=${comp.dRz.toFixed(3)}° | 置信度=${(res.confidence*100).toFixed(1)}%`);
+
+      if (res.is_valid) {
+        toast(`计算完成，置信度 ${(res.confidence*100).toFixed(1)}%`, 'success');
+        document.getElementById('btn-send').disabled = false;
+      } else {
+        toast(`校验未通过（${res.validation?.error_code}），请检查料架`, 'error');
+        document.getElementById('btn-send').disabled = true;
+        log(`[警告] ${res.validation?.message}`, 'error');
+      }
+    } else {
+      const msg = d.data?.message || JSON.stringify(d.error || {});
+      toast(`计算失败：${msg}`, 'error');
+      log(`[生产] 失败：${msg}`, 'error');
+    }
+  } catch (e) {
+    toast(e.message, 'error');
+    log(`[生产] 网络错误：${e.message}`, 'error');
+  } finally {
+    setBtn('btn-compute', false, '计算补偿偏差');
+  }
+}
+
+async function sendToPLC() {
+  setBtn('btn-send', true, '发送中...');
+  await sleep(300);  // TODO: 替换为真实 PLC 写入 API
+  const now = new Date().toLocaleString('zh');
+  document.getElementById('last-send-info').textContent = `上次发送：${now}`;
+  log(`[PLC] 补偿量已发送 @ ${now}`);
+  toast('已发送至 PLC', 'success');
+  setBtn('btn-send', false, '发送至 PLC');
+}
+
+// =============================================================================
+// UI 渲染
+// =============================================================================
+function applyDOF(comp) {
+  const fields = { dx: comp.dX, dy: comp.dY, dz: comp.dZ, drx: comp.dRx, dry: comp.dRy, drz: comp.dRz };
+  Object.entries(fields).forEach(([k, v]) => {
+    const isRot = k.startsWith('dr');
+    const thr = isRot ? THR.rot : THR.trans;
+    const over = Math.abs(v) > thr;
+    const el = document.getElementById(`val-${k}`);
+    const cell = document.getElementById(`cell-${k}`);
+    el.textContent = v.toFixed(3);
+    el.className = 'v2-dof-val ' + (over ? 'over' : v > 0.001 ? 'pos' : v < -0.001 ? 'neg' : 'zero');
+    cell.className = 'v2-dof-cell' + (over ? ' alert-cell' : '');
+  });
+}
+
+function resetDOF() {
+  ['dx','dy','dz','drx','dry','drz'].forEach(k => {
+    document.getElementById(`val-${k}`).textContent = '--';
+    document.getElementById(`val-${k}`).className = 'v2-dof-val zero';
+    document.getElementById(`cell-${k}`).className = 'v2-dof-cell';
+  });
+}
+
+function applyChecks(v) {
+  if (!v || !v.checks) return;
+  const list = document.getElementById('check-list');
+
+  // 合并显示：内点率三项合为一行
+  const qualityChecks = v.checks.filter(c => c.name.includes('内点率'));
+  const otherChecks   = v.checks.filter(c => !c.name.includes('内点率'));
+  const qualityPassed = qualityChecks.every(c => c.passed);
+  const qualityMin    = qualityChecks.length ? Math.min(...qualityChecks.map(c => c.value)).toFixed(1) : '--';
+
+  const rows = [
+    ...otherChecks,
+    { name: '点云质量 (ROI1/2/3)', passed: qualityPassed, value_str: `min ${qualityMin}%` }
+  ];
+
+  list.innerHTML = rows.map(c => `
+    <div class="v2-check-row">
+      <div class="v2-check-icon ${c.passed ? 'icon-pass' : 'icon-fail'}">${c.passed ? '&#10003;' : '&#10005;'}</div>
+      <span class="v2-check-name">${c.name}</span>
+      <span class="v2-check-val">${c.value_str || (c.value !== undefined ? `${c.value.toFixed(2)}${c.unit}` : '--')}</span>
+    </div>`).join('');
+}
+
+function resetChecks() {
+  document.getElementById('check-list').innerHTML = `
+    <div class="v2-check-row"><div class="v2-check-icon icon-pend">-</div><span class="v2-check-name">上下水平面平行性</span><span class="v2-check-val">--</span></div>
+    <div class="v2-check-row"><div class="v2-check-icon icon-pend">-</div><span class="v2-check-name">ΔZ 一致性</span><span class="v2-check-val">--</span></div>
+    <div class="v2-check-row"><div class="v2-check-icon icon-pend">-</div><span class="v2-check-name">竖直面正交性</span><span class="v2-check-val">--</span></div>
+    <div class="v2-check-row"><div class="v2-check-icon icon-pend">-</div><span class="v2-check-name">点云质量 (ROI1/2/3)</span><span class="v2-check-val">--</span></div>`;
+  applyConf(0);
+}
+
+function applyConf(val) {
+  const pct = Math.round((val || 0) * 100);
+  document.getElementById('conf-pct').textContent = pct ? `${pct}%` : '--';
+  document.getElementById('conf-fill').style.width = `${pct}%`;
+}
+
+// =============================================================================
+// 运行日志
+// =============================================================================
+function log(msg, level) {
+  const box = document.getElementById('v2-log');
+  const now = new Date().toLocaleTimeString('zh', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const color = level === 'error' ? '#c0392b' : level === 'warn' ? '#e67e22' : '#212529';
+  box.innerHTML += `<div style="color:${color}">[${now}] ${msg}</div>`;
+  box.scrollTop = box.scrollHeight;
+}
+function clearLog() { document.getElementById('v2-log').innerHTML = ''; }
+
+// =============================================================================
+// 按钮/工具函数
+// =============================================================================
+function updateButtons() {
+  const allReady = gState.roiReady[1] && gState.roiReady[2] && gState.roiReady[3];
+  document.getElementById('btn-build').disabled   = !allReady;
+  document.getElementById('btn-compute').disabled = !allReady;
+  if (!gState.lastResult || !gState.lastResult.is_valid) {
+    document.getElementById('btn-send').disabled = true;
+  }
+}
+
+function setBtn(id, loading, text) {
+  const btn = document.getElementById(id);
+  btn.disabled = loading;
+  btn.textContent = text;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function toast(msg, type = 'info') {
+  const c = document.getElementById('v2-toast');
+  const el = document.createElement('div');
+  el.className = `v2-toast-item ${type}`;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+</script>
+{% endblock %}

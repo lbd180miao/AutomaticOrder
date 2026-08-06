@@ -50,7 +50,10 @@ urlpatterns = [
     # 料架定位工作台（新增）
     path('rack-locator/', views.rack_locator_panel, name='rack_locator_panel'),
     path('rack-location/', views.rack_location_workbench, name='rack_location_workbench'),
-    
+
+    # V2 刚体变换补偿工作台页面
+    path('rack-positioning/v2/workbench/', lambda req: render(req, 'vision/rack_positioning_v2.html'), name='rack_positioning_v2_workbench'),
+
     # API调试工具
     path('test-capture-debug/', lambda request: render(request, 'vision/test_capture_debug.html'), name='test_capture_debug'),
     path('simple-capture-test/', lambda request: render(request, 'vision/simple_capture_test.html'), name='simple_capture_test'),
