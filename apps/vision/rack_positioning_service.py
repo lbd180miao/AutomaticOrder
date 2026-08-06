@@ -419,3 +419,225 @@ class RackPositioningService:
             return 'FAIR'       # 一般
         else:
             return 'POOR'       # 较差
+
+
+# =============================================================================
+# V2 刚体变换补偿服务
+# =============================================================================
+
+import datetime as _datetime
+from django.utils import timezone as _timezone
+
+
+class RigidBodyCompensationService:
+    """
+    料架定位补偿服务 V2 —— 局部三维几何模板刚体变换方案。
+
+    职责：
+      - 示教阶段：接收三个 ROI 区域的原始点云 → 调用算法建立 T_std → 持久化到数据库
+      - 生产阶段：读取配方中的 T_std → 重新拟合当前点云 → 计算 ΔT → 返回 6DoF 补偿量
+
+    输出给 PLC 的最终数据格式：
+      {"dX": float, "dY": float, "dZ": float, "dRx": float, "dRy": float, "dRz": float}
+      单位：mm 和 度(°)
+    """
+
+    def __init__(self, **algo_kwargs):
+        from .rack_positioning_algorithm import RigidBodyCompensationAlgorithm
+        self._algo = RigidBodyCompensationAlgorithm(**algo_kwargs)
+
+    # ------------------------------------------------------------------
+    # 示教阶段
+    # ------------------------------------------------------------------
+
+    @transaction.atomic
+    def build_standard_template(
+        self,
+        recipe_id: int,
+        roi1_cloud: np.ndarray,
+        roi2_cloud: np.ndarray,
+        roi3_cloud: np.ndarray,
+    ) -> dict:
+        """
+        示教阶段：建立标准局部坐标系模板并持久化到配方。
+
+        Args:
+            recipe_id: 配方 ID
+            roi1_cloud: 区域1（上水平面）点云 (N, 3)，单位 mm，相机坐标系
+            roi2_cloud: 区域2（左竖直面）点云 (M, 3)，单位 mm，相机坐标系
+            roi3_cloud: 区域3（下水平面）点云 (K, 3)，单位 mm，相机坐标系
+
+        Returns:
+            {
+                "status": "ok",
+                "recipe_id": int,
+                "template_summary": {...},
+                "built_at": "ISO8601"
+            }
+
+        Raises:
+            RackLocationRecipe.DoesNotExist: 配方不存在
+            RackStructureError: 点云质量不合格
+        """
+        recipe = RackLocationRecipe.objects.get(pk=recipe_id)
+
+        # 调用算法建立模板
+        template_dict = self._algo.teach_mode_build_template(roi1_cloud, roi2_cloud, roi3_cloud)
+
+        # 读取权重配置（若配方中有配置则覆盖默认值）
+        # （权重已在 RigidBodyCompensationAlgorithm 构造时设定，此处仅记录）
+
+        # 持久化到数据库
+        recipe.local_template_std = template_dict
+        recipe.local_template_built_at = _timezone.now()
+        recipe.local_template_version = template_dict.get("algorithm_version", "v2_rigid_body")
+        recipe.save(update_fields=[
+            "local_template_std",
+            "local_template_built_at",
+            "local_template_version",
+        ])
+
+        built_at = recipe.local_template_built_at.isoformat()
+        logger.info(
+            "标准模板已保存 | recipe_id=%s | recipe_name=%s | built_at=%s",
+            recipe_id, recipe.recipe_name, built_at,
+        )
+
+        return {
+            "status": "ok",
+            "recipe_id": recipe_id,
+            "recipe_name": recipe.recipe_name,
+            "template_summary": template_dict.get("template_summary", {}),
+            "built_at": built_at,
+        }
+
+    # ------------------------------------------------------------------
+    # 生产阶段
+    # ------------------------------------------------------------------
+
+    def compute_compensation(
+        self,
+        recipe_id: int,
+        roi1_cloud: np.ndarray,
+        roi2_cloud: np.ndarray,
+        roi3_cloud: np.ndarray,
+        save_result: bool = True,
+    ) -> dict:
+        """
+        生产阶段：计算相对于标准模板的 6DoF 刚体补偿偏差。
+
+        Args:
+            recipe_id: 配方 ID
+            roi1_cloud, roi2_cloud, roi3_cloud: 当前料架三个基准区域的点云
+            save_result: 是否将计算结果写入 RackLocationResult 历史记录表
+
+        Returns:
+            {
+                "status": "ok" | "error",
+                "recipe_id": int,
+                "compensation": {"dX", "dY", "dZ", "dRx", "dRy", "dRz"},
+                "validation": {...},
+                "confidence": float,
+                "delta_T": [[4x4]],
+                "compute_timestamp": str
+            }
+        """
+        recipe = RackLocationRecipe.objects.get(pk=recipe_id)
+
+        # 检查标准模板是否存在
+        if not recipe.local_template_std:
+            return {
+                "status": "error",
+                "error_code": "NO_TEMPLATE",
+                "message": f"配方 {recipe.recipe_name} 尚未建立标准模板，请先在示教模式下采集并保存标准模板",
+                "recipe_id": recipe_id,
+            }
+
+        # 调用算法计算补偿（校验失败时不抛异常，而是返回 is_valid=False 的结果）
+        from .rack_positioning_algorithm import RackStructureError
+        try:
+            result = self._algo.production_mode_compute(
+                template_std_dict=recipe.local_template_std,
+                roi1_cloud=roi1_cloud,
+                roi2_cloud=roi2_cloud,
+                roi3_cloud=roi3_cloud,
+                raise_on_invalid=False,  # 让上层决定是否阻止发送
+            )
+        except Exception as e:
+            logger.exception("补偿计算出现未预期错误 | recipe_id=%s", recipe_id)
+            return {
+                "status": "error",
+                "error_code": "COMPUTE_ERROR",
+                "message": str(e),
+                "recipe_id": recipe_id,
+            }
+
+        result["status"] = "ok"
+        result["recipe_id"] = recipe_id
+        result["recipe_name"] = recipe.recipe_name
+
+        if save_result:
+            self._save_result(recipe, result)
+
+        return result
+
+    # ------------------------------------------------------------------
+    # 模板状态管理
+    # ------------------------------------------------------------------
+
+    def get_template_status(self, recipe_id: int) -> dict:
+        """获取配方模板状态"""
+        recipe = RackLocationRecipe.objects.get(pk=recipe_id)
+        if not recipe.local_template_std:
+            return {
+                "has_template": False,
+                "recipe_id": recipe_id,
+                "recipe_name": recipe.recipe_name,
+            }
+
+        tpl = recipe.local_template_std
+        return {
+            "has_template": True,
+            "recipe_id": recipe_id,
+            "recipe_name": recipe.recipe_name,
+            "built_at": recipe.local_template_built_at.isoformat() if recipe.local_template_built_at else None,
+            "algorithm_version": recipe.local_template_version,
+            "template_summary": tpl.get("template_summary", {}),
+            "plane1_normal": tpl.get("plane1", {}).get("normal"),
+            "plane2_normal": tpl.get("plane2", {}).get("normal"),
+            "plane3_normal": tpl.get("plane3", {}).get("normal"),
+        }
+
+    @transaction.atomic
+    def clear_template(self, recipe_id: int) -> dict:
+        """清除标准模板（重新示教前调用）"""
+        recipe = RackLocationRecipe.objects.get(pk=recipe_id)
+        recipe.local_template_std = None
+        recipe.local_template_built_at = None
+        recipe.save(update_fields=["local_template_std", "local_template_built_at"])
+        logger.info("标准模板已清除 | recipe_id=%s | recipe_name=%s", recipe_id, recipe.recipe_name)
+        return {"status": "ok", "message": f"配方 {recipe.recipe_name} 的标准模板已清除"}
+
+    # ------------------------------------------------------------------
+    # 私有方法
+    # ------------------------------------------------------------------
+
+    def _save_result(self, recipe: RackLocationRecipe, result: dict) -> None:
+        """将补偿计算结果写入历史记录（非关键路径，失败时仅记录日志）"""
+        try:
+            comp = result.get("compensation", {})
+            RackLocationResult.objects.create(
+                recipe=recipe,
+                layer_no=getattr(recipe, "layer_no", 0),
+                offset_x=comp.get("dX", 0),
+                offset_y=comp.get("dY", 0),
+                offset_z=comp.get("dZ", 0),
+                offset_rz=comp.get("dRz", 0),
+                confidence=result.get("confidence", 0),
+                is_success=result.get("is_valid", False),
+                error_code="" if result.get("is_valid") else result.get("validation", {}).get("error_code", ""),
+                error_message="" if result.get("is_valid") else result.get("validation", {}).get("message", ""),
+                result_data=result,
+            )
+        except Exception:
+            logger.exception("保存补偿结果到历史记录失败（非致命）| recipe_id=%s", recipe.pk)

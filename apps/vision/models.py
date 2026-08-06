@@ -106,6 +106,35 @@ class RackLocationRecipe(TimeStampedModel):
     confidence_threshold = models.DecimalField(max_digits=5, decimal_places=4, default=0.7000)
     enabled = models.BooleanField(default=True)
 
+    # ------------------------------------------------------------------
+    # V2 刚体变换补偿：局部三维几何模板（向下兼容，不删除任何旧字段）
+    # ------------------------------------------------------------------
+    local_template_std = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name="标准局部3D模板",
+        help_text="示教阶段建立的标准局部坐标系模板，包含 T_std(4x4)、三平面参数等。"
+                  "由 RigidBodyCompensationAlgorithm.teach_mode_build_template() 生成并序列化存储。"
+    )
+    local_template_built_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="标准模板建立时间",
+    )
+    local_template_version = models.CharField(
+        max_length=32,
+        default="v2_rigid_body",
+        verbose_name="模板算法版本",
+        help_text="用于未来算法升级时的版本兼容判断",
+    )
+    roi_weights = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="区域权重配置",
+        help_text='{"w1": 0.5, "w3": 0.5}，控制区域1和区域3在Z轴加权平均中的权重',
+    )
+
+
     class Meta:
         ordering = ['position_no', 'layer_no', '-updated_at']
         indexes = [
