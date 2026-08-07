@@ -96,10 +96,21 @@ class OfflineDataPackageService:
         return {**self._summary(metadata), "package_path": str(package_dir)}
 
     def load_package(self, package_name: str) -> Dict[str, Any]:
+        """加载标准数据包（包含所有必需文件）"""
         package_dir = self._package_dir(package_name)
+        
+        # 检查必需文件，但给出更友好的错误提示
         missing = [name for name in self.REQUIRED_FILES if not (package_dir / name).is_file()]
         if missing:
-            raise OfflineDataPackageError(f"数据包文件缺失: {', '.join(missing)}")
+            # 如果是原始数据包，提供友好的提示
+            if self._is_raw_package(package_dir):
+                raise OfflineDataPackageError(
+                    f"这是一个原始数据包（包含 PointCloud.ply），"
+                    f"请使用'加载'功能直接加载，或使用 load_raw_package() 方法加载。"
+                )
+            else:
+                raise OfflineDataPackageError(f"数据包文件缺失: {', '.join(missing)}")
+        
         try:
             metadata = self._read_json(package_dir / "metadata.json")
             roi_config = self._read_json(package_dir / "roi_config.json")
@@ -125,17 +136,38 @@ class OfflineDataPackageService:
         }
 
     def package_detail(self, package_name: str) -> Dict[str, Any]:
-        package = self.load_package(package_name)
-        metadata = package["metadata"]
-        return {
-            **self._summary(metadata),
-            "metadata": metadata,
-            "roi_config": package["roi_config"],
-            "result": package["result"],
-            "pointcloud_shape": list(package["pointcloud"].shape),
-        }
+        """获取数据包详情，支持标准数据包和原始数据包"""
+        package_dir = self._package_dir(package_name)
+        
+        # 检查是否为原始数据包
+        is_raw = self._is_raw_package(package_dir) and not (package_dir / "metadata.json").is_file()
+        
+        if is_raw:
+            # 原始数据包，返回简化信息
+            package = self.load_raw_package(package_name)
+            metadata = package["metadata"]
+            return {
+                **self._raw_package_summary(package_dir),
+                "metadata": metadata,
+                "roi_config": package["roi_config"],
+                "result": package["result"],
+                "pointcloud_shape": list(package["pointcloud"].shape),
+                "is_raw": True,
+            }
+        else:
+            # 标准数据包
+            package = self.load_package(package_name)
+            metadata = package["metadata"]
+            return {
+                **self._summary(metadata),
+                "metadata": metadata,
+                "roi_config": package["roi_config"],
+                "result": package["result"],
+                "pointcloud_shape": list(package["pointcloud"].shape),
+                "is_raw": False,
+            }
 
-    def list_packages(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def list_packages(self, limit: int = 100, include_raw: bool = False) -> List[Dict[str, Any]]:
         summaries: List[Dict[str, Any]] = []
         for child in self.base_dir.iterdir():
             if not child.is_dir() or child.name.startswith("."):
@@ -144,6 +176,9 @@ class OfflineDataPackageService:
                 metadata = self._read_json(child / "metadata.json")
                 summaries.append(self._summary(metadata))
             except (OSError, json.JSONDecodeError, KeyError, TypeError):
+                # 如果没有metadata.json，尝试识别为原始数据包（包含PointCloud.ply的文件夹）
+                if include_raw and self._is_raw_package(child):
+                    summaries.append(self._raw_package_summary(child))
                 continue
         summaries.sort(key=lambda item: item.get("created_at", ""), reverse=True)
         return summaries[: max(0, int(limit))]
@@ -218,7 +253,18 @@ class OfflineDataPackageService:
         layer_no: int,
         modified_roi: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        package = self.load_package(package_name)
+        """重新处理数据包，支持标准数据包和原始数据包"""
+        package_dir = self._package_dir(package_name)
+        
+        # 检查是否为原始数据包
+        is_raw = self._is_raw_package(package_dir) and not (package_dir / "metadata.json").is_file()
+        
+        if is_raw:
+            # 对于原始数据包，使用 load_raw_package
+            package = self.load_raw_package(package_name)
+        else:
+            # 标准数据包
+            package = self.load_package(package_name)
         roi = modified_roi or package["roi_config"]
         if any(key in roi for key in ("support", "edge", "pillar")):
             roi = roi.get("support") or roi.get("edge") or roi.get("pillar") or {}
@@ -242,7 +288,10 @@ class OfflineDataPackageService:
         return result
 
     def delete_package(self, package_name: str) -> bool:
+        """删除数据包（支持标准数据包和原始数据包）"""
         package_dir = self._package_dir(package_name)
+        
+        # 无论是标准数据包还是原始数据包，都可以直接删除文件夹
         shutil.rmtree(package_dir)
         self._rebuild_index()
         return True
@@ -357,3 +406,230 @@ class OfflineDataPackageService:
 
         preview = image_io.pointcloud_to_preview(cloud)
         Image.fromarray(np.asarray(preview, dtype=np.uint8)).save(path, format="PNG")
+
+    @staticmethod
+    def _is_raw_package(package_dir: Path) -> bool:
+        """检查文件夹是否包含原始点云数据（PointCloud.ply 或 PointCloud.npy）"""
+        return (package_dir / "PointCloud.ply").is_file() or (package_dir / "pointcloud.npy").is_file()
+
+    def _raw_package_summary(self, package_dir: Path) -> Dict[str, Any]:
+        """为原始数据包生成摘要信息"""
+        package_name = package_dir.name
+        
+        # 尝试从文件夹修改时间获取创建时间
+        try:
+            stat = package_dir.stat()
+            created_at = datetime.fromtimestamp(stat.st_mtime).isoformat()
+        except Exception:
+            created_at = ""
+        
+        # 尝试获取点云点数
+        point_count = 0
+        try:
+            ply_path = package_dir / "PointCloud.ply"
+            npy_path = package_dir / "pointcloud.npy"
+            if npy_path.is_file():
+                cloud = np.load(npy_path, allow_pickle=False)
+                point_count = int(cloud.reshape(-1, 3).shape[0])
+            elif ply_path.is_file():
+                try:
+                    from plyfile import PlyData
+                    plydata = PlyData.read(str(ply_path))
+                    point_count = len(plydata['vertex'])
+                except (ImportError, Exception):
+                    pass
+        except Exception:
+            pass
+        
+        # 检查是否有预览图
+        preview_files = ["Image.png", "preview.png", "image.png"]
+        preview_url = None
+        for preview_file in preview_files:
+            if (package_dir / preview_file).is_file():
+                # 为原始数据包生成预览URL
+                preview_url = f"/vision/offline/packages/{package_name}/raw-preview/"
+                break
+        
+        return {
+            "package_name": package_name,
+            "created_at": created_at,
+            "recipe_name": f"原始数据-{package_name}",
+            "recipe_id": None,
+            "position_no": "—",
+            "layer_no": "—",
+            "source": "raw_folder",
+            "point_count": point_count,
+            "has_result": False,
+            "preview_url": preview_url or "",
+            "is_raw": True,  # 标记为原始数据包
+        }
+
+    def load_raw_package(self, package_name: str) -> Dict[str, Any]:
+        """加载原始数据包（从docs/pic文件夹）"""
+        package_dir = self._package_dir(package_name)
+        
+        # 查找点云文件
+        ply_path = package_dir / "PointCloud.ply"
+        npy_path = package_dir / "pointcloud.npy"
+        
+        if ply_path.is_file():
+            # 加载PLY点云
+            pointcloud = self._load_ply_pointcloud(ply_path)
+        elif npy_path.is_file():
+            # 加载NPY点云
+            pointcloud = np.load(npy_path, allow_pickle=False)
+        else:
+            raise OfflineDataPackageError(f"数据包中未找到点云文件: {package_name}")
+        
+        # 使用默认的手眼标定和机器人位姿矩阵
+        hand_eye_matrix = np.eye(4, dtype=np.float64)
+        robot_pose_matrix = np.eye(4, dtype=np.float64)
+        
+        # 创建基本的metadata
+        metadata = {
+            "package_name": package_name,
+            "source": "raw_folder",
+            "description": f"从原始文件夹导入: {package_name}",
+            "recipe": {},
+            "layer": {},
+            "camera": {
+                "width": int(self._cloud_width(pointcloud)),
+                "height": int(self._cloud_height(pointcloud)),
+            },
+            "robot": {},
+            "point_count": int(pointcloud.reshape(-1, 3).shape[0]),
+            "has_result": False,
+            "is_raw": True,
+        }
+        
+        return {
+            "metadata": metadata,
+            "roi_config": {},
+            "pointcloud": pointcloud,
+            "hand_eye_matrix": hand_eye_matrix,
+            "robot_pose_matrix": robot_pose_matrix,
+            "result": None,
+            "package_path": str(package_dir),
+        }
+
+    @staticmethod
+    def _load_ply_pointcloud(ply_path: Path) -> np.ndarray:
+        """加载PLY格式的点云文件"""
+        try:
+            from plyfile import PlyData
+            
+            plydata = PlyData.read(str(ply_path))
+            vertex = plydata['vertex']
+            
+            # 提取XYZ坐标
+            x = np.asarray(vertex['x'], dtype=np.float64)
+            y = np.asarray(vertex['y'], dtype=np.float64)
+            z = np.asarray(vertex['z'], dtype=np.float64)
+            
+            # 组合成点云数组 (N, 3)
+            pointcloud = np.stack([x, y, z], axis=1)
+            
+            # 过滤无效点（nan或inf）
+            valid_mask = np.isfinite(pointcloud).all(axis=1)
+            pointcloud = pointcloud[valid_mask]
+            
+            if pointcloud.shape[0] == 0:
+                raise ValueError("点云中没有有效点")
+            
+            return pointcloud
+            
+        except ImportError:
+            raise OfflineDataPackageError(
+                "需要安装 plyfile 库来加载PLY文件: pip install plyfile"
+            )
+        except Exception as e:
+            raise OfflineDataPackageError(f"加载PLY文件失败: {str(e)}")
+
+    def get_raw_preview(self, package_name: str) -> Path:
+        """获取原始数据包的预览图路径（不区分大小写）"""
+        package_dir = self._package_dir(package_name)
+        
+        # 查找预览图文件（不区分大小写）
+        preview_files = ["Image.png", "preview.png", "image.png", "IMAGE.PNG", "PREVIEW.PNG"]
+        
+        # 先尝试精确匹配
+        for preview_file in preview_files:
+            preview_path = package_dir / preview_file
+            if preview_path.is_file():
+                return preview_path
+        
+        # 如果精确匹配失败，尝试不区分大小写查找
+        try:
+            for file in package_dir.iterdir():
+                if file.is_file() and file.suffix.lower() == '.png':
+                    lower_name = file.name.lower()
+                    if 'image' in lower_name or 'preview' in lower_name:
+                        return file
+        except Exception:
+            pass
+        
+        raise OfflineDataPackageError(f"数据包中未找到预览图: {package_name}")
+
+    def create_workbench_copy_from_raw(self, package_name: str, recipe_id: Optional[Any] = None) -> Dict[str, Any]:
+        """从原始数据包创建工作台副本"""
+        package = self.load_raw_package(package_name)
+        
+        cloud = package["pointcloud"]
+        
+        # 对于PLY加载的点云（通常是Nx3格式），不尝试重塑为图像格式
+        # 直接保存为点云数组供算法使用
+        if cloud.ndim == 2 and cloud.shape[1] == 3:
+            # 点云是 (N, 3) 格式，直接使用
+            # 不尝试重塑为图像格式，因为PLY点云通常是无序的
+            pass
+        
+        from apps.vision.rack_location import RackLocationService
+
+        workbench_service = RackLocationService()
+        
+        # 直接保存点云数据，不生成预览图（避免图像过大问题）
+        import tempfile
+        import numpy as np
+        from django.conf import settings
+        from pathlib import Path
+        import time
+        
+        # 创建临时文件保存点云
+        temp_dir = Path(settings.MEDIA_ROOT) / 'vision' / 'rack_workbench' / time.strftime('%Y/%m/%d')
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = f"{time.strftime('%H%M%S')}_{int(time.time() * 1000000) % 1000000}"
+        cloud_filename = f'raw_package_cloud_{timestamp}.npy'
+        cloud_path = temp_dir / cloud_filename
+        
+        np.save(cloud_path, cloud, allow_pickle=False)
+        
+        # 生成访问token
+        from django.core import signing
+        token = signing.dumps({
+            'type': 'raw_package',
+            'path': str(cloud_path.relative_to(settings.MEDIA_ROOT)),
+            'package_name': package_name,
+        })
+        
+        # 使用原始预览图
+        try:
+            preview_path = self.get_raw_preview(package_name)
+            # 使用API端点而不是直接media路径
+            from django.urls import reverse
+            preview_url = reverse('vision:offline_raw_preview', args=[package_name])
+        except Exception:
+            preview_url = ""
+        
+        payload = {
+            "pointcloud_token": token,
+            "preview_image_url": preview_url,
+            "image_width": 0,
+            "image_height": 0,
+            "source": f"raw_package:{package_name}",
+            "roi_config": package["roi_config"],
+            "result": package["result"],
+            "metadata": package["metadata"],
+        }
+        
+        return payload

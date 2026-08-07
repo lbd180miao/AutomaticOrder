@@ -65,14 +65,14 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'apps.core',
-    'apps.production',
+    'apps.production',      # Model层被workflow/vision/core引用，保留后端，导航已隐藏
     'apps.workflow',
     'apps.devices',
     'apps.vision',
-    'apps.coordinates',
+    'apps.coordinates',     # 手眼标定后端服务，导航已隐藏
     'apps.mes',
     'apps.alarms',
-    'apps.traceability',
+    'apps.traceability',    # 追溯数据层，导航已隐藏
     'apps.dm_camera',  # DM 3D深度相机
 ]
 

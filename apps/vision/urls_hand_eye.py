@@ -36,4 +36,8 @@ urlpatterns = [
     # 辅助接口
     path('api/hand-eye/robot-pose/', views_hand_eye.get_robot_pose, name='get_robot_pose'),
     path('api/hand-eye/transform-test/', views_hand_eye.test_transform, name='test_transform'),
+    path('api/hand-eye/compute-delta/', views_hand_eye.compute_delta, name='compute_delta'),
+
+    # 坐标 ROI 转换（从 coordinates app 迁移，供配方页面 transform-roi 功能使用）
+    path('api/coord/transform-roi/', views_hand_eye.api_coord_transform_roi, name='api_coord_transform_roi'),
 ]

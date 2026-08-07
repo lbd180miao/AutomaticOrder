@@ -98,11 +98,17 @@
       setActions(false);
       return;
     }
-    list.innerHTML = packages.map((pkg) => `
-      <button type="button" class="rl-package-item${pkg.package_name === state.selectedName ? ' selected' : ''}" data-package-name="${escapeHtml(pkg.package_name)}">
-        <img src="${escapeHtml(pkg.preview_url)}" alt="数据包预览">
-        <span><strong>${escapeHtml(pkg.recipe_name)}</strong><span>POS${escapeHtml(pkg.position_no)} · L${escapeHtml(pkg.layer_no)}</span><span>${escapeHtml(formatTime(pkg.created_at))} · ${pkg.has_result ? '已定位' : '未定位'}</span></span>
-      </button>`).join('');
+    list.innerHTML = packages.map((pkg) => {
+      const isRaw = pkg.is_raw || pkg.source === 'raw_folder';
+      const posInfo = (!isRaw && pkg.position_no !== '—' && pkg.position_no != null) 
+        ? `<span>POS${escapeHtml(pkg.position_no)} · L${escapeHtml(pkg.layer_no)}</span>` 
+        : '<span>原始数据</span>';
+      return `
+      <button type="button" class="rl-package-item${pkg.package_name === state.selectedName ? ' selected' : ''}${isRaw ? ' raw-package' : ''}" data-package-name="${escapeHtml(pkg.package_name)}">
+        <img src="${escapeHtml(pkg.preview_url)}" alt="数据包预览" onerror="this.style.display='none'">
+        <span><strong>${escapeHtml(pkg.recipe_name)}</strong>${isRaw ? '<span class="raw-badge">原始数据</span>' : posInfo}<span>${escapeHtml(formatTime(pkg.created_at))} · ${pkg.has_result ? '已定位' : isRaw ? '未定位' : '未定位'}</span></span>
+      </button>`;
+    }).join('');
     list.querySelectorAll('[data-package-name]').forEach((node) => {
       node.addEventListener('click', () => selectPackage(node.dataset.packageName));
     });
@@ -127,15 +133,19 @@
 
   function renderDetail(pkg) {
     const result = pkg.result || {};
+    const isRaw = pkg.is_raw || pkg.source === 'raw_folder' || pkg.metadata?.is_raw;
+    const metadata = pkg.metadata || {};
+    
     byId('offline-package-detail').innerHTML = `
-      <img src="${escapeHtml(pkg.preview_url)}" alt="${escapeHtml(pkg.package_name)} 预览">
+      <img src="${escapeHtml(pkg.preview_url)}" alt="${escapeHtml(pkg.package_name)} 预览" onerror="this.style.display='none'">
       <div class="rl-package-meta">
+        ${isRaw ? '<div><small>类型</small><strong style="color:#0ea5e9;">原始数据包</strong></div>' : ''}
         <div><small>配方</small><strong>${escapeHtml(pkg.recipe_name)}</strong></div>
-        <div><small>位置 / 层</small><strong>POS${escapeHtml(pkg.position_no)} / L${escapeHtml(pkg.layer_no)}</strong></div>
-        <div><small>创建时间</small><strong>${escapeHtml(formatTime(pkg.created_at))}</strong></div>
-        <div><small>点云数量</small><strong>${escapeHtml(pkg.point_count)}</strong></div>
-        <div><small>数据源</small><strong>${escapeHtml(pkg.source || '—')}</strong></div>
-        <div><small>定位结果</small><strong>${pkg.has_result ? `${result.locate_ok ?? result.is_success ? 'OK' : 'NG'} · ${(Number(result.confidence || 0) * 100).toFixed(1)}%` : '尚未定位'}</strong></div>
+        ${!isRaw && pkg.position_no !== '—' && pkg.position_no != null ? `<div><small>位置 / 层</small><strong>POS${escapeHtml(pkg.position_no)} / L${escapeHtml(pkg.layer_no)}</strong></div>` : ''}
+        <div><small>创建时间</small><strong>${escapeHtml(formatTime(pkg.created_at || metadata.created_at))}</strong></div>
+        <div><small>点云数量</small><strong>${escapeHtml(pkg.point_count || metadata.point_count || '未知')}</strong></div>
+        <div><small>数据源</small><strong>${escapeHtml(pkg.source || metadata.source || '—')}</strong></div>
+        <div><small>定位结果</small><strong>${pkg.has_result ? `${result.locate_ok ?? result.is_success ? 'OK' : 'NG'} · ${(Number(result.confidence || 0) * 100).toFixed(1)}%` : isRaw ? '原始数据' : '尚未定位'}</strong></div>
       </div>`;
   }
 

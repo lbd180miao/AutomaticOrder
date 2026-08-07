@@ -423,7 +423,7 @@
 // ============================================================
 const API_URL = '{% url "vision:api_vision_3d_recipes" %}';
 window.roiCoordinateConfig = {
-  transformRoiUrl: '{% url "coordinates:api_transform_roi" %}',
+  transformRoiUrl: '{% url "vision:api_coord_transform_roi" %}',
 };
 
 function getCsrf() {
@@ -502,6 +502,15 @@ async function editRecipe(id) {
       document.getElementById('modal-camera-roi-' + key.replace('_', '-')).value = roiConfig.camera_roi?.[key] ?? '';
     });
     
+    // 恢复变换信息（用于后续可能的更新）
+    if (roiConfig.transform_snapshot || recipe.hand_eye_config?.matrix || recipe.capture_pose) {
+      window.lastRoiTransform = {
+        base_camera_matrix: roiConfig.transform_snapshot,
+        hand_eye_matrix: recipe.hand_eye_config?.matrix,
+        robot_pose: recipe.capture_pose,
+      };
+    }
+    
     // 标准坐标
     document.getElementById('modal-std-x').value = recipe.standard_x || 0;
     document.getElementById('modal-std-y').value = recipe.standard_y || 0;
@@ -538,19 +547,28 @@ async function saveRecipe() {
   const cameraRoi = {};
   for (const key of roiKeys) {
     const suffix = key.replace('_', '-');
-    robotRoi[key] = Number(document.getElementById('modal-roi-' + suffix).value);
+    const robotValue = document.getElementById('modal-roi-' + suffix).value.trim();
+    robotRoi[key] = robotValue === '' ? null : Number(robotValue);
     const cameraValue = document.getElementById('modal-camera-roi-' + suffix).value.trim();
     cameraRoi[key] = cameraValue === '' ? null : Number(cameraValue);
   }
-  if (!roiKeys.every(key => Number.isFinite(robotRoi[key]))) {
+  
+  // 检查是否所有机器人ROI字段都已填写
+  const hasValidRobotRoi = roiKeys.every(key => robotRoi[key] !== null && Number.isFinite(robotRoi[key]));
+  
+  // 如果是编辑模式且ROI为空，则不验证和更新ROI（保留原配置）
+  if (hasValidRobotRoi) {
+    // 验证ROI范围
+    for (const axis of ['x', 'y', 'z']) {
+      if (robotRoi[axis + '_min'] >= robotRoi[axis + '_max']) {
+        showToast(`${axis.toUpperCase()} Min 必须小于 Max`, 'error');
+        return;
+      }
+    }
+  } else if (!id) {
+    // 新建配方时必须填写ROI
     showToast('请先填写相机 ROI，并完成机器人坐标换算', 'error');
     return;
-  }
-  for (const axis of ['x', 'y', 'z']) {
-    if (robotRoi[axis + '_min'] >= robotRoi[axis + '_max']) {
-      showToast(`${axis.toUpperCase()} Min 必须小于 Max`, 'error');
-      return;
-    }
   }
 
   const payload = {
@@ -560,18 +578,25 @@ async function saveRecipe() {
     standard_y: Number(document.getElementById('modal-std-y').value) || 0,
     standard_z: Number(document.getElementById('modal-std-z').value) || 0,
     standard_rz: Number(document.getElementById('modal-std-rz').value) || 0,
-    roi_config: {
+    enabled: true,
+  };
+  
+  // 只有当ROI数据有效时才更新roi_config
+  if (hasValidRobotRoi) {
+    payload.roi_config = {
       coordinate_system: 'robot',
       ...robotRoi,
       target_roi: robotRoi,
-      camera_roi: roiKeys.every(key => Number.isFinite(cameraRoi[key])) ? cameraRoi : null,
+      camera_roi: roiKeys.every(key => cameraRoi[key] !== null && Number.isFinite(cameraRoi[key])) ? cameraRoi : null,
       transform_snapshot: window.lastRoiTransform?.base_camera_matrix || null,
-    },
-    hand_eye_config: window.lastRoiTransform?.hand_eye_matrix
-      ? {matrix: window.lastRoiTransform.hand_eye_matrix} : undefined,
-    capture_pose: window.lastRoiTransform?.robot_pose || undefined,
-    enabled: true,
-  };
+    };
+    if (window.lastRoiTransform?.hand_eye_matrix) {
+      payload.hand_eye_config = {matrix: window.lastRoiTransform.hand_eye_matrix};
+    }
+    if (window.lastRoiTransform?.robot_pose) {
+      payload.capture_pose = window.lastRoiTransform.robot_pose;
+    }
+  }
 
   if (id) {
     payload.id = Number(id);

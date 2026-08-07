@@ -30,11 +30,39 @@
     </div>
     <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-primary">进入3D料架定位工作台</a>
   </div>
+  <div class="vision-module-card">
+    <div>
+      <h2>&#128295; 手眼标定 &amp; 坐标配置</h2>
+      <p>管理 3D 深度相机与机器人之间的坐标转换关系（T_flange_camera）。手眼矩阵是料架定位的核心配置项，上线前须完成标定并激活。</p>
+      <ol>
+        <li>新建标定任务，录入机器人 + 相机设备</li>
+        <li>采集若干位姿样本（机器人移位 → 拍靶标 → 记录）</li>
+        <li>点击「计算标定」，验证误差是否 &lt; 3 mm</li>
+        <li>误差合格后「激活」，配方会自动读取激活的矩阵</li>
+      </ol>
+    </div>
+    <a href="{% url 'vision:hand_eye_page' %}" class="btn btn-primary">进入手眼标定管理</a>
+  </div>
+  <div class="vision-module-card">
+    <div>
+      <h2>&#127381; 3D 定位配方管理</h2>
+      <p>每个 POS 位置对应一条定位配方，记录该位置的拍照位姿、手眼矩阵来源、ROI 区域和理论坐标基准。换型或新增点位时在此配置。</p>
+      <ol>
+        <li>新建/编辑配方，绑定对应的手眼标定</li>
+        <li>设置相机 ROI 并转换为机器人基坐标系</li>
+        <li>录入理论标准坐标 X/Y/Z</li>
+        <li>保存后在定位工作台选择此配方执行</li>
+      </ol>
+    </div>
+    <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-primary">进入配方管理</a>
+  </div>
 </section>
 
 <div class="toolbar">
   <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-primary">📷 泡棉检测工作台</a>
   <a href="{% url 'vision:rack_locator_panel' %}" class="btn" style="background:var(--info);">📡 3D料架定位工作台</a>
+  <a href="{% url 'vision:hand_eye_page' %}" class="btn" style="background:#7c3aed;color:#fff;">🔧 手眼标定</a>
+  <a href="{% url 'vision:rack_location_recipes' %}" class="btn" style="background:#059669;color:#fff;">📋 定位配方</a>
   <a href="{% url 'vision:foam_results' %}" class="btn btn-secondary">泡棉检测结果</a>
   <a href="{% url 'vision:rack_results' %}" class="btn btn-secondary">料架定位结果</a>
 </div>

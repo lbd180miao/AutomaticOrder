@@ -41,22 +41,27 @@ def api_response(data=None, error=None, status=200):
 
 @require_http_methods(["GET"])
 def hand_eye_page(request):
-    """手眼标定管理页面"""
-    # 获取所有机器人和相机设备
+    """手眼标定管理页面（简化版 - 只需输入矩阵）"""
     from apps.core.constants import DeviceType
     
+    # 获取当前激活的手眼标定
+    active_calibration = HandEyeCalibration.objects.filter(is_active=True).first()
+
+    # 获取所有机器人和相机设备供选择
     robots = Device.objects.filter(device_type__in=[
         DeviceType.INJECTION_ROBOT,
         DeviceType.BOXING_ROBOT
     ])
     cameras = Device.objects.filter(device_type=DeviceType.DEPTH_CAMERA)
     
-    calibrations = HandEyeCalibration.objects.all()[:10]
+    # 获取历史记录
+    history_list = HandEyeCalibration.objects.all().order_by('-created_at')[:20]
     
     return render(request, 'vision/hand_eye_calibration.html', {
+        'active_calibration': active_calibration,
         'robots': robots,
         'cameras': cameras,
-        'calibrations': calibrations,
+        'history_list': history_list,
     })
 
 
@@ -510,3 +515,202 @@ def test_transform(request):
     except Exception as e:
         logger.exception("测试坐标转换失败")
         return api_response(error=str(e), status=500)
+
+
+# ========== 坐标系偏差转换 ==========
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def compute_delta(request):
+    """
+    核心计算接口：相机坐标系偏差 → 机器人基坐标系偏差
+
+    算法：
+        T_base_cam = T_base_flange × T_flange_camera
+        ΔT_base    = T_base_cam × ΔT_cam × inv(T_base_cam)
+
+    请求体（JSON）：
+        delta_cam        : {x, y, z, rx, ry, rz}  相机坐标系偏差（mm / 度）
+        T_base_flange    : {x, y, z, rx, ry, rz} 或 {matrix: [[...]]} 拍照时机器人位姿
+        calibration_id   : int（可选，不传则使用当前激活标定）
+        T_flange_camera  : 4×4矩阵（可选；手动调试时优先于 calibration_id）
+
+    返回：
+        delta_base       : {x, y, z, rx, ry, rz}  机器人基坐标系偏差
+        T_flange_camera  : 4×4矩阵
+        T_base_cam       : 4×4矩阵（中间矩阵，供调试）
+        delta_T_base     : 4×4矩阵（完整结果）
+        calibration_name : 使用的标定名称
+    """
+    try:
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            return api_response(error=f'请求体不是有效 JSON：{exc}', status=400)
+
+        if not isinstance(data, dict):
+            return api_response(error='请求体必须是 JSON 对象', status=400)
+
+        # ── 1. 解析 ΔT_cam（相机坐标系偏差）──
+        dc = data.get('delta_cam')
+        delta_cam_pose = _parse_six_dof(dc, 'delta_cam')
+        delta_T_cam = transform_service.parse_matrix_from_json(delta_cam_pose)
+
+        # ── 2. 解析 T_base_flange（拍照时机器人位姿）──
+        T_base_flange_raw = data.get('T_base_flange')
+        if T_base_flange_raw is None:
+            return api_response(error='缺少 T_base_flange（拍照时机器人位姿）', status=400)
+        if isinstance(T_base_flange_raw, dict) and 'matrix' not in T_base_flange_raw:
+            T_base_flange_raw = _parse_six_dof(T_base_flange_raw, 'T_base_flange')
+        T_base_flange = transform_service.parse_matrix_from_json(T_base_flange_raw)
+        _validate_homogeneous_matrix(T_base_flange, 'T_base_flange')
+
+        # ── 3. 获取手眼矩阵 T_flange_camera ──
+        manual_hand_eye = data.get('T_flange_camera')
+        calibration_id = data.get('calibration_id')
+        if manual_hand_eye is not None:
+            T_flange_camera = transform_service.parse_matrix_from_json(manual_hand_eye)
+            calibration = None
+        else:
+            if calibration_id is not None:
+                if isinstance(calibration_id, bool):
+                    raise ValueError('calibration_id 必须是正整数')
+                try:
+                    calibration_id = int(calibration_id)
+                except (TypeError, ValueError):
+                    raise ValueError('calibration_id 必须是正整数')
+                if calibration_id <= 0:
+                    raise ValueError('calibration_id 必须是正整数')
+                calibration = HandEyeCalibration.objects.filter(id=calibration_id).first()
+                if calibration is None:
+                    return api_response(error=f'未找到 ID 为 {calibration_id} 的手眼标定', status=404)
+            else:
+                calibration = HandEyeCalibration.objects.filter(is_active=True).first()
+            if calibration is None:
+                return api_response(error='未找到激活的手眼标定，请先激活一个标定配置', status=400)
+            T_flange_camera = transform_service.parse_matrix_from_json(calibration.T_flange_camera)
+
+        _validate_homogeneous_matrix(T_flange_camera, 'T_flange_camera')
+
+        # ── 4. 核心计算 ──
+        # T_base_cam：相机坐标系 → 机器人基坐标系的完整变换
+        T_base_cam = T_base_flange @ T_flange_camera
+        T_base_cam_inv = transform_service.invert_transform(T_base_cam)
+
+        # 相似变换：将相机坐标系里的偏差矩阵转换到机器人基坐标系
+        delta_T_base = T_base_cam @ delta_T_cam @ T_base_cam_inv
+
+        # ── 5. 提取 6DOF 偏差值 ──
+        delta_base_pose = transform_service.matrix_to_pose(delta_T_base)
+
+        logger.info(
+            "compute_delta 完成 | 标定=%s | "
+            "ΔCam=(%.2f,%.2f,%.2f,%.2f°,%.2f°,%.2f°) | "
+            "ΔBase=(%.2f,%.2f,%.2f,%.2f°,%.2f°,%.2f°)",
+            calibration.name if calibration else '手动输入',
+            delta_cam_pose['x'], delta_cam_pose['y'], delta_cam_pose['z'],
+            delta_cam_pose['rx'], delta_cam_pose['ry'], delta_cam_pose['rz'],
+            delta_base_pose['x'], delta_base_pose['y'], delta_base_pose['z'],
+            delta_base_pose['rx'], delta_base_pose['ry'], delta_base_pose['rz'],
+        )
+
+        return api_response(data={
+            'delta_base':       delta_base_pose,
+            'delta_T_base':     delta_T_base.tolist(),
+            'T_flange_camera':  T_flange_camera.tolist(),
+            'T_base_flange':    T_base_flange.tolist(),
+            'T_base_cam':       T_base_cam.tolist(),
+            'delta_T_cam':      delta_T_cam.tolist(),
+            'calibration_id':   calibration.id if calibration else None,
+            'calibration_name': calibration.name if calibration else '手动输入',
+        })
+
+    except ValueError as e:
+        return api_response(error=str(e), status=400)
+    except Exception as e:
+        logger.exception("compute_delta 计算失败")
+        return api_response(error=str(e), status=500)
+
+
+def _parse_six_dof(value, field_name):
+    """严格解析接口中的六自由度对象，避免缺字段被静默补零。"""
+    if not isinstance(value, dict):
+        raise ValueError(f'{field_name} 必须是包含 x、y、z、rx、ry、rz 的对象')
+
+    fields = ('x', 'y', 'z', 'rx', 'ry', 'rz')
+    missing = [field for field in fields if field not in value]
+    if missing:
+        raise ValueError(f'{field_name} 缺少字段：{", ".join(missing)}')
+
+    parsed = {}
+    for field in fields:
+        raw_value = value[field]
+        if isinstance(raw_value, bool):
+            raise ValueError(f'{field_name}.{field} 必须是有限数值')
+        try:
+            parsed[field] = float(raw_value)
+        except (TypeError, ValueError):
+            raise ValueError(f'{field_name}.{field} 必须是有限数值')
+
+    import numpy as np
+    if not np.isfinite(list(parsed.values())).all():
+        raise ValueError(f'{field_name} 的所有字段都必须是有限数值')
+    return parsed
+
+
+def _validate_homogeneous_matrix(matrix, field_name):
+    """验证有限值、齐次末行以及旋转部分，确保刚体逆变换成立。"""
+    import numpy as np
+
+    if matrix.shape != (4, 4) or not np.isfinite(matrix).all():
+        raise ValueError(f'{field_name} 必须是有限数值组成的 4×4 矩阵')
+    if not np.allclose(matrix[3], [0.0, 0.0, 0.0, 1.0], atol=1e-8):
+        raise ValueError(f'{field_name} 的最后一行必须为 [0, 0, 0, 1]')
+    valid, message = transform_service.validate_rotation_matrix(matrix[:3, :3])
+    if not valid:
+        raise ValueError(f'{field_name} 无效：{message}')
+
+
+# ========== 坐标 ROI 转换（从 coordinates app 迁移）==========
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_coord_transform_roi(request):
+    """
+    将相机坐标系 ROI 转换为机器人基坐标系 AABB。
+
+    从 coordinates app 迁移至此，供配方页面（rack_location_recipe_form、
+    rack_location_recipes）调用，避免依赖已注释的 coordinates URL。
+
+    请求体（JSON）：
+      layer_no   : 层号 1/2/3
+      camera_roi : {x_min, x_max, y_min, y_max, z_min, z_max}
+      recipe_id  : 可选，配方 ID
+    """
+    from apps.coordinates.services import CoordinateWorkbenchService, CoordinateWorkbenchError
+
+    try:
+        body = json.loads(request.body.decode('utf-8'))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return api_response(error=f'请求体不是有效 JSON：{exc}', status=400)
+
+    if not isinstance(body, dict):
+        return api_response(error='请求体必须是 JSON 对象', status=400)
+
+    try:
+        data = CoordinateWorkbenchService().transform_camera_roi(
+            layer_no=body.get('layer_no'),
+            camera_roi=body.get('camera_roi'),
+            recipe_id=body.get('recipe_id'),
+        )
+        return api_response(data=data)
+
+    except CoordinateWorkbenchError as exc:
+        return JsonResponse({
+            'success': False,
+            'data': None,
+            'error': {'code': exc.code, 'message': exc.message, 'fields': exc.fields},
+        }, status=exc.status)
+    except Exception as exc:
+        logger.exception('坐标 ROI 转换失败', exc_info=exc)
+        return api_response(error='坐标 ROI 转换内部错误', status=500)

@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% load static %}
 {% block title %}3D 料架定位配方{% endblock %}
 {% block content %}
@@ -132,7 +132,7 @@ window.rackLocationRecipeConfig = {
   captureUrl: '{% url "vision:rack_location_capture" %}',
   previewUrl: '{% url "vision:rack_location_preview_calculate" %}',
   recipeId: {% if recipe %}{{ recipe.id }}{% else %}null{% endif %},
-  transformRoiUrl: '{% url "coordinates:api_transform_roi" %}',
+  transformRoiUrl: '{% url "vision:api_coord_transform_roi" %}',
 };
 </script>
 <script src="{% static 'vision/js/rack_location_roi.js' %}?v=2"></script>
