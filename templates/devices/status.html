@@ -1,35 +1,286 @@
 {% extends "base.html" %}
-{% block title %}设备状态 - AutomaticOrder{% endblock %}
+{% block title %}设备监控 - AutomaticOrder{% endblock %}
 {% block content %}
-<section class="page-header"><h1>设备状态</h1></section>
-<div class="toolbar">
-  <a href="{% url 'devices:signals' %}" class="btn btn-secondary">查看信号记录</a>
+
+<style>
+  /* 仅针对此页面的细微调整，大部分复用 app.css 的全局类 */
+  .plc-grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 16px;
+    margin-bottom: 30px;
+  }
+  
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 16px;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+  
+  .status-indicator.online { border-left: 4px solid var(--success); }
+  .status-indicator.offline { border-left: 4px solid var(--danger); }
+  
+  .status-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+  .status-indicator.online .status-dot { background: var(--success); box-shadow: 0 0 8px rgba(22,163,74,0.4); }
+  .status-indicator.offline .status-dot { background: var(--danger); }
+  
+  .status-text h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--text); }
+  .status-text p { margin: 2px 0 0 0; font-size: 12px; color: var(--text-muted); }
+  
+  .hb-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 36px;
+    margin-top: 16px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border);
+  }
+  .hb-bar {
+    flex: 1;
+    background: var(--border-strong);
+    border-radius: 2px 2px 0 0;
+    transition: height 0.3s ease, background 0.3s ease;
+  }
+  .hb-bar.active { background: var(--success); }
+  
+  .signal-stream-container {
+    height: 320px;
+    overflow-y: auto;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    padding: 12px;
+  }
+  
+  .signal-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease;
+  }
+  .signal-item:last-child { margin-bottom: 0; }
+  
+  .sig-time { font-size: 12px; color: var(--text-muted); width: 80px; flex-shrink: 0; }
+  .sig-name { font-size: 14px; font-weight: 600; color: var(--primary-dark); width: 180px; flex-shrink: 0; }
+  .sig-val { font-size: 14px; font-weight: 700; font-family: monospace; color: var(--text); flex: 1; }
+  
+  @media (max-width: 900px) {
+    .plc-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<section class="page-header">
+  <h1>设备监控</h1>
+  <div class="toolbar-actions">
+    <a href="{% url 'devices:signals' %}" class="btn btn-secondary">📋 完整信号记录</a>
+    <a href="{% url 'devices:plc_config' %}" class="btn">⚙ PLC 点位配置</a>
+  </div>
+</section>
+
+<div class="page-hint">
+  此处实时展示主控 PLC 通信链路状态及近期产生的交互信号。设备列表包含所有已注册的外围节点（相机、扫码枪等）。
 </div>
+
+<!-- 主控 PLC 面板区 -->
+<h2 class="section-title">主控 PLC 链路状态</h2>
+<div class="plc-grid">
+  
+  <!-- 左侧信息卡 -->
+  <div class="panel">
+    <h2>连接概况</h2>
+    
+    <div class="status-indicator offline" id="conn-indicator">
+      <div class="status-dot"></div>
+      <div class="status-text">
+        <h3 id="conn-label">检测中...</h3>
+        <p id="conn-sub">等待数据返回</p>
+      </div>
+    </div>
+    
+    <ul class="kv">
+      <li>
+        <span>通信协议</span>
+        <span id="plc-proto">{% if plc %}{{ plc.protocol|default:"S7" }}{% else %}S7{% endif %}</span>
+      </li>
+      <li>
+        <span>目标地址</span>
+        <span id="plc-addr">{% if plc %}{{ plc.address|default:"未配置" }}{% else %}未配置{% endif %}</span>
+      </li>
+      <li>
+        <span>最近通信时间</span>
+        <span id="plc-last-seen">-</span>
+      </li>
+      <li>
+        <span>当前心跳时延</span>
+        <span id="plc-hb-age">-</span>
+      </li>
+    </ul>
+    
+    <div class="hb-chart" id="hb-chart" title="最近 16 次心跳状态">
+      {% for i in "0123456789012345" %}
+      <div class="hb-bar" style="height:4px;"></div>
+      {% endfor %}
+    </div>
+  </div>
+  
+  <!-- 右侧信号流 -->
+  <div class="panel" style="display:flex; flex-direction:column;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h2>实时信号数据流</h2>
+      <span class="badge badge-running">每 2s 自动刷新</span>
+    </div>
+    
+    <div class="signal-stream-container" id="signal-stream">
+      <div class="empty">等待 PLC 信号数据...</div>
+    </div>
+  </div>
+</div>
+
+<!-- 外围设备列表 -->
+<h2 class="section-title">外围设备节点列表</h2>
 <div class="table-wrap">
   <table class="data-table">
     <thead>
-      <tr><th>编号</th><th>名称</th><th>类型</th><th>协议</th><th>地址</th><th>状态</th><th>最近通讯</th></tr>
+      <tr>
+        <th>设备编号</th>
+        <th>设备名称</th>
+        <th>设备类型</th>
+        <th>通信协议</th>
+        <th>目标地址</th>
+        <th>当前状态</th>
+        <th>最近通信</th>
+      </tr>
     </thead>
     <tbody>
       {% for d in devices %}
       <tr>
-        <td>{{ d.code }}</td>
+        <td><strong>{{ d.code }}</strong></td>
         <td>{{ d.name }}</td>
         <td>{{ d.get_device_type_display }}</td>
         <td>{{ d.protocol|default:"-" }}</td>
-        <td>{{ d.address|default:"-" }}</td>
+        <td style="font-family: monospace;">{{ d.address|default:"-" }}</td>
         <td>
-          {% if d.status == 'ONLINE' %}<span class="badge badge-ok">{{ d.get_status_display }}</span>
-          {% elif d.status == 'OFFLINE' %}<span class="badge badge-muted">{{ d.get_status_display }}</span>
-          {% elif d.status == 'ALARM' %}<span class="badge badge-fail">{{ d.get_status_display }}</span>
-          {% else %}<span class="badge badge-warn">{{ d.get_status_display }}</span>{% endif %}
+          {% if d.status == 'ONLINE' %}
+            <span class="badge badge-ok">{{ d.get_status_display }}</span>
+          {% elif d.status == 'OFFLINE' %}
+            <span class="badge badge-muted">{{ d.get_status_display }}</span>
+          {% elif d.status == 'ALARM' %}
+            <span class="badge badge-fail">{{ d.get_status_display }}</span>
+          {% else %}
+            <span class="badge badge-warn">{{ d.get_status_display }}</span>
+          {% endif %}
         </td>
-        <td>{{ d.last_seen_at|date:"m-d H:i:s"|default:"-" }}</td>
+        <td>{{ d.last_seen_at|date:"Y-m-d H:i:s"|default:"-" }}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="7" class="empty">暂无设备，请运行 seed_demo 初始化</td></tr>
+      <tr><td colspan="7" class="empty">暂无注册的设备节点，请先在后台进行数据初始化。</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+<script>
+(function () {
+  const API_URL = "{% url 'devices:api_plc_status' %}";
+  const hbHist = new Array(16).fill(false);
+  let lastSignalDataStr = "";
+
+  function renderHB() {
+    const bars = document.querySelectorAll('#hb-chart .hb-bar');
+    bars.forEach((el, i) => {
+      const h = hbHist[i] ? (10 + Math.random() * 15) : 4;
+      el.style.height = h + 'px';
+      el.classList.toggle('active', hbHist[i]);
+    });
+  }
+
+  function renderSignals(sigs) {
+    const container = document.getElementById('signal-stream');
+    if (!sigs || sigs.length === 0) {
+      container.innerHTML = '<div class="empty">暂无任何近期信号交互记录</div>';
+      return;
+    }
+    
+    // Check if data changed to avoid unnecessary DOM repaints
+    const currentDataStr = JSON.stringify(sigs);
+    if (currentDataStr === lastSignalDataStr) return;
+    lastSignalDataStr = currentDataStr;
+    
+    container.innerHTML = sigs.map(s => `
+      <div class="signal-item">
+        <div class="sig-time">${s.recorded_at}</div>
+        <div class="sig-name">${s.signal_name}</div>
+        <div class="sig-val">${s.signal_value}</div>
+        <div class="sig-dir">
+          <span class="badge ${s.direction === 'IN' ? 'badge-info' : 'badge-ok'}">
+            ${s.direction === 'IN' ? '↓ 读入' : '↑ 写入'}
+          </span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function poll() {
+    fetch(API_URL)
+      .then(r => r.json())
+      .then(data => {
+        const ind   = document.getElementById('conn-indicator');
+        const label = document.getElementById('conn-label');
+        const sub   = document.getElementById('conn-sub');
+
+        if (data.error) {
+          ind.className = 'status-indicator offline';
+          label.textContent = '未配置';
+          sub.textContent   = data.error;
+        } else if (data.connected) {
+          ind.className = 'status-indicator online';
+          label.textContent = '通信正常';
+          sub.textContent   = '链路稳定';
+        } else {
+          ind.className = 'status-indicator offline';
+          label.textContent = '设备离线';
+          sub.textContent   = data.status || '无法建立连接';
+        }
+
+        document.getElementById('plc-addr').textContent = data.address || '-';
+        document.getElementById('plc-proto').textContent = data.protocol || '-';
+        document.getElementById('plc-last-seen').textContent = data.last_seen || '-';
+        document.getElementById('plc-hb-age').textContent =
+          data.heartbeat_age != null ? data.heartbeat_age + 's' : '-';
+
+        hbHist.shift();
+        hbHist.push(data.connected === true);
+        renderHB();
+        renderSignals(data.signals);
+      })
+      .catch(() => {
+        const ind = document.getElementById('conn-indicator');
+        ind.className = 'status-indicator offline';
+        document.getElementById('conn-label').textContent = '网络异常';
+        document.getElementById('conn-sub').textContent = '前端无法连接到上位机服务';
+      });
+  }
+
+  // 初始调用并设置轮询
+  poll();
+  setInterval(poll, 2000);
+})();
+</script>
+
 {% endblock %}

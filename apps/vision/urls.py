@@ -14,6 +14,7 @@ urlpatterns = [
     path('offline/packages/<str:package_name>/reprocess/', offline_data_views.reprocess_package, name='offline_reprocess_package'),
     path('offline/packages/<str:package_name>/delete/', offline_data_views.delete_package, name='offline_delete_package'),
     path('offline/packages/<str:package_name>/preview/', offline_data_views.package_preview, name='offline_package_preview'),
+    path('offline/packages/<str:package_name>/raw-preview/', offline_data_views.raw_preview, name='offline_raw_preview'),
     path('tasks/', views.task_list, name='task_list'),
     path('tasks/<int:pk>/delete/', views.delete_task, name='delete_task'),
     path('tasks/<int:pk>/', views.task_detail, name='task_detail'),
@@ -51,13 +52,11 @@ urlpatterns = [
     path('rack-locator/', views.rack_locator_panel, name='rack_locator_panel'),
     path('rack-location/', views.rack_location_workbench, name='rack_location_workbench'),
 
-    # V2 刚体变换补偿工作台页面
-    path('rack-positioning/v2/workbench/', lambda req: render(req, 'vision/rack_positioning_v2.html'), name='rack_positioning_v2_workbench'),
-
-    # API调试工具
-    path('test-capture-debug/', lambda request: render(request, 'vision/test_capture_debug.html'), name='test_capture_debug'),
-    path('simple-capture-test/', lambda request: render(request, 'vision/simple_capture_test.html'), name='simple_capture_test'),
-    path('minimal-test/', lambda request: render(request, 'vision/minimal_test.html'), name='minimal_test'),
+    # [已移除] 以下为开发调试工具，不对外暴露
+    # path('rack-positioning/v2/workbench/', ...)
+    # path('test-capture-debug/', ...)
+    # path('simple-capture-test/', ...)
+    # path('minimal-test/', ...)
     
     path('rack-location/recipes/', views.rack_location_recipes, name='rack_location_recipes'),
     path('rack-location/recipes/create/', views.rack_location_recipe_create, name='rack_location_recipe_create'),

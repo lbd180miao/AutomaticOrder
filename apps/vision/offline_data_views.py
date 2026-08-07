@@ -22,7 +22,9 @@ def _error(exc, status=400):
 def packages(request):
     service = OfflineDataPackageService()
     if request.method == "GET":
-        return JsonResponse({"success": True, "packages": service.list_packages()})
+        # 添加 include_raw 参数支持
+        include_raw = request.GET.get('include_raw', 'true').lower() == 'true'
+        return JsonResponse({"success": True, "packages": service.list_packages(include_raw=include_raw)})
     try:
         data = _request_json(request)
         if data.get("manual_save") is not True:
@@ -61,28 +63,66 @@ def packages(request):
 
 @require_http_methods(["GET"])
 def package_detail(request, package_name):
+    """获取数据包详情"""
     try:
-        return JsonResponse({"success": True, "package": OfflineDataPackageService().package_detail(package_name)})
+        service = OfflineDataPackageService()
+        detail = service.package_detail(package_name)
+        return JsonResponse({"success": True, "package": detail})
     except OfflineDataPackageError as exc:
         return _error(exc, 404)
+    except Exception as exc:
+        # 捕获其他异常并提供友好的错误信息
+        import traceback
+        error_msg = f"获取数据包详情失败: {str(exc)}"
+        print(f"Error in package_detail: {traceback.format_exc()}")
+        return _error(error_msg, 500)
 
 
 @require_http_methods(["POST"])
 def load_package(request, package_name):
+    """加载数据包到工作台"""
     try:
+        service = OfflineDataPackageService()
         data = _request_json(request)
         recipe_id = data.get("recipe_id")
-        payload = OfflineDataPackageService().create_workbench_copy(package_name, recipe_id=recipe_id)
+        
+        # 检查是否为原始数据包
+        package_dir = service.base_dir / package_name
+        is_raw = service._is_raw_package(package_dir) and not (package_dir / "metadata.json").is_file()
+        
+        if is_raw:
+            # 加载原始数据包
+            payload = service.create_workbench_copy_from_raw(package_name, recipe_id=recipe_id)
+        else:
+            # 加载标准数据包
+            payload = service.create_workbench_copy(package_name, recipe_id=recipe_id)
+        
         return JsonResponse({"success": True, "package": payload})
-    except (OfflineDataPackageError, Exception) as exc:
-        return _error(exc, 500 if not isinstance(exc, OfflineDataPackageError) else 404)
+    except OfflineDataPackageError as exc:
+        return _error(exc, 404)
+    except Exception as exc:
+        import traceback
+        error_msg = f"加载数据包失败: {str(exc)}"
+        print(f"Error in load_package: {traceback.format_exc()}")
+        return _error(error_msg, 500)
 
 
 @require_http_methods(["POST"])
 def reprocess_package(request, package_name):
+    """重新处理数据包"""
     try:
         data = _request_json(request)
-        result = OfflineDataPackageService().reprocess_package(
+        service = OfflineDataPackageService()
+        
+        # 检查是否为原始数据包
+        package_dir = service.base_dir / package_name
+        is_raw = service._is_raw_package(package_dir) and not (package_dir / "metadata.json").is_file()
+        
+        if is_raw:
+            # 原始数据包需要先完成转换才能重新定位
+            return _error("原始数据包需要先加载后才能进行定位操作", 400)
+        
+        result = service.reprocess_package(
             package_name,
             int(data.get("recipe_id")),
             int(data.get("layer_no")),
@@ -91,6 +131,11 @@ def reprocess_package(request, package_name):
         return JsonResponse({"success": True, "result": result})
     except (TypeError, ValueError, OfflineDataPackageError, json.JSONDecodeError) as exc:
         return _error(exc)
+    except Exception as exc:
+        import traceback
+        error_msg = f"重新处理数据包失败: {str(exc)}"
+        print(f"Error in reprocess_package: {traceback.format_exc()}")
+        return _error(error_msg, 500)
 
 
 @require_http_methods(["DELETE"])
@@ -104,7 +149,26 @@ def delete_package(request, package_name):
 @require_http_methods(["GET"])
 def package_preview(request, package_name):
     try:
-        return FileResponse(OfflineDataPackageService().preview_path(package_name).open("rb"), content_type="image/png")
+        service = OfflineDataPackageService()
+        
+        # 尝试标准预览
+        try:
+            return FileResponse(service.preview_path(package_name).open("rb"), content_type="image/png")
+        except OfflineDataPackageError:
+            # 如果标准预览不存在，尝试原始预览
+            return FileResponse(service.get_raw_preview(package_name).open("rb"), content_type="image/png")
+    except OfflineDataPackageError as exc:
+        return _error(exc, 404)
+
+
+@require_http_methods(["GET"])
+def raw_preview(request, package_name):
+    """获取原始数据包的预览图（专用端点）"""
+    try:
+        return FileResponse(
+            OfflineDataPackageService().get_raw_preview(package_name).open("rb"),
+            content_type="image/png"
+        )
     except OfflineDataPackageError as exc:
         return _error(exc, 404)
 

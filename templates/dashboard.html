@@ -44,28 +44,27 @@
   </div>
 </section>
 
-<h2 class="section-title">视觉快捷入口</h2>
+<h2 class="section-title">核心功能入口</h2>
 <section class="grid">
   <div class="panel text-panel">
-    <h2>视觉配方管理</h2>
-    <p>管理和配置泡棉检测配方、料架定位配方，维护 POS 0/1/2 的左右泡棉 ROI 参数。</p>
-    <p>
-      <a href="{% url 'vision:recipe_management' %}" class="btn btn-primary">进入配方管理</a>
-    </p>
+    <h2>📦 料框到位与MES校验</h2>
+    <p>场景一：料框到位后扩码校验、空箱检查、MES条码绑定状态查询与结果反馈。</p>
+    <p><a href="{% url 'mes:record_list' %}" class="btn btn-primary">进入 MES 记录</a></p>
   </div>
   <div class="panel text-panel">
-    <h2>泡棉检测工作台</h2>
-    <p>进行泡棉检测操作，实时拍照检测，查看检测结果和历史记录。</p>
-    <p>
-      <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-primary">进入工作台</a>
-    </p>
+    <h2>📍 料架定位补偿</h2>
+    <p>场景二：视觉拍照计算各层偏差数据 ΔXYZ，同步给 PLC 用于修正装箱位置。</p>
+    <p><a href="{% url 'vision:task_list' %}" class="btn btn-primary">进入视觉任务</a></p>
   </div>
   <div class="panel text-panel">
-    <h2>视觉中心</h2>
-    <p>查看泡棉检测、料架定位、历史视觉任务与检测结果。</p>
-    <p>
-      <a href="{% url 'vision:task_list' %}" class="btn btn-secondary">进入视觉模块</a>
-    </p>
+    <h2>🔍 泡棉贴附检测</h2>
+    <p>场景三：PLC 触发 2D 视觉检测泡棉贴附状态，直接反馈检测结果。</p>
+    <p><a href="{% url 'vision:recipe_management' %}" class="btn btn-primary">进入配方管理</a></p>
+  </div>
+  <div class="panel text-panel">
+    <h2>📤 装箱完成与上传</h2>
+    <p>场景四：PLC 触发上传，上位机对接 MES 完成装箱数据上传并反馈结果。</p>
+    <p><a href="{% url 'devices:status' %}" class="btn btn-secondary">查看 PLC 状态</a></p>
   </div>
 </section>
 

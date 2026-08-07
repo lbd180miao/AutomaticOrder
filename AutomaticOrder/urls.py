@@ -22,14 +22,18 @@ from django.urls import include, path
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('apps.core.urls')),
-    path('production/', include('apps.production.urls')),
+    # [已从导航移除] 生产管理 - 与装箱上位机业务场景无关
+    # path('production/', include('apps.production.urls')),
     path('workflow/', include('apps.workflow.urls')),
     path('devices/', include('apps.devices.urls')),
     path('vision/', include('apps.vision.urls')),
-    path('coordinates/', include('apps.coordinates.urls')),
+    # [已从导航移除] 坐标工作台 - 调试工具，已合并入视觉模块
+    # transform-roi 功能已迁移至 vision:api_coord_transform_roi
+    # path('coordinates/', include('apps.coordinates.urls')),
     path('mes/', include('apps.mes.urls')),
     path('alarms/', include('apps.alarms.urls')),
-    path('traceability/', include('apps.traceability.urls')),
+    # [已从导航移除] 追溯查询 - 条码追溯由MES系统负责，非本上位机职责
+    # path('traceability/', include('apps.traceability.urls')),
     path('dm-camera/', include('apps.dm_camera.urls')),  # DM 3D深度相机
 ]
 

@@ -166,211 +166,20 @@
     margin-right: 4px;
   }
 
-  .rl-v2-config-card {
-    margin: 14px 18px;
-    border: 1px solid #bfdbfe;
-    border-radius: 10px;
-    background: #eff6ff;
-    overflow: hidden;
-  }
-
-  .rl-v2-config-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 14px;
-  }
-
-  .rl-v2-config-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    font-weight: 700;
-    color: #1e3a8a;
-  }
-
-  .rl-algorithm-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 3px 9px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 700;
-    background: #fef3c7;
-    color: #92400e;
-  }
-
-  .rl-algorithm-badge.v2 {
-    background: #dcfce7;
-    color: #166534;
-  }
-
-  .rl-v2-config-message {
-    margin: 0;
-    padding: 0 14px 12px;
-    font-size: 12px;
-    line-height: 1.6;
-    color: #475569;
-  }
-
-  .rl-v2-editor {
-    padding: 14px;
-    border-top: 1px solid #bfdbfe;
-    background: #fff;
-  }
-
-  .rl-v2-quick {
-    display: flex;
-    align-items: end;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-  }
-
-  .rl-v2-quick label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 11px;
-    font-weight: 700;
-    color: #475569;
-  }
-
-  .rl-v2-quick input {
-    width: 130px;
-    padding: 6px 8px;
-  }
-
-  .rl-v2-points-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-  }
-
-  .rl-v2-points-table th,
-  .rl-v2-points-table td {
-    padding: 6px;
-    border-bottom: 1px solid #e5e7eb;
-    text-align: center;
-  }
-
-  .rl-v2-points-table input {
-    width: 100%;
-    min-width: 92px;
-    padding: 5px 6px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  }
-
-  .rl-v2-editor-actions {
+  /* 顶部操作栏 */
+  .rl-action-bar {
     display: flex;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
-    margin-top: 12px;
-  }
-
-  @media (max-width: 760px) {
-    .rl-v2-editor { overflow-x: auto; }
-  }
-
-  /* 高级选项（可折叠） */
-  .rl-advanced-options {
-    border-top: 1px solid var(--border);
-  }
-
-  .advanced-toggle {
-    width: 100%;
-    padding: 12px 18px;
+    padding: 14px 18px;
     background: var(--surface-2);
-    border: none;
-    text-align: left;
-    font-size: 13px;
-    font-weight: 600;
-    color: #6b7280;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
   }
 
-  .advanced-toggle:hover {
-    background: #e5e7eb;
-    color: #374151;
-  }
-
-  .advanced-toggle #advanced-toggle-icon {
-    transition: transform 0.2s;
-    display: inline-block;
-  }
-
-  .advanced-content {
-    background: #fff;
-  }
-
-  .rl-manual-bar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 18px;
-    flex-wrap: wrap;
-    background: #fff;
-  }
-
-  .rl-manual-bar .ctrl-label {
-    font-weight: 700;
-    font-size: 13px;
-    white-space: nowrap;
-    color: var(--text-muted);
-  }
-
-  .rl-manual-bar input[type=number] {
-    width: 80px;
-    padding: 6px 10px;
-  }
-
-  .rl-manual-bar select {
-    min-width: 92px;
-    padding: 6px 10px;
-  }
-
-  .rl-manual-bar .sep {
-    width: 1px;
-    height: 28px;
-    background: var(--border);
-  }
-
-  .rl-roi3d-grid {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(88px, 1fr));
-    gap: 8px;
-    width: 100%;
-    padding-top: 2px;
-  }
-
-  .rl-roi3d-field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .rl-roi3d-field label {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-muted);
-  }
-
-  .rl-roi3d-field input {
-    width: 100%;
-    padding: 6px 8px;
-  }
-
-  @media (max-width: 900px) {
-    .rl-roi3d-grid {
-      grid-template-columns: repeat(2, minmax(120px, 1fr));
-    }
+  .rl-action-bar .btn {
+    min-width: 110px;
   }
 
   .rl-no-recipe-bar {
@@ -386,6 +195,7 @@
     grid-template-columns: 1fr 1fr;
     gap: 18px;
     align-items: start;
+    min-height: 560px;
   }
 
   @media (max-width: 1024px) {
@@ -440,7 +250,7 @@
     border-radius: 8px;
     overflow: hidden;
     background: #0f172a;
-    min-height: 360px;
+    min-height: 460px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -897,9 +707,12 @@
   .rl-package-list { display: grid; gap: 8px; margin-top: 12px; }
   .rl-package-item { width: 100%; display: grid; grid-template-columns: 72px 1fr; gap: 10px; padding: 9px; text-align: left; color: var(--text); background: var(--bg-hover); border: 1px solid transparent; border-radius: 9px; cursor: pointer; }
   .rl-package-item:hover, .rl-package-item.selected { border-color: var(--primary); }
+  .rl-package-item.raw-package { background: linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, var(--bg-hover) 100%); }
+  .rl-package-item.raw-package:hover { border-color: #0ea5e9; }
   .rl-package-item img { width: 72px; height: 58px; object-fit: cover; border-radius: 6px; background: #0f172a; }
   .rl-package-item strong, .rl-package-item span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rl-package-item span { margin-top: 4px; color: var(--text-muted); font-size: 11px; }
+  .raw-badge { display: inline-block !important; background: #0ea5e9; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 4px; white-space: nowrap; }
   .rl-package-detail { padding: 20px; overflow-y: auto; }
   .rl-package-detail img { width: 100%; max-height: 300px; object-fit: contain; background: #0f172a; border-radius: 8px; }
   .rl-package-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
@@ -1007,56 +820,30 @@
 
 
 
-    <div class="rl-advanced-options">
-      <button type="button" class="advanced-toggle" onclick="toggleAdvancedOptions()">
-        <span id="advanced-toggle-icon">▼</span> 生产定位参数
-      </button>
-      <div id="advanced-content" class="advanced-content">
-        <div class="rl-manual-bar">
-          <label class="ctrl-label" for="rack-side">料架侧</label>
-          <select id="rack-side">
-            <option value="LEFT">左料架</option>
-            <option value="RIGHT">右料架</option>
-            <option value="BOTH">左右料架</option>
-          </select>
-          <label class="ctrl-label" for="locate-mode">定位模式</label>
-          <select id="locate-mode">
-            <option value="local">分层定位</option>
-            <option value="global">全局定位</option>
-          </select>
-          <label class="ctrl-label" for="layer-no-select">层号</label>
-          <select id="layer-no-select">
-            <option value="1">第 1 层</option>
-            <option value="2">第 2 层</option>
-            <option value="3">第 3 层</option>
-          </select>
-          <input type="hidden" id="layer-no" value="1">
-          <div class="sep"></div>
-          <button type="button" id="btn-auto-align" class="btn btn-secondary btn-sm">自动对齐</button>
-          <button type="button" id="btn-save-roi" class="btn btn-secondary btn-sm" disabled>保存 ROI</button>
-          <button type="button" id="btn-write-plc" class="btn btn-sm" disabled>写入 PLC</button>
-        </div>
-        <div class="rl-roi3d-grid">
-          <div class="rl-roi3d-field"><label for="roi-x-min">X Min</label><input id="roi-x-min" type="number" step="0.1" value="-100"></div>
-          <div class="rl-roi3d-field"><label for="roi-x-max">X Max</label><input id="roi-x-max" type="number" step="0.1" value="100"></div>
-          <div class="rl-roi3d-field"><label for="roi-y-min">Y Min</label><input id="roi-y-min" type="number" step="0.1" value="-100"></div>
-          <div class="rl-roi3d-field"><label for="roi-y-max">Y Max</label><input id="roi-y-max" type="number" step="0.1" value="100"></div>
-          <div class="rl-roi3d-field"><label for="roi-z-min">Z Min</label><input id="roi-z-min" type="number" step="0.1" value="500"></div>
-          <div class="rl-roi3d-field"><label for="roi-z-max">Z Max</label><input id="roi-z-max" type="number" step="0.1" value="1400"></div>
-        </div>
-      </div>
-    </div>
   </div>
 
-  <!-- 隐藏的 recipe-id 字段（供 JS 读取） -->
+  <!-- 隐藏的辅助字段（供 JS 读取） -->
   <input type="hidden" id="recipe-id" value="{% if recipes %}{{ recipes.0.id }}{% endif %}">
+  <input type="hidden" id="layer-no" value="1">
+
+  <!-- 顶部操作栏 -->
+  <div class="rl-action-bar">
+    <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
+    <button id="btn-redraw" class="btn btn-secondary" disabled>🔄 重画 ROI</button>
+    <button id="btn-polygon" class="btn btn-secondary" disabled title="切换为多边形画笔模式，逐点点击绘制不规则ROI，双击闭合">✏️ 画笔</button>
+    <button id="btn-save-recipe" class="btn btn-secondary" disabled title="将当前画布上的ROI框保存到配方中">💾 保存配方</button>
+    <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" disabled>🎯 开始计算</button>
+    <div style="flex:1;"></div>
+    <button id="btn-export-package" class="btn" style="background:#0ea5e9;" disabled>💾 保存数据包</button>
+    <button id="btn-packages" class="btn btn-secondary">📦 数据包管理</button>
+  </div>
 
 
 
   <!-- 双栏主体 -->
   <div class="rl-main">
 
-    <!-- 左栏：点云 + ROI -->
+    <!-- 左栏：点云 -->
     <div class="rl-panel">
       <div class="rl-panel-head">
         <h2>3D 点云 · 拖拽绘制 ROI</h2>
@@ -1073,19 +860,7 @@
           <div class="rl-roi-readout" id="rl-roi-readout" style="display:none;">拖拽绘制 ROI</div>
           <div class="rl-polygon-hint" id="rl-polygon-hint">✏️ 画笔模式：单击添加顶点 · 双击闭合多边形 · 右键取消末点</div>
         </div>
-        <div class="rl-actions">
-          <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
-          <button id="btn-redraw" class="btn btn-secondary" disabled>重画 ROI</button>
-          <button id="btn-polygon" class="btn btn-secondary" disabled title="点击切换为多边形画笔模式，在画布上逐点点击绘制不规则ROI区域，双击闭合">✏️ 画笔</button>
-          <button id="btn-save-recipe" class="btn btn-secondary" disabled title="将当前画布上的ROI框保存到配方中">💾 保存配方</button>
-          <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" disabled>🎯
-            开始计算</button>
-        </div>
-        <div class="rl-actions rl-offline-actions">
-          <button id="btn-export-package" class="btn" style="background:#0ea5e9;" disabled>💾 保存数据包</button>
-          <button id="btn-packages" class="btn btn-secondary">📦 数据包管理</button>
-        </div>
-        <span class="rl-source-chip" id="rl-source" style="display: none;">数据源 —</span>
+        <span class="rl-source-chip" id="rl-source" style="display: none; margin-top: 10px;">数据源 —</span>
         <span id="recipe-switch-status" style="margin-left: 12px; font-size: 13px; transition: all 0.3s;"></span>
         <p class="rl-status" id="rl-status" style="display: none;">先选择配方，再采集点云。</p>
       </div>
@@ -1197,13 +972,6 @@
                 <tr><td id="comp-m-30">—</td><td id="comp-m-31">—</td><td id="comp-m-32">—</td><td id="comp-m-33">—</td></tr>
               </tbody>
             </table>
-            <div class="rl-comp-meta">
-              <span>应用：<strong id="comp-formula">实际放件位姿 = T × 标准放件位姿</strong></span>
-              <span>放件位：<strong id="comp-place-count">机器人示教 15 / 视觉管理 0</strong></span>
-            </div>
-            <div class="rl-standard-actions">
-              <span class="hint">标准模型建立后，生产定位将以同一料架坐标系计算 6 自由度整架补偿。</span>
-            </div>
           </div>
         </section>
 
@@ -1254,20 +1022,6 @@
 <script>
   // ── 配方下拉选择 ────────────────────────────────────
   let selectedRecipeData = null;
-
-  // 切换高级选项
-  function toggleAdvancedOptions() {
-    const content = document.getElementById('advanced-content');
-    const icon = document.getElementById('advanced-toggle-icon');
-
-    if (content.style.display === 'none') {
-      content.style.display = 'block';
-      icon.textContent = '▼';
-    } else {
-      content.style.display = 'none';
-      icon.textContent = '▶';
-    }
-  }
 
   // 更新配方信息卡片
   function updateRecipeInfoCard(option) {

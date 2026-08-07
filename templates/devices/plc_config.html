@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% block title %}PLC 点位配置 - AutomaticOrder{% endblock %}
+{% block content %}
+
+<style>
+.config-layout { display: grid; grid-template-columns: 380px 1fr; gap: 20px; }
+.cfg-card { background: #1a2235; border: 1px solid #2a3550; border-radius: 10px; padding: 22px; }
+.cfg-card h2 { font-size: 13px; color: #7a8aaa; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 18px; }
+
+/* 连接参数表单 */
+.cfg-form .field { margin-bottom: 14px; }
+.cfg-form label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 5px; }
+.cfg-form input, .cfg-form select {
+  width: 100%; box-sizing: border-box;
+  background: #111827; border: 1px solid #2a3550; border-radius: 6px;
+  color: #f0f4ff; font-size: 13px; padding: 8px 12px; font-family: monospace;
+}
+.cfg-form input:focus, .cfg-form select:focus {
+  outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #3b82f620;
+}
+.cfg-hint { font-size: 11px; color: #4b5563; margin-top: 4px; }
+.btn-save { width: 100%; margin-top: 8px; padding: 10px; background: #1d4ed8;
+            border: none; border-radius: 7px; color: #fff; font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: background .2s; }
+.btn-save:hover { background: #2563eb; }
+.save-tip { font-size: 12px; color: #22c55e; text-align: center; margin-top: 8px;
+            display: none; }
+
+/* 说明卡 */
+.info-block { background: #0f1929; border-left: 3px solid #3b82f6;
+              border-radius: 0 6px 6px 0; padding: 12px 14px; margin-bottom: 16px; }
+.info-block p { font-size: 12px; color: #9ca3af; margin: 0; line-height: 1.7; }
+.info-block strong { color: #60a5fa; }
+
+/* 点位分组表 */
+.scene-section { margin-bottom: 24px; }
+.scene-title { font-size: 12px; color: #f59e0b; text-transform: uppercase;
+               letter-spacing: 1px; padding: 6px 0; border-bottom: 1px solid #2a3550; margin-bottom: 10px; }
+.points-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.points-table th { color: #6b7280; font-weight: 500; text-align: left; padding: 6px 10px;
+                   background: #0f1929; }
+.points-table td { padding: 8px 10px; border-bottom: 1px solid #111827; color: #d1d5db; }
+.points-table tr:last-child td { border-bottom: none; }
+.points-table tr:hover td { background: #111827; }
+.tag-in  { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px;
+           font-weight: 700; background: #1d4ed822; color: #60a5fa; border: 1px solid #1d4ed8; }
+.tag-out { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px;
+           font-weight: 700; background: #16a34a22; color: #4ade80; border: 1px solid #16a34a; }
+.mono { font-family: monospace; color: #a5b4fc; }
+</style>
+
+<section class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
+  <h1>PLC 点位配置</h1>
+  <a href="{% url 'devices:status' %}" class="btn btn-secondary">← 返回监控</a>
+</section>
+
+<div class="config-layout">
+
+  <!-- 左：连接参数配置 -->
+  <div>
+    <div class="cfg-card">
+      <h2>PLC 连接参数</h2>
+
+      <div class="info-block">
+        <p>
+          系统使用 <strong>西门子 S7 协议</strong> 与 PLC 通信。<br>
+          上位机通过读写 <strong>DB 块</strong>（数据块）完成所有信号交互，<br>
+          三个软件模块之间的数据同步均经由 PLC DB 块中转，不直接互调。
+        </p>
+      </div>
+
+      <form class="cfg-form" method="post" action="{% url 'devices:plc_config' %}" id="conn-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_connection">
+
+        <div class="field">
+          <label>PLC IP 地址</label>
+          <input type="text" name="address" id="f-address"
+                 value="{% if plc %}{{ plc.address }}{% endif %}"
+                 placeholder="192.168.1.10">
+          <div class="cfg-hint">西门子 PLC 的以太网接口 IP，通常为 192.168.x.x</div>
+        </div>
+
+        <div class="field">
+          <label>通信协议</label>
+          <select name="protocol" id="f-protocol">
+            <option value="S7" {% if plc and plc.protocol == 'S7' %}selected{% endif %}>S7（西门子专有协议）</option>
+            <option value="Modbus TCP" {% if plc and plc.protocol == 'Modbus TCP' %}selected{% endif %}>Modbus TCP</option>
+            <option value="OPC UA" {% if plc and plc.protocol == 'OPC UA' %}selected{% endif %}>OPC UA</option>
+          </select>
+          <div class="cfg-hint">推荐使用 S7，直接读写 DB 块，无需额外配置</div>
+        </div>
+
+        <div class="field">
+          <label>机架号 / 槽号</label>
+          <input type="text" name="rack_slot" placeholder="0 / 1"
+                 value="">
+          <div class="cfg-hint">S200 Smart: 0/0，S300/S400: 0/2，S1500: 0/1</div>
+        </div>
+
+        <div class="field">
+          <label>心跳周期（秒）</label>
+          <input type="number" name="heartbeat_interval" placeholder="2" min="1" max="10" value="2">
+          <div class="cfg-hint">上位机向 PLC 写心跳位的间隔，建议 2s</div>
+        </div>
+
+        <button type="submit" class="btn-save">💾 保存连接配置</button>
+        <div class="save-tip" id="save-tip">✓ 配置已保存</div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 右：点位表 -->
+  <div class="cfg-card">
+    <h2>DB 块点位定义表</h2>
+
+    <div class="info-block">
+      <p>
+        <strong>IN</strong>（← PLC → 上位机）：上位机轮询读取该点位，检测到变化时触发对应业务逻辑。<br>
+        <strong>OUT</strong>（上位机 → PLC →）：上位机计算完成后将结果写入该点位，PLC 读取后执行动作。<br>
+        所有地址均为 <strong>DB块.偏移字节</strong> 格式，换工位只需在配置文件中修改 DB 号和偏移量。
+      </p>
+    </div>
+
+    {% with points=plc_points %}
+
+    <div class="scene-section">
+      <div class="scene-title">场景一 · 料框到位</div>
+      <table class="points-table">
+        <thead><tr><th>信号名</th><th>说明</th><th>方向</th><th>地址</th></tr></thead>
+        <tbody>
+          {% for sig, desc, dir, db, offset in points %}
+          {% if db == 10 %}
+          <tr>
+            <td class="mono">{{ sig }}</td>
+            <td>{{ desc }}</td>
+            <td><span class="{% if dir == 'IN' %}tag-in{% else %}tag-out{% endif %}">{{ dir }}</span></td>
+            <td class="mono">DB{{ db }}.DBX{{ offset }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="scene-section">
+      <div class="scene-title">场景二 · 料架定位补偿</div>
+      <table class="points-table">
+        <thead><tr><th>信号名</th><th>说明</th><th>方向</th><th>地址</th></tr></thead>
+        <tbody>
+          {% for sig, desc, dir, db, offset in points %}
+          {% if db == 20 %}
+          <tr>
+            <td class="mono">{{ sig }}</td>
+            <td>{{ desc }}</td>
+            <td><span class="{% if dir == 'IN' %}tag-in{% else %}tag-out{% endif %}">{{ dir }}</span></td>
+            <td class="mono">DB{{ db }}.DBX{{ offset }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="scene-section">
+      <div class="scene-title">场景三 · 泡棉检测</div>
+      <table class="points-table">
+        <thead><tr><th>信号名</th><th>说明</th><th>方向</th><th>地址</th></tr></thead>
+        <tbody>
+          {% for sig, desc, dir, db, offset in points %}
+          {% if db == 30 %}
+          <tr>
+            <td class="mono">{{ sig }}</td>
+            <td>{{ desc }}</td>
+            <td><span class="{% if dir == 'IN' %}tag-in{% else %}tag-out{% endif %}">{{ dir }}</span></td>
+            <td class="mono">DB{{ db }}.DBX{{ offset }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="scene-section">
+      <div class="scene-title">场景四 · 装箱完成与上传</div>
+      <table class="points-table">
+        <thead><tr><th>信号名</th><th>说明</th><th>方向</th><th>地址</th></tr></thead>
+        <tbody>
+          {% for sig, desc, dir, db, offset in points %}
+          {% if db == 40 %}
+          <tr>
+            <td class="mono">{{ sig }}</td>
+            <td>{{ desc }}</td>
+            <td><span class="{% if dir == 'IN' %}tag-in{% else %}tag-out{% endif %}">{{ dir }}</span></td>
+            <td class="mono">DB{{ db }}.DBX{{ offset }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="scene-section">
+      <div class="scene-title">通用 · 心跳</div>
+      <table class="points-table">
+        <thead><tr><th>信号名</th><th>说明</th><th>方向</th><th>地址</th></tr></thead>
+        <tbody>
+          {% for sig, desc, dir, db, offset in points %}
+          {% if db == 1 %}
+          <tr>
+            <td class="mono">{{ sig }}</td>
+            <td>{{ desc }}</td>
+            <td><span class="{% if dir == 'IN' %}tag-in{% else %}tag-out{% endif %}">{{ dir }}</span></td>
+            <td class="mono">DB{{ db }}.DBX{{ offset }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% endwith %}
+  </div>
+
+</div>
+
+<script>
+document.getElementById('conn-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  fetch(this.action, { method: 'POST', body: new FormData(this) })
+    .then(() => {
+      const tip = document.getElementById('save-tip');
+      tip.style.display = 'block';
+      setTimeout(() => tip.style.display = 'none', 3000);
+    });
+});
+</script>
+
+{% endblock %}

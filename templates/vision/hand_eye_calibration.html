@@ -1,552 +1,1082 @@
 {% extends 'base.html' %}
-{% load static %}
 
-{% block title %}手眼标定管理{% endblock %}
+{% block title %}坐标转换计算器 · AutomaticOrder{% endblock %}
 
 {% block extra_css %}
 <style>
-    .hand-eye-container {
-        padding: 20px;
-        max-width: 1400px;
-        margin: 0 auto;
-    }
-    
-    .section-card {
-        background: white;
-        border-radius: 8px;
-        padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #e0e0e0;
-    }
-    
-    .section-title {
-        font-size: 20px;
-        font-weight: bold;
-        color: #333;
-    }
-    
-    .btn-group {
-        display: flex;
-        gap: 10px;
-    }
-    
-    .btn {
-        padding: 8px 16px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 14px;
-        transition: all 0.3s;
-    }
-    
-    .btn-primary {
-        background: #1976d2;
-        color: white;
-    }
-    
-    .btn-primary:hover {
-        background: #1565c0;
-    }
-    
-    .btn-success {
-        background: #4caf50;
-        color: white;
-    }
-    
-    .btn-success:hover {
-        background: #45a049;
-    }
-    
-    .btn-danger {
-        background: #f44336;
-        color: white;
-    }
-    
-    .btn-danger:hover {
-        background: #da190b;
-    }
-    
-    .btn-secondary {
-        background: #757575;
-        color: white;
-    }
-    
-    .btn-secondary:hover {
-        background: #616161;
-    }
-    
-    .calibration-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 10px;
-    }
-    
-    .calibration-table th,
-    .calibration-table td {
-        padding: 12px;
-        text-align: left;
-        border-bottom: 1px solid #e0e0e0;
-    }
-    
-    .calibration-table th {
-        background: #f5f5f5;
-        font-weight: bold;
-        color: #666;
-    }
-    
-    .calibration-table tr:hover {
-        background: #f9f9f9;
-    }
-    
-    .badge {
-        display: inline-block;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: bold;
-    }
-    
-    .badge-active {
-        background: #4caf50;
-        color: white;
-    }
-    
-    .badge-inactive {
-        background: #9e9e9e;
-        color: white;
-    }
-    
-    .badge-verified {
-        background: #2196f3;
-        color: white;
-    }
-    
-    .form-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 15px;
-        margin-bottom: 20px;
-    }
-    
-    .form-group {
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .form-group label {
-        font-weight: bold;
-        margin-bottom: 5px;
-        color: #555;
-    }
-    
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-        padding: 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 14px;
-    }
-    
-    .form-group textarea {
-        resize: vertical;
-        min-height: 60px;
-    }
-    
-    .modal {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.5);
-        z-index: 1000;
-        justify-content: center;
-        align-items: center;
-    }
-    
-    .modal.show {
-        display: flex;
-    }
-    
-    .modal-content {
-        background: white;
-        border-radius: 8px;
-        padding: 30px;
-        max-width: 600px;
-        width: 90%;
-        max-height: 80vh;
-        overflow-y: auto;
-    }
-    
-    .modal-header {
-        font-size: 24px;
-        font-weight: bold;
-        margin-bottom: 20px;
-        color: #333;
-    }
-    
-    .modal-footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        margin-top: 20px;
-    }
-    
-    .status-indicator {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-    }
-    
-    .status-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-    }
-    
-    .status-dot.active {
-        background: #4caf50;
-    }
-    
-    .status-dot.inactive {
-        background: #9e9e9e;
-    }
-    
-    .error-display {
-        color: #666;
-        font-size: 12px;
-    }
-    
-    .error-low {
-        color: #4caf50;
-    }
-    
-    .error-medium {
-        color: #ff9800;
-    }
-    
-    .error-high {
-        color: #f44336;
-    }
-    
-    .empty-state {
-        text-align: center;
-        padding: 40px;
-        color: #999;
-    }
-    
-    .sample-count {
-        color: #666;
-        font-size: 14px;
-    }
+  :root {
+    --he-bg: #07111f;
+    --he-panel: rgba(14, 30, 50, .78);
+    --he-panel-strong: rgba(17, 38, 63, .94);
+    --he-border: rgba(148, 191, 231, .18);
+    --he-text: #eaf4ff;
+    --he-muted: #8da7bf;
+    --he-blue: #38bdf8;
+    --he-cyan: #22d3ee;
+    --he-purple: #a78bfa;
+    --he-green: #34d399;
+    --he-danger: #fb7185;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 12% 5%, rgba(14, 165, 233, .13), transparent 29rem),
+      radial-gradient(circle at 88% 34%, rgba(139, 92, 246, .10), transparent 32rem),
+      var(--he-bg);
+    color: var(--he-text);
+  }
+
+  .page { max-width: 1540px; padding-top: 24px; }
+
+  .he-shell { position: relative; isolation: isolate; }
+
+  .he-shell::before {
+    content: "";
+    position: fixed;
+    inset: 60px 0 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(125, 211, 252, .025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(125, 211, 252, .025) 1px, transparent 1px);
+    background-size: 34px 34px;
+    mask-image: linear-gradient(to bottom, black, transparent 88%);
+  }
+
+  .he-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 18px;
+  }
+
+  .he-eyebrow {
+    margin-bottom: 5px;
+    color: var(--he-cyan);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+  }
+
+  .he-header h1 {
+    margin: 0;
+    font-size: clamp(25px, 3vw, 36px);
+    line-height: 1.2;
+    letter-spacing: -.025em;
+  }
+
+  .he-header p { margin: 8px 0 0; color: var(--he-muted); }
+
+  .formula-chip {
+    flex: 0 0 auto;
+    padding: 11px 15px;
+    border: 1px solid rgba(56, 189, 248, .24);
+    border-radius: 10px;
+    background: rgba(2, 12, 27, .58);
+    color: #bae6fd;
+    font: 600 12px/1.55 "SFMono-Regular", Consolas, monospace;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  }
+
+  .flow-line {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    padding: 9px 12px;
+    color: var(--he-muted);
+    font-size: 12px;
+  }
+
+  .flow-step:not(:last-child)::after {
+    content: "→";
+    margin-left: auto;
+    color: rgba(125, 211, 252, .46);
+  }
+
+  .flow-step span {
+    display: grid;
+    place-items: center;
+    width: 21px;
+    height: 21px;
+    flex: 0 0 auto;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    color: #7dd3fc;
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .he-panels { display: grid; gap: 12px; }
+
+  .he-panel {
+    --accent: var(--he-blue);
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--he-border);
+    border-radius: 16px;
+    background: linear-gradient(115deg, var(--he-panel-strong), var(--he-panel));
+    box-shadow: 0 14px 45px rgba(0, 0, 0, .19), inset 0 1px 0 rgba(255,255,255,.035);
+    backdrop-filter: blur(18px);
+  }
+
+  .he-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--accent);
+    box-shadow: 0 0 18px var(--accent);
+  }
+
+  .panel-two { --accent: var(--he-purple); }
+  .panel-three { --accent: var(--he-cyan); }
+  .panel-four { --accent: var(--he-green); }
+
+  .he-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    min-height: 68px;
+    padding: 13px 18px 12px 20px;
+    border-bottom: 1px solid rgba(148, 191, 231, .12);
+  }
+
+  .panel-index {
+    display: grid;
+    place-items: center;
+    width: 35px;
+    height: 35px;
+    flex: 0 0 auto;
+    border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent) 11%, transparent);
+    color: var(--accent);
+    font: 800 13px/1 Consolas, monospace;
+  }
+
+  .panel-heading { min-width: 0; }
+  .panel-heading h2 { margin: 0; color: var(--he-text); font-size: 16px; }
+  .panel-heading p { margin: 2px 0 0; color: var(--he-muted); font-size: 12px; }
+
+  .source-pill {
+    margin-left: auto;
+    padding: 4px 9px;
+    border: 1px solid rgba(148, 191, 231, .16);
+    border-radius: 999px;
+    color: var(--he-muted);
+    background: rgba(2, 12, 27, .35);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .source-pill.ready { color: #86efac; border-color: rgba(52, 211, 153, .28); }
+  .source-pill.manual { color: #c4b5fd; border-color: rgba(167, 139, 250, .28); }
+
+  .panel-body {
+    display: grid;
+    grid-template-columns: minmax(440px, 1.1fr) minmax(460px, .9fr);
+    gap: 22px;
+    align-items: center;
+    padding: 16px 20px 18px;
+  }
+
+  .panel-two .panel-body { align-items: stretch; }
+
+  .pose-fields {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(72px, 1fr));
+    gap: 9px;
+  }
+
+  .field label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    margin-bottom: 5px;
+    color: #aec2d4;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .field label small { color: #607c95; font-size: 9px; font-weight: 500; }
+
+  .field input,
+  .toolbar select,
+  .matrix-cell-input {
+    width: 100%;
+    border: 1px solid rgba(148, 191, 231, .18);
+    border-radius: 8px;
+    outline: 0;
+    background: rgba(2, 12, 27, .62);
+    color: var(--he-text);
+    font: 600 13px/1.2 "SFMono-Regular", Consolas, monospace;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+
+  .field input { height: 39px; padding: 0 10px; }
+  .field input:focus, .toolbar select:focus, .matrix-cell-input:focus {
+    border-color: color-mix(in srgb, var(--accent) 70%, white 5%);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
+  }
+
+  .field input[readonly] { color: #86efac; background: rgba(6, 78, 59, .13); }
+
+  .field-hint {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 22px;
+    margin-top: 9px;
+    color: #69849c;
+    font-size: 11px;
+  }
+
+  .field-hint::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .matrix-shell {
+    min-width: 0;
+    padding: 11px 13px 12px;
+    border: 1px solid rgba(148, 191, 231, .13);
+    border-radius: 11px;
+    background: rgba(2, 10, 23, .45);
+  }
+
+  .matrix-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    color: #7591aa;
+    font: 600 10px/1.3 "SFMono-Regular", Consolas, monospace;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .matrix-grid {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(65px, 1fr));
+    gap: 5px 9px;
+    padding: 0 11px;
+  }
+
+  .matrix-grid::before, .matrix-grid::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    border: solid rgba(125, 211, 252, .34);
+  }
+
+  .matrix-grid::before { left: 0; border-width: 1px 0 1px 1px; }
+  .matrix-grid::after { right: 0; border-width: 1px 1px 1px 0; }
+
+  .matrix-cell {
+    overflow: hidden;
+    padding: 5px 3px;
+    color: #b9cee0;
+    font: 500 11px/1.2 "SFMono-Regular", Consolas, monospace;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .matrix-cell:nth-child(4n) { color: #7dd3fc; }
+  .panel-four .matrix-cell { color: #a7f3d0; }
+
+  .matrix-cell-input {
+    min-width: 0;
+    height: 29px;
+    padding: 0 5px;
+    border-radius: 5px;
+    font-size: 11px;
+    text-align: right;
+  }
+
+  .matrix-cell-input:disabled { border-color: transparent; background: transparent; color: #b9cee0; }
+
+  .toolbar {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) auto auto;
+    gap: 8px;
+    align-items: end;
+    margin-bottom: 11px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .toolbar .control label {
+    display: block;
+    margin-bottom: 5px;
+    color: #8fa7bc;
+    font-size: 11px;
+  }
+
+  .toolbar select { height: 37px; padding: 0 10px; font-family: inherit; }
+
+  .he-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 37px;
+    padding: 0 13px;
+    border: 1px solid rgba(148, 191, 231, .21);
+    border-radius: 8px;
+    cursor: pointer;
+    background: rgba(27, 52, 79, .78);
+    color: #d8e8f7;
+    font: 700 12px/1 inherit;
+    transition: transform .15s, border-color .15s, background .15s, opacity .15s;
+  }
+
+  .he-button:hover { transform: translateY(-1px); border-color: rgba(125, 211, 252, .5); }
+  .he-button:disabled { cursor: wait; opacity: .55; transform: none; }
+  .he-button.primary { border-color: rgba(56, 189, 248, .45); background: rgba(2, 132, 199, .24); color: #bae6fd; }
+  .he-button.purple { border-color: rgba(167, 139, 250, .35); background: rgba(109, 40, 217, .18); color: #ddd6fe; }
+  .he-button.ghost { background: rgba(2, 12, 27, .28); color: #93aabd; }
+
+  .result-actions {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 13px;
+  }
+
+  .compute-button {
+    min-height: 43px;
+    padding: 0 20px;
+    border-color: rgba(52, 211, 153, .48);
+    background: linear-gradient(135deg, rgba(5, 150, 105, .88), rgba(6, 95, 70, .88));
+    color: white;
+    box-shadow: 0 8px 22px rgba(5, 150, 105, .18);
+  }
+
+  .compute-button .icon { font-size: 16px; }
+
+  .status-line {
+    flex: 1;
+    min-width: 160px;
+    color: var(--he-muted);
+    font-size: 11px;
+    text-align: right;
+  }
+
+  .status-line.success { color: #86efac; }
+  .status-line.error { color: #fda4af; }
+
+  @media (max-width: 1120px) {
+    .panel-body { grid-template-columns: 1fr; }
+    .pose-fields { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  @media (max-width: 720px) {
+    .page { padding: 18px 12px 35px; }
+    .he-header { align-items: flex-start; flex-direction: column; }
+    .formula-chip { width: 100%; overflow-x: auto; }
+    .flow-line { display: none; }
+    .he-panel-header { align-items: flex-start; }
+    .source-pill { display: none; }
+    .panel-body { padding: 14px; }
+    .pose-fields { grid-template-columns: repeat(2, 1fr); }
+    .toolbar { grid-template-columns: 1fr 1fr; }
+    .toolbar .control { grid-column: 1 / -1; }
+    .matrix-grid { grid-template-columns: repeat(4, minmax(49px, 1fr)); gap: 4px; }
+    .matrix-cell { font-size: 9px; }
+    .result-actions { align-items: stretch; flex-wrap: wrap; }
+    .status-line { flex-basis: 100%; text-align: left; }
+  }
+
+  /* 与 AutomaticOrder 全局后台样式保持一致：浅色页面、白色卡片、蓝色主操作 */
+  :root {
+    --he-bg: var(--bg-page);
+    --he-panel: var(--surface);
+    --he-panel-strong: var(--surface);
+    --he-border: var(--border);
+    --he-text: var(--text);
+    --he-muted: var(--text-muted);
+    --he-blue: var(--primary);
+    --he-cyan: var(--primary);
+    --he-purple: var(--primary);
+    --he-green: var(--success);
+  }
+
+  body {
+    background: var(--bg-page);
+    color: var(--text);
+  }
+
+  .page { max-width: 1480px; }
+  .he-shell::before { display: none; }
+
+  .he-header {
+    align-items: center;
+    margin-bottom: 18px;
+  }
+
+  .he-eyebrow { display: none; }
+
+  .he-header h1 {
+    color: var(--text);
+    font-size: 23px;
+    font-weight: 700;
+    letter-spacing: .3px;
+  }
+
+  .he-header h1::before {
+    content: "";
+    display: inline-block;
+    width: 4px;
+    height: 20px;
+    margin-right: 11px;
+    border-radius: 3px;
+    background: var(--primary);
+    vertical-align: -3px;
+  }
+
+  .he-header p { color: var(--text-muted); }
+
+  .formula-chip {
+    border-color: #bfdbfe;
+    background: var(--primary-soft);
+    color: var(--primary-dark);
+    box-shadow: none;
+  }
+
+  .flow-line {
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .flow-step { color: var(--text-muted); }
+  .flow-step span { color: var(--primary); }
+  .flow-step:not(:last-child)::after { color: var(--text-faint); }
+
+  .panel-two,
+  .panel-three,
+  .panel-four { --accent: var(--primary); }
+
+  .he-panel {
+    border-color: var(--border);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: none;
+  }
+
+  .he-panel::before {
+    width: 4px;
+    box-shadow: none;
+  }
+
+  .he-panel-header { border-bottom-color: var(--border); }
+  .panel-heading h2 { color: var(--text); }
+  .panel-heading p { color: var(--text-muted); }
+
+  .panel-index {
+    border-color: #bfdbfe;
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+
+  .source-pill {
+    border-color: var(--border-strong);
+    background: var(--surface-2);
+    color: var(--text-muted);
+  }
+
+  .source-pill.ready {
+    border-color: #bbf7d0;
+    background: var(--success-soft);
+    color: #15803d;
+  }
+
+  .source-pill.manual {
+    border-color: #c7d2fe;
+    background: #eef2ff;
+    color: #4338ca;
+  }
+
+  .field label { color: var(--text-muted); }
+  .field label small { color: var(--text-faint); }
+
+  .field input,
+  .toolbar select,
+  .matrix-cell-input {
+    border-color: var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .field input:focus,
+  .toolbar select:focus,
+  .matrix-cell-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+  }
+
+  .field input[readonly] {
+    border-color: #bbf7d0;
+    background: var(--success-soft);
+    color: #15803d;
+  }
+
+  .field-hint { color: var(--text-muted); }
+  .field-hint::before { box-shadow: none; }
+
+  .matrix-shell {
+    border-color: var(--border);
+    background: var(--surface-2);
+  }
+
+  .matrix-title { color: var(--text-muted); }
+  .matrix-grid::before,
+  .matrix-grid::after { border-color: var(--border-strong); }
+
+  .matrix-cell { color: var(--text); }
+  .matrix-cell:nth-child(4n) { color: var(--primary-dark); }
+  .panel-four .matrix-cell { color: #15803d; }
+
+  .matrix-cell-input:disabled {
+    border-color: transparent;
+    background: transparent;
+    color: var(--text);
+    opacity: 1;
+  }
+
+  .toolbar .control label { color: var(--text-muted); }
+
+  .he-button {
+    border-color: var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .he-button:hover {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+  }
+
+  .he-button.primary,
+  .he-button.purple {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
+  }
+
+  .he-button.primary:hover,
+  .he-button.purple:hover { background: var(--primary-dark); }
+
+  .he-button.ghost {
+    border-color: var(--border-strong);
+    background: var(--surface);
+    color: var(--text-muted);
+  }
+
+  .compute-button {
+    border-color: var(--success);
+    background: var(--success);
+    color: #fff;
+    box-shadow: none;
+  }
+
+  .compute-button:hover {
+    border-color: #15803d;
+    background: #15803d;
+  }
+
+  .status-line { color: var(--text-muted); }
+  .status-line.success { color: #15803d; }
+  .status-line.error { color: var(--danger); }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="hand-eye-container">
-    <h1>手眼标定管理</h1>
-    <p style="color: #666; margin-bottom: 20px;">
-        管理3D深度相机与机器人之间的坐标转换关系（T_flange_camera）
-    </p>
-    
-    <!-- 标定列表 -->
-    <div class="section-card">
-        <div class="section-header">
-            <div class="section-title">标定配置列表</div>
-            <div class="btn-group">
-                <button class="btn btn-primary" onclick="showCreateModal()">
-                    ➕ 新建标定
-                </button>
-                <button class="btn btn-secondary" onclick="loadCalibrations()">
-                    🔄 刷新
-                </button>
-            </div>
-        </div>
-        
-        <table class="calibration-table" id="calibrationTable">
-            <thead>
-                <tr>
-                    <th>名称</th>
-                    <th>机器人</th>
-                    <th>相机</th>
-                    <th>样本数</th>
-                    <th>标定误差</th>
-                    <th>方法</th>
-                    <th>状态</th>
-                    <th>创建时间</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody id="calibrationTableBody">
-                <tr>
-                    <td colspan="9" class="empty-state">加载中...</td>
-                </tr>
-            </tbody>
-        </table>
+<div class="he-shell" id="handEyeCalculator"
+     data-active-calibration-id="{% if active_calibration %}{{ active_calibration.id }}{% endif %}">
+  {% csrf_token %}
+  <header class="he-header">
+    <div>
+      <div class="he-eyebrow">Vision · Hand–Eye Transform</div>
+      <h1>坐标转换计算器</h1>
+      <p>将相机坐标系下的料架偏差，转换为机器人基坐标系可用的 6DOF 补偿量。</p>
     </div>
+    <div class="formula-chip">
+      T<sub>base_cam</sub> = T<sub>base_flange</sub> × T<sub>flange_camera</sub><br>
+      ΔT<sub>base</sub> = T<sub>base_cam</sub> × ΔT<sub>cam</sub> × T<sub>base_cam</sub><sup>−1</sup>
+    </div>
+  </header>
+
+  <div class="flow-line" aria-hidden="true">
+    <div class="flow-step"><span>01</span>相机偏差</div>
+    <div class="flow-step"><span>02</span>手眼矩阵</div>
+    <div class="flow-step"><span>03</span>机器人位姿</div>
+    <div class="flow-step"><span>04</span>基坐标结果</div>
+  </div>
+
+  <div class="he-panels">
+    <section class="he-panel panel-one" aria-labelledby="panelOneTitle">
+      <header class="he-panel-header">
+        <div class="panel-index">01</div>
+        <div class="panel-heading">
+          <h2 id="panelOneTitle">相机坐标系下的料架偏差 ΔT<sub>cam</sub></h2>
+          <p>来源：3D 相机模块计算输入，或手动测试输入</p>
+        </div>
+        <span class="source-pill ready">INPUT · CAMERA</span>
+      </header>
+      <div class="panel-body">
+        <div>
+          <div class="pose-fields" id="deltaCamFields">
+            <div class="field"><label for="delta-cam-x">ΔX <small>mm</small></label><input id="delta-cam-x" type="number" step="any" value="0"></div>
+            <div class="field"><label for="delta-cam-y">ΔY <small>mm</small></label><input id="delta-cam-y" type="number" step="any" value="0"></div>
+            <div class="field"><label for="delta-cam-z">ΔZ <small>mm</small></label><input id="delta-cam-z" type="number" step="any" value="0"></div>
+            <div class="field"><label for="delta-cam-rx">ΔRx <small>deg</small></label><input id="delta-cam-rx" type="number" step="any" value="0"></div>
+            <div class="field"><label for="delta-cam-ry">ΔRy <small>deg</small></label><input id="delta-cam-ry" type="number" step="any" value="0"></div>
+            <div class="field"><label for="delta-cam-rz">ΔRz <small>deg</small></label><input id="delta-cam-rz" type="number" step="any" value="0"></div>
+          </div>
+          <div class="field-hint">按 ZYX 欧拉角顺序实时生成右侧齐次变换矩阵</div>
+        </div>
+        <div class="matrix-shell">
+          <div class="matrix-title"><span>Homogeneous matrix · 4 × 4</span><span>ΔT_cam</span></div>
+          <div class="matrix-grid" id="deltaCamMatrix"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="he-panel panel-two" aria-labelledby="panelTwoTitle">
+      <header class="he-panel-header">
+        <div class="panel-index">02</div>
+        <div class="panel-heading">
+          <h2 id="panelTwoTitle">手眼标定矩阵 T<sub>flange_camera</sub></h2>
+          <p>来源：数据库激活标定，或手动输入 4×4 矩阵</p>
+        </div>
+        <span class="source-pill" id="calibrationSource">WAITING · DB</span>
+      </header>
+      <div class="panel-body">
+        <div>
+          <div class="toolbar">
+            <div class="control">
+              <label for="calibrationSelect">标定配置</label>
+              <select id="calibrationSelect">
+                <option value="">请选择标定配置</option>
+                {% for calibration in history_list %}
+                <option value="{{ calibration.id }}" {% if calibration.is_active %}selected{% endif %}>
+                  {% if calibration.is_active %}● {% endif %}{{ calibration.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <button class="he-button primary" type="button" id="loadCalibrationButton">从 DB 加载</button>
+            <button class="he-button purple" type="button" id="manualMatrixButton">手动输入</button>
+          </div>
+          <div class="field-hint" id="calibrationHint">优先使用当前激活标定；手动编辑后，本次计算不读取数据库矩阵</div>
+        </div>
+        <div class="matrix-shell">
+          <div class="matrix-title"><span>Editable homogeneous matrix · 4 × 4</span><span>T_flange_camera</span></div>
+          <div class="matrix-grid" id="handEyeMatrix"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="he-panel panel-three" aria-labelledby="panelThreeTitle">
+      <header class="he-panel-header">
+        <div class="panel-index">03</div>
+        <div class="panel-heading">
+          <h2 id="panelThreeTitle">拍照时机器人位姿 T<sub>base_flange</sub></h2>
+          <p>来源：从机器人实时读取，或手动输入</p>
+        </div>
+        <span class="source-pill" id="robotPoseSource">MANUAL · POSE</span>
+      </header>
+      <div class="panel-body">
+        <div>
+          <div class="toolbar">
+            <div class="control">
+              <label for="robotSelect">机器人设备</label>
+              <select id="robotSelect">
+                {% for robot in robots %}
+                <option value="{{ robot.code }}">{{ robot.name }} · {{ robot.code }}</option>
+                {% empty %}
+                <option value="ROBOT-01">默认机器人 · ROBOT-01</option>
+                {% endfor %}
+              </select>
+            </div>
+            <button class="he-button primary" type="button" id="readRobotPoseButton">实时读取</button>
+            <button class="he-button ghost" type="button" id="resetRobotPoseButton">归零</button>
+          </div>
+          <div class="pose-fields" id="baseFlangeFields">
+            <div class="field"><label for="base-flange-x">X <small>mm</small></label><input id="base-flange-x" type="number" step="any" value="0"></div>
+            <div class="field"><label for="base-flange-y">Y <small>mm</small></label><input id="base-flange-y" type="number" step="any" value="0"></div>
+            <div class="field"><label for="base-flange-z">Z <small>mm</small></label><input id="base-flange-z" type="number" step="any" value="0"></div>
+            <div class="field"><label for="base-flange-rx">Rx <small>deg</small></label><input id="base-flange-rx" type="number" step="any" value="0"></div>
+            <div class="field"><label for="base-flange-ry">Ry <small>deg</small></label><input id="base-flange-ry" type="number" step="any" value="0"></div>
+            <div class="field"><label for="base-flange-rz">Rz <small>deg</small></label><input id="base-flange-rz" type="number" step="any" value="0"></div>
+          </div>
+        </div>
+        <div class="matrix-shell">
+          <div class="matrix-title"><span>Homogeneous matrix · 4 × 4</span><span>T_base_flange</span></div>
+          <div class="matrix-grid" id="baseFlangeMatrix"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="he-panel panel-four" aria-labelledby="panelFourTitle">
+      <header class="he-panel-header">
+        <div class="panel-index">04</div>
+        <div class="panel-heading">
+          <h2 id="panelFourTitle">机器人基坐标系下的偏差 ΔT<sub>base</sub></h2>
+          <p>只读结果：供 3D 相机模块、机器人或 PLC 下游流程调用</p>
+        </div>
+        <span class="source-pill" id="resultSource">OUTPUT · PENDING</span>
+      </header>
+      <div class="panel-body">
+        <div>
+          <div class="pose-fields" id="deltaBaseFields">
+            <div class="field"><label for="delta-base-x">ΔX <small>mm</small></label><input id="delta-base-x" type="text" value="—" readonly></div>
+            <div class="field"><label for="delta-base-y">ΔY <small>mm</small></label><input id="delta-base-y" type="text" value="—" readonly></div>
+            <div class="field"><label for="delta-base-z">ΔZ <small>mm</small></label><input id="delta-base-z" type="text" value="—" readonly></div>
+            <div class="field"><label for="delta-base-rx">ΔRx <small>deg</small></label><input id="delta-base-rx" type="text" value="—" readonly></div>
+            <div class="field"><label for="delta-base-ry">ΔRy <small>deg</small></label><input id="delta-base-ry" type="text" value="—" readonly></div>
+            <div class="field"><label for="delta-base-rz">ΔRz <small>deg</small></label><input id="delta-base-rz" type="text" value="—" readonly></div>
+          </div>
+          <div class="result-actions">
+            <button class="he-button compute-button" type="button" id="computeButton"><span class="icon">⌁</span>计算并生成下发数据</button>
+            <button class="he-button ghost" type="button" id="copyResultButton" disabled>复制完整结果</button>
+            <div class="status-line" id="computeStatus" role="status" aria-live="polite">等待输入</div>
+          </div>
+        </div>
+        <div class="matrix-shell">
+          <div class="matrix-title"><span>Computed homogeneous matrix · 4 × 4</span><span>ΔT_base</span></div>
+          <div class="matrix-grid" id="deltaBaseMatrix"></div>
+        </div>
+      </div>
+    </section>
+  </div>
 </div>
 
-<!-- 创建标定模态框 -->
-<div class="modal" id="createModal">
-    <div class="modal-content">
-        <div class="modal-header">创建新标定任务</div>
-        <form id="createForm">
-            <div class="form-group">
-                <label for="calibrationName">标定名称 *</label>
-                <input type="text" id="calibrationName" placeholder="例如：装箱机器人-DM相机-20260101" required>
-            </div>
-            
-            <div class="form-grid">
-                <div class="form-group">
-                    <label for="robotDevice">机器人设备 *</label>
-                    <select id="robotDevice" required>
-                        <option value="">请选择...</option>
-                        {% for robot in robots %}
-                        <option value="{{ robot.id }}">{{ robot.name }} ({{ robot.code }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="cameraDevice">相机设备 *</label>
-                    <select id="cameraDevice" required>
-                        <option value="">请选择...</option>
-                        {% for camera in cameras %}
-                        <option value="{{ camera.id }}">{{ camera.name }} ({{ camera.code }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-            
-            <div class="form-group">
-                <label for="operator">操作员</label>
-                <input type="text" id="operator" placeholder="操作员姓名">
-            </div>
-            
-            <div class="form-group">
-                <label for="description">描述</label>
-                <textarea id="description" placeholder="标定任务描述..."></textarea>
-            </div>
-        </form>
-        
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="hideCreateModal()">取消</button>
-            <button class="btn btn-primary" onclick="createCalibration()">创建</button>
-        </div>
-    </div>
-</div>
+{% if active_calibration %}
+{{ active_calibration.T_flange_camera|json_script:"activeCalibrationMatrix" }}
+{% endif %}
 
 <script>
-// 全局状态
-let calibrations = [];
+(() => {
+  'use strict';
 
-// 页面加载时获取标定列表
-document.addEventListener('DOMContentLoaded', function() {
-    loadCalibrations();
-});
+  const poseKeys = ['x', 'y', 'z', 'rx', 'ry', 'rz'];
+  const identity = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
+  const endpoints = {
+    compute: "{% url 'vision:compute_delta' %}",
+    robotPose: "{% url 'vision:get_robot_pose' %}",
+    calibrationDetail: "{% url 'vision:get_calibration' 0 %}"
+  };
+  const state = {
+    handEyeSource: 'manual',
+    handEyeMatrix: identity.map(row => [...row]),
+    calibrationId: null,
+    result: null
+  };
 
-// 加载标定列表
-function loadCalibrations() {
-    fetch('/vision/api/hand-eye/calibrations/')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                calibrations = data.data.calibrations;
-                renderCalibrationTable();
-            } else {
-                alert('加载失败: ' + data.error);
-            }
-        })
-        .catch(error => {
-            console.error('加载标定列表失败:', error);
-            alert('加载失败，请检查网络连接');
+  const byId = id => document.getElementById(id);
+  const cloneMatrix = matrix => matrix.map(row => row.map(Number));
+
+  function finiteNumber(value, label) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) throw new Error(`${label} 必须是有限数值`);
+    return parsed;
+  }
+
+  function readPose(prefix) {
+    return Object.fromEntries(poseKeys.map(key => [
+      key,
+      finiteNumber(byId(`${prefix}-${key}`).value, `${prefix}.${key}`)
+    ]));
+  }
+
+  function writePose(prefix, pose) {
+    poseKeys.forEach(key => { byId(`${prefix}-${key}`).value = formatNumber(pose[key], 6); });
+  }
+
+  function poseToMatrix(pose) {
+    const d = Math.PI / 180;
+    const rx = pose.rx * d, ry = pose.ry * d, rz = pose.rz * d;
+    const sx = Math.sin(rx), cx = Math.cos(rx);
+    const sy = Math.sin(ry), cy = Math.cos(ry);
+    const sz = Math.sin(rz), cz = Math.cos(rz);
+    return [
+      [cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx, pose.x],
+      [sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx, pose.y],
+      [-sy, cy * sx, cy * cx, pose.z],
+      [0, 0, 0, 1]
+    ];
+  }
+
+  function formatNumber(value, digits = 6) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return '—';
+    const clean = Math.abs(numeric) < Math.pow(10, -digits) ? 0 : numeric;
+    return clean.toFixed(digits);
+  }
+
+  function renderMatrix(containerId, matrix, editable = false) {
+    const container = byId(containerId);
+    container.textContent = '';
+    matrix.forEach((row, rowIndex) => row.forEach((value, columnIndex) => {
+      if (editable) {
+        const input = document.createElement('input');
+        input.className = 'matrix-cell-input';
+        input.type = 'number';
+        input.step = 'any';
+        input.value = formatNumber(value, 8);
+        input.dataset.row = rowIndex;
+        input.dataset.column = columnIndex;
+        input.disabled = state.handEyeSource !== 'manual';
+        input.setAttribute('aria-label', `矩阵第 ${rowIndex + 1} 行第 ${columnIndex + 1} 列`);
+        input.addEventListener('input', () => {
+          if (state.handEyeSource === 'manual') {
+            state.handEyeMatrix[rowIndex][columnIndex] = Number(input.value);
+          }
         });
-}
+        container.appendChild(input);
+      } else {
+        const cell = document.createElement('div');
+        cell.className = 'matrix-cell';
+        cell.textContent = formatNumber(value);
+        cell.title = String(value);
+        container.appendChild(cell);
+      }
+    }));
+  }
 
-// 渲染标定表格
-function renderCalibrationTable() {
-    const tbody = document.getElementById('calibrationTableBody');
-    
-    if (calibrations.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">暂无标定配置，点击"新建标定"开始</td></tr>';
-        return;
+  function readHandEyeMatrix() {
+    const inputs = [...byId('handEyeMatrix').querySelectorAll('input')];
+    if (inputs.length !== 16) throw new Error('手眼矩阵不完整');
+    const matrix = Array.from({length: 4}, () => Array(4).fill(0));
+    inputs.forEach(input => {
+      matrix[Number(input.dataset.row)][Number(input.dataset.column)] = finiteNumber(input.value, '手眼矩阵元素');
+    });
+    return matrix;
+  }
+
+  function matrixFromPayload(payload) {
+    const matrix = payload && payload.matrix ? payload.matrix : payload;
+    if (!Array.isArray(matrix) || matrix.length !== 4 || matrix.some(row => !Array.isArray(row) || row.length !== 4)) {
+      throw new Error('数据库中的手眼矩阵不是有效的 4×4 格式');
     }
-    
-    tbody.innerHTML = calibrations.map(cal => `
-        <tr>
-            <td><strong>${cal.name}</strong></td>
-            <td>${cal.robot_device.name}</td>
-            <td>${cal.camera_device.name}</td>
-            <td class="sample-count">${cal.sample_count} 个</td>
-            <td>
-                <span class="error-display ${getErrorClass(cal.calibration_error)}">
-                    ${cal.calibration_error.toFixed(4)} mm
-                </span>
-            </td>
-            <td>${getMethodName(cal.calibration_method)}</td>
-            <td>
-                <div class="status-indicator">
-                    <span class="status-dot ${cal.is_active ? 'active' : 'inactive'}"></span>
-                    <span class="badge ${cal.is_active ? 'badge-active' : 'badge-inactive'}">
-                        ${cal.is_active ? '激活' : '未激活'}
-                    </span>
-                    ${cal.verified_at ? '<span class="badge badge-verified">已验证</span>' : ''}
-                </div>
-            </td>
-            <td>${formatDate(cal.created_at)}</td>
-            <td>
-                <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" 
-                        onclick="viewDetails(${cal.id})">
-                    详情
-                </button>
-                ${!cal.is_active ? `
-                <button class="btn btn-success" style="padding: 4px 8px; font-size: 12px;" 
-                        onclick="activateCalibration(${cal.id})">
-                    激活
-                </button>
-                ` : ''}
-                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" 
-                        onclick="deleteCalibration(${cal.id})">
-                    删除
-                </button>
-            </td>
-        </tr>
-    `).join('');
-}
+    return cloneMatrix(matrix);
+  }
 
-// 显示创建模态框
-function showCreateModal() {
-    document.getElementById('createModal').classList.add('show');
-}
-
-// 隐藏创建模态框
-function hideCreateModal() {
-    document.getElementById('createModal').classList.remove('show');
-    document.getElementById('createForm').reset();
-}
-
-// 创建标定
-function createCalibration() {
-    const name = document.getElementById('calibrationName').value;
-    const robotId = document.getElementById('robotDevice').value;
-    const cameraId = document.getElementById('cameraDevice').value;
-    const operator = document.getElementById('operator').value;
-    const description = document.getElementById('description').value;
-    
-    if (!name || !robotId || !cameraId) {
-        alert('请填写必填字段');
-        return;
+  function refreshPosePreview(prefix, matrixId) {
+    try {
+      renderMatrix(matrixId, poseToMatrix(readPose(prefix)));
+    } catch (_) {
+      renderMatrix(matrixId, identity);
     }
-    
-    fetch('/vision/api/hand-eye/calibrations/create/', {
+  }
+
+  function setStatus(message, type = '') {
+    const status = byId('computeStatus');
+    status.textContent = message;
+    status.className = `status-line ${type}`.trim();
+  }
+
+  function setHandEyeMode(mode, name = '') {
+    state.handEyeSource = mode;
+    renderMatrix('handEyeMatrix', state.handEyeMatrix, true);
+    const source = byId('calibrationSource');
+    if (mode === 'manual') {
+      state.calibrationId = null;
+      source.textContent = 'MANUAL · MATRIX';
+      source.className = 'source-pill manual';
+      byId('calibrationHint').textContent = '手动矩阵仅用于本次计算，不会写回数据库';
+    } else {
+      source.textContent = 'LOADED · DB';
+      source.className = 'source-pill ready';
+      byId('calibrationHint').textContent = `已加载：${name || '数据库标定'}`;
+    }
+  }
+
+  async function requestJson(url, options = {}) {
+    const requestOptions = {...options};
+    if ((requestOptions.method || 'GET').toUpperCase() === 'POST') {
+      requestOptions.headers = {
+        ...(requestOptions.headers || {}),
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+      };
+    }
+    const response = await fetch(url, requestOptions);
+    let body;
+    try { body = await response.json(); }
+    catch (_) { throw new Error(`服务返回了无法解析的响应（HTTP ${response.status}）`); }
+    if (!response.ok || !body.success) throw new Error(body.error || `请求失败（HTTP ${response.status}）`);
+    return body.data;
+  }
+
+  async function loadCalibration() {
+    const id = byId('calibrationSelect').value;
+    if (!id) throw new Error('请先选择一个标定配置');
+    const button = byId('loadCalibrationButton');
+    button.disabled = true;
+    try {
+      const url = endpoints.calibrationDetail.replace('/0/', `/${encodeURIComponent(id)}/`);
+      const data = await requestJson(url);
+      state.handEyeMatrix = matrixFromPayload(data.T_flange_camera);
+      state.calibrationId = Number(data.id);
+      setHandEyeMode('database', data.name);
+      setStatus(`已加载手眼标定「${data.name}」`, 'success');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function readRobotPose() {
+    const button = byId('readRobotPoseButton');
+    button.disabled = true;
+    setStatus('正在读取机器人实时位姿…');
+    try {
+      const {pose, timestamp} = await requestJson(endpoints.robotPose, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            name: name,
-            robot_device_id: parseInt(robotId),
-            camera_device_id: parseInt(cameraId),
-            operator: operator,
-            description: description
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('标定任务创建成功！');
-            hideCreateModal();
-            loadCalibrations();
-        } else {
-            alert('创建失败: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('创建标定失败:', error);
-        alert('创建失败，请检查网络连接');
-    });
-}
+        body: JSON.stringify({robot_code: byId('robotSelect').value})
+      });
+      writePose('base-flange', pose);
+      refreshPosePreview('base-flange', 'baseFlangeMatrix');
+      byId('robotPoseSource').textContent = 'LIVE · ROBOT';
+      byId('robotPoseSource').className = 'source-pill ready';
+      setStatus(`机器人位姿已读取${timestamp ? ` · ${new Date(timestamp).toLocaleTimeString()}` : ''}`, 'success');
+    } finally {
+      button.disabled = false;
+    }
+  }
 
-// 激活标定
-function activateCalibration(id) {
-    if (!confirm('确定要激活此标定配置吗？')) return;
-    
-    fetch(`/vision/api/hand-eye/calibrations/${id}/activate/`, {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('标定已激活！');
-            loadCalibrations();
-        } else {
-            alert('激活失败: ' + data.error);
-        }
-    });
-}
+  async function computeDelta() {
+    const button = byId('computeButton');
+    button.disabled = true;
+    byId('copyResultButton').disabled = true;
+    setStatus('正在执行坐标系共轭变换…');
+    try {
+      const payload = {
+        delta_cam: readPose('delta-cam'),
+        T_base_flange: readPose('base-flange')
+      };
+      if (state.handEyeSource === 'manual') {
+        payload.T_flange_camera = {matrix: readHandEyeMatrix()};
+      } else {
+        const calibrationId = state.calibrationId;
+        if (!Number.isInteger(calibrationId) || calibrationId <= 0) throw new Error('数据库标定 ID 无效，请重新加载');
+        payload.calibration_id = calibrationId;
+      }
 
-// 删除标定
-function deleteCalibration(id) {
-    if (!confirm('确定要删除此标定配置吗？此操作无法撤销！')) return;
-    
-    fetch(`/vision/api/hand-eye/calibrations/${id}/delete/`, {
-        method: 'DELETE'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('标定已删除');
-            loadCalibrations();
-        } else {
-            alert('删除失败: ' + data.error);
-        }
-    });
-}
+      const result = await requestJson(endpoints.compute, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      state.result = result;
+      window.handEyeDeltaResult = result;
+      writePose('delta-base', result.delta_base);
+      renderMatrix('deltaBaseMatrix', result.delta_T_base);
+      byId('resultSource').textContent = 'OUTPUT · READY';
+      byId('resultSource').className = 'source-pill ready';
+      byId('copyResultButton').disabled = false;
+      setStatus(`计算完成 · ${result.calibration_name}`, 'success');
+      window.dispatchEvent(new CustomEvent('handeye:delta-computed', {detail: result}));
+    } finally {
+      button.disabled = false;
+    }
+  }
 
-// 查看详情（跳转到详情页面）
-function viewDetails(id) {
-    // TODO: 实现详情页面
-    alert('详情页面开发中，标定ID: ' + id);
-}
+  async function copyResult() {
+    if (!state.result) return;
+    const text = JSON.stringify(state.result, null, 2);
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+    }
+    setStatus('完整计算结果已复制，可交给机器人 / PLC 下游流程', 'success');
+  }
 
-// 辅助函数
-function getErrorClass(error) {
-    if (error < 1) return 'error-low';
-    if (error < 3) return 'error-medium';
-    return 'error-high';
-}
-
-function getMethodName(method) {
-    const methods = {
-        'OPENCV_TSAI': 'Tsai',
-        'OPENCV_PARK': 'Park',
-        'OPENCV_HORAUD': 'Horaud',
-        'OPENCV_ANDREFF': 'Andreff',
-        'OPENCV_DANIILIDIS': 'Daniilidis',
-        'MANUAL': '手动',
-        'VENDOR_TOOL': '厂商工具'
+  function handle(action) {
+    return async () => {
+      try { await action(); }
+      catch (error) { setStatus(error.message || '操作失败', 'error'); }
     };
-    return methods[method] || method;
-}
+  }
 
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
+  document.addEventListener('DOMContentLoaded', () => {
+    renderMatrix('deltaCamMatrix', identity);
+    renderMatrix('baseFlangeMatrix', identity);
+    renderMatrix('deltaBaseMatrix', identity.map(row => row.map(() => NaN)));
+
+    const activeMatrixNode = byId('activeCalibrationMatrix');
+    const activeId = byId('handEyeCalculator').dataset.activeCalibrationId;
+    if (activeMatrixNode && activeId) {
+      try {
+        state.handEyeMatrix = matrixFromPayload(JSON.parse(activeMatrixNode.textContent));
+        state.calibrationId = Number(activeId);
+        const selected = byId('calibrationSelect').selectedOptions[0];
+        setHandEyeMode('database', selected ? selected.textContent.trim().replace(/^●\s*/, '') : '当前激活标定');
+      } catch (error) {
+        setHandEyeMode('manual');
+        setStatus(error.message, 'error');
+      }
+    } else {
+      setHandEyeMode('manual');
+    }
+
+    ['delta-cam', 'base-flange'].forEach(prefix => {
+      poseKeys.forEach(key => byId(`${prefix}-${key}`).addEventListener('input', () => {
+        refreshPosePreview(prefix, prefix === 'delta-cam' ? 'deltaCamMatrix' : 'baseFlangeMatrix');
+        if (prefix === 'base-flange') {
+          byId('robotPoseSource').textContent = 'MANUAL · POSE';
+          byId('robotPoseSource').className = 'source-pill manual';
+        }
+      }));
     });
-}
+
+    byId('loadCalibrationButton').addEventListener('click', handle(loadCalibration));
+    byId('manualMatrixButton').addEventListener('click', () => setHandEyeMode('manual'));
+    byId('readRobotPoseButton').addEventListener('click', handle(readRobotPose));
+    byId('resetRobotPoseButton').addEventListener('click', () => {
+      writePose('base-flange', Object.fromEntries(poseKeys.map(key => [key, 0])));
+      refreshPosePreview('base-flange', 'baseFlangeMatrix');
+      byId('robotPoseSource').textContent = 'MANUAL · POSE';
+      byId('robotPoseSource').className = 'source-pill manual';
+      setStatus('机器人位姿已归零');
+    });
+    byId('computeButton').addEventListener('click', handle(computeDelta));
+    byId('copyResultButton').addEventListener('click', handle(copyResult));
+  });
+})();
 </script>
 {% endblock %}
