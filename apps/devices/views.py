@@ -1,5 +1,6 @@
 import json
 
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
@@ -54,10 +55,30 @@ def status(request):
 
 
 def signals(request):
-    records = (
-        DeviceSignalRecord.objects.select_related('device').order_by('-recorded_at')[:200]
-    )
-    return render(request, 'devices/signals.html', {'records': records})
+    device_filter = request.GET.get('device', '').strip()
+    direction_filter = request.GET.get('direction', '').strip()
+    query = request.GET.get('q', '').strip()
+    records = DeviceSignalRecord.objects.select_related('device').order_by('-recorded_at')
+    if device_filter:
+        records = records.filter(device__code=device_filter)
+    if direction_filter:
+        records = records.filter(direction=direction_filter)
+    if query:
+        records = records.filter(
+            Q(signal_name__icontains=query) | Q(signal_value__icontains=query)
+        )
+    records = list(records[:200])
+    for record in records:
+        record.raw_payload_pretty = json.dumps(
+            record.raw_payload or {}, ensure_ascii=False, indent=2, sort_keys=True,
+        )
+    return render(request, 'devices/signals.html', {
+        'records': records,
+        'devices': Device.objects.order_by('code'),
+        'device_filter': device_filter,
+        'direction_filter': direction_filter,
+        'query': query,
+    })
 
 
 def plc_config(request):

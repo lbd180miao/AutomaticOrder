@@ -1,4 +1,5 @@
 """MES 服务层：封装 MES 调用，记录每次请求/响应，支持失败重传。"""
+import json
 import logging
 
 from django.conf import settings
@@ -76,6 +77,31 @@ class MesService:
 
     # ── 重传失败记录 ─────────────────────────────────
 
+    @staticmethod
+    def pending_retry_records(limit=100):
+        """返回每组业务请求的最新失败记录，已被后续成功覆盖的不再重复补传。"""
+        pending = []
+        seen = set()
+        records = (
+            MesRecord.objects.select_related('product', 'rack')
+            .order_by('-created_at', '-pk')
+        )
+        for record in records.iterator():
+            key = (
+                record.action,
+                record.product_id,
+                record.rack_id,
+                json.dumps(record.request_payload, ensure_ascii=False, sort_keys=True, default=str),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            if not record.success:
+                pending.append(record)
+                if len(pending) >= limit:
+                    break
+        return pending
+
     def retry_record(self, record_id: int) -> dict:
         """
         按原始 request_payload 重新发送一次 MES 请求，
@@ -137,7 +163,7 @@ class MesService:
             .order_by('action')
         )
 
-        pending_retry = MesRecord.objects.filter(success=False).count()
+        pending_retry = len(MesService.pending_retry_records(limit=10000))
 
         return {
             'hours': hours,

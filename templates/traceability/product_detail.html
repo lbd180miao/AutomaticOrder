@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}产品 {{ result.product.product_code }} 追溯 - AutomaticOrder{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <h1>产品全流程追溯</h1>
+  <a class="btn btn-secondary btn-sm" href="{% url 'traceability:search' %}?mode=product&q={{ result.product.product_code|urlencode }}">← 返回查询</a>
+</section>
+
+<div class="grid trace-overview-grid">
+  <section class="panel trace-overview">
+    <div class="section-title">产品信息</div>
+    <ul class="kv">
+      <li><span>产品条码</span><span>{{ result.product.product_code }}</span></li>
+      <li><span>当前状态</span><span class="badge badge-running">{{ result.product.get_current_state_display }}</span></li>
+      <li><span>打标状态</span><span>{{ result.product.get_mark_status_display }}</span></li>
+      <li><span>MES 上传</span><span>{{ result.product.get_mes_upload_status_display }}</span></li>
+      <li><span>创建时间</span><span>{{ result.product.created_at|date:"Y-m-d H:i:s" }}</span></li>
+    </ul>
+  </section>
+  <section class="panel trace-overview">
+    <div class="section-title">批次与料框</div>
+    <ul class="kv">
+      <li><span>生产批次</span><span>{{ result.batch.batch_no|default:"-" }}</span></li>
+      <li><span>产品类型</span><span>{{ result.batch.product_type|default:"-" }}</span></li>
+      <li><span>料框码</span><span>{{ result.rack.rack_code|default:"-" }}</span></li>
+      <li><span>料框状态</span><span>{{ result.rack.status|default:"-" }}</span></li>
+      <li><span>使用配方</span><span>{{ result.rack.current_recipe.recipe_code|default:"-" }}</span></li>
+    </ul>
+  </section>
+</div>
+
+<section class="panel trace-section">
+  <div class="section-title">流程事件</div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>时间</th><th>事件</th><th>状态变化</th><th>来源</th><th>结果</th><th>说明</th></tr></thead>
+      <tbody>{% for event in result.events %}<tr>
+        <td>{% if event.occurred_at %}{{ event.occurred_at|date:"Y-m-d H:i:s" }}{% else %}{{ event.created_at|date:"Y-m-d H:i:s" }}{% endif %}</td>
+        <td>{{ event.event_type }}</td><td>{{ event.from_state|default:"-" }} → {{ event.to_state|default:"-" }}</td>
+        <td>{{ event.get_source_display }}</td><td>{% if event.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td>
+        <td>{{ event.message|default:"-" }}</td>
+      </tr>{% empty %}<tr><td colspan="6" class="empty">暂无流程事件</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+</section>
+
+<div class="grid trace-data-grid">
+  <section class="panel trace-section">
+    <div class="section-title">3D 料架定位</div>
+    <div class="table-wrap"><table class="data-table">
+      <thead><tr><th>时间</th><th>侧别</th><th>位置/层</th><th>XYZ/Rz 补偿</th><th>结果</th></tr></thead>
+      <tbody>{% for item in result.rack_results %}<tr>
+        <td>{{ item.created_at|date:"m-d H:i:s" }}</td><td>{{ item.get_side_display }}</td><td>POS {{ item.position_no }} / L{{ item.layer_no }}</td>
+        <td>{{ item.offset_x }}, {{ item.offset_y }}, {{ item.offset_z }}, {{ item.offset_rz }}</td>
+        <td>{% if item.is_success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td>
+      </tr>{% empty %}<tr><td colspan="5" class="empty">暂无定位结果</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+
+  <section class="panel trace-section">
+    <div class="section-title">泡棉检测</div>
+    <div class="table-wrap"><table class="data-table">
+      <thead><tr><th>时间</th><th>位置</th><th>覆盖率</th><th>缺陷</th><th>结果</th></tr></thead>
+      <tbody>{% for item in result.foam_results %}<tr>
+        <td>{{ item.created_at|date:"m-d H:i:s" }}</td><td>POS {{ item.position_index }}</td><td>{{ item.coverage_ratio }}</td><td>{{ item.defect_type }}</td>
+        <td>{% if item.is_passed %}<span class="badge badge-ok">OK</span>{% else %}<span class="badge badge-fail">NG</span>{% endif %}</td>
+      </tr>{% empty %}<tr><td colspan="5" class="empty">暂无泡棉检测</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+</div>
+
+<div class="grid trace-data-grid">
+  <section class="panel trace-section">
+    <div class="section-title">MES 通讯记录</div>
+    <div class="table-wrap"><table class="data-table">
+      <thead><tr><th>时间</th><th>动作</th><th>结果</th><th>错误</th></tr></thead>
+      <tbody>{% for item in result.mes_records %}<tr><td>{{ item.created_at|date:"m-d H:i:s" }}</td><td>{{ item.get_action_display }}</td><td>{% if item.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td><td>{{ item.error_message|default:"-" }}</td></tr>{% empty %}<tr><td colspan="4" class="empty">暂无 MES 记录</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  <section class="panel trace-section">
+    <div class="section-title">关联报警</div>
+    <div class="table-wrap"><table class="data-table">
+      <thead><tr><th>时间</th><th>编号</th><th>内容</th><th>状态</th></tr></thead>
+      <tbody>{% for alarm in result.alarms %}<tr><td>{{ alarm.created_at|date:"m-d H:i:s" }}</td><td><a href="{% url 'alarms:alarm_detail' alarm.pk %}">{{ alarm.alarm_code }}</a></td><td>{{ alarm.message }}</td><td>{{ alarm.get_status_display }}</td></tr>{% empty %}<tr><td colspan="4" class="empty">暂无关联报警</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+</div>
+
+<style>
+  .trace-overview-grid, .trace-data-grid { grid-template-columns: repeat(2,minmax(0,1fr)); margin-bottom: 18px; }
+  .trace-overview, .trace-section { min-width: 0; padding: 18px 22px; }
+  .trace-section { margin-bottom: 18px; }
+  .trace-section .table-wrap { box-shadow: none; }
+  @media (max-width: 980px) { .trace-overview-grid, .trace-data-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}

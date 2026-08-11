@@ -32,8 +32,7 @@ urlpatterns = [
     # path('coordinates/', include('apps.coordinates.urls')),
     path('mes/', include('apps.mes.urls')),
     path('alarms/', include('apps.alarms.urls')),
-    # [已从导航移除] 追溯查询 - 条码追溯由MES系统负责，非本上位机职责
-    # path('traceability/', include('apps.traceability.urls')),
+    path('traceability/', include('apps.traceability.urls')),
     path('dm-camera/', include('apps.dm_camera.urls')),  # DM 3D深度相机
 ]
 

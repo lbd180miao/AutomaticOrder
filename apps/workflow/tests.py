@@ -28,10 +28,23 @@ class StateMachineTests(TestCase):
         # BOXING 的唯一正常下一步是 FOAM_PICKING（不应是 LOCKED/FAILED）。
         self.assertEqual(self.sm.next_state(W.BOXING), W.FOAM_PICKING)
 
+    def test_rack_scan_ready_is_required_before_rack_scanned(self):
+        self.assertTrue(self.sm.can_transition(W.INJECTION_RELEASED, W.RACK_SCAN_READY))
+        self.assertTrue(self.sm.can_transition(W.RACK_SCAN_READY, W.RACK_SCANNED))
+        self.assertFalse(self.sm.can_transition(W.INJECTION_RELEASED, W.RACK_SCANNED))
+
 
 class WorkflowServiceTests(TestCase):
     def setUp(self):
-        self.service = WorkflowService()
+        from apps.devices.adapters.simulated import SimulatedDeviceAdapter
+        from apps.devices.services import DeviceService
+        from apps.mes.client import SimulatedMesClient
+        from apps.mes.services import MesService
+
+        self.service = WorkflowService(
+            device_service=DeviceService(adapter=SimulatedDeviceAdapter()),
+            mes_service=MesService(client=SimulatedMesClient()),
+        )
 
     def test_start_creates_instance_and_event(self):
         wf = self.service.start('P-TEST-1')

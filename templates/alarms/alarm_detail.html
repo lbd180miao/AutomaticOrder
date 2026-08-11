@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}报警 {{ alarm.alarm_code }} - AutomaticOrder{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <h1>报警详情</h1>
+  <a class="btn btn-secondary btn-sm" href="{% url 'alarms:alarm_list' %}">← 返回报警列表</a>
+</section>
+
+<div class="grid alarm-detail-grid">
+  <section class="panel alarm-summary">
+    <div class="section-title">基本信息</div>
+    <ul class="kv">
+      <li><span>报警编号</span><span>{{ alarm.alarm_code }}</span></li>
+      <li><span>等级</span><span class="badge {% if alarm.level == 'CRITICAL' or alarm.level == 'ERROR' %}badge-fail{% elif alarm.level == 'WARNING' %}badge-warn{% else %}badge-info{% endif %}">{{ alarm.get_level_display }}</span></li>
+      <li><span>来源</span><span>{{ alarm.get_source_display }}</span></li>
+      <li><span>状态</span><span class="badge {% if alarm.status == 'CLOSED' %}badge-muted{% elif alarm.status == 'ACKNOWLEDGED' %}badge-info{% else %}badge-warn{% endif %}">{{ alarm.get_status_display }}</span></li>
+      <li><span>工位锁定</span><span>{% if alarm.locked_workstation %}<span class="badge badge-fail">已锁定</span>{% else %}否{% endif %}</span></li>
+      <li><span>发生时间</span><span>{{ alarm.created_at|date:"Y-m-d H:i:s" }}</span></li>
+      <li><span>确认时间</span><span>{{ alarm.acknowledged_at|date:"Y-m-d H:i:s"|default:"-" }}</span></li>
+      <li><span>关闭时间</span><span>{{ alarm.closed_at|date:"Y-m-d H:i:s"|default:"-" }}</span></li>
+    </ul>
+  </section>
+
+  <section class="panel alarm-summary">
+    <div class="section-title">业务关联</div>
+    <ul class="kv">
+      <li><span>产品条码</span><span>{{ alarm.product.product_code|default:"-" }}</span></li>
+      <li><span>料框码</span><span>{{ alarm.rack.rack_code|default:"-" }}</span></li>
+      <li><span>流程实例</span><span>{% if alarm.workflow_id %}#{{ alarm.workflow_id }} · {{ alarm.workflow.get_current_state_display }}{% else %}-{% endif %}</span></li>
+      <li><span>创建时间</span><span>{{ alarm.created_at|date:"Y-m-d H:i:s" }}</span></li>
+      <li><span>最后更新</span><span>{{ alarm.updated_at|date:"Y-m-d H:i:s" }}</span></li>
+    </ul>
+  </section>
+</div>
+
+<section class="panel alarm-message-panel">
+  <div class="section-title">报警内容</div>
+  <div class="alarm-message">{{ alarm.message|linebreaksbr }}</div>
+</section>
+
+<section class="panel alarm-action-panel">
+  <div class="section-title">人工处理</div>
+  {% if alarm.operator_note %}
+  <div class="note-history"><strong>已有处理备注</strong><br>{{ alarm.operator_note|linebreaksbr }}</div>
+  {% endif %}
+
+  {% if alarm.status != 'CLOSED' %}
+  <form method="post" class="alarm-action-form">
+    {% csrf_token %}
+    <input type="hidden" name="return_to" value="detail">
+    <label for="operator_note" class="field-label">本次处理备注</label>
+    <textarea id="operator_note" name="operator_note" rows="4" placeholder="填写检查结果、处理措施或关闭原因"></textarea>
+    <div class="alarm-buttons">
+      {% if alarm.status == 'OPEN' %}
+      <button class="btn btn-secondary" type="submit" formaction="{% url 'alarms:acknowledge' alarm.pk %}">确认报警</button>
+      {% endif %}
+      <button class="btn btn-danger" type="submit" formaction="{% url 'alarms:close' alarm.pk %}" data-confirm="确认关闭该报警并解除工位锁定？">关闭报警并解锁</button>
+    </div>
+  </form>
+  {% else %}
+  <p class="empty">该报警已关闭，无需继续操作。</p>
+  {% endif %}
+</section>
+
+<style>
+  .alarm-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 18px; }
+  .alarm-summary { padding: 18px 22px; }
+  .alarm-message-panel, .alarm-action-panel { margin-bottom: 18px; padding: 20px 22px; }
+  .alarm-message { padding: 14px 16px; border-left: 4px solid var(--danger); border-radius: var(--radius-sm); background: var(--danger-soft); color: var(--text); }
+  .note-history { margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+  .alarm-action-form textarea { width: 100%; margin: 6px 0 12px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: inherit; resize: vertical; }
+  .alarm-action-form textarea:focus { border-color: var(--primary); outline: 0; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  .alarm-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+  @media (max-width: 760px) { .alarm-detail-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}

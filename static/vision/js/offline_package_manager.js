@@ -178,7 +178,7 @@
     if (!state.selectedName) return;
     message('正在加载数据到画布…');
     try {
-      const recipeId = document.getElementById('select-recipe')?.value 
+      const recipeId = document.getElementById('recipe-select')?.value
                     || document.getElementById('recipe-id')?.value || null;
       const data = await request(packageUrl(state.selectedName, 'load'), { 
           method: 'POST', 

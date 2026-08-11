@@ -2,6 +2,7 @@ import json
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory, mkdtemp
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import cv2
@@ -41,6 +42,35 @@ from apps.vision.recipe_utils import (
     serialize_recipe,
 )
 from apps.vision.services import VisionService
+
+
+class RackStructureValidatorThresholdTests(SimpleTestCase):
+    @staticmethod
+    def _plane(inlier_ratio):
+        from apps.vision.algorithms.local_template_3d import PlaneResult
+
+        return PlaneResult(
+            normal=np.array([0.0, 0.0, 1.0]),
+            offset=0.0,
+            centroid=np.zeros(3),
+            inlier_ratio=inlier_ratio,
+            point_count=100,
+        )
+
+    def test_default_inlier_threshold_is_twenty_percent_inclusive(self):
+        from apps.vision.algorithms.rack_structure_validator import RackStructureValidator
+
+        frame = SimpleNamespace(
+            plane1=self._plane(0.20),
+            plane2=self._plane(0.199),
+            plane3=self._plane(0.25),
+        )
+
+        checks = RackStructureValidator()._check_inlier_ratios(frame)
+
+        self.assertEqual([check.threshold for check in checks], [20.0, 20.0, 20.0])
+        self.assertEqual([check.passed for check in checks], [True, False, True])
+        self.assertIn('低于阈值 20%', checks[1].message)
 
 
 class FoamPixelSegmentationTests(SimpleTestCase):
@@ -732,6 +762,32 @@ class Rack3DWorkbenchStateSourceTests(SimpleTestCase):
         ):
             self.assertIn(marker, template)
 
+    def test_workbench_calculation_sends_three_regions_and_keeps_recipe_selected(self):
+        script_path = Path(settings.BASE_DIR) / 'static' / 'vision' / 'js' / 'rack_locator_workbench.js'
+        script = script_path.read_text(encoding='utf-8')
+        template_path = Path(settings.BASE_DIR) / 'templates' / 'vision' / 'rack_locator_panel.html'
+        template = template_path.read_text(encoding='utf-8')
+
+        self.assertNotIn('function localTemplateRegions(targetRoi)', script)
+        self.assertIn('function hasAllLocalTemplateRois()', script)
+        self.assertIn('function cleanLocalTemplateRois()', script)
+        self.assertIn('local_template_rois: localRegions', script)
+        self.assertIn('btn-roi-plane1', template)
+        self.assertIn('btn-roi-plane2', template)
+        self.assertIn('btn-roi-plane3', template)
+        self.assertNotIn('selectNextRecipe();', script)
+
+    def test_invalid_local_template_has_visible_save_block_reason(self):
+        script_path = Path(settings.BASE_DIR) / 'static' / 'vision' / 'js' / 'rack_locator_workbench.js'
+        script = script_path.read_text(encoding='utf-8')
+        template_path = Path(settings.BASE_DIR) / 'templates' / 'vision' / 'rack_locator_panel.html'
+        template = template_path.read_text(encoding='utf-8')
+
+        self.assertIn("btnSaveStd.textContent = invalidTemplate", script)
+        self.assertIn("'结构NG，禁止保存'", script)
+        self.assertIn('localTemplateValidationMessage(templateValidation)', script)
+        self.assertIn('template-validation-message', template)
+        self.assertIn('#btn-save-as-std:disabled', template)
 
 class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
     def _template_source(self):
@@ -2661,7 +2717,9 @@ class RackLocationWorkbenchTests(TestCase):
             from apps.vision.rack_location import build_sample_pointcloud
             return {
                 'source': 'dm_camera',
-                'organized_pointcloud': build_sample_pointcloud(side='LEFT', layer_count=3),
+                'organized_pointcloud': build_sample_pointcloud(
+                    side='LEFT', layer_count=3, local_template_geometry=True,
+                ),
             }
 
     def setUp(self):
@@ -2817,6 +2875,102 @@ class RackLocationWorkbenchTests(TestCase):
         saved_task = VisionTask.objects.first()
         self.assertEqual(saved_task.task_type, VisionTaskType.RACK_LOCATING)
         self.assertEqual(saved_task.status, ResultStatus.SUCCESS)
+
+    def test_calculate_workbench_fits_all_three_local_template_regions(self):
+        service = self._service()
+        captured = service.capture_workbench(recipe_id=self.recipe.id)
+        full_roi = {'x': 0, 'y': 0, 'w': 640, 'h': 480, 'feature_type': 'rack_reference'}
+        local_rois = {
+            'plane1': {'x': 190, 'y': 105, 'w': 250, 'h': 45},
+            'plane2': {'x': 135, 'y': 105, 'w': 45, 'h': 270},
+            'plane3': {'x': 190, 'y': 330, 'w': 250, 'h': 45},
+        }
+
+        result = service.calculate_workbench(
+            token=captured['pointcloud_token'],
+            roi_config={'target_roi': full_roi, 'local_template_rois': local_rois},
+            recipe_id=self.recipe.id,
+            save_record=True,
+        )
+
+        self.assertEqual(result['rack_compensation']['source'], 'local_template_current_baseline')
+        self.assertFalse(result['local_template_std_available'])
+        self.assertEqual(set(result['local_template_rois']), {'plane1', 'plane2', 'plane3'})
+        self.assertTrue(result['local_template_validation']['is_valid'])
+        for key in ('offset_x', 'offset_y', 'offset_z', 'offset_rx', 'offset_ry', 'offset_rz'):
+            self.assertEqual(result[key], 0.0)
+        self.assertIsNotNone(result['result_id'])
+        self.assertEqual(VisionImage.objects.count(), 2)
+        self.assertEqual(
+            set(VisionImage.objects.values_list('image_type', flat=True)),
+            {VisionImageType.DEPTH, VisionImageType.RESULT},
+        )
+        current = result['local_template_cur']
+        for key in ('plane1', 'plane2', 'plane3'):
+            self.assertGreater(current[key]['point_count'], 50)
+            self.assertGreater(current[key]['inlier_ratio'], 0.99)
+
+    def test_calibrate_standard_persists_valid_local_template_result(self):
+        service = self._service()
+        captured = service.capture_workbench(recipe_id=self.recipe.id)
+        local_rois = {
+            'plane1': {'x': 190, 'y': 105, 'w': 250, 'h': 45},
+            'plane2': {'x': 135, 'y': 105, 'w': 45, 'h': 270},
+            'plane3': {'x': 190, 'y': 330, 'w': 250, 'h': 45},
+        }
+        result = service.calculate_workbench(
+            token=captured['pointcloud_token'],
+            roi_config={
+                'target_roi': {'x': 0, 'y': 0, 'w': 640, 'h': 480},
+                'local_template_rois': local_rois,
+            },
+            recipe_id=self.recipe.id,
+            save_record=True,
+        )
+
+        response = self.client.post(
+            reverse('vision:api_rack_location_calibrate_standard', args=[self.recipe.id]),
+            data=json.dumps({'result_id': result['result_id']}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['success'])
+        self.assertEqual(response.json()['standard_template']['template_type'], 'local_template_3d')
+        self.recipe.refresh_from_db()
+        self.assertEqual(self.recipe.local_template_std['source_result_id'], result['result_id'])
+        self.assertEqual(self.recipe.local_template_std['algorithm_version'], 'v2_rigid_body')
+        for key in ('plane1', 'plane2', 'plane3'):
+            self.assertGreater(self.recipe.local_template_std[key]['inlier_ratio'], 0.99)
+
+    def test_calculate_workbench_uses_saved_three_plane_template_for_6dof(self):
+        service = self._service()
+        captured = service.capture_workbench(recipe_id=self.recipe.id)
+        roi_config = {
+            'target_roi': {'x': 0, 'y': 0, 'w': 640, 'h': 480, 'feature_type': 'rack_reference'},
+            'local_template_rois': {
+                'plane1': {'x': 190, 'y': 105, 'w': 250, 'h': 45},
+                'plane2': {'x': 135, 'y': 105, 'w': 45, 'h': 270},
+                'plane3': {'x': 190, 'y': 330, 'w': 250, 'h': 45},
+            },
+        }
+        baseline = service.calculate_workbench(
+            token=captured['pointcloud_token'], roi_config=roi_config,
+            recipe_id=self.recipe.id, save_record=False,
+        )
+        self.recipe.local_template_std = baseline['local_template_cur']
+        self.recipe.save(update_fields=['local_template_std'])
+
+        result = service.calculate_workbench(
+            token=captured['pointcloud_token'], roi_config=roi_config,
+            recipe_id=self.recipe.id, save_record=False,
+        )
+
+        self.assertTrue(result['local_template_std_available'])
+        self.assertEqual(result['rack_compensation']['source'], 'local_template_3d')
+        self.assertTrue(result['locate_ok'])
+        for key in ('offset_x', 'offset_y', 'offset_z', 'offset_rx', 'offset_ry', 'offset_rz'):
+            self.assertAlmostEqual(result[key], 0.0, places=4)
 
     def test_calculate_workbench_requires_roi(self):
         service = self._service()

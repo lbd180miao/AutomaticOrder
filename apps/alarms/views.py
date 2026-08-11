@@ -23,12 +23,26 @@ def alarm_list(request):
     })
 
 
+def alarm_detail(request, pk):
+    alarm = get_object_or_404(
+        Alarm.objects.select_related('product', 'rack', 'workflow', 'workflow__product'),
+        pk=pk,
+    )
+    return render(request, 'alarms/alarm_detail.html', {'alarm': alarm})
+
+
+def _action_redirect(request, pk):
+    if request.POST.get('return_to') == 'detail':
+        return redirect(reverse('alarms:alarm_detail', args=[pk]))
+    return redirect(reverse('alarms:alarm_list'))
+
+
 @require_POST
 def acknowledge(request, pk):
     get_object_or_404(Alarm, pk=pk)
     AlarmService().acknowledge(pk, operator_note=request.POST.get('operator_note', ''))
     messages.success(request, '报警已确认')
-    return redirect(reverse('alarms:alarm_list'))
+    return _action_redirect(request, pk)
 
 
 @require_POST
@@ -36,4 +50,4 @@ def close(request, pk):
     get_object_or_404(Alarm, pk=pk)
     AlarmService().close(pk, operator_note=request.POST.get('operator_note', ''))
     messages.success(request, '报警已关闭，工位锁定已解除')
-    return redirect(reverse('alarms:alarm_list'))
+    return _action_redirect(request, pk)

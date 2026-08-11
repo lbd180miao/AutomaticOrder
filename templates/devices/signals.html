@@ -2,24 +2,72 @@
 {% block title %}设备信号 - AutomaticOrder{% endblock %}
 {% block content %}
 <section class="page-header"><h1>设备信号</h1></section>
+
+<div class="toolbar signal-toolbar">
+  <form method="get" class="inline-form signal-filter-form">
+    <label class="field-label" for="deviceFilter">设备</label>
+    <select id="deviceFilter" name="device">
+      <option value="">全部设备</option>
+      {% for device in devices %}
+      <option value="{{ device.code }}" {% if device_filter == device.code %}selected{% endif %}>{{ device.name }} · {{ device.code }}</option>
+      {% endfor %}
+    </select>
+
+    <label class="field-label" for="directionFilter">方向</label>
+    <select id="directionFilter" name="direction">
+      <option value="">全部方向</option>
+      <option value="IN" {% if direction_filter == 'IN' %}selected{% endif %}>输入（设备 → 上位机）</option>
+      <option value="OUT" {% if direction_filter == 'OUT' %}selected{% endif %}>输出（上位机 → 设备）</option>
+    </select>
+
+    <label class="field-label" for="signalQuery">信号</label>
+    <input id="signalQuery" name="q" type="text" value="{{ query }}" placeholder="信号名称或值">
+    <button class="btn btn-sm" type="submit">查询</button>
+    {% if device_filter or direction_filter or query %}<a class="btn btn-secondary btn-sm" href="{% url 'devices:signals' %}">清除</a>{% endif %}
+  </form>
+  <span class="signal-count">显示最近 {{ records|length }} 条记录</span>
+</div>
+
 <div class="table-wrap">
   <table class="data-table">
     <thead>
-      <tr><th>时间</th><th>设备</th><th>信号名</th><th>信号值</th><th>方向</th></tr>
+      <tr><th>记录时间</th><th>设备</th><th>信号名称</th><th>信号值</th><th>方向</th><th>原始 Payload</th></tr>
     </thead>
     <tbody>
       {% for s in records %}
       <tr>
-        <td>{{ s.recorded_at|date:"m-d H:i:s" }}</td>
-        <td>{{ s.device.code }}</td>
-        <td>{{ s.signal_name }}</td>
-        <td>{{ s.signal_value }}</td>
-        <td>{{ s.get_direction_display }}</td>
+        <td class="signal-time">{{ s.recorded_at|date:"Y-m-d H:i:s"|default:"-" }}</td>
+        <td><strong>{{ s.device.name }}</strong><small>{{ s.device.code }}</small></td>
+        <td><code class="signal-name">{{ s.signal_name }}</code></td>
+        <td class="signal-value">{{ s.signal_value }}</td>
+        <td>
+          {% if s.direction == 'IN' %}<span class="badge badge-info">← 输入</span>
+          {% else %}<span class="badge badge-running">输出 →</span>{% endif %}
+        </td>
+        <td>
+          <details class="payload-details">
+            <summary>{% if s.raw_payload %}查看 Payload{% else %}空 Payload{% endif %}</summary>
+            <pre>{{ s.raw_payload_pretty }}</pre>
+          </details>
+        </td>
       </tr>
       {% empty %}
-      <tr><td colspan="5" class="empty">暂无信号记录</td></tr>
+      <tr><td colspan="6" class="empty">暂无符合条件的信号记录</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+<style>
+  .signal-toolbar { justify-content: space-between; }
+  .signal-filter-form { flex-wrap: wrap; }
+  .signal-count { margin-left: auto; color: var(--text-muted); font-size: 13px; white-space: nowrap; }
+  .data-table td small { display: block; color: var(--text-faint); font-size: 11px; }
+  .signal-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .signal-name { padding: 2px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-2); color: var(--text); }
+  .signal-value { max-width: 260px; overflow-wrap: anywhere; font-family: Consolas, monospace; }
+  .payload-details summary { cursor: pointer; color: var(--primary); white-space: nowrap; }
+  .payload-details pre { max-width: 440px; max-height: 220px; margin: 8px 0 0; padding: 10px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #0f172a; color: #dbeafe; font: 12px/1.5 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  @media (max-width: 760px) { .signal-count { width: 100%; margin-left: 0; } }
+</style>
 {% endblock %}

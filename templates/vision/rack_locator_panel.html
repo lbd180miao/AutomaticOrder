@@ -182,6 +182,88 @@
     min-width: 110px;
   }
 
+  .rl-roi-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 18px;
+    background: #f8fafc;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .rl-roi-toolbar .rl-roi-help {
+    flex-basis: 100%;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  .rl-roi-editor-btn {
+    min-width: 126px;
+    background: #fff;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+  }
+
+  .rl-roi-editor-btn.active {
+    color: #fff;
+    background: #2563eb;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .18);
+  }
+
+  .rl-roi-editor-btn.done:not(.active)::after {
+    content: ' ✓';
+    color: #16a34a;
+    font-weight: 800;
+  }
+
+  #btn-roi-plane1 { border-left: 4px solid #38bdf8; }
+  #btn-roi-plane2 { border-left: 4px solid #f59e0b; }
+  #btn-roi-plane3 { border-left: 4px solid #ec4899; }
+
+  .rl-workbench-status {
+    padding: 9px 18px;
+    background: #eff6ff;
+    border-bottom: 1px solid #bfdbfe;
+    color: #1e40af;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .rl-workbench-status::before {
+    content: '●';
+    margin-right: 8px;
+    color: #2563eb;
+  }
+
+  #btn-save-as-std:disabled {
+    background: #94a3b8 !important;
+    color: #f8fafc !important;
+    cursor: not-allowed;
+    opacity: .72;
+    filter: grayscale(1);
+    box-shadow: none;
+  }
+
+  .rl-template-validation-message {
+    display: none;
+    margin: 0 0 10px;
+    padding: 9px 11px;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  .rl-template-validation-message.ok {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+    color: #15803d;
+  }
+
   .rl-no-recipe-bar {
     padding: 18px;
     text-align: center;
@@ -794,26 +876,7 @@
       </select>
     </div>
 
-    <!-- 当前配方信息卡片 -->
-    {% if recipes %}
-    <div class="rl-recipe-info-card" id="recipe-info-card">
-      <div class="recipe-info-header">
-        <span class="recipe-info-icon">🎯</span>
-        <div class="recipe-info-title" id="recipe-card-name">{{ recipes.0.recipe_name }}</div>
-        <span class="recipe-badge" id="recipe-badge">POS{{ recipes.0.position_no }} · L{{ recipes.0.layer_no }}</span>
-      </div>
-      <div class="recipe-info-body">
-        <div class="recipe-info-row"><strong>标准 X:</strong> <span id="recipe-card-sx">{{ recipes.0.standard_x }}</span>
-          mm</div>
-        <div class="recipe-info-row"><strong>标准 Y:</strong> <span id="recipe-card-sy">{{ recipes.0.standard_y }}</span>
-          mm</div>
-        <div class="recipe-info-row"><strong>标准 Z:</strong> <span id="recipe-card-sz">{{ recipes.0.standard_z }}</span>
-          mm</div>
-        <div class="recipe-info-row"><strong>料架侧:</strong> <span id="recipe-card-side">{{ recipes.0.rack_side }}</span>
-        </div>
-      </div>
-    </div>
-    {% else %}
+    {% if not recipes %}
     <div class="rl-no-recipe-bar">暂无已启用的 3D 配方，请先<a href="{% url 'vision:rack_location_recipes' %}">前往配方管理</a>新增配方。
     </div>
     {% endif %}
@@ -829,7 +892,7 @@
   <!-- 顶部操作栏 -->
   <div class="rl-action-bar">
     <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
-    <button id="btn-redraw" class="btn btn-secondary" disabled>🔄 重画 ROI</button>
+    <button id="btn-redraw" class="btn btn-secondary" disabled title="清除当前选中的区域后重新框选">🔄 重画当前区域</button>
     <button id="btn-polygon" class="btn btn-secondary" disabled title="切换为多边形画笔模式，逐点点击绘制不规则ROI，双击闭合">✏️ 画笔</button>
     <button id="btn-save-recipe" class="btn btn-secondary" disabled title="将当前画布上的ROI框保存到配方中">💾 保存配方</button>
     <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" disabled>🎯 开始计算</button>
@@ -837,6 +900,17 @@
     <button id="btn-export-package" class="btn" style="background:#0ea5e9;" disabled>💾 保存数据包</button>
     <button id="btn-packages" class="btn btn-secondary">📦 数据包管理</button>
   </div>
+
+  <div class="rl-roi-toolbar" aria-label="三平面 ROI 示教">
+    <button id="btn-roi-target" class="btn rl-roi-editor-btn active" disabled>外框 ROI</button>
+    <button id="btn-roi-plane1" class="btn rl-roi-editor-btn" disabled>Π1 顶部横梁</button>
+    <button id="btn-roi-plane2" class="btn rl-roi-editor-btn" disabled>Π2 左侧立柱</button>
+    <button id="btn-roi-plane3" class="btn rl-roi-editor-btn" disabled>Π3 底部横梁</button>
+    <span id="roi-teach-progress" class="badge badge-muted">三平面已框选 0/3</span>
+    <span class="rl-roi-help">依次选择 Π1、Π2、Π3 后，在点云中拖拽真实钢架表面。系统不再按固定比例猜测区域；三块区域齐全后才允许计算。</span>
+  </div>
+
+  <div class="rl-workbench-status" id="rl-status">请选择配方并采集或加载点云。</div>
 
 
 
@@ -862,57 +936,12 @@
         </div>
         <span class="rl-source-chip" id="rl-source" style="display: none; margin-top: 10px;">数据源 —</span>
         <span id="recipe-switch-status" style="margin-left: 12px; font-size: 13px; transition: all 0.3s;"></span>
-        <p class="rl-status" id="rl-status" style="display: none;">先选择配方，再采集点云。</p>
       </div>
     </div>
 
-    <!-- 右栏：结果 -->
+    <!-- 右栏：模板、补偿矩阵与结果图 -->
     <div class="rl-panel">
-      <div class="rl-panel-head">
-        <h2>计算结果 · 坐标偏差</h2>
-        <span id="record-save-status" class="badge badge-muted">计算后自动保存记录</span>
-      </div>
       <div class="rl-panel-body">
-        <div class="rl-verdict idle" id="rl-verdict">
-          <div class="v-icon" id="rl-verdict-icon">⏳</div>
-          <div class="v-text">
-            <strong id="rl-verdict-text">等待计算</strong>
-            <div class="v-sub" id="rl-verdict-sub">选择配方，采集点云并绘制 ROI 后点击「计算偏差」</div>
-          </div>
-        </div>
-
-        <div class="rl-offset-grid">
-          <div class="rl-offset-cell" id="cell-x">
-            <div class="rl-offset-axis">X 轴</div>
-            <div class="rl-offset-val" id="off-x">—</div>
-            <div class="rl-offset-unit">mm</div>
-          </div>
-          <div class="rl-offset-cell" id="cell-y">
-            <div class="rl-offset-axis">Y 轴</div>
-            <div class="rl-offset-val" id="off-y">—</div>
-            <div class="rl-offset-unit">mm</div>
-          </div>
-          <div class="rl-offset-cell" id="cell-z">
-            <div class="rl-offset-axis">Z 轴</div>
-            <div class="rl-offset-val" id="off-z">—</div>
-            <div class="rl-offset-unit">mm</div>
-          </div>
-          <div class="rl-offset-cell" id="cell-rz">
-            <div class="rl-offset-axis">Rz</div>
-            <div class="rl-offset-val" id="off-rz">—</div>
-            <div class="rl-offset-unit">deg</div>
-          </div>
-        </div>
-
-        <div class="rl-conf-row">
-          <span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">置信度</span>
-          <div class="rl-conf-track">
-            <div class="rl-conf-fill" id="conf-bar"></div>
-          </div>
-          <span class="rl-conf-label" id="conf-val">—</span>
-        </div>
-
-
         <section class="rl-template-panel" id="rl-template-panel" style="margin-bottom: 16px;">
           <div class="rl-comp-head" style="justify-content: space-between;">
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -922,6 +951,7 @@
             <button id="btn-save-as-std" class="btn btn-sm btn-secondary" style="background:#22c55e; color:white; border:none; display:none;">保存为标准模板</button>
           </div>
           <div class="rl-comp-body" style="background:#f8fafc; padding:12px; border-radius:6px; border:1px solid #e2e8f0; font-size:12px;">
+            <div class="rl-template-validation-message" id="template-validation-message" role="alert"></div>
             <table style="width:100%; text-align:left; border-collapse: collapse;">
               <thead>
                 <tr style="border-bottom: 1px solid #cbd5e1;">
@@ -1023,38 +1053,6 @@
   // ── 配方下拉选择 ────────────────────────────────────
   let selectedRecipeData = null;
 
-  // 更新配方信息卡片
-  function updateRecipeInfoCard(option) {
-    if (!option) return;
-
-    const name = option.dataset.name || '';
-    const pos = option.dataset.pos || '1';
-    const layer = option.dataset.layer || '1';
-    const sx = option.dataset.sx || '0';
-    const sy = option.dataset.sy || '0';
-    const sz = option.dataset.sz || '0';
-    const side = option.dataset.side || 'BOTH';
-    const mox = option.dataset.mox || '20';
-    const moy = option.dataset.moy || '20';
-    const moz = option.dataset.moz || '20';
-    const conf = option.dataset.conf || '0.7';
-
-    // 格式化料架侧显示
-    const sideText = side === 'LEFT' ? '左料架' : side === 'RIGHT' ? '右料架' : '左右料架';
-
-    // 更新卡片显示
-    if (document.getElementById('recipe-card-name')) document.getElementById('recipe-card-name').textContent = name;
-    if (document.getElementById('recipe-badge')) document.getElementById('recipe-badge').textContent = `POS${pos} · L${layer}`;
-    if (document.getElementById('recipe-card-sx')) document.getElementById('recipe-card-sx').textContent = sx;
-    if (document.getElementById('recipe-card-sy')) document.getElementById('recipe-card-sy').textContent = sy;
-    if (document.getElementById('recipe-card-sz')) document.getElementById('recipe-card-sz').textContent = sz;
-    if (document.getElementById('recipe-card-side')) document.getElementById('recipe-card-side').textContent = sideText;
-    if (document.getElementById('recipe-card-mox')) document.getElementById('recipe-card-mox').textContent = mox;
-    if (document.getElementById('recipe-card-moy')) document.getElementById('recipe-card-moy').textContent = moy;
-    if (document.getElementById('recipe-card-moz')) document.getElementById('recipe-card-moz').textContent = moz;
-    if (document.getElementById('recipe-card-conf')) document.getElementById('recipe-card-conf').textContent = conf;
-  }
-
   // 应用选中的配方
   function applyRecipeFromDropdown() {
     const select = document.getElementById('recipe-select');
@@ -1091,12 +1089,13 @@
       rackSideSelect.value = side;
     }
 
-    // 更新配方信息卡片
-    updateRecipeInfoCard(option);
-
     selectedRecipeData = { id, pos, layer, sx, sy, sz, conf, side };
     document.getElementById('rl-status').textContent =
       `已选配方：${name}（POS${pos} 层${layer}），可采集点云。`;
+
+    if (typeof window.rackLocatorRecipeChanged === 'function') {
+      window.rackLocatorRecipeChanged(id, layer);
+    }
 
     if (typeof window.rackLocatorLoadStandardModel === 'function') {
       window.rackLocatorLoadStandardModel(id);
@@ -1201,21 +1200,20 @@
         const recipe = recipeList[0] || null;
         if (recipe) {
           const targetRoi = (recipe.roi_config || {}).target_roi;
-          if (targetRoi && targetRoi.x != null && targetRoi.y != null &&
-              targetRoi.w != null && targetRoi.h != null) {
+          const localTemplateRois = (recipe.roi_config || {}).local_template_rois;
+          const validTargetRoi = targetRoi && targetRoi.x != null && targetRoi.y != null &&
+            targetRoi.w != null && targetRoi.h != null
+            ? targetRoi
+            : null;
+          if (validTargetRoi) {
             console.log('[loadRecipeRoi] 找到配方 2D ROI，调用统一接口:', targetRoi);
-            // 修复：统一通过 workbench.js 暴露的 rackLocatorSetRoi 接口设置 ROI，
-            // 该函数内部会正确判断：
-            //   有点云(state.token) → 立即画到画布
-            //   无点云             → 存入 state.pendingRoi，采集后自动应用
-            // 不再调用 showRoiOnCanvas，避免其"image.src 非空但 display:none"
-            // 时的错误分支判断导致 ROI 没有存进 state.pendingRoi。
-            if (typeof window.rackLocatorSetRoi === 'function') {
-              window.rackLocatorSetRoi(targetRoi);
-            } else {
-              // 兜底：workbench.js 尚未加载（极少情况），暂存全局
-              window.tempPendingRoi = targetRoi;
-            }
+          }
+          // 无 ROI 的配方也必须调用统一接口，显式清除上一配方的框选状态。
+          if (typeof window.rackLocatorSetRoi === 'function') {
+            window.rackLocatorSetRoi(validTargetRoi, localTemplateRois);
+          } else {
+            window.tempPendingRoi = validTargetRoi;
+            window.tempPendingLocalTemplateRois = localTemplateRois || null;
           }
         }
       }
@@ -1367,6 +1365,6 @@
     offlinePackagesUrl: '{% url "vision:offline_packages" %}',
   };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=19" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
-<script src="{% static 'vision/js/offline_package_manager.js' %}"></script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=25" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
+<script src="{% static 'vision/js/offline_package_manager.js' %}?v=21"></script>
 {% endblock %}
