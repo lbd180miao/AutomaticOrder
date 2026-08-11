@@ -1983,6 +1983,15 @@ class FoamRoiCaptureViewTests(TestCase):
 
 
 class VisionRecipeWorkbenchTemplateTests(TestCase):
+    def test_legacy_rack_recipe_page_redirects_to_unified_3d_tab(self):
+        response = self.client.get(reverse('vision:rack_location_recipes'))
+
+        self.assertRedirects(
+            response,
+            reverse('vision:recipe_management') + '?tab=rack3d',
+            fetch_redirect_response=False,
+        )
+
     def test_foam_workbench_exposes_recipe_drawer_and_recipe_state(self):
         response = self.client.get(reverse('vision:foam_inspector_interactive'))
 
@@ -2803,7 +2812,8 @@ class RackLocationWorkbenchTests(TestCase):
             {'x': 244, 'y': 179, 'w': 152, 'h': 122},
         )
 
-    def test_capture_workbench_falls_back_to_sample_when_camera_unavailable(self):
+    @patch('apps.vision.rack_location._load_docs_pic_pointcloud', return_value=None)
+    def test_capture_workbench_falls_back_to_sample_when_camera_unavailable(self, _offline_cloud):
         from apps.vision.rack_location import RackLocationService
 
         class BrokenProvider:
@@ -2894,6 +2904,15 @@ class RackLocationWorkbenchTests(TestCase):
         )
 
         self.assertEqual(result['rack_compensation']['source'], 'local_template_current_baseline')
+        self.assertEqual(result['compensation_coordinate_system'], 'camera')
+        self.assertEqual(result['rack_compensation']['coordinate_system'], 'camera')
+        self.assertFalse(result['rack_compensation']['robot_conversion_applied'])
+        self.assertEqual(result['camera_rack_compensation'], result['rack_compensation'])
+        self.assertEqual(result['transform_context']['context_source'], 'record_snapshot')
+        self.assertEqual(
+            result['transform_context']['T_flange_camera']['matrix'],
+            np.eye(4, dtype=float).tolist(),
+        )
         self.assertFalse(result['local_template_std_available'])
         self.assertEqual(set(result['local_template_rois']), {'plane1', 'plane2', 'plane3'})
         self.assertTrue(result['local_template_validation']['is_valid'])
@@ -2940,6 +2959,7 @@ class RackLocationWorkbenchTests(TestCase):
         self.recipe.refresh_from_db()
         self.assertEqual(self.recipe.local_template_std['source_result_id'], result['result_id'])
         self.assertEqual(self.recipe.local_template_std['algorithm_version'], 'v2_rigid_body')
+        self.assertEqual(self.recipe.local_template_std['coordinate_system'], 'camera')
         for key in ('plane1', 'plane2', 'plane3'):
             self.assertGreater(self.recipe.local_template_std[key]['inlier_ratio'], 0.99)
 
@@ -2968,6 +2988,11 @@ class RackLocationWorkbenchTests(TestCase):
 
         self.assertTrue(result['local_template_std_available'])
         self.assertEqual(result['rack_compensation']['source'], 'local_template_3d')
+        self.assertEqual(result['rack_compensation']['coordinate_system'], 'camera')
+        self.assertEqual(
+            result['rack_compensation']['placement_formula'],
+            'P_current_camera = T_camera_standard_to_current * P_standard_camera',
+        )
         self.assertTrue(result['locate_ok'])
         for key in ('offset_x', 'offset_y', 'offset_z', 'offset_rx', 'offset_ry', 'offset_rz'):
             self.assertAlmostEqual(result[key], 0.0, places=4)

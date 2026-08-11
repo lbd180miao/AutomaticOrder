@@ -11,6 +11,7 @@ from django.contrib import messages
 from django.core import signing
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_http_methods
@@ -1499,9 +1500,8 @@ def rack_location_workbench(request):
 
 
 def rack_location_recipes(request):
-    """3D配方管理页面 - 独立页面"""
-    recipes = RackLocationRecipe.objects.order_by('position_no', 'layer_no', '-updated_at')
-    return render(request, 'vision/rack_location_recipes.html', {'recipes': recipes})
+    """兼容旧入口，统一跳转到视觉配方模块的 3D 标签页。"""
+    return redirect(f'{reverse("vision:recipe_management")}?tab=rack3d')
 
 
 def _rack_location_recipe_form_context(recipe=None, prefill: dict | None = None):
@@ -1685,7 +1685,7 @@ def rack_location_recipe_edit(request, recipe_id):
 def rack_location_history(request):
     qs = (
         RackLocationResult.objects
-        .select_related('recipe', 'vision_task')
+        .select_related('recipe', 'recipe__hand_eye_calibration', 'vision_task')
         .order_by('-created_at')
     )
     # GET 参数筛选
@@ -2407,6 +2407,7 @@ def api_rack_location_calibrate_standard(request, recipe_id):
                     **current_template,
                     'build_timestamp': timezone.now().isoformat(),
                     'algorithm_version': 'v2_rigid_body',
+                    'coordinate_system': 'camera',
                     'source_result_id': result.id,
                 }
                 recipe.local_template_std = saved_template
@@ -2468,7 +2469,7 @@ def api_rack_location_recipe_detail(request, recipe_id):
 def api_rack_location_results(request):
     qs = (
         RackLocationResult.objects
-        .select_related('recipe', 'vision_task')
+        .select_related('recipe', 'recipe__hand_eye_calibration', 'vision_task')
         .order_by('-created_at')
     )
     position_no = request.GET.get('position_no')

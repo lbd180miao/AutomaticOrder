@@ -56,12 +56,18 @@ def hand_eye_page(request):
     
     # 获取历史记录
     history_list = HandEyeCalibration.objects.all().order_by('-created_at')[:20]
+    active_capture_pose_matrix = None
+    if active_calibration:
+        active_capture_pose_matrix = (
+            (active_calibration.calibration_params or {}).get('T_base_flange')
+        )
     
     return render(request, 'vision/hand_eye_calibration.html', {
         'active_calibration': active_calibration,
         'robots': robots,
         'cameras': cameras,
         'history_list': history_list,
+        'active_capture_pose_matrix': active_capture_pose_matrix,
     })
 
 
@@ -205,11 +211,27 @@ def update_calibration(request, calibration_id):
             calibration.description = data['description']
         if 'operator' in data:
             calibration.operator = data['operator']
+        if 'T_flange_camera' in data:
+            matrix = transform_service.parse_matrix_from_json(data['T_flange_camera'])
+            _validate_homogeneous_matrix(matrix, 'T_flange_camera')
+            calibration.T_flange_camera = {'matrix': matrix.tolist()}
+        if 'T_base_flange' in data:
+            matrix = transform_service.parse_matrix_from_json(data['T_base_flange'])
+            _validate_homogeneous_matrix(matrix, 'T_base_flange')
+            calibration_params = dict(calibration.calibration_params or {})
+            calibration_params['T_base_flange'] = {'matrix': matrix.tolist()}
+            calibration.calibration_params = calibration_params
         
         calibration.save()
         
-        return api_response(data={'message': '标定更新成功'})
+        return api_response(data={
+            'message': '矩阵保存成功',
+            'T_flange_camera': calibration.T_flange_camera,
+            'T_base_flange': (calibration.calibration_params or {}).get('T_base_flange'),
+        })
     
+    except (json.JSONDecodeError, ValueError) as e:
+        return api_response(error=str(e), status=400)
     except Exception as e:
         logger.exception("更新标定失败")
         return api_response(error=str(e), status=500)
@@ -530,7 +552,8 @@ def compute_delta(request):
         ΔT_base    = T_base_cam × ΔT_cam × inv(T_base_cam)
 
     请求体（JSON）：
-        delta_cam        : {x, y, z, rx, ry, rz}  相机坐标系偏差（mm / 度）
+        delta_T_cam      : {matrix: [[...]]}（优先）相机坐标系原始偏差矩阵
+        delta_cam        : {x, y, z, rx, ry, rz}（兼容）相机坐标系偏差（mm / 度）
         T_base_flange    : {x, y, z, rx, ry, rz} 或 {matrix: [[...]]} 拍照时机器人位姿
         calibration_id   : int（可选，不传则使用当前激活标定）
         T_flange_camera  : 4×4矩阵（可选；手动调试时优先于 calibration_id）
@@ -552,9 +575,17 @@ def compute_delta(request):
             return api_response(error='请求体必须是 JSON 对象', status=400)
 
         # ── 1. 解析 ΔT_cam（相机坐标系偏差）──
-        dc = data.get('delta_cam')
-        delta_cam_pose = _parse_six_dof(dc, 'delta_cam')
-        delta_T_cam = transform_service.parse_matrix_from_json(delta_cam_pose)
+        # 记录页优先传入原始 4×4 矩阵，避免先分解再重建造成精度损失；
+        # 保留 delta_cam 六自由度输入以兼容旧调用方。
+        delta_T_cam_raw = data.get('delta_T_cam')
+        if delta_T_cam_raw is not None:
+            delta_T_cam = transform_service.parse_matrix_from_json(delta_T_cam_raw)
+            _validate_homogeneous_matrix(delta_T_cam, 'delta_T_cam')
+            delta_cam_pose = transform_service.matrix_to_pose(delta_T_cam)
+        else:
+            dc = data.get('delta_cam')
+            delta_cam_pose = _parse_six_dof(dc, 'delta_cam')
+            delta_T_cam = transform_service.parse_matrix_from_json(delta_cam_pose)
 
         # ── 2. 解析 T_base_flange（拍照时机器人位姿）──
         T_base_flange_raw = data.get('T_base_flange')
