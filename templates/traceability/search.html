@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}追溯查询 - AutomaticOrder{% endblock %}
+
+{% block content %}
+<section class="page-header"><h1>追溯查询</h1></section>
+
+<div class="panel trace-search-panel">
+  <form method="get" class="trace-search-form">
+    <div>
+      <label class="field-label" for="traceMode">查询类型</label>
+      <select id="traceMode" name="mode">
+        <option value="product" {% if mode == 'product' %}selected{% endif %}>产品条码</option>
+        <option value="rack" {% if mode == 'rack' %}selected{% endif %}>料框码</option>
+      </select>
+    </div>
+    <div class="trace-query-field">
+      <label class="field-label" for="traceQuery">条码</label>
+      <input id="traceQuery" name="q" type="text" value="{{ query }}" placeholder="扫描或输入产品条码 / 料框码" autofocus>
+    </div>
+    <button class="btn" type="submit">查询追溯记录</button>
+  </form>
+</div>
+
+{% if not_found %}
+<div class="trace-empty"><strong>未找到匹配记录</strong><span>请检查条码和查询类型后重试。</span></div>
+{% endif %}
+
+{% if result %}
+<section class="panel trace-result-card">
+  <div>
+    <span class="trace-result-label">产品条码</span>
+    <h2>{{ result.product.product_code }}</h2>
+    <p>批次 {{ result.batch.batch_no|default:"-" }} · 料框 {{ result.rack.rack_code|default:"-" }}</p>
+  </div>
+  <div class="trace-result-actions">
+    <span class="badge badge-running">{{ result.product.get_current_state_display }}</span>
+    <a class="btn btn-sm" href="{% url 'traceability:product_detail' result.product.product_code %}">查看完整流程 →</a>
+  </div>
+</section>
+{% endif %}
+
+{% if rack_result %}
+<section class="panel trace-rack-panel">
+  <div class="section-title">料框 {{ rack_result.rack.rack_code }}</div>
+  <div class="trace-rack-summary">
+    <span>状态 <strong>{{ rack_result.rack.status }}</strong></span>
+    <span>配方 <strong>{{ rack_result.recipe.recipe_code|default:"-" }}</strong></span>
+    <span>产品数量 <strong>{{ rack_result.product_count }}</strong></span>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>产品条码</th><th>批次</th><th>当前状态</th><th>创建时间</th><th>操作</th></tr></thead>
+      <tbody>
+        {% for product in rack_result.products %}
+        <tr>
+          <td>{{ product.product_code }}</td>
+          <td>{{ product.batch.batch_no|default:"-" }}</td>
+          <td><span class="badge badge-running">{{ product.get_current_state_display }}</span></td>
+          <td>{{ product.created_at|date:"Y-m-d H:i:s" }}</td>
+          <td><a class="btn btn-sm btn-secondary" href="{% url 'traceability:product_detail' product.product_code %}">详情</a></td>
+        </tr>
+        {% empty %}<tr><td colspan="5" class="empty">该料框尚未绑定产品</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<style>
+  .trace-search-panel { padding: 18px 22px; margin-bottom: 18px; }
+  .trace-search-form { display: grid; grid-template-columns: 180px minmax(260px,1fr) auto; gap: 12px; align-items: end; }
+  .trace-search-form label { display: block; margin-bottom: 5px; }
+  .trace-search-form select, .trace-search-form input { width: 100%; height: 40px; }
+  .trace-empty { padding: 34px; border: 1px dashed var(--border-strong); border-radius: var(--radius); background: var(--surface); text-align: center; }
+  .trace-empty span { display: block; margin-top: 5px; color: var(--text-muted); }
+  .trace-result-card { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px 22px; }
+  .trace-result-label { color: var(--text-muted); font-size: 12px; }
+  .trace-result-card h2 { margin: 2px 0; }
+  .trace-result-card p { margin: 0; color: var(--text-muted); }
+  .trace-result-actions { display: flex; align-items: center; gap: 12px; }
+  .trace-rack-panel { padding: 20px 22px; }
+  .trace-rack-summary { display: flex; gap: 28px; margin-bottom: 15px; color: var(--text-muted); }
+  @media (max-width: 700px) { .trace-search-form { grid-template-columns: 1fr; } .trace-result-card { align-items: flex-start; flex-direction: column; } }
+</style>
+{% endblock %}

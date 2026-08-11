@@ -136,7 +136,7 @@ class WorkflowService:
             W.MARKING_READY: self._on_marked,
             W.MARKED: self._on_barcode_read,
             W.BARCODE_READ: self._on_mes_upload,
-            W.INJECTION_RELEASED: self._on_rack_scanned,
+            W.RACK_SCAN_READY: self._on_rack_scanned,
             W.RACK_SCANNED: self._on_recipe_loaded,
             W.RECIPE_LOADED: self._on_rack_located,
             W.RACK_LOCATED: self._on_recipe_verified,
@@ -187,7 +187,7 @@ class WorkflowService:
 
     # ----- 阶段三：料框扫码与配方 -----
     def _on_rack_scanned(self, workflow):
-        """INJECTION_RELEASED -> RACK_SCANNED：读料框码并绑定。"""
+        """RACK_SCAN_READY -> RACK_SCANNED：读料框码并绑定。"""
         scan = self.devices.adapter.read_rack_code()
         self.devices.record_signal('PLC-01', 'rack_code', scan.get('code', ''))
         if not scan.get('success'):

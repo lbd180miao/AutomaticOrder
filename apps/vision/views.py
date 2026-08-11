@@ -25,6 +25,8 @@ from .algorithms.rack_opening_rectangle import (
     normalize_reference_feature_config,
     standard_geometry,
 )
+from .algorithms.local_template_3d import LocalFrameResult
+from .algorithms.rack_structure_validator import RackStructureValidator
 from .models import (
     CalibrationProfile,
     FoamInspectionResult,
@@ -2159,14 +2161,23 @@ def api_rack_location_workbench_calculate(request):
         # 自动将用户绘制的 2D 像素 target_roi 持久化保存到配方 roi_config，
         # 确保下次采集点云时可以通过兜底回退逻辑自动显示 ROI 框。
         target_roi = roi_config.get('target_roi')
-        if recipe_id and target_roi and all(
+        local_template_rois = roi_config.get('local_template_rois')
+        has_target_roi = bool(target_roi) and all(
             target_roi.get(k) is not None for k in ('x', 'y', 'w', 'h')
-        ):
+        )
+        has_local_template_rois = bool(local_template_rois) and all(
+            isinstance(local_template_rois.get(key), dict)
+            for key in ('plane1', 'plane2', 'plane3')
+        )
+        if recipe_id and (has_target_roi or has_local_template_rois):
             try:
                 recipe_obj = RackLocationRecipe.objects.filter(pk=recipe_id).first()
                 if recipe_obj:
                     current_config = recipe_obj.roi_config or {}
-                    current_config['target_roi'] = target_roi
+                    if has_target_roi:
+                        current_config['target_roi'] = target_roi
+                    if has_local_template_rois:
+                        current_config['local_template_rois'] = local_template_rois
                     from django.utils import timezone
                     current_config['target_roi_updated_at'] = timezone.now().isoformat()
                     recipe_obj.roi_config = current_config
@@ -2179,7 +2190,7 @@ def api_rack_location_workbench_calculate(request):
             logger.info(f"[计算偏差] 已保存到视觉记录，VisionTask数量: {VisionTask.objects.count()}")
         
         return JsonResponse({'success': True, 'result': payload})
-    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    except (TypeError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
         logger.error(f"[计算偏差] 错误: {exc}")
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
@@ -2375,9 +2386,44 @@ def api_rack_location_calibrate_standard(request, recipe_id):
     """将标准零位下的一次三钢架拟合结果固化为标准料架模型。"""
     try:
         data = _request_data(request)
+        result_id = data.get('result_id') or None
+        if result_id:
+            result = RackLocationResult.objects.get(pk=result_id)
+            recipe = RackLocationRecipe.objects.get(pk=recipe_id)
+            if result.recipe_id and result.recipe_id != recipe.id:
+                raise ValueError('定位结果与配方不匹配，不能作为该配方的标准模板')
+
+            result_data = result.result_data or {}
+            current_template = result_data.get('local_template_cur')
+            if current_template:
+                # 只接受后端计算记录中的三平面结果，并在保存前重新执行结构校验，
+                # 避免前端伪造或把质量不合格的拟合固化成生产基准。
+                frame = LocalFrameResult.from_dict(current_template)
+                validation = RackStructureValidator().validate(frame_cur=frame, frame_std=None)
+                if not validation.is_valid:
+                    raise ValueError('当前三平面结构校验未通过，不能保存为标准模板：' + validation.message)
+
+                saved_template = {
+                    **current_template,
+                    'build_timestamp': timezone.now().isoformat(),
+                    'algorithm_version': 'v2_rigid_body',
+                    'source_result_id': result.id,
+                }
+                recipe.local_template_std = saved_template
+                recipe.save(update_fields=['local_template_std', 'updated_at'])
+                return JsonResponse({
+                    'success': True,
+                    'standard_template': {
+                        'template_type': 'local_template_3d',
+                        'source_result_id': result.id,
+                        'saved_at': saved_template['build_timestamp'],
+                    },
+                    'local_template_std': saved_template,
+                })
+
         payload = Rack3DLocator().calibrate_standard_template(
             recipe_id=recipe_id,
-            result_id=data.get('result_id') or None,
+            result_id=result_id,
             opening_rectangle=data.get('opening_rectangle') or None,
             note=data.get('note') or '',
         )

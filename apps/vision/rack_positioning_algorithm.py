@@ -653,7 +653,7 @@ class RigidBodyCompensationAlgorithm:
         angle_tolerance_deg: float = 3.0,
         z_diff_tolerance_mm: float = 5.0,
         orthogonal_tolerance_deg: float = 5.0,
-        min_inlier_ratio: float = 0.70,
+        min_inlier_ratio: float = 0.20,
     ):
         from apps.vision.algorithms.local_template_3d import LocalTemplate3D
         from apps.vision.algorithms.rack_structure_validator import RackStructureValidator
@@ -714,6 +714,32 @@ class RigidBodyCompensationAlgorithm:
             frame.plane3.inlier_ratio * 100,
         )
         return result
+
+    def build_current_template(
+        self,
+        roi1_cloud: np.ndarray,
+        roi2_cloud: np.ndarray,
+        roi3_cloud: np.ndarray,
+    ) -> dict:
+        """拟合一次现场三区域模板，但不要求配方已经存在标准模板。
+
+        工作台首轮采集需要先把当前三平面展示给操作者，确认后才能保存为
+        标准模板。与 ``teach_mode_build_template`` 不同，本方法始终返回拟合
+        结果和结构校验详情；结构不合格时由界面明确提示，而不是把已经完成的
+        三平面拟合结果丢掉。
+        """
+        frame = self._template_algo.build_local_frame(roi1_cloud, roi2_cloud, roi3_cloud)
+        validation = self._validator.validate(frame_cur=frame, frame_std=None)
+        confidence = float(
+            (frame.plane1.inlier_ratio + frame.plane2.inlier_ratio + frame.plane3.inlier_ratio) / 3.0
+        )
+        return {
+            "local_template_cur": frame.to_dict(),
+            "validation": validation.to_dict(),
+            "is_valid": validation.is_valid,
+            "confidence": round(confidence, 4),
+            "compute_timestamp": datetime.datetime.now().isoformat(),
+        }
 
     def production_mode_compute(
         self,

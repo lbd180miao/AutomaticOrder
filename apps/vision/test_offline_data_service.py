@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+from PIL import Image
 from django.test import RequestFactory, SimpleTestCase
 
 from .offline_data_service import OfflineDataPackageError, OfflineDataPackageService
@@ -79,6 +80,24 @@ class OfflineDataPackageServiceTests(SimpleTestCase):
                 layer_no=1,
                 camera_info={},
             )
+
+    def test_raw_package_restores_organized_cloud_and_workbench_token(self):
+        raw_dir = Path(self.temp_dir.name, "4")
+        raw_dir.mkdir()
+        np.save(raw_dir / "pointcloud.npy", self.pointcloud.reshape(-1, 3), allow_pickle=False)
+        Image.new("RGB", (16, 12), color=(20, 30, 40)).save(raw_dir / "Image.png")
+
+        loaded = self.service.load_raw_package("4")
+
+        self.assertEqual(loaded["pointcloud"].shape, (12, 16, 3))
+        self.assertEqual(loaded["metadata"]["camera"], {"width": 16, "height": 12})
+        with self.settings(MEDIA_ROOT=self.temp_dir.name):
+            payload = self.service.create_workbench_copy_from_raw("4")
+            persisted = np.load(Path(self.temp_dir.name, payload["pointcloud_token"]))
+        self.assertEqual(payload["image_width"], 16)
+        self.assertEqual(payload["image_height"], 12)
+        self.assertEqual(persisted.shape, (12, 16, 3))
+        self.assertFalse(payload["pointcloud_token"].startswith("."))
 
 
 class OfflineProviderTests(SimpleTestCase):

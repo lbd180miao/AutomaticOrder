@@ -12,7 +12,7 @@
     <tbody>
       {% for a in open_alarms %}
       <tr>
-        <td>{{ a.alarm_code }}</td>
+        <td><a href="{% url 'alarms:alarm_detail' a.pk %}">{{ a.alarm_code }}</a></td>
         <td>{{ a.get_level_display }}</td>
         <td>{{ a.get_source_display }}</td>
         <td>{{ a.message }}</td>
@@ -52,7 +52,7 @@
     <tbody>
       {% for a in closed_alarms %}
       <tr>
-        <td>{{ a.alarm_code }}</td>
+        <td><a href="{% url 'alarms:alarm_detail' a.pk %}">{{ a.alarm_code }}</a></td>
         <td>{{ a.get_level_display }}</td>
         <td>{{ a.get_source_display }}</td>
         <td>{{ a.message }}</td>

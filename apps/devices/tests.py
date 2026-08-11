@@ -6,13 +6,15 @@ from tempfile import TemporaryDirectory
 from unittest import mock
 import os
 
-from django.test import SimpleTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import reverse
 
-from apps.core.constants import DeviceType
+from apps.core.constants import DeviceType, SignalDirection
 from apps.devices.adapters.camera import CameraAdapter
 from apps.devices.adapters import hik_capture_worker
 from apps.devices.adapters.simulated import SimulatedDeviceAdapter
 from apps.devices.services import get_device_adapter
+from apps.devices.models import Device, DeviceSignalRecord
 
 
 class FakeHikCamera:
@@ -377,3 +379,35 @@ class HikCaptureWorkerTests(SimpleTestCase):
 
         self.assertTrue(image_path.endswith('image.png'))
         self.assertFalse(state['closed'])
+
+
+class DeviceSignalsViewTests(TestCase):
+    def setUp(self):
+        self.device = Device.objects.create(
+            code='PLC-SIGNAL-TEST',
+            name='测试 PLC',
+            device_type=DeviceType.PLC,
+        )
+        DeviceSignalRecord.objects.create(
+            device=self.device,
+            signal_name='rack_arrived_trigger',
+            signal_value='1',
+            direction=SignalDirection.IN,
+            raw_payload={'db': 10, 'offset': 20},
+        )
+
+    def test_signal_page_displays_direction_and_expandable_payload(self):
+        response = self.client.get(reverse('devices:signals'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'rack_arrived_trigger')
+        self.assertContains(response, '← 输入')
+        self.assertContains(response, '查看 Payload')
+        self.assertContains(response, '&quot;offset&quot;: 20')
+
+    def test_signal_page_filters_by_device_and_query(self):
+        response = self.client.get(reverse('devices:signals'), {
+            'device': self.device.code,
+            'q': 'rack_arrived',
+        })
+        self.assertContains(response, 'rack_arrived_trigger')
+        self.assertEqual(len(response.context['records']), 1)

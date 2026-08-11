@@ -480,6 +480,9 @@ class OfflineDataPackageService:
             pointcloud = np.load(npy_path, allow_pickle=False)
         else:
             raise OfflineDataPackageError(f"数据包中未找到点云文件: {package_name}")
+
+        pointcloud = self._organize_raw_pointcloud(package_name, pointcloud)
+        image_height, image_width = pointcloud.shape[:2]
         
         # 使用默认的手眼标定和机器人位姿矩阵
         hand_eye_matrix = np.eye(4, dtype=np.float64)
@@ -493,8 +496,8 @@ class OfflineDataPackageService:
             "recipe": {},
             "layer": {},
             "camera": {
-                "width": int(self._cloud_width(pointcloud)),
-                "height": int(self._cloud_height(pointcloud)),
+                "width": int(image_width),
+                "height": int(image_height),
             },
             "robot": {},
             "point_count": int(pointcloud.reshape(-1, 3).shape[0]),
@@ -529,11 +532,10 @@ class OfflineDataPackageService:
             # 组合成点云数组 (N, 3)
             pointcloud = np.stack([x, y, z], axis=1)
             
-            # 过滤无效点（nan或inf）
-            valid_mask = np.isfinite(pointcloud).all(axis=1)
-            pointcloud = pointcloud[valid_mask]
-            
-            if pointcloud.shape[0] == 0:
+            # 必须保留 PLY 的原始行数和像素顺序。无效点会在具体 ROI 裁剪时
+            # 过滤；若在这里删除，会破坏 N == width*height，导致无法恢复
+            # H×W×3 组织化点云，页面框选坐标也就无法对应到算法点云。
+            if not np.isfinite(pointcloud).any():
                 raise ValueError("点云中没有有效点")
             
             return pointcloud
@@ -544,6 +546,30 @@ class OfflineDataPackageService:
             )
         except Exception as e:
             raise OfflineDataPackageError(f"加载PLY文件失败: {str(e)}")
+
+    def _organize_raw_pointcloud(self, package_name: str, pointcloud: np.ndarray) -> np.ndarray:
+        """按原始预览图尺寸恢复 H×W×3 点云，保证画布像素与点云一一对应。"""
+        cloud = np.asarray(pointcloud)
+        if cloud.ndim == 3 and cloud.shape[2] == 3:
+            return cloud
+        if cloud.ndim != 2 or cloud.shape[1] != 3:
+            raise OfflineDataPackageError(
+                f"原始点云格式错误，应为 H×W×3 或 N×3，实际为 {list(cloud.shape)}"
+            )
+        try:
+            from PIL import Image
+            with Image.open(self.get_raw_preview(package_name)) as preview:
+                width, height = preview.size
+        except Exception as exc:
+            raise OfflineDataPackageError(
+                f"无法读取原始预览图尺寸，不能恢复组织化点云: {package_name}"
+            ) from exc
+        expected = int(width) * int(height)
+        if cloud.shape[0] != expected:
+            raise OfflineDataPackageError(
+                f"点云数量与预览图不一致：{cloud.shape[0]} != {width}×{height}，无法进行像素 ROI 计算"
+            )
+        return cloud.reshape(int(height), int(width), 3)
 
     def get_raw_preview(self, package_name: str) -> Path:
         """获取原始数据包的预览图路径（不区分大小写）"""
@@ -573,44 +599,26 @@ class OfflineDataPackageService:
     def create_workbench_copy_from_raw(self, package_name: str, recipe_id: Optional[Any] = None) -> Dict[str, Any]:
         """从原始数据包创建工作台副本"""
         package = self.load_raw_package(package_name)
-        
         cloud = package["pointcloud"]
-        
-        # 对于PLY加载的点云（通常是Nx3格式），不尝试重塑为图像格式
-        # 直接保存为点云数组供算法使用
-        if cloud.ndim == 2 and cloud.shape[1] == 3:
-            # 点云是 (N, 3) 格式，直接使用
-            # 不尝试重塑为图像格式，因为PLY点云通常是无序的
-            pass
-        
         from apps.vision.rack_location import RackLocationService
+        token, _generated_preview_url, width, height = (
+            RackLocationService()._persist_workbench_frame(cloud)
+        )
 
-        workbench_service = RackLocationService()
-        
-        # 直接保存点云数据，不生成预览图（避免图像过大问题）
-        import tempfile
-        import numpy as np
-        from django.conf import settings
-        from pathlib import Path
-        import time
-        
-        # 创建临时文件保存点云
-        temp_dir = Path(settings.MEDIA_ROOT) / 'vision' / 'rack_workbench' / time.strftime('%Y/%m/%d')
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        
-        timestamp = f"{time.strftime('%H%M%S')}_{int(time.time() * 1000000) % 1000000}"
-        cloud_filename = f'raw_package_cloud_{timestamp}.npy'
-        cloud_path = temp_dir / cloud_filename
-        
-        np.save(cloud_path, cloud, allow_pickle=False)
-        
-        # 生成访问token
-        from django.core import signing
-        token = signing.dumps({
-            'type': 'raw_package',
-            'path': str(cloud_path.relative_to(settings.MEDIA_ROOT)),
-            'package_name': package_name,
-        })
+        metadata = dict(package["metadata"] or {})
+        roi_config = dict(package["roi_config"] or {})
+        if recipe_id:
+            from apps.vision.models import RackLocationRecipe
+            recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first()
+            if recipe:
+                metadata["recipe"] = self._recipe_metadata(recipe)
+                metadata["layer"] = {"layer_no": int(recipe.layer_no or 1)}
+                roi_config = dict(recipe.roi_config or {})
+        metadata["camera"] = {
+            **dict(metadata.get("camera") or {}),
+            "width": int(width),
+            "height": int(height),
+        }
         
         # 使用原始预览图
         try:
@@ -624,12 +632,12 @@ class OfflineDataPackageService:
         payload = {
             "pointcloud_token": token,
             "preview_image_url": preview_url,
-            "image_width": 0,
-            "image_height": 0,
+            "image_width": int(width),
+            "image_height": int(height),
             "source": f"raw_package:{package_name}",
-            "roi_config": package["roi_config"],
+            "roi_config": roi_config,
             "result": package["result"],
-            "metadata": package["metadata"],
+            "metadata": metadata,
         }
         
         return payload

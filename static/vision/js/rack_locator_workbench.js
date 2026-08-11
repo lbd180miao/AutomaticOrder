@@ -17,6 +17,9 @@
   const state = {
     token: null,         // 持久化点云 token
     roi: null,           // 真实图像像素 ROI {x,y,w,h}
+    roiPlane1: null,     // Π1 顶部横梁 ROI
+    roiPlane2: null,     // Π2 左侧立柱 ROI
+    roiPlane3: null,     // Π3 底部横梁 ROI
     drawing: false,
     start: null,
     displayRoi: null,
@@ -25,6 +28,7 @@
     lastResultOk: false,
     currentRecipe: null,
     pendingRoi: null,    // 待应用的 ROI（在采集点云前加载）
+    pendingLocalTemplateRois: null,
     lastResult: null,    // 最近一次计算结果，供离线数据包保存
     source: '',          // 最近一次点云数据源
     captureRecipeId: null,
@@ -33,6 +37,7 @@
     lastCalculation: null,
     standardRackModel: null,
     standardRackCandidate: null,
+    recipeRequestSeq: 0,
     // ── 画笔（多边形）模式 ──
     drawMode: 'rect',        // 'rect' | 'polygon'
     polyPoints: [],          // 绘制中的多边形顶点（display 坐标）
@@ -41,14 +46,36 @@
   };
 
   // ── 暴露设置 ROI 的接口供外部调用 ────────────────────────
-  window.rackLocatorSetRoi = function(targetRoi) {
-    if (!targetRoi) return;
-
+  window.rackLocatorSetRoi = function(targetRoi, localTemplateRois) {
     // 外部JS初始化完成时，将页面初始化阶段暂存的 tempPendingRoi 迁移进来
     if (window.tempPendingRoi) {
       state.pendingRoi = window.tempPendingRoi;
       window.tempPendingRoi = null;
       console.log('[rackLocatorSetRoi] 已将 tempPendingRoi 迁移到 state.pendingRoi');
+    }
+    if (window.tempPendingLocalTemplateRois) {
+      state.pendingLocalTemplateRois = window.tempPendingLocalTemplateRois;
+      window.tempPendingLocalTemplateRois = null;
+    }
+
+    const hasLocalTemplateRois = arguments.length >= 2;
+    if (hasLocalTemplateRois) {
+      if (state.token && image.style.display !== 'none') {
+        applyLocalTemplateRois(localTemplateRois);
+      } else {
+        // 使用空对象表示“配方明确没有局部 ROI”，避免沿用上一配方的框。
+        state.pendingLocalTemplateRois = localTemplateRois || {};
+      }
+    }
+
+    if (!targetRoi) {
+      state.roi = null;
+      state.displayRoi = null;
+      state.pendingRoi = null;
+      draw();
+      setReadout();
+      refreshActionState();
+      return;
     }
 
     if (state.token && image.style.display !== 'none') {
@@ -68,6 +95,22 @@
       state.pendingRoi = targetRoi;
       console.log('[rackLocatorSetRoi] ROI 已存储，等待点云采集后应用');
     }
+  };
+
+  window.rackLocatorRecipeChanged = function(recipeId) {
+    state.roi = null;
+    state.displayRoi = null;
+    state.pendingRoi = null;
+    state.pendingLocalTemplateRois = null;
+    clearLocalTemplateRois();
+    state.currentRecipe = null;
+    state.alignmentToken = null;
+    draw();
+    setReadout();
+    renderLocalTemplate({});
+    refreshActionState();
+    // 配方下拉框是工作台的真实选择源，必须按精确 ID 同步标准模板。
+    refreshCurrentRecipe(recipeId);
   };
 
   // ── 同步 ROI 到右侧结果图 ──────────────────────────────
@@ -267,24 +310,57 @@
 
 
 
+  function localTemplateValidationMessage(templateValidation) {
+    if (!templateValidation) return '';
+    const failedChecks = (templateValidation.checks || [])
+      .filter((check) => check && check.passed === false)
+      .map((check) => check.message || check.name)
+      .filter(Boolean);
+    return templateValidation.message || failedChecks.join('；') || '三平面结构校验未通过';
+  }
+
   function renderLocalTemplate(result) {
     // curTpl 可能在结果顶层(V2)，也可能在 result_data 内(V1)
     const curTpl = result?.local_template_cur
       || result?.result_data?.local_template_cur
       || null;
     const stdTpl = state.currentRecipe?.local_template_std || null;
+    const templateValidation = result?.local_template_validation
+      || result?.result_data?.local_template_validation
+      || null;
+    const invalidTemplate = Boolean(templateValidation && templateValidation.is_valid === false);
     const status = $('template-status');
+    const validationMessage = $('template-validation-message');
 
     const btnSaveStd = $('btn-save-as-std');
     if (curTpl) {
       if (btnSaveStd) {
         btnSaveStd.style.display = 'inline-block';
-        btnSaveStd.disabled = false;
+        btnSaveStd.disabled = invalidTemplate;
+        btnSaveStd.textContent = invalidTemplate ? '结构NG，禁止保存' : '保存为标准模板';
         // 暂存供保存按钮使用
         window._tempCurTpl = curTpl;
+        window._tempCurTplValidation = templateValidation;
       }
     } else {
       if (btnSaveStd) btnSaveStd.style.display = 'none';
+      window._tempCurTpl = null;
+      window._tempCurTplValidation = null;
+    }
+
+    if (validationMessage) {
+      if (invalidTemplate) {
+        validationMessage.textContent = localTemplateValidationMessage(templateValidation);
+        validationMessage.className = 'rl-template-validation-message';
+        validationMessage.style.display = 'block';
+      } else if (templateValidation) {
+        validationMessage.textContent = '三平面结构校验通过，可以保存为标准模板。';
+        validationMessage.className = 'rl-template-validation-message ok';
+        validationMessage.style.display = 'block';
+      } else {
+        validationMessage.textContent = '';
+        validationMessage.style.display = 'none';
+      }
     }
 
     if (!curTpl) {
@@ -307,7 +383,8 @@
     function formatPlane(plane) {
       if (!plane) return '—';
       const normal = plane.normal || [0, 0, 0];
-      const d = typeof plane.d === 'number' ? plane.d.toFixed(2) : 0;
+      const offset = plane.d ?? plane.offset;
+      const d = Number.isFinite(Number(offset)) ? Number(offset).toFixed(2) : '0.00';
       const nx = normal[0].toFixed(3);
       const ny = normal[1].toFixed(3);
       const nz = normal[2].toFixed(3);
@@ -382,12 +459,14 @@
     }
   }
 
+  function setRoiButtonMode(id, mode) {
     const node = $(id);
     if (!node) return;
     node.classList.remove('active', 'done');
     if (mode) node.classList.add(mode);
   }
 
+  function updateFlowUI({ hasOkResult, hasCloud, canWritePlc } = {}) {
     if ($('flow-locate-text')) {
       $('flow-locate-text').textContent = hasOkResult
         ? '已生成 P1-P5 与整架补偿'
@@ -408,36 +487,102 @@
       && state.lastResultOk
       && (state.lastResult?.opening_rectangle || state.lastResult?.result_data?.opening_rectangle)
     );
+    const hasCloud = Boolean(state.token);
     setButton('btn-capture', true);
-    setButton('btn-redraw', Boolean(state.token));
-    setButton('btn-polygon', Boolean(state.token));
+    setButton('btn-redraw', hasCloud);
+    setButton('btn-polygon', hasCloud);
     setButton('btn-save-recipe', Boolean(state.roi));
-    setButton('btn-calculate', Boolean(state.token));
-    setButton('btn-auto-align', Boolean(state.token));
+    setButton('btn-calculate', hasCloud);
+    setButton('btn-auto-align', hasCloud);
     setButton('btn-save-roi', Boolean(state.alignmentToken));
     setButton('btn-write-plc', canWritePlc);
-    setButton('btn-export-package', Boolean(state.token));
+    setButton('btn-export-package', hasCloud);
+    // ROI 模式按鈕：采集点云后解锁
+    setButton('btn-roi-target', hasCloud);
+    setButton('btn-roi-plane1', hasCloud);
+    setButton('btn-roi-plane2', hasCloud);
+    setButton('btn-roi-plane3', hasCloud);
   }
 
-  async function refreshCurrentRecipe() {
-    if (!CFG.currentRecipeUrl) return;
+  /** 更新「三平面已框选 x/3」计数徽章 */
+  function updateLocalTemplateRoiCount() {
+    const count = [state.roiPlane1, state.roiPlane2, state.roiPlane3].filter(Boolean).length;
+    const badge = $('roi-teach-progress');
+    if (badge) {
+      badge.textContent = `三平面已框选 ${count}/3`;
+      badge.className = count === 3 ? 'badge badge-ok' : 'badge badge-muted';
+    }
+    [
+      ['btn-roi-plane1', 'roiPlane1'],
+      ['btn-roi-plane2', 'roiPlane2'],
+      ['btn-roi-plane3', 'roiPlane3'],
+    ].forEach(([buttonId, stateKey]) => {
+      $(buttonId)?.classList.toggle('done', Boolean(state[stateKey]));
+    });
+  }
+
+  function clearLocalTemplateRois() {
+    state.roiPlane1 = null;
+    state.roiPlane2 = null;
+    state.roiPlane3 = null;
+    updateLocalTemplateRoiCount();
+  }
+
+  /** 是否三个平面 ROI 已全部框选 */
+  function hasAllLocalTemplateRois() {
+    return Boolean(state.roiPlane1 && state.roiPlane2 && state.roiPlane3);
+  }
+
+  /** 构造传给后端的 local_template_rois 对象（去掉前端内部字段） */
+  function cleanLocalTemplateRois() {
+    const clean = (roi) => roi ? { x: roi.x, y: roi.y, w: roi.w, h: roi.h } : null;
+    return {
+      plane1: clean(state.roiPlane1),
+      plane2: clean(state.roiPlane2),
+      plane3: clean(state.roiPlane3),
+    };
+  }
+
+  async function refreshCurrentRecipe(recipeId = null) {
+    if (!CFG.currentRecipeUrl && !CFG.recipeApiUrl) return null;
+    const requestSeq = ++state.recipeRequestSeq;
     try {
-      const query = new URLSearchParams({
-        locate_type: currentLocateType(),
-        layer_index: String(currentLayerIndex()),
-      });
-      const res = await fetch(`${CFG.currentRecipeUrl}?${query.toString()}`);
+      let url;
+      if (recipeId && CFG.recipeApiUrl) {
+        const query = new URLSearchParams({ id: String(recipeId) });
+        url = `${CFG.recipeApiUrl}?${query.toString()}`;
+      } else {
+        const query = new URLSearchParams({
+          locate_type: currentLocateType(),
+          layer_index: String(currentLayerIndex()),
+        });
+        url = `${CFG.currentRecipeUrl}?${query.toString()}`;
+      }
+      const res = await fetch(url);
       const data = apiPayload(await res.json());
-      const recipe = data.recipe || null;
+      const recipe = data.recipe || data.recipes?.[0] || null;
+      // 用户快速切换配方时，旧请求不得覆盖最后一次选择。
+      if (requestSeq !== state.recipeRequestSeq) return null;
       state.currentRecipe = recipe;
       if (recipe && recipe.id && $('recipe-id')) {
         $('recipe-id').value = recipe.id;
       }
       state.standardRackModel = recipe?.reference_feature_config?.standard_rack_model || null;
       state.standardRackCandidate = null;
-      renderStandardRackModel(state.standardRackModel);
+      if (typeof renderStandardRackModel === 'function') {
+        renderStandardRackModel(state.standardRackModel);
+      }
+      const resultForRecipe = String(state.lastResultRecipeId || '') === String(recipe?.id || '')
+        ? (state.lastResult || {})
+        : {};
+      renderLocalTemplate(resultForRecipe);
+      return recipe;
     } catch (e) {
+      if (requestSeq !== state.recipeRequestSeq) return null;
       state.currentRecipe = null;
+      console.error('[加载当前3D配方]', e);
+      renderLocalTemplate({});
+      return null;
     }
   }
 
@@ -546,6 +691,15 @@
     return roi;
   }
 
+  function applyLocalTemplateRois(localTemplateRois) {
+    const source = localTemplateRois || {};
+    state.roiPlane1 = normalizePixelRoi(source.plane1);
+    state.roiPlane2 = normalizePixelRoi(source.plane2);
+    state.roiPlane3 = normalizePixelRoi(source.plane3);
+    updateLocalTemplateRoiCount();
+    draw();
+  }
+
   function applyPixelRoi(targetRoi) {
     const roi = normalizePixelRoi(targetRoi);
     if (!roi || !state.token || !image.src || image.style.display === 'none') return false;
@@ -609,6 +763,10 @@
     if (!token || !image.src || image.style.display === 'none') return false;
 
     try {
+      if (state.pendingLocalTemplateRois !== null) {
+        applyLocalTemplateRois(state.pendingLocalTemplateRois);
+        state.pendingLocalTemplateRois = null;
+      }
       // 优先级：① 调用方直接传入的 targetRoi
       //         ② 用户切换配方时已存入 state.pendingRoi
       //         ③ 页面初始化时外部JS尚未加载导致暂存的 window.tempPendingRoi（兜底）
@@ -664,12 +822,68 @@
     draw();
   }
 
+  const roiOverlayStyles = [
+    { key: 'roi',       label: '外框 ROI',     color: '#22c55e', fill: 'rgba(34,197,94,0.10)' },
+    { key: 'roiPlane1', label: 'Π1 顶部横梁', color: '#0ea5e9', fill: 'rgba(14,165,233,0.16)' },
+    { key: 'roiPlane2', label: 'Π2 左侧立柱', color: '#f59e0b', fill: 'rgba(245,158,11,0.16)' },
+    { key: 'roiPlane3', label: 'Π3 底部横梁', color: '#ec4899', fill: 'rgba(236,72,153,0.16)' },
+  ];
+
+  function activeRoiOverlayStyle() {
+    return roiOverlayStyles.find(({ key }) => key === (state.activeRoiStateKey || 'roi'))
+      || roiOverlayStyles[0];
+  }
+
+  function realToDisplay(roi) {
+    if (!roi) return null;
+    const nat = naturalDims();
+    if (!nat.w || !nat.h || !canvas.width || !canvas.height) return null;
+    return {
+      x: roi.x * canvas.width / nat.w,
+      y: roi.y * canvas.height / nat.h,
+      w: roi.w * canvas.width / nat.w,
+      h: roi.h * canvas.height / nat.h,
+    };
+  }
+
+  function drawRectOverlay(roi, style, { active = false, preview = false } = {}) {
+    if (!roi || ![roi.x, roi.y, roi.w, roi.h].every(Number.isFinite)) return;
+    ctx.save();
+    ctx.strokeStyle = style.color;
+    ctx.lineWidth = active ? 4 : 3;
+    ctx.setLineDash(preview ? [6, 3] : (active ? [10, 4] : []));
+    ctx.fillStyle = style.fill;
+    ctx.fillRect(roi.x, roi.y, roi.w, roi.h);
+    ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
+
+    const label = preview ? `${style.label}（绘制中）` : style.label;
+    ctx.setLineDash([]);
+    ctx.font = '600 14px sans-serif';
+    const labelWidth = ctx.measureText(label).width + 12;
+    const labelX = Math.max(0, Math.min(roi.x, canvas.width - labelWidth));
+    const labelY = roi.y >= 24 ? roi.y - 22 : roi.y + 4;
+    ctx.fillStyle = style.color;
+    ctx.fillRect(labelX, labelY, labelWidth, 20);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, labelX + 6, labelY + 15);
+    ctx.restore();
+  }
+
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // ── 绘制多边形 ROI ──
+    // 已完成的外框、Π1、Π2、Π3 始终同时显示；当前选中区域用虚线强调。
+    roiOverlayStyles.forEach((style) => {
+      const roi = state[style.key];
+      if (!roi || (style.key === 'roi' && roi.displayPolygon?.length >= 2)) return;
+      drawRectOverlay(realToDisplay(roi), style, {
+        active: style.key === (state.activeRoiStateKey || 'roi'),
+      });
+    });
+
+    // 外框 ROI 可以使用多边形，绘制它时也不隐藏三个平面矩形。
     if (state.roi && state.roi.displayPolygon && state.roi.displayPolygon.length >= 2) {
-      const poly = state.roi.displayPolygon; // display 坐标（对应画布像素）
+      const poly = state.roi.displayPolygon;
       ctx.save();
       ctx.strokeStyle = '#a855f7';
       ctx.lineWidth = 3;
@@ -682,7 +896,6 @@
       ctx.fillStyle = 'rgba(168,85,247,0.14)';
       ctx.fill();
       ctx.setLineDash([]);
-      // 绘制顶点圆点
       poly.forEach((pt) => {
         ctx.beginPath();
         ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
@@ -690,13 +903,12 @@
         ctx.fill();
       });
       ctx.fillStyle = '#a855f7';
-      ctx.font = '14px sans-serif';
-      ctx.fillText('✏ target ROI', poly[0].x + 8, Math.max(18, poly[0].y - 6));
+      ctx.font = '600 14px sans-serif';
+      ctx.fillText('✏ 外框 ROI', poly[0].x + 8, Math.max(18, poly[0].y - 6));
       ctx.restore();
-      return;
     }
 
-    // ── 绘制正在描绘中的多边形（实时预览） ──
+    // 正在描绘中的多边形实时预览。
     if (state.polyDrawing && state.polyPoints.length > 0) {
       const pts = state.polyPoints;
       ctx.save();
@@ -706,11 +918,9 @@
       ctx.beginPath();
       ctx.moveTo(pts[0].x, pts[0].y);
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-      // 绘制预览连线到当前鼠标位置
       if (state.polyMousePos) ctx.lineTo(state.polyMousePos.x, state.polyMousePos.y);
       ctx.stroke();
       ctx.setLineDash([]);
-      // 绘制顶点
       pts.forEach((pt, idx) => {
         ctx.beginPath();
         ctx.arc(pt.x, pt.y, idx === 0 ? 6 : 4, 0, Math.PI * 2);
@@ -718,23 +928,12 @@
         ctx.fill();
       });
       ctx.restore();
-      return;
     }
 
-    // ── 绘制矩形 ROI（原有逻辑） ──
-    const roi = state.displayRoi;
-    if (!roi) return;
-    ctx.save();
-    ctx.strokeStyle = '#22c55e';
-    ctx.lineWidth = 3;
-    ctx.setLineDash([8, 4]);
-    ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
-    ctx.fillStyle = 'rgba(34,197,94,0.16)';
-    ctx.fillRect(roi.x, roi.y, roi.w, roi.h);
-    ctx.fillStyle = '#22c55e';
-    ctx.font = '14px sans-serif';
-    ctx.fillText('target ROI', roi.x + 8, Math.max(18, roi.y + 18));
-    ctx.restore();
+    // 拖拽中的矩形只作为预览；鼠标释放后改由上面的持久 ROI 渲染。
+    if (state.drawing && state.displayRoi) {
+      drawRectOverlay(state.displayRoi, activeRoiOverlayStyle(), { active: true, preview: true });
+    }
   }
 
   function pointerToCanvas(e) {
@@ -758,12 +957,19 @@
   function setReadout() {
     const n = $('rl-roi-readout');
     if (!n) return;
-    if (!state.roi) { n.textContent = state.drawMode === 'polygon' ? '✏️ 单击添加顶点，双击闭合' : '拖拽绘制 ROI'; return; }
-    const r = state.roi;
+    const key = state.activeRoiStateKey || 'roi';
+    const style = roiOverlayStyles.find((item) => item.key === key) || roiOverlayStyles[0];
+    const r = state[key];
+    if (!r) {
+      n.textContent = state.drawMode === 'polygon'
+        ? '✏️ 单击添加顶点，双击闭合'
+        : `拖拽绘制 ${style.label}`;
+      return;
+    }
     if (r.polygon && r.polygon.length > 0) {
-      n.textContent = `多边形 ROI: ${r.polygon.length} 个顶点  包围盒 w=${r.w}  h=${r.h}`;
+      n.textContent = `${style.label}：多边形 ${r.polygon.length} 个顶点  包围盒 w=${r.w}  h=${r.h}`;
     } else {
-      n.textContent = `ROI  x=${r.x}  y=${r.y}  w=${r.w}  h=${r.h}`;
+      n.textContent = `${style.label}  x=${r.x}  y=${r.y}  w=${r.w}  h=${r.h}`;
     }
   }
 
@@ -800,14 +1006,24 @@
     state.start = null;
     if (state.displayRoi.w < 3 || state.displayRoi.h < 3) { state.displayRoi = null; draw(); return; }
     const real = displayToReal(state.displayRoi);
-    state.roi = { x: real.x, y: real.y, w: real.w, h: real.h, feature_type: 'rack_reference' };
-    setReadout();
-    syncRoiToRightSide();
-    refreshActionState();
-    
-    // 自动保存新坐标到配方中
-    autoSaveRoiToRecipe();
+    const roiData = { x: real.x, y: real.y, w: real.w, h: real.h, feature_type: 'rack_reference' };
+    const key = state.activeRoiStateKey || 'roi';
+    state[key] = roiData;
+    if (key === 'roi') {
+      // 外框 ROI 自动保存到配方
+      setReadout();
+      syncRoiToRightSide();
+      refreshActionState();
+      autoSaveRoiToRecipe();
+    } else {
+      // 局部模板 ROI：更新三平面计数显示
+      updateLocalTemplateRoiCount();
+      setReadout();
+      refreshActionState();
+      draw();
+    }
   });
+
 
   // ── 多边形画笔模式 ────────────────────────────────────
   // 将 display 坐标多边形转为真实像素坐标
@@ -1020,18 +1236,60 @@
   });
 
   $('btn-redraw').addEventListener('click', () => {
-    state.roi = null; state.displayRoi = null;
+    const key = state.activeRoiStateKey || 'roi';
+    const style = roiOverlayStyles.find((item) => item.key === key) || roiOverlayStyles[0];
+    state[key] = null;
+    state.displayRoi = null;
     state.alignmentToken = null;
-    // 同时清除多边形状态
-    state.polyPoints = [];
-    state.polyDrawing = false;
-    state.polyMousePos = null;
-    // 退出画笔模式，回到矩形模式
-    exitPolygonMode();
+    if (key === 'roi') {
+      // 外框 ROI 还可能包含多边形状态。
+      state.polyPoints = [];
+      state.polyDrawing = false;
+      state.polyMousePos = null;
+      exitPolygonMode();
+    }
+    updateLocalTemplateRoiCount();
     draw(); setReadout();
-    setStatus('请重新绘制 ROI（矩形：拖拽 · 不规则：点击「画笔」按钮）。');
+    setStatus(`已清除「${style.label}」，请在点云图上重新拖拽框选。`);
     refreshActionState();
   });
+
+  // ── ROI 模式切换按鈕（外框/਀1/਀2/਀3）───────────────────────────────────
+  (function bindRoiModeButtons() {
+    const roiModes = [
+      { id: 'btn-roi-target',  mode: 'target',  stateKey: 'roi' },
+      { id: 'btn-roi-plane1',  mode: 'plane1',  stateKey: 'roiPlane1' },
+      { id: 'btn-roi-plane2',  mode: 'plane2',  stateKey: 'roiPlane2' },
+      { id: 'btn-roi-plane3',  mode: 'plane3',  stateKey: 'roiPlane3' },
+    ];
+
+    function setActiveRoiBtn(activeId) {
+      roiModes.forEach(({ id }) => {
+        const btn = $(id);
+        if (btn) btn.classList.toggle('active', id === activeId);
+      });
+      state.activeRoiMode = activeId;
+    }
+
+    roiModes.forEach(({ id, mode, stateKey }) => {
+      $(id)?.addEventListener('click', () => {
+        if (!state.token) return;
+        setActiveRoiBtn(id);
+        // 清空当前画布待绘单元是 state.roi，切换后绘制的是对应的局部模板 ROI
+        state.activeRoiStateKey = stateKey;
+        state.drawMode = 'rect';
+        draw();
+        setReadout();
+        setStatus(`请在点云图上框选「${id === 'btn-roi-target' ? '外框 ROI' : mode === 'plane1' ? 'Π1 顶部横梁' : mode === 'plane2' ? 'Π2 左侧立柱' : 'Π3 底部横梁'}」区域。`);
+      });
+    });
+
+    // 初始化时默认激活「外框 ROI」按鈕
+    setActiveRoiBtn('btn-roi-target');
+    state.activeRoiMode = 'btn-roi-target';
+    state.activeRoiStateKey = 'roi';
+  }());
+
 
   $('btn-auto-align')?.addEventListener('click', async () => {
     if (!state.token) { setStatus('请先采集点云。'); return; }
@@ -1134,7 +1392,9 @@
       }
       state.standardRackModel = data.standard_template?.standard_rack_model || null;
       state.standardRackCandidate = null;
-      renderStandardRackModel(state.standardRackModel);
+      if (typeof renderStandardRackModel === 'function') {
+        renderStandardRackModel(state.standardRackModel);
+      }
       setStatus('标准料架模型已保存；后续生产将以该坐标系和标准位姿计算整架补偿矩阵。');
     } catch (e) {
       setStatus('标准料架模型保存失败：' + e.message);
@@ -1159,7 +1419,38 @@
 
   // ── 计算偏差 ─────────────────────────────────────────────
   $('btn-calculate').addEventListener('click', async () => {
-    if (!state.token) { setStatus('请先采集点云。'); return; }
+    // 若尚未采集点云，自动先采集再计算（一键流程）
+    if (!state.token) {
+      showLoading('3D 相机采集中...');
+      try {
+        const captureApiUrl = CFG.captureUrl || CFG.legacyCaptureUrl || '/vision/api/rack-location/workbench/capture/';
+        const captureRaw = await postJson(captureApiUrl, semanticPayload({
+          recipe_id: $('recipe-id').value || null,
+          rack_side: currentRackSide(),
+        }));
+        const captureData = apiPayload(captureRaw);
+        if (!captureData.success) { setStatus(captureData.error || '采集失败，请检查相机连接'); hideLoading(); return; }
+        state.token = captureData.pointcloud_token;
+        state.source = captureData.source || '';
+        state.captureRecipeId = $('recipe-id').value || null;
+        state.captureLayerNo = currentLayerIndex();
+        state.alignmentToken = null;
+        state.roi = null; state.displayRoi = null;
+        const previewUrl = captureData.pointcloud_preview_url || captureData.preview_image_url;
+        if (previewUrl) { image.src = previewUrl + '?t=' + Date.now(); }
+        image.dataset.naturalWidth = captureData.image_width;
+        image.dataset.naturalHeight = captureData.image_height;
+        image.style.display = 'block';
+        canvas.style.display = 'block';
+        $('rl-placeholder').style.display = 'none';
+        setStatus('点云已采集，开始计算...');
+      } catch (e) {
+        setStatus('采集失败：' + e.message);
+        hideLoading();
+        return;
+      }
+    }
+
     showLoading('计算坐标偏差中...');
     try {
       // 优先使用工作台专用端点
@@ -1176,11 +1467,16 @@
         ...(state.roi.polygon ? { polygon: state.roi.polygon } : {}),
       } : null;
 
+      const localRegions = cleanLocalTemplateRois();
+      const hasLocalRois = hasAllLocalTemplateRois();
       const calculation = {
         pointcloud_token: state.token,
         roi: currentRoi3D(),
         roi_3d: currentRoi3D(),
-        roi_config: { target_roi: cleanTargetRoi },
+        roi_config: {
+          target_roi: cleanTargetRoi,
+          ...(hasLocalRois ? { local_template_rois: localRegions } : {}),
+        },
         rack_side: currentRackSide(),
         recipe_id: $('recipe-id').value || null,
         recipe_data: currentRecipeData(),
@@ -1194,6 +1490,9 @@
       state.lastCalculation = calculation;
       state.lastResultId = data.result?.result_id || data.result?.id || null;
       state.lastResultRecipeId = data.result?.recipe_id || calculation.recipe_id || null;
+      if (String(state.currentRecipe?.id || '') !== String(state.lastResultRecipeId || '')) {
+        await refreshCurrentRecipe(state.lastResultRecipeId);
+      }
       renderResult(data.result);
       const saveStatus = $('record-save-status');
       if (saveStatus) {
@@ -1209,13 +1508,13 @@
       setStatus(data.result.locate_ok
         ? '计算完成：定位 OK，本次3D记录已自动保存。'
         : ('计算完成：定位 NG，本次3D记录已自动保存 · ' + (data.result.error_message || data.result.error_code || '')));
-      
-      // 计算完成后自动选中下一个配方
-      selectNextRecipe();
+
+      // 保持当前配方不变，确保后续「保存为标准模板」仍绑定本次计算的配方。
     } catch (e) {
       setStatus('网络请求失败：' + e.message);
-    } finally { hideLoading(); }
+    } finally { hideLoading(); refreshActionState(); }
   });
+
 
   // ── 自动保存 ROI 到配方 ──────────────────────────────────
   async function autoSaveRoiToRecipe() {
@@ -1315,24 +1614,10 @@
     }
     const ok = r.locate_ok ?? r.is_success;
     state.lastResultOk = Boolean(ok);
-    const v = $('rl-verdict');
-    v.className = 'rl-verdict ' + (ok ? 'ok' : 'fail');
-    $('rl-verdict-icon').textContent = ok ? '✅' : '❌';
-    $('rl-verdict-text').textContent = ok ? '定位 OK' : '定位 NG · 请核查';
-    $('rl-verdict-sub').textContent = ok ? '计算完成' : (r.error_message || r.error_code || '计算异常');
 
-    setOffset('x', r.final_offset_x ?? r.offset_x, null);
-    setOffset('y', r.final_offset_y ?? r.offset_y, null);
-    setOffset('z', r.final_offset_z ?? r.offset_z, null);
-    setOffset('rz', r.final_offset_rz ?? r.offset_rz, null);
+
     renderLocalTemplate(r);
     renderCompensation(r);
-
-    const conf = Number(r.confidence || 0);
-    const bar = $('conf-bar'), lab = $('conf-val');
-    bar.style.width = Math.min(100, conf * 100) + '%';
-    bar.className = 'rl-conf-fill ' + (conf >= 0.8 ? 'high' : conf >= 0.7 ? 'mid' : 'low');
-    lab.textContent = (conf * 100).toFixed(1) + '%';
 
     if (r.result_image_url) {
       const resultImg = $('rl-result-img');
@@ -1431,22 +1716,6 @@
       rctx.restore();
     }
   }
-
-
-  function setOffset(axis, val, limit) {
-    const cell = $('cell-' + axis), el = $('off-' + axis);
-    const num = parseFloat(val);
-    el.textContent = isNaN(num) ? '—' : (num > 0 ? '+' : '') + num.toFixed(2);
-    cell.classList.remove('positive', 'negative', 'zero', 'out');
-    if (isNaN(num)) return;
-    if (limit != null && Math.abs(num) > limit) cell.classList.add('out');
-    else if (Math.abs(num) < 0.01) cell.classList.add('zero');
-    else if (num > 0) cell.classList.add('positive');
-    else cell.classList.add('negative');
-  }
-
-
-
   window.addEventListener('resize', resizeCanvas);
   image.addEventListener('load', resizeCanvas);
 
@@ -1475,6 +1744,7 @@
       state.lastResultRecipeId = payload.result?.recipe_id || state.captureRecipeId || null;
       state.roi = null;
       state.displayRoi = null;
+      clearLocalTemplateRois();
       const previewUrl = payload.preview_image_url;
       if (previewUrl) {
         image.src = previewUrl + (previewUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
@@ -1540,9 +1810,19 @@
   const _btnSaveStd = $('btn-save-as-std');
   if (_btnSaveStd) {
     _btnSaveStd.addEventListener('click', async () => {
-      const recipeId = $('recipe-id')?.value;
+      // 必须绑定到生成当前模板的计算记录，不能使用可能已切换的下拉框值。
+      const recipeId = state.lastResultRecipeId || state.captureRecipeId || $('recipe-id')?.value;
+      const resultId = state.lastResultId;
       if (!recipeId) { setStatus('无选中配方'); return; }
       if (!window._tempCurTpl) { setStatus('无现场模板可保存，请先点击「开始计算」'); return; }
+      if (window._tempCurTplValidation?.is_valid === false) {
+        setStatus('标准模板未保存：' + localTemplateValidationMessage(window._tempCurTplValidation));
+        return;
+      }
+      if (!resultId) {
+        setStatus('标准模板未保存：缺少本次计算记录，请重新点击「开始计算」。');
+        return;
+      }
 
       const btn = _btnSaveStd;
       const oldText = btn.textContent;
@@ -1550,33 +1830,33 @@
       btn.disabled = true;
 
       try {
-        const payload = { recipe_id: recipeId, template: window._tempCurTpl };
-        // 正确 URL: /vision/rack-positioning/v2/template/save/
-        const res = await fetch('/vision/rack-positioning/v2/template/save/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
-          },
-          body: JSON.stringify(payload),
+        const urlTemplate = CFG.calibrateStandardUrlTemplate || '';
+        const url = urlTemplate.replace('__RECIPE_ID__', encodeURIComponent(recipeId));
+        if (!url || url.includes('__RECIPE_ID__')) throw new Error('标准模板保存接口未配置');
+
+        // 后端按 result_id 重新读取并校验三平面拟合结果，再持久化到对应配方。
+        const raw = await postJson(url, {
+          result_id: resultId,
+          note: `local-template-workbench-${new Date().toISOString()}`,
         });
-        const json = await res.json();
-        if (json.success) {
-          setStatus('标准模板保存成功，下次定位将以此作为基准。');
-          if (state.currentRecipe) {
-            state.currentRecipe.local_template_std = window._tempCurTpl;
-          }
-          // 立即刷新模板对比面板，让 Std 列显示新保存的数据
-          renderLocalTemplate({ local_template_cur: window._tempCurTpl });
-        } else {
-          setStatus('保存失败: ' + (json.error || '未知错误'));
+        const data = apiPayload(raw);
+        if (!data.success) throw new Error(data.error || '未知错误');
+
+        const savedTemplate = data.local_template_std || window._tempCurTpl;
+        if (state.currentRecipe && String(state.currentRecipe.id) === String(recipeId)) {
+          state.currentRecipe.local_template_std = savedTemplate;
         }
+        setStatus(`✅ 标准模板已保存到配方 #${recipeId}，下次定位将以此作为基准。`);
+        renderLocalTemplate({
+          local_template_cur: window._tempCurTpl,
+          local_template_validation: window._tempCurTplValidation,
+        });
       } catch (e) {
         console.error('[保存标准模板]', e);
-        setStatus('保存失败: ' + e.message);
+        setStatus('标准模板保存失败：' + e.message);
       } finally {
         btn.textContent = oldText;
-        btn.disabled = false;
+        btn.disabled = Boolean(window._tempCurTplValidation?.is_valid === false);
       }
     });
   }

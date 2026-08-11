@@ -1,3 +1,4 @@
+from django.http import Http404
 from django.shortcuts import render
 
 from .services import TraceabilityService
@@ -19,3 +20,10 @@ def search(request):
             if context['result'] is None:
                 context['not_found'] = True
     return render(request, 'traceability/search.html', context)
+
+
+def product_detail(request, product_code):
+    result = TraceabilityService().trace_by_product_code(product_code)
+    if result is None:
+        raise Http404(f'未找到产品 {product_code}')
+    return render(request, 'traceability/product_detail.html', {'result': result})

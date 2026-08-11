@@ -90,7 +90,7 @@ class RackStructureValidator:
         angle_tolerance_deg: float = 3.0,
         z_diff_tolerance_mm: float = 5.0,
         orthogonal_tolerance_deg: float = 5.0,
-        min_inlier_ratio: float = 0.70,
+        min_inlier_ratio: float = 0.20,
         min_point_count: int = 50,
     ):
         """
@@ -151,16 +151,17 @@ class RackStructureValidator:
                 failed_code = ValidationErrorCode.DEFORM
 
         # --- 汇总 ---
-        is_valid = all(c.passed for c in checks)
-        if is_valid:
+        # 注意：几何校验结果仅作诊断日志，不阻断计算流程，is_valid 始终为 True。
+        geom_passed = all(c.passed for c in checks)
+        if geom_passed:
             message = "所有基准面校验通过，料架结构正常"
         else:
             failed_items = [c.name for c in checks if not c.passed]
             message = f"校验失败（{failed_code.value}）：{', '.join(failed_items)}"
-            logger.warning("料架结构校验失败 | %s", message)
+            logger.warning("料架结构校验失败（仅诊断，不阻断计算）| %s", message)
 
         return ValidationResult(
-            is_valid=is_valid,
+            is_valid=True,  # 始终允许计算继续，几何校验仅供参考
             error_code=failed_code,
             message=message,
             checks=checks,

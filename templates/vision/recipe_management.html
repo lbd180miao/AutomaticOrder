@@ -391,6 +391,48 @@
   opacity: 0.6;
   background: #f9fafb;
 }
+.rack3d-data-block {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #f8fafc;
+}
+.rack3d-data-title {
+  margin-bottom: 7px;
+  color: #334155;
+  font-weight: 700;
+}
+.rack3d-roi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+  gap: 6px;
+}
+.rack3d-roi-item {
+  padding: 6px 8px;
+  border-left: 4px solid #22c55e;
+  border-radius: 5px;
+  background: #fff;
+  color: #475569;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+}
+.rack3d-roi-item.plane1 { border-left-color: #0ea5e9; }
+.rack3d-roi-item.plane2 { border-left-color: #f59e0b; }
+.rack3d-roi-item.plane3 { border-left-color: #ec4899; }
+.rack3d-template-ok { color: #15803d; font-weight: 700; }
+.rack3d-template-empty { color: #94a3b8; }
+.rack3d-template-detail {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.rack3d-readonly-note {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
+}
 </style>
 
 <div class="recipe-page">
@@ -487,7 +529,7 @@
       </div>
 
       <div class="form-section">
-        <div class="form-section-title">ROI 参数（机器人基坐标系 mm）</div>
+        <div class="form-section-title">点云范围（相机坐标系 mm）</div>
         <div class="form-row-3">
           <div class="form-group" style="margin-bottom:0;">
             <label>X Min</label>
@@ -544,6 +586,14 @@
             <label>标准 Rz</label>
             <input type="number" id="modal-3d-std-rz" step="0.001" placeholder="0.000" value="0">
           </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">工作台示教数据（只读同步）</div>
+        <div id="modal-3d-workbench-data"></div>
+        <div class="rack3d-readonly-note">
+          外框、Π1、Π2、Π3 与坐标标准模板由「3D 料架定位工作台」采集、框选和保存；此处同步展示，编辑配方不会覆盖这些数据。
         </div>
       </div>
     </div>
@@ -1072,6 +1122,82 @@ function updateWorkbenchButtons(tabName) {
 // ============================================================
 let rack3DRecipes = [];
 
+function escape3DHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function format3DNumber(value, digits = 3) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  return Number.isInteger(number) ? String(number) : number.toFixed(digits).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function formatPixelRoi(roi) {
+  if (!roi || !['x', 'y', 'w', 'h'].every(key => Number.isFinite(Number(roi[key])))) {
+    return '<span class="rack3d-template-empty">未框选</span>';
+  }
+  return `x=${format3DNumber(roi.x)} y=${format3DNumber(roi.y)} w=${format3DNumber(roi.w)} h=${format3DNumber(roi.h)}`;
+}
+
+function formatTemplatePlane(label, plane) {
+  if (!plane) return `${label}：—`;
+  const normal = Array.isArray(plane.normal) ? plane.normal : [];
+  const normalText = [0, 1, 2].map(index => format3DNumber(normal[index], 4)).join(', ');
+  const offset = plane.offset ?? plane.d;
+  const inlier = Number.isFinite(Number(plane.inlier_ratio))
+    ? `${(Number(plane.inlier_ratio) * 100).toFixed(1)}%`
+    : '—';
+  return `${label} N=[${normalText}] D=${format3DNumber(offset, 3)} 内点率=${inlier} 点数=${format3DNumber(plane.point_count)}`;
+}
+
+function render3DWorkbenchData(recipe) {
+  const roiConfig = recipe?.roi_config || {};
+  const localRois = roiConfig.local_template_rois || {};
+  const template = recipe?.local_template_std || null;
+  const origin = Array.isArray(template?.origin) ? template.origin : [];
+  const builtAt = template?.build_timestamp
+    ? new Date(template.build_timestamp).toLocaleString('zh-CN', { hour12: false })
+    : '';
+
+  const templateHtml = template ? `
+    <div class="rack3d-template-ok">✔ 已保存坐标标准模板</div>
+    <div class="rack3d-template-detail">
+      原点：X=${format3DNumber(origin[0])}, Y=${format3DNumber(origin[1])}, Z=${format3DNumber(origin[2])}<br>
+      ${escape3DHtml(formatTemplatePlane('Π1', template.plane1))}<br>
+      ${escape3DHtml(formatTemplatePlane('Π2', template.plane2))}<br>
+      ${escape3DHtml(formatTemplatePlane('Π3', template.plane3))}<br>
+      来源记录：${template.source_result_id ? `#${format3DNumber(template.source_result_id)}` : '—'}
+      ${builtAt ? ` · 保存时间：${escape3DHtml(builtAt)}` : ''}
+    </div>
+  ` : '<div class="rack3d-template-empty">未保存坐标标准模板，请在 3D 工作台计算后点击「保存为标准模板」。</div>';
+
+  return `
+    <div class="rack3d-data-block">
+      <div class="rack3d-data-title">四个 ROI 框（图像像素）</div>
+      <div class="rack3d-roi-grid">
+        <div class="rack3d-roi-item">外框：${formatPixelRoi(roiConfig.target_roi)}</div>
+        <div class="rack3d-roi-item plane1">Π1 顶部横梁：${formatPixelRoi(localRois.plane1)}</div>
+        <div class="rack3d-roi-item plane2">Π2 左侧立柱：${formatPixelRoi(localRois.plane2)}</div>
+        <div class="rack3d-roi-item plane3">Π3 底部横梁：${formatPixelRoi(localRois.plane3)}</div>
+      </div>
+    </div>
+    <div class="rack3d-data-block">
+      <div class="rack3d-data-title">三平面坐标标准模板</div>
+      ${templateHtml}
+    </div>
+  `;
+}
+
+function update3DModalWorkbenchData(recipe) {
+  const target = document.getElementById('modal-3d-workbench-data');
+  if (target) target.innerHTML = render3DWorkbenchData(recipe || {});
+}
+
 // ── 加载3D配方 ──────────────────────────────────────
 async function load3DRecipes() {
   try {
@@ -1107,7 +1233,7 @@ function render3DRecipeCards() {
   }
 
   list.innerHTML = rack3DRecipes.map(recipe => {
-    const roi = recipe.roi_config?.target_roi || {};
+    const cameraRoi = recipe.roi_config?.camera_roi || {};
     const isDisabled = !recipe.enabled;
     
     return `
@@ -1124,11 +1250,14 @@ function render3DRecipeCards() {
           X: ${recipe.standard_x}, Y: ${recipe.standard_y}, Z: ${recipe.standard_z}, Rz: ${recipe.standard_rz || 0}
         </div>
         <div class="recipe-card-row">
-          <strong>ROI范围（mm）：</strong>
-          ${roi.x_min !== null && roi.x_min !== undefined ? 
-            `X(${roi.x_min} ~ ${roi.x_max}) Y(${roi.y_min} ~ ${roi.y_max}) Z(${roi.z_min} ~ ${roi.z_max})` : 
+          <strong>点云范围（相机坐标 mm）：</strong>
+          ${cameraRoi.x_min !== null && cameraRoi.x_min !== undefined ?
+            `X(${format3DNumber(cameraRoi.x_min)} ~ ${format3DNumber(cameraRoi.x_max)}) ` +
+            `Y(${format3DNumber(cameraRoi.y_min)} ~ ${format3DNumber(cameraRoi.y_max)}) ` +
+            `Z(${format3DNumber(cameraRoi.z_min)} ~ ${format3DNumber(cameraRoi.z_max)})` :
             '<span style="color:#cbd5e1;">未配置</span>'}
         </div>
+        ${render3DWorkbenchData(recipe)}
         <div class="recipe-card-actions">
           <button class="btn btn-sm" onclick="edit3DRecipe(${recipe.id})">编辑</button>
           <button class="btn btn-secondary btn-sm" onclick="toggle3DEnabled(${recipe.id}, ${recipe.enabled})">
@@ -1157,6 +1286,7 @@ window.create3DRecipe = function() {
   document.getElementById('modal-3d-std-y').value = '0';
   document.getElementById('modal-3d-std-z').value = '0';
   document.getElementById('modal-3d-std-rz').value = '0';
+  update3DModalWorkbenchData(null);
   document.getElementById('recipe-3d-modal').style.display = 'flex';
 };
 
@@ -1181,8 +1311,8 @@ window.edit3DRecipe = async function(id) {
     document.getElementById('modal-3d-name').value = recipe.recipe_name || '';
     document.getElementById('modal-3d-layer').value = recipe.layer_no || 1;
     
-    // ROI参数
-    const roi = recipe.roi_config?.target_roi || {};
+    // 点云范围使用 camera_roi；四个像素 ROI 由工作台维护，只读展示。
+    const roi = recipe.roi_config?.camera_roi || {};
     document.getElementById('modal-3d-roi-x-min').value = roi.x_min ?? '';
     document.getElementById('modal-3d-roi-x-max').value = roi.x_max ?? '';
     document.getElementById('modal-3d-roi-y-min').value = roi.y_min ?? '';
@@ -1195,6 +1325,7 @@ window.edit3DRecipe = async function(id) {
     document.getElementById('modal-3d-std-y').value = recipe.standard_y || 0;
     document.getElementById('modal-3d-std-z').value = recipe.standard_z || 0;
     document.getElementById('modal-3d-std-rz').value = recipe.standard_rz || 0;
+    update3DModalWorkbenchData(recipe);
     
     document.getElementById('recipe-3d-modal').style.display = 'flex';
   } catch (e) {
@@ -1269,6 +1400,17 @@ window.submit3DModal = async function() {
     return;
   }
 
+  const numberOrNull = (elementId) => {
+    const value = document.getElementById(elementId).value;
+    if (value === '') return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const existingRecipe = id
+    ? rack3DRecipes.find(recipe => String(recipe.id) === String(id))
+    : null;
+  const existingRoiConfig = existingRecipe?.roi_config || {};
+
   const payload = {
     recipe_name: name,
     layer_no: Number(layer),
@@ -1276,15 +1418,17 @@ window.submit3DModal = async function() {
     standard_y: Number(document.getElementById('modal-3d-std-y').value) || 0,
     standard_z: Number(document.getElementById('modal-3d-std-z').value) || 0,
     standard_rz: Number(document.getElementById('modal-3d-std-rz').value) || 0,
+    // 完整保留工作台维护的 target_roi 与 local_template_rois，仅更新 camera_roi。
     roi_config: {
-      target_roi: {
-        x_min: Number(document.getElementById('modal-3d-roi-x-min').value) || null,
-        x_max: Number(document.getElementById('modal-3d-roi-x-max').value) || null,
-        y_min: Number(document.getElementById('modal-3d-roi-y-min').value) || null,
-        y_max: Number(document.getElementById('modal-3d-roi-y-max').value) || null,
-        z_min: Number(document.getElementById('modal-3d-roi-z-min').value) || null,
-        z_max: Number(document.getElementById('modal-3d-roi-z-max').value) || null,
-      }
+      ...existingRoiConfig,
+      camera_roi: {
+        x_min: numberOrNull('modal-3d-roi-x-min'),
+        x_max: numberOrNull('modal-3d-roi-x-max'),
+        y_min: numberOrNull('modal-3d-roi-y-min'),
+        y_max: numberOrNull('modal-3d-roi-y-max'),
+        z_min: numberOrNull('modal-3d-roi-z-min'),
+        z_max: numberOrNull('modal-3d-roi-z-max'),
+      },
     },
     enabled: true,
   };

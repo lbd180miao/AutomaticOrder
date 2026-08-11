@@ -12,6 +12,7 @@ class WorkflowState(models.TextChoices):
     HANDOVER_ROBOT_READY = 'HANDOVER_ROBOT_READY', '装箱机器人已就绪'
     HANDOVER_GRIPPED = 'HANDOVER_GRIPPED', '装箱机器人已抓牢'
     INJECTION_RELEASED = 'INJECTION_RELEASED', '注塑机器人已释放'
+    RACK_SCAN_READY = 'RACK_SCAN_READY', '料框扫码就绪'
     RACK_SCANNED = 'RACK_SCANNED', '料框已扫码'
     RECIPE_LOADED = 'RECIPE_LOADED', '配方已加载'
     RACK_LOCATING = 'RACK_LOCATING', '料架定位中'
@@ -149,6 +150,7 @@ STATE_STAGE_MAP = {
     WorkflowState.HANDOVER_ROBOT_READY: Stage.STAGE_TWO,
     WorkflowState.HANDOVER_GRIPPED: Stage.STAGE_TWO,
     WorkflowState.INJECTION_RELEASED: Stage.STAGE_TWO,
+    WorkflowState.RACK_SCAN_READY: Stage.STAGE_THREE,
     WorkflowState.RACK_SCANNED: Stage.STAGE_THREE,
     WorkflowState.RECIPE_LOADED: Stage.STAGE_THREE,
     WorkflowState.RACK_LOCATING: Stage.STAGE_THREE,

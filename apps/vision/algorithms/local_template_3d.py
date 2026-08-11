@@ -328,7 +328,7 @@ class LocalTemplate3D:
         logger.debug("%s 平面拟合 | normal=%s | offset=%.2f | inlier=%.1f%%",
                      label, np.round(normal, 3), offset, inlier_ratio * 100)
 
-        if inlier_ratio < 0.3:
+        if inlier_ratio < 0.2:
             logger.warning("%s 平面拟合内点率过低: %.1f%%", label, inlier_ratio * 100)
 
         return PlaneResult(

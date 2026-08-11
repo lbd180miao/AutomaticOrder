@@ -856,6 +856,7 @@ def build_sample_pointcloud(
     width: int = 640,
     height: int = 480,
     seed: int = None,
+    local_template_geometry: bool = False,
     **_legacy,
 ):
     """Build an organized sample point-cloud (H x W x 3, mm) from the canonical
@@ -872,7 +873,106 @@ def build_sample_pointcloud(
     depth, _pillar, _region = image_io.build_depth_field(
         side, int(layer_count or 3), width, height, seed=seed,
     )
-    return image_io.depth_field_to_pointcloud(depth)
+    pointcloud = image_io.depth_field_to_pointcloud(depth)
+    if not local_template_geometry:
+        return pointcloud
+
+    # 为三平面工作台测试提供一组可明确框选的理想料架几何。这里只在显式
+    # 请求 local_template_geometry 时覆盖三个区域，不影响真实相机与普通样例。
+    # Π1/Π3 是相互平行的水平基准面，Π2 是与它们正交的左侧立面。
+    sx = width / 640.0
+    sy = height / 480.0
+    regions = {
+        'plane1': (round(190 * sx), round(105 * sy), round(250 * sx), round(45 * sy)),
+        'plane2': (round(135 * sx), round(105 * sy), round(45 * sx), round(270 * sy)),
+        'plane3': (round(190 * sx), round(330 * sy), round(250 * sx), round(45 * sy)),
+    }
+    for name, (x, y, w, h) in regions.items():
+        rows, cols = np.indices((h, w), dtype=np.float64)
+        if name == 'plane2':
+            pointcloud[y:y + h, x:x + w, 0] = -210.0
+            pointcloud[y:y + h, x:x + w, 1] = -135.0 + rows * (270.0 / max(h - 1, 1))
+            pointcloud[y:y + h, x:x + w, 2] = 900.0 + cols * (210.0 / max(w - 1, 1))
+        else:
+            pointcloud[y:y + h, x:x + w, 0] = -180.0 + cols * (360.0 / max(w - 1, 1))
+            pointcloud[y:y + h, x:x + w, 1] = (-120.0 if name == 'plane1' else 120.0) + rows * 0.2
+            pointcloud[y:y + h, x:x + w, 2] = 920.0 if name == 'plane1' else 1110.0
+    return pointcloud
+
+
+
+
+_DOCS_PIC_COUNTER = 0  # 轮询计数器，全局唯一
+
+
+def _load_docs_pic_pointcloud():
+    """从 docs/pic/1~N 目录中轮询读取真实 PLY 点云，转为 HxWx3 有序点云 (mm)。
+
+    PLY 格式：binary_little_endian，每点 float x,y,z + uchar r,g,b，
+    来自 Rvbust 相机，典型分辨率 1080x1440。
+    """
+    global _DOCS_PIC_COUNTER
+    import glob as _glob
+
+    base_dir = os.path.join(settings.BASE_DIR, 'docs', 'pic')
+    dirs = sorted(
+        d for d in _glob.glob(os.path.join(base_dir, '*'))
+        if os.path.isdir(d) and os.path.basename(d).isdigit()
+    )
+    if not dirs:
+        return None
+
+    idx = _DOCS_PIC_COUNTER % len(dirs)
+    _DOCS_PIC_COUNTER += 1
+    ply_path = os.path.join(dirs[idx], 'PointCloud.ply')
+    if not os.path.exists(ply_path):
+        return None
+
+    try:
+        with open(ply_path, 'rb') as f:
+            header_lines = []
+            while True:
+                line = f.readline().decode('ascii', 'ignore').strip()
+                header_lines.append(line)
+                if line == 'end_header':
+                    break
+            n_verts = 0
+            for ln in header_lines:
+                if ln.startswith('element vertex'):
+                    n_verts = int(ln.split()[-1])
+                    break
+            # 每点：x(4) y(4) z(4) r(1) g(1) b(1) = 15 bytes
+            data = f.read(n_verts * 15)
+
+        xyz = np.frombuffer(data, dtype=np.dtype([
+            ('x', '<f4'), ('y', '<f4'), ('z', '<f4'),
+            ('r', 'u1'), ('g', 'u1'), ('b', 'u1'),
+        ])).copy()
+
+        # 推断有序尺寸
+        if n_verts == 1080 * 1440:
+            H, W = 1080, 1440
+        else:
+            for H, W in [(720, 1280), (480, 640), (1200, 1600), (1024, 1280)]:
+                if H * W == n_verts:
+                    break
+            else:
+                H = int(n_verts ** 0.5)
+                W = n_verts // H
+
+        cloud = np.stack(
+            [xyz['x'], xyz['y'], xyz['z']], axis=-1
+        ).reshape(H, W, 3).astype(np.float64)
+
+        # 将无效点（x=y=z=0）置为 NaN，与相机输出保持一致
+        invalid = (cloud[..., 0] == 0) & (cloud[..., 1] == 0) & (cloud[..., 2] == 0)
+        cloud[invalid] = np.nan
+
+        logger.info('[docs/pic] 加载离线点云 %s，尺寸 %dx%d', ply_path, H, W)
+        return cloud
+    except Exception as exc:  # noqa: BLE001
+        logger.warning('[docs/pic] PLY 读取失败: %s', exc)
+        return None
 
 
 def sample_scene_median_xyz(target_roi: dict, *, side: str = 'LEFT',
@@ -1287,7 +1387,10 @@ class Rack3DLocator:
             # 使用配方ID+层号的哈希作为固定种子，确保同一配方每次生成相同的模拟点云，
             # 消除因随机性导致多次计算结果不一致的问题。
             _sim_seed = hash((str(recipe_id or 'default'), int(layer_no))) & 0x7FFFFFFF
-            pointcloud = build_sample_pointcloud(side=side_key, layer_count=layer_count, seed=_sim_seed)
+            pointcloud = build_sample_pointcloud(
+                side=side_key, layer_count=layer_count, seed=_sim_seed,
+                local_template_geometry=True,
+            )
             source = 'sample'
 
         token, preview_url, width, height = self._persist_frame(pointcloud)
@@ -2142,13 +2245,42 @@ class RackLocationService:
     # ------------------------------------------------------------------
 
     def project_recipe_roi_to_pixels(self, pointcloud, recipe) -> dict:
-        """根据配方的 3D ROI 或目标坐标系下的 ROI，向二维像素系投影，得出 2D 框。"""
+        """根据配方的 3D ROI 或目标坐标系下的 ROI，向二维像素系投影，得出 2D 框。
+
+        优先级（从高到低）：
+        1. target_roi（用户在工作台手绘的 2D 像素框）——直接使用，最精确
+        2. camera_roi（3D 包围盒）——从点云中找实际落在该范围内的像素坐标包围盒，
+           避免原角点针孔投影在 z 范围大时覆盖整图的问题
+        3. 角点针孔投影（兜底）
+        """
         config = dict(getattr(recipe, 'roi_config', None) or {})
         cloud = np.asarray(pointcloud, dtype=float)
         if cloud.ndim == 2:
             raise ValueError("project_recipe_roi_to_pixels requires organized pointcloud (H, W, 3)")
 
         height, width = cloud.shape[:2]
+
+        # ── 优先级①：target_roi（用户手绘的 2D 像素框，最精确）─────────────
+        target_roi_raw = config.get('target_roi')
+        if target_roi_raw and isinstance(target_roi_raw, dict):
+            tx = int(target_roi_raw.get('x', 0) or 0)
+            ty = int(target_roi_raw.get('y', 0) or 0)
+            tw = int(target_roi_raw.get('w', target_roi_raw.get('width', 0)) or 0)
+            th = int(target_roi_raw.get('h', target_roi_raw.get('height', 0)) or 0)
+            if tw > 0 and th > 0:
+                tx = max(0, min(tx, width - 1))
+                ty = max(0, min(ty, height - 1))
+                tw = max(1, min(tw, width - tx))
+                th = max(1, min(th, height - ty))
+                result = {
+                    'x': tx, 'y': ty, 'w': tw, 'h': th,
+                    'projection_source': 'target_roi',
+                    'feature_type': 'recipe_3d_roi',
+                }
+                if target_roi_raw.get('polygon'):
+                    result['polygon'] = target_roi_raw['polygon']
+                return result
+
         intrinsics = config.get('camera_intrinsics') or {}
         fx = float(intrinsics.get('fx', image_io.PINHOLE_FX))
         fy = float(intrinsics.get('fy', image_io.PINHOLE_FY))
@@ -2182,29 +2314,67 @@ class RackLocationService:
 
         camera_roi = config.get('camera_roi')
         if camera_roi:
-            bounds = self.estimator.processor._normalized_roi_3d(camera_roi)
-            projected = project_box(bounds, 'camera_roi')
+            # ── 优先级②：camera_roi → 用点云中实际落在 3D 范围内的像素坐标包围盒 ──
+            # 原来的「枚举 8 角点做针孔投影」在 z_min/z_max 差异大时，会得到
+            # 覆盖整图的错误 ROI 框。改为直接从组织化点云中找到满足 3D 条件的像素，
+            # 取其行列坐标的包围盒，与图像实际分布完全一致。
+            try:
+                bounds = self.estimator.processor._normalized_roi_3d(camera_roi)
+                pts = cloud.reshape(-1, 3)
+                finite = np.isfinite(pts).all(axis=1) & (np.abs(pts[:, 2]) > 1e-9)
+                inside = (
+                    finite
+                    & (pts[:, 0] >= bounds['x_min']) & (pts[:, 0] <= bounds['x_max'])
+                    & (pts[:, 1] >= bounds['y_min']) & (pts[:, 1] <= bounds['y_max'])
+                    & (pts[:, 2] >= bounds['z_min']) & (pts[:, 2] <= bounds['z_max'])
+                )
+                if inside.any():
+                    idx = np.where(inside)[0]
+                    rows = idx // width   # v 方向（行）
+                    cols = idx % width    # u 方向（列）
+                    x1 = max(0, int(cols.min()) - 2)
+                    y1 = max(0, int(rows.min()) - 2)
+                    x2 = min(width,  int(cols.max()) + 3)
+                    y2 = min(height, int(rows.max()) + 3)
+                    if x2 > x1 and y2 > y1:
+                        return {
+                            'x': x1, 'y': y1, 'w': x2 - x1, 'h': y2 - y1,
+                            'projection_source': 'camera_roi_pixel',
+                            'feature_type': 'recipe_3d_roi',
+                        }
+            except Exception:
+                pass  # 回退到角点投影
+            # 角点投影兜底
+            try:
+                bounds = self.estimator.processor._normalized_roi_3d(camera_roi)
+                projected = project_box(bounds, 'camera_roi')
+            except Exception:
+                projected = None
         else:
-            bounds = self.estimator.processor._normalized_roi_3d(config.get('target_roi') or {})
-            transform = np.asarray(config.get('transform_snapshot', np.eye(4)), dtype=float)
-            if transform.shape != (4, 4):
-                raise ValueError('transform_snapshot must be a 4 x 4 matrix')
-            robot_corners = np.array([
-                [x, y, z, 1.0]
-                for x in (bounds['x_min'], bounds['x_max'])
-                for y in (bounds['y_min'], bounds['y_max'])
-                for z in (bounds['z_min'], bounds['z_max'])
-            ])
-            camera_corners = robot_corners @ np.linalg.inv(transform).T
-            camera_bounds = {
-                'x_min': float(camera_corners[:, 0].min()),
-                'x_max': float(camera_corners[:, 0].max()),
-                'y_min': float(camera_corners[:, 1].min()),
-                'y_max': float(camera_corners[:, 1].max()),
-                'z_min': float(camera_corners[:, 2].min()),
-                'z_max': float(camera_corners[:, 2].max()),
-            }
-            projected = project_box(camera_bounds, 'robot_roi')
+            # ── 优先级③：robot_roi → 通过变换矩阵转到相机坐标再投影 ──────────
+            try:
+                bounds = self.estimator.processor._normalized_roi_3d(config.get('target_roi') or {})
+                transform = np.asarray(config.get('transform_snapshot', np.eye(4)), dtype=float)
+                if transform.shape != (4, 4):
+                    raise ValueError('transform_snapshot must be a 4 x 4 matrix')
+                robot_corners = np.array([
+                    [x, y, z, 1.0]
+                    for x in (bounds['x_min'], bounds['x_max'])
+                    for y in (bounds['y_min'], bounds['y_max'])
+                    for z in (bounds['z_min'], bounds['z_max'])
+                ])
+                camera_corners = robot_corners @ np.linalg.inv(transform).T
+                camera_bounds = {
+                    'x_min': float(camera_corners[:, 0].min()),
+                    'x_max': float(camera_corners[:, 0].max()),
+                    'y_min': float(camera_corners[:, 1].min()),
+                    'y_max': float(camera_corners[:, 1].max()),
+                    'z_min': float(camera_corners[:, 2].min()),
+                    'z_max': float(camera_corners[:, 2].max()),
+                }
+                projected = project_box(camera_bounds, 'robot_roi')
+            except Exception:
+                projected = None
 
         return projected or {
             'x': 0, 'y': 0, 'w': 0, 'h': 0,
@@ -2302,8 +2472,14 @@ class RackLocationService:
             fallback_reason = str(exc)
 
         if pointcloud is None:
-            pointcloud = build_sample_pointcloud(side=side_key, layer_count=layer_count)
-            source = 'sample'
+            # 优先使用 docs/pic 目录中的真实离线点云，失败才回退合成数据
+            real_cloud = _load_docs_pic_pointcloud()
+            if real_cloud is not None:
+                pointcloud = real_cloud
+                source = 'docs_pic_offline'
+            else:
+                pointcloud = build_sample_pointcloud(side=side_key, layer_count=layer_count)
+                source = 'sample'
 
         token, preview_url, width, height = self._persist_workbench_frame(pointcloud)
         payload = {
@@ -2319,6 +2495,235 @@ class RackLocationService:
         if source != 'dm_camera' and fallback_reason:
             payload['fallback_reason'] = fallback_reason
         return payload
+
+    def _explicit_local_template_regions(self, pointcloud, roi_config) -> dict[str, dict]:
+        """校验并规范化用户明确示教的 Π1/Π2/Π3 三个像素 ROI。"""
+        configured = (roi_config or {}).get('local_template_rois') or {}
+        if not isinstance(configured, dict):
+            raise ValueError('三块基准区域格式错误，请重新框选 Π1、Π2、Π3')
+        aliases = {
+            'plane1': ('plane1', 'roi1', 'top_crossbeam'),
+            'plane2': ('plane2', 'roi2', 'left_upright'),
+            'plane3': ('plane3', 'roi3', 'bottom_crossbeam'),
+        }
+        height, width = pointcloud.shape[:2]
+        regions = {}
+        missing = []
+        for name, keys in aliases.items():
+            raw = next((configured.get(key) for key in keys if configured.get(key)), None)
+            if not raw:
+                missing.append(name)
+                continue
+            x, y, w, h = self.estimator.processor._normalized_roi(raw, width, height)
+            regions[name] = {'x': x, 'y': y, 'w': w, 'h': h}
+        if missing:
+            labels = {'plane1': 'Π1 顶部横梁', 'plane2': 'Π2 左侧立柱', 'plane3': 'Π3 底部横梁'}
+            raise ValueError('请先框选三块基准区域：' + '、'.join(labels[name] for name in missing))
+        return regions
+
+    @staticmethod
+    def _crop_local_template_clouds(pointcloud, regions) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        clouds = []
+        for name in ('plane1', 'plane2', 'plane3'):
+            roi = regions[name]
+            points = pointcloud[
+                roi['y']:roi['y'] + roi['h'],
+                roi['x']:roi['x'] + roi['w'],
+            ].reshape(-1, 3)
+            valid = np.isfinite(points).all(axis=1) & (np.abs(points[:, 2]) > 1e-9)
+            cloud = np.asarray(points[valid], dtype=np.float64)
+            if cloud.shape[0] < 50:
+                label = {'plane1': 'Π1', 'plane2': 'Π2', 'plane3': 'Π3'}[name]
+                raise ValueError(f'{label} 有效点不足（{cloud.shape[0]} < 50），请重新框选真实钢架表面')
+            clouds.append(cloud)
+        return tuple(clouds)
+
+    @staticmethod
+    def _local_compensation_payload(local_result, *, source) -> dict:
+        values = local_result['compensation']
+        matrix = local_result['delta_T']
+        return {
+            'meaning': 'standard_rack_to_current_rack',
+            'matrix': matrix,
+            'translation_mm': {'x': values['dX'], 'y': values['dY'], 'z': values['dZ']},
+            'rotation_deg': {'rx': values['dRx'], 'ry': values['dRy'], 'rz': values['dRz']},
+            'pose6d': {
+                'x': values['dX'], 'y': values['dY'], 'z': values['dZ'],
+                'rx': values['dRx'], 'ry': values['dRy'], 'rz': values['dRz'],
+            },
+            'source': source,
+            'placement_formula': 'actual_place_pose = T_standard_to_current * taught_standard_place_pose',
+            'managed_place_pose_count': 0,
+            'robot_taught_place_pose_count': 15,
+        }
+
+    def _calculate_local_template_workbench(self, *, token, roi_config, recipe, layer_no, save_record) -> dict:
+        """按用户示教的三个 ROI 拟合三平面，并计算/预览 6DoF 刚体补偿。"""
+        pointcloud = self._load_workbench_pointcloud(token)
+        if pointcloud.ndim != 3 or pointcloud.shape[2] != 3:
+            raise ValueError('三平面算法需要组织化点云 H×W×3，请重新采集')
+        regions = self._explicit_local_template_regions(pointcloud, roi_config)
+        roi1, roi2, roi3 = self._crop_local_template_clouds(pointcloud, regions)
+
+        from .rack_positioning_algorithm import RigidBodyCompensationAlgorithm
+        weights = recipe.roi_weights or {}
+        algorithm = RigidBodyCompensationAlgorithm(
+            w1=float(weights.get('w1', 0.5)),
+            w3=float(weights.get('w3', 0.5)),
+        )
+        has_standard = bool(recipe.local_template_std)
+        if has_standard:
+            local_result = algorithm.production_mode_compute(
+                recipe.local_template_std, roi1, roi2, roi3, raise_on_invalid=False,
+            )
+            compensation_source = 'local_template_3d'
+        else:
+            current = algorithm.build_current_template(roi1, roi2, roi3)
+            local_result = {
+                **current,
+                'compensation': {'dX': 0.0, 'dY': 0.0, 'dZ': 0.0, 'dRx': 0.0, 'dRy': 0.0, 'dRz': 0.0},
+                'delta_T': np.eye(4, dtype=float).tolist(),
+                'translation_magnitude_mm': 0.0,
+                'rotation_magnitude_deg': 0.0,
+            }
+            compensation_source = 'local_template_current_baseline'
+
+        values = local_result['compensation']
+        validation = local_result.get('validation') or {}
+        within_limits = all((
+            abs(values['dX']) <= float(recipe.max_offset_x),
+            abs(values['dY']) <= float(recipe.max_offset_y),
+            abs(values['dZ']) <= float(recipe.max_offset_z),
+            abs(values['dRz']) <= float(recipe.max_offset_rz),
+        ))
+        locate_ok = bool(local_result.get('is_valid')) and within_limits
+        if locate_ok:
+            error_code = ''
+            error_message = ''
+        elif not local_result.get('is_valid'):
+            error_code = validation.get('error_code') or 'LOCAL_TEMPLATE_INVALID'
+            error_message = validation.get('message') or '三平面结构校验未通过，请调整 ROI'
+        else:
+            error_code = 'OFFSET_OUT_OF_RANGE'
+            error_message = '三平面刚体补偿超出配方允许范围'
+
+        rack_compensation = self._local_compensation_payload(local_result, source=compensation_source)
+        preview = image_io.pointcloud_to_preview(pointcloud)
+        depth_rel, _, _ = image_io.save_image(
+            preview.copy(), 'rack_local_template_depth', rel_dir='vision/rack_workbench',
+        )
+        target_roi = (roi_config or {}).get('target_roi')
+        if target_roi and all(target_roi.get(k) is not None for k in ('x', 'y', 'w', 'h')):
+            tx, ty, tw, th = self.estimator.processor._normalized_roi(
+                target_roi, pointcloud.shape[1], pointcloud.shape[0],
+            )
+            image_io.draw_roi(preview, (tx, ty, tx + tw, ty + th), color=(40, 200, 80), label='target ROI')
+        colors = {'plane1': (255, 190, 60), 'plane2': (30, 170, 255), 'plane3': (210, 70, 240)}
+        labels = {'plane1': 'P1 top', 'plane2': 'P2 left', 'plane3': 'P3 bottom'}
+        for name, roi in regions.items():
+            image_io.draw_roi(
+                preview,
+                (roi['x'], roi['y'], roi['x'] + roi['w'], roi['y'] + roi['h']),
+                color=colors[name], label=labels[name],
+            )
+        result_rel, _, _ = image_io.save_image(
+            preview, 'rack_local_template_result', rel_dir='vision/rack_workbench',
+        )
+
+        result_data = {
+            'algorithm_version': 'LOCAL_TEMPLATE_3D_V2',
+            'source': 'workbench_three_explicit_rois',
+            'local_template_cur': local_result['local_template_cur'],
+            'local_template_std': recipe.local_template_std,
+            'local_template_std_available': has_standard,
+            'local_template_rois': regions,
+            'local_template_validation': validation,
+            'local_template_compensation': local_result,
+            'rack_compensation': rack_compensation,
+            'compensation_transform': rack_compensation,
+            'roi': {'target_roi': target_roi or {}, 'local_template_rois': regions},
+        }
+        plc_payload = {
+            'task_kind': 'RACK_3D_LOCATION',
+            'rack_side': recipe.rack_side or RackSide.BOTH,
+            'side': recipe.rack_side or RackSide.BOTH,
+            'position_no': int(recipe.position_no or 1),
+            'layer_no': int(layer_no),
+            'locate_done': True,
+            'locate_ok': locate_ok,
+            'offset_x': values['dX'], 'offset_y': values['dY'], 'offset_z': values['dZ'],
+            'offset_rx': values['dRx'], 'offset_ry': values['dRy'], 'offset_rz': values['dRz'],
+            'confidence': local_result['confidence'],
+            'compensation_valid': locate_ok and has_standard,
+            'rack_compensation': rack_compensation,
+            'compensation_matrix': local_result['delta_T'],
+            'error_code': error_code,
+        }
+        result_data['plc_payload'] = plc_payload
+
+        result_id = None
+        if save_record:
+            task = VisionTask.objects.create(
+                task_type=VisionTaskType.RACK_LOCATING,
+                status=ResultStatus.SUCCESS if locate_ok else ResultStatus.FAILED,
+                started_at=timezone.now(), finished_at=timezone.now(),
+                error_message=error_message,
+            )
+            result = RackLocationResult.objects.create(
+                vision_task=task, recipe=recipe,
+                side=recipe.rack_side or RackSide.BOTH,
+                position_no=int(recipe.position_no or 1), layer_no=int(layer_no),
+                offset_x=_decimal(values['dX']), offset_y=_decimal(values['dY']),
+                offset_z=_decimal(values['dZ']), offset_rz=_decimal(values['dRz']),
+                actual_x=_decimal(float(recipe.standard_x) + values['dX']),
+                actual_y=_decimal(float(recipe.standard_y) + values['dY']),
+                actual_z=_decimal(float(recipe.standard_z) + values['dZ']),
+                confidence=_decimal(local_result['confidence'], '0.0001'),
+                is_recipe_matched=locate_ok, is_success=locate_ok,
+                error_code=error_code, error_message=error_message,
+                raw_data_path=token or '', result_image_path=result_rel,
+                roi_data={'target_roi': target_roi or {}, 'local_template_rois': regions},
+                result_data=result_data, plc_write_status='SKIPPED',
+            )
+            VisionImage.objects.create(
+                vision_task=task, image_type=VisionImageType.DEPTH,
+                file=depth_rel, width=int(pointcloud.shape[1]), height=int(pointcloud.shape[0]),
+                captured_at=timezone.now(),
+            )
+            VisionImage.objects.create(
+                vision_task=task, image_type=VisionImageType.RESULT,
+                file=result_rel, width=int(pointcloud.shape[1]), height=int(pointcloud.shape[0]),
+                captured_at=timezone.now(),
+            )
+            result_id = result.id
+
+        return {
+            'result_id': result_id,
+            'recipe_id': recipe.id,
+            'rack_side': recipe.rack_side or RackSide.BOTH,
+            'position_no': int(recipe.position_no or 1), 'layer_no': int(layer_no),
+            'locate_ok': locate_ok, 'is_success': locate_ok,
+            'actual_x': float(recipe.standard_x) + values['dX'],
+            'actual_y': float(recipe.standard_y) + values['dY'],
+            'actual_z': float(recipe.standard_z) + values['dZ'],
+            'offset_x': values['dX'], 'offset_y': values['dY'], 'offset_z': values['dZ'],
+            'offset_rx': values['dRx'], 'offset_ry': values['dRy'], 'offset_rz': values['dRz'],
+            'confidence': local_result['confidence'],
+            'error_code': error_code, 'error_message': error_message,
+            'local_template_cur': local_result['local_template_cur'],
+            'local_template_std': recipe.local_template_std,
+            'local_template_std_available': has_standard,
+            'local_template_rois': regions,
+            'local_template_validation': validation,
+            'rack_compensation': rack_compensation,
+            'compensation_transform': rack_compensation,
+            'compensation_matrix': local_result['delta_T'],
+            'plc_payload': plc_payload, 'result_data': result_data,
+            'result_image_url': settings.MEDIA_URL + result_rel,
+            'result_image_path': result_rel,
+            'raw_depth_image_url': settings.MEDIA_URL + depth_rel,
+            'algorithm_version': 'LOCAL_TEMPLATE_3D_V2',
+        }
 
     def _compute_workbench(self, *, token, roi_config, recipe, layer_no):
         """从持久化点云 + ROI 计算偏差，并渲染带框标注结果图。
@@ -2386,6 +2791,14 @@ class RackLocationService:
         Args:
             save_record: 是否保存到数据库（默认False；计算偏差只预览）
         """
+        recipe = self._build_workbench_recipe(recipe_id, recipe_data)
+        if (roi_config or {}).get('local_template_rois'):
+            resolved_layer = int((recipe_data or {}).get('layer_no') or layer_no or getattr(recipe, 'layer_no', 1) or 1)
+            return self._calculate_local_template_workbench(
+                token=token, roi_config=roi_config, recipe=recipe,
+                layer_no=resolved_layer, save_record=save_record,
+            )
+
         if roi_3d:
             # 使用3D ROI计算
             result = Rack3DLocator(
@@ -2403,7 +2816,6 @@ class RackLocationService:
             )
             return result
             
-        recipe = self._build_workbench_recipe(recipe_id, recipe_data)
         layer_no = int((recipe_data or {}).get('layer_no') or layer_no or getattr(recipe, 'layer_no', 1) or 1)
         output, result_rel = self._compute_workbench(
             token=token, roi_config=roi_config, recipe=recipe, layer_no=layer_no,
