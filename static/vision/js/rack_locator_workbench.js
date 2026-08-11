@@ -269,7 +269,9 @@
     const r = result || {};
     const meta = r.result_data || {};
     const plc = r.plc_payload || {};
-    const comp = r.rack_compensation
+    const comp = r.camera_rack_compensation
+      || meta.camera_rack_compensation
+      || r.rack_compensation
       || r.compensation_transform
       || meta.rack_compensation
       || meta.compensation_transform
@@ -277,7 +279,13 @@
       || null;
     if (!comp) return null;
     const matrix = r.compensation_matrix || comp.matrix || plc.compensation_matrix || null;
-    return { ...comp, matrix };
+    const localCameraSource = ['local_template_3d', 'local_template_current_baseline'].includes(comp.source);
+    const coordinateSystem = comp.coordinate_system
+      || r.compensation_coordinate_system
+      || meta.compensation_coordinate_system
+      || plc.compensation_coordinate_system
+      || (localCameraSource ? 'camera' : null);
+    return { ...comp, coordinate_system: coordinateSystem, matrix };
   }
 
   function setCompText(id, value, digits = 3, signed = false) {
@@ -453,9 +461,9 @@
       $('comp-place-count').textContent = `机器人示教 ${robotCount} / 视觉管理 ${visionCount}`;
     }
     if (source) {
-      const useRigid = comp.source === 'opening_rectangle_deviation';
-      source.className = useRigid ? 'badge badge-ok' : 'badge badge-muted';
-      source.textContent = useRigid ? '四角刚体拟合' : 'XYZ/Rz兼容';
+      const isCamera = comp.coordinate_system === 'camera';
+      source.className = isCamera ? 'badge badge-ok' : 'badge badge-muted';
+      source.textContent = isCamera ? '相机坐标系' : '坐标系未标注';
     }
   }
 

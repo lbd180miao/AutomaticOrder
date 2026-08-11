@@ -1494,6 +1494,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-create-recipe')?.addEventListener('click', openCreateModal);
 
   loadRecipes();
+  const requestedTab = new URLSearchParams(window.location.search).get('tab');
+  if (requestedTab === 'rack3d') {
+    document.querySelector('.recipe-tab[data-recipe-tab="rack3d"]')?.click();
+  }
 });
 </script>
 

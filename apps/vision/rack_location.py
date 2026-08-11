@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from decimal import Decimal
+import logging
 import os
 import random
 from typing import Any, Optional
@@ -40,6 +41,7 @@ from .algorithms.rack_opening_rectangle import (
     normalize_reference_feature_config,
     standard_geometry,
 )
+from .coordinate_transform import CoordinateTransformService
 from .models import RackLocationROI3D, RackLocationRecipe, RackLocationResult, VisionImage, VisionTask
 from .rack_compensation import (
     combine_compensations,
@@ -47,6 +49,9 @@ from .rack_compensation import (
     compensation_from_result,
     pose6d_from_matrix,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _decimal(value: Any, places: str = '0.001') -> Decimal:
@@ -2543,7 +2548,16 @@ class RackLocationService:
         values = local_result['compensation']
         matrix = local_result['delta_T']
         return {
-            'meaning': 'standard_rack_to_current_rack',
+            # The three fitted planes come directly from the organized camera
+            # point cloud.  Keep this transform in the camera frame; robot-base
+            # conversion is a separate, future step that requires hand-eye and
+            # capture-pose data.
+            'meaning': 'standard_rack_to_current_rack_in_camera_frame',
+            'coordinate_system': 'camera',
+            'from_frame': 'camera_standard_rack',
+            'to_frame': 'camera_current_rack',
+            'matrix_name': 'T_camera_standard_to_current',
+            'robot_conversion_applied': False,
             'matrix': matrix,
             'translation_mm': {'x': values['dX'], 'y': values['dY'], 'z': values['dZ']},
             'rotation_deg': {'rx': values['dRx'], 'ry': values['dRy'], 'rz': values['dRz']},
@@ -2552,9 +2566,118 @@ class RackLocationService:
                 'rx': values['dRx'], 'ry': values['dRy'], 'rz': values['dRz'],
             },
             'source': source,
-            'placement_formula': 'actual_place_pose = T_standard_to_current * taught_standard_place_pose',
+            'placement_formula': 'P_current_camera = T_camera_standard_to_current * P_standard_camera',
             'managed_place_pose_count': 0,
             'robot_taught_place_pose_count': 15,
+        }
+
+    @staticmethod
+    def _recipe_transform_context(recipe) -> dict:
+        """Freeze the hand-eye workbench matrices used by this detection."""
+        from .models_hand_eye import HandEyeCalibration
+
+        calibration = HandEyeCalibration.objects.filter(is_active=True).first()
+        capture_pose = {}
+        capture_pose_name = ''
+        base_flange_matrix = None
+        configuration_source = ''
+
+        if calibration and calibration.T_flange_camera:
+            hand_eye_matrix = calibration.T_flange_camera
+            calibration_id = calibration.id
+            calibration_name = calibration.name
+            hand_eye_source = 'active_hand_eye_workspace'
+            saved_base_flange = (calibration.calibration_params or {}).get('T_base_flange')
+            if saved_base_flange:
+                base_flange_matrix = {
+                    'matrix': CoordinateTransformService.parse_matrix_from_json(
+                        saved_base_flange,
+                    ).tolist(),
+                }
+                capture_pose = CoordinateTransformService.matrix_to_pose(
+                    np.asarray(base_flange_matrix['matrix'], dtype=float),
+                )
+                capture_pose_name = 'hand_eye_workspace_saved_pose'
+                configuration_source = 'active_hand_eye_workspace'
+            elif recipe.capture_pose:
+                base_flange_matrix = {
+                    'matrix': CoordinateTransformService.parse_matrix_from_json(
+                        recipe.capture_pose,
+                    ).tolist(),
+                }
+                capture_pose = dict(recipe.capture_pose)
+                capture_pose_name = recipe.capture_pose_name or ''
+                configuration_source = 'active_hand_eye_with_recipe_pose_fallback'
+            else:
+                configuration_source = 'active_hand_eye_missing_base_flange'
+        else:
+            calibration = getattr(recipe, 'hand_eye_calibration', None)
+            if calibration and calibration.T_flange_camera:
+                hand_eye_matrix = calibration.T_flange_camera
+                calibration_id = calibration.id
+                calibration_name = calibration.name
+                hand_eye_source = 'recipe_calibration'
+            else:
+                hand_eye_matrix = recipe.hand_eye_config or None
+                if isinstance(hand_eye_matrix, dict) and hand_eye_matrix.get('matrix') == 'identity':
+                    hand_eye_matrix = {'matrix': np.eye(4, dtype=float).tolist()}
+                calibration_id = None
+                calibration_name = ''
+                hand_eye_source = 'legacy_recipe_config' if hand_eye_matrix else ''
+            if recipe.capture_pose:
+                base_flange_matrix = {
+                    'matrix': CoordinateTransformService.parse_matrix_from_json(
+                        recipe.capture_pose,
+                    ).tolist(),
+                }
+                capture_pose = dict(recipe.capture_pose)
+                capture_pose_name = recipe.capture_pose_name or ''
+            configuration_source = 'legacy_recipe_configuration'
+        return {
+            'context_source': 'record_snapshot',
+            'configuration_source': configuration_source,
+            'capture_pose': capture_pose,
+            'capture_pose_name': capture_pose_name,
+            'T_base_flange': base_flange_matrix,
+            'T_flange_camera': hand_eye_matrix,
+            'hand_eye_calibration_id': calibration_id,
+            'hand_eye_calibration_name': calibration_name,
+            'hand_eye_source': hand_eye_source,
+        }
+
+    @staticmethod
+    def _robot_compensation_payload(camera_compensation, transform_context) -> Optional[dict]:
+        """Express a frozen camera-frame delta in the robot base frame."""
+        hand_eye = transform_context.get('T_flange_camera')
+        base_flange = transform_context.get('T_base_flange')
+        if not base_flange:
+            base_flange = transform_context.get('capture_pose')
+        if not hand_eye or not base_flange or not camera_compensation.get('matrix'):
+            return None
+
+        delta_camera = CoordinateTransformService.parse_matrix_from_json(
+            camera_compensation['matrix'],
+        )
+        T_flange_camera = CoordinateTransformService.parse_matrix_from_json(hand_eye)
+        T_base_flange = CoordinateTransformService.parse_matrix_from_json(base_flange)
+        T_base_camera = T_base_flange @ T_flange_camera
+        delta_base = T_base_camera @ delta_camera @ np.linalg.inv(T_base_camera)
+        pose = CoordinateTransformService.matrix_to_pose(delta_base)
+        return {
+            'meaning': 'standard_rack_to_current_rack_in_robot_base_frame',
+            'coordinate_system': 'robot_base',
+            'from_frame': 'robot_base_standard_rack',
+            'to_frame': 'robot_base_current_rack',
+            'matrix_name': 'T_robot_base_standard_to_current',
+            'robot_conversion_applied': True,
+            'matrix': delta_base.tolist(),
+            'translation_mm': {key: pose[key] for key in ('x', 'y', 'z')},
+            'rotation_deg': {key: pose[key] for key in ('rx', 'ry', 'rz')},
+            'pose6d': pose,
+            'source': 'hand_eye_workspace_transform',
+            'transform_context_source': transform_context.get('configuration_source', ''),
+            'T_base_camera': T_base_camera.tolist(),
+            'formula': 'delta_T_base = T_base_camera * delta_T_camera * inverse(T_base_camera)',
         }
 
     def _calculate_local_template_workbench(self, *, token, roi_config, recipe, layer_no, save_record) -> dict:
@@ -2608,6 +2731,10 @@ class RackLocationService:
             error_message = '三平面刚体补偿超出配方允许范围'
 
         rack_compensation = self._local_compensation_payload(local_result, source=compensation_source)
+        transform_context = self._recipe_transform_context(recipe)
+        robot_rack_compensation = self._robot_compensation_payload(
+            rack_compensation, transform_context,
+        )
         preview = image_io.pointcloud_to_preview(pointcloud)
         depth_rel, _, _ = image_io.save_image(
             preview.copy(), 'rack_local_template_depth', rel_dir='vision/rack_workbench',
@@ -2639,10 +2766,16 @@ class RackLocationService:
             'local_template_rois': regions,
             'local_template_validation': validation,
             'local_template_compensation': local_result,
+            'compensation_coordinate_system': 'camera',
+            'camera_rack_compensation': rack_compensation,
+            'robot_rack_compensation': robot_rack_compensation,
+            'transform_context': transform_context,
             'rack_compensation': rack_compensation,
             'compensation_transform': rack_compensation,
             'roi': {'target_roi': target_roi or {}, 'local_template_rois': regions},
         }
+        output_compensation = robot_rack_compensation or rack_compensation
+        output_pose = output_compensation['pose6d']
         plc_payload = {
             'task_kind': 'RACK_3D_LOCATION',
             'rack_side': recipe.rack_side or RackSide.BOTH,
@@ -2651,12 +2784,16 @@ class RackLocationService:
             'layer_no': int(layer_no),
             'locate_done': True,
             'locate_ok': locate_ok,
-            'offset_x': values['dX'], 'offset_y': values['dY'], 'offset_z': values['dZ'],
-            'offset_rx': values['dRx'], 'offset_ry': values['dRy'], 'offset_rz': values['dRz'],
+            'offset_x': output_pose['x'], 'offset_y': output_pose['y'], 'offset_z': output_pose['z'],
+            'offset_rx': output_pose['rx'], 'offset_ry': output_pose['ry'], 'offset_rz': output_pose['rz'],
             'confidence': local_result['confidence'],
             'compensation_valid': locate_ok and has_standard,
-            'rack_compensation': rack_compensation,
-            'compensation_matrix': local_result['delta_T'],
+            'compensation_coordinate_system': output_compensation['coordinate_system'],
+            'robot_conversion_applied': bool(robot_rack_compensation),
+            'camera_rack_compensation': rack_compensation,
+            'robot_rack_compensation': robot_rack_compensation,
+            'rack_compensation': output_compensation,
+            'compensation_matrix': output_compensation['matrix'],
             'error_code': error_code,
         }
         result_data['plc_payload'] = plc_payload
@@ -2715,6 +2852,17 @@ class RackLocationService:
             'local_template_std_available': has_standard,
             'local_template_rois': regions,
             'local_template_validation': validation,
+            'compensation_coordinate_system': 'camera',
+            'camera_rack_compensation': rack_compensation,
+            'robot_rack_compensation': robot_rack_compensation,
+            'robot_compensation_matrix': (
+                robot_rack_compensation['matrix'] if robot_rack_compensation else None
+            ),
+            'robot_compensation_pose6d': (
+                robot_rack_compensation['pose6d'] if robot_rack_compensation else None
+            ),
+            'robot_conversion_applied': bool(robot_rack_compensation),
+            'transform_context': transform_context,
             'rack_compensation': rack_compensation,
             'compensation_transform': rack_compensation,
             'compensation_matrix': local_result['delta_T'],
@@ -3160,10 +3308,37 @@ def result_payload(result: RackLocationResult) -> dict:
         },
     )
     opening_rectangle = data.get('opening_rectangle') or None
+    transform_context = dict(data.get('transform_context') or {})
+    recipe = result.recipe
+    if recipe:
+        transform_context.setdefault('context_source', 'recipe_current_fallback')
+        transform_context.setdefault('capture_pose', dict(recipe.capture_pose or {}))
+        transform_context.setdefault('capture_pose_name', recipe.capture_pose_name or '')
+        calibration = getattr(recipe, 'hand_eye_calibration', None)
+        if calibration and calibration.T_flange_camera:
+            transform_context.setdefault('T_flange_camera', calibration.T_flange_camera)
+            transform_context.setdefault('hand_eye_calibration_id', calibration.id)
+            transform_context.setdefault('hand_eye_calibration_name', calibration.name)
+            transform_context.setdefault('hand_eye_source', 'recipe_current_fallback')
+        elif recipe.hand_eye_config:
+            legacy_hand_eye = recipe.hand_eye_config
+            if isinstance(legacy_hand_eye, dict) and legacy_hand_eye.get('matrix') == 'identity':
+                legacy_hand_eye = {'matrix': np.eye(4, dtype=float).tolist()}
+            transform_context.setdefault('T_flange_camera', legacy_hand_eye)
+            transform_context.setdefault('hand_eye_source', 'legacy_recipe_current_fallback')
+
+    camera_rack_compensation = data.get('camera_rack_compensation')
+    if not camera_rack_compensation and rack_compensation.get('source') in {
+        'local_template_3d', 'local_template_current_baseline',
+    }:
+        camera_rack_compensation = rack_compensation
+    robot_rack_compensation = data.get('robot_rack_compensation')
     return {
         'id': result.id,
         'task_id': result.vision_task_id,
         'task_kind': 'RACK_3D_LOCATION',
+        'recipe_id': result.recipe_id,
+        'recipe_name': recipe.recipe_name if recipe else '',
         'position_no': result.position_no,
         'layer_no': result.layer_no,
         'locate_type': locate_type,
@@ -3202,8 +3377,22 @@ def result_payload(result: RackLocationResult) -> dict:
         'plc_error_message': result.plc_error_message,
         'plc_payload': plc_payload,
         'rack_compensation': rack_compensation,
+        'camera_rack_compensation': camera_rack_compensation,
+        'robot_rack_compensation': robot_rack_compensation,
+        'robot_conversion_applied': bool(robot_rack_compensation),
+        'compensation_coordinate_system': (
+            (camera_rack_compensation or {}).get('coordinate_system')
+            or data.get('compensation_coordinate_system')
+        ),
+        'transform_context': transform_context,
         'compensation_matrix': rack_compensation['matrix'],
         'compensation_pose6d': rack_compensation['pose6d'],
+        'robot_compensation_matrix': (
+            robot_rack_compensation.get('matrix') if robot_rack_compensation else None
+        ),
+        'robot_compensation_pose6d': (
+            robot_rack_compensation.get('pose6d') if robot_rack_compensation else None
+        ),
         'algorithm_version': data.get('algorithm_version') or get_algorithm_version(None),
         'opening_rectangle': opening_rectangle,
         'tcp_verification': data.get('tcp_verification'),

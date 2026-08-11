@@ -611,6 +611,16 @@
     color: var(--text);
   }
 
+  .rl-comp-coordinate-note {
+    margin: 0;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: #f0f9ff;
+    color: #0369a1;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
   .rl-comp-body {
     padding: 12px;
   }
@@ -982,19 +992,22 @@
         </section>
         <section class="rl-comp-panel" id="rl-comp-panel">
           <div class="rl-comp-head">
-            <h3>整架补偿矩阵 T</h3>
+            <h3>相机坐标补偿矩阵 T<sub>cam std→cur</sub></h3>
             <span class="badge badge-muted" id="comp-source">未计算</span>
           </div>
+          <p class="rl-comp-coordinate-note">
+            标准料架 → 当前料架；基于相机点云坐标计算，尚未转换到机器人基坐标系。
+          </p>
           <div class="rl-comp-body">
             <div class="rl-pose-grid">
-              <div class="rl-pose-item"><span class="rl-pose-label">X mm</span><span class="rl-pose-value" id="comp-x">—</span></div>
-              <div class="rl-pose-item"><span class="rl-pose-label">Y mm</span><span class="rl-pose-value" id="comp-y">—</span></div>
-              <div class="rl-pose-item"><span class="rl-pose-label">Z mm</span><span class="rl-pose-value" id="comp-z">—</span></div>
-              <div class="rl-pose-item"><span class="rl-pose-label">Rx deg</span><span class="rl-pose-value" id="comp-rx">—</span></div>
-              <div class="rl-pose-item"><span class="rl-pose-label">Ry deg</span><span class="rl-pose-value" id="comp-ry">—</span></div>
-              <div class="rl-pose-item"><span class="rl-pose-label">Rz deg</span><span class="rl-pose-value" id="comp-rz">—</span></div>
+              <div class="rl-pose-item"><span class="rl-pose-label">Xcam mm</span><span class="rl-pose-value" id="comp-x">—</span></div>
+              <div class="rl-pose-item"><span class="rl-pose-label">Ycam mm</span><span class="rl-pose-value" id="comp-y">—</span></div>
+              <div class="rl-pose-item"><span class="rl-pose-label">Zcam mm</span><span class="rl-pose-value" id="comp-z">—</span></div>
+              <div class="rl-pose-item"><span class="rl-pose-label">Rxcam deg</span><span class="rl-pose-value" id="comp-rx">—</span></div>
+              <div class="rl-pose-item"><span class="rl-pose-label">Rycam deg</span><span class="rl-pose-value" id="comp-ry">—</span></div>
+              <div class="rl-pose-item"><span class="rl-pose-label">Rzcam deg</span><span class="rl-pose-value" id="comp-rz">—</span></div>
             </div>
-            <table class="rl-matrix" aria-label="4x4补偿矩阵">
+            <table class="rl-matrix" aria-label="相机坐标系4x4补偿矩阵">
               <tbody>
                 <tr><td id="comp-m-00">—</td><td id="comp-m-01">—</td><td id="comp-m-02">—</td><td id="comp-m-03">—</td></tr>
                 <tr><td id="comp-m-10">—</td><td id="comp-m-11">—</td><td id="comp-m-12">—</td><td id="comp-m-13">—</td></tr>
