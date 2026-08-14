@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}系统设置 - AutomaticOrder{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>系统设置</h1>
+    <p class="page-subtitle">设备通讯、PLC 点位和 MES 接口配置</p>
+  </div>
+  {% if simulated_mode %}<span class="demo-label">当前为模拟设备模式</span>{% endif %}
+</section>
+
+<section class="settings-overview">
+  <div><span>运行环境</span><strong>{% if simulated_mode %}模拟调试{% else %}生产运行{% endif %}</strong></div>
+  <div><span>PLC 状态</span><strong class="text-{{ nav_plc_tone }}">{{ nav_plc_label }}</strong></div>
+  <div><span>MES 状态</span><strong class="text-{{ nav_mes_tone }}">{{ nav_mes_label }}</strong></div>
+  <div><span>注册设备</span><strong>{{ devices|length }} 台</strong></div>
+</section>
+
+<section class="settings-grid">
+  <article class="panel settings-card">
+    <div class="settings-card-icon">PLC</div>
+    <div class="settings-card-body">
+      <span class="eyebrow">CONTROL</span>
+      <h2>PLC 通讯</h2>
+      <p>连接地址、通信协议、心跳状态和 DB 点位映射。</p>
+      <ul class="settings-summary">
+        <li><span>协议</span><strong>{{ plc.protocol|default:"未配置" }}</strong></li>
+        <li><span>地址</span><strong>{{ plc.address|default:"未配置" }}</strong></li>
+        <li><span>状态</span><strong>{{ plc.get_status_display|default:"未知" }}</strong></li>
+      </ul>
+      <div class="settings-actions">
+        <a class="btn btn-sm" href="{% url 'devices:plc_config' %}">点位与连接配置</a>
+        <a class="btn btn-secondary btn-sm" href="{% url 'devices:signals' %}">信号记录</a>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel settings-card">
+    <div class="settings-card-icon mes">MES</div>
+    <div class="settings-card-body">
+      <span class="eyebrow">INTEGRATION</span>
+      <h2>MES 接口</h2>
+      <p>管理工厂 MES 地址、接口认证和通讯诊断。</p>
+      <ul class="settings-summary">
+        <li><span>服务地址</span><strong>{{ mes_base_url }}</strong></li>
+        <li><span>运行模式</span><strong>{% if simulated_mode %}模拟接口{% else %}真实接口{% endif %}</strong></li>
+        <li><span>接口状态</span><strong>{{ nav_mes_label }}</strong></li>
+      </ul>
+      <div class="settings-actions">
+        <a class="btn btn-sm" href="{% url 'mes:record_list' %}">接口监控</a>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel settings-card settings-card-wide">
+    <div class="settings-card-icon device">DEV</div>
+    <div class="settings-card-body">
+      <span class="eyebrow">DEVICES</span>
+      <h2>外围设备</h2>
+      <p>统一查看机器人、相机、扫码设备和传感器的注册状态。</p>
+      <div class="device-chip-list">
+        {% for device in devices %}
+        <span class="device-chip"><i class="dot {% if device.status == 'ONLINE' %}dot-ok{% elif device.status == 'OFFLINE' %}dot-fail{% else %}dot-muted{% endif %}"></i>{{ device.name }} · {{ device.get_status_display }}</span>
+        {% empty %}<span class="text-muted">暂无已注册设备</span>{% endfor %}
+      </div>
+      <div class="settings-actions">
+        <a class="btn btn-sm" href="{% url 'devices:status' %}">设备监控详情</a>
+      </div>
+    </div>
+  </article>
+</section>
+{% endblock %}

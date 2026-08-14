@@ -1458,10 +1458,21 @@ def _serialize_rack_location_recipe(recipe):
 
 def _serialize_3d_recipe(recipe):
     payload = _serialize_rack_location_recipe(recipe)
-    semantics = locate_semantics(
-        locate_type='GLOBAL' if int(recipe.layer_no or 0) == 0 else 'LAYER',
-        layer_index=int(recipe.layer_no or 0),
-    )
+    layer_index = int(recipe.layer_no or 0)
+    locate_type = 'GLOBAL' if layer_index == 0 else 'LAYER'
+    try:
+        semantics = locate_semantics(
+            locate_type=locate_type,
+            layer_index=layer_index,
+        )
+    except ValueError as exc:
+        # 历史数据可能包含当前定位链路不支持的层号。列表和详情接口仍需
+        # 返回这类记录，方便用户修正或删除，不能让一条异常记录拖垮整页。
+        semantics = {
+            'locate_type': locate_type,
+            'layer_index': layer_index,
+        }
+        payload['semantic_validation_error'] = str(exc)
     payload.update({
         'locate_type': semantics['locate_type'],
         'layer_index': semantics['layer_index'],
@@ -1765,7 +1776,12 @@ def api_vision_3d_recipes(request):
             if 'recipe_name' in data:
                 recipe.recipe_name = data['recipe_name']
             if 'layer_no' in data:
-                recipe.layer_no = _as_int(data['layer_no'], recipe.layer_no)
+                layer_no = _as_int(data['layer_no'], recipe.layer_no)
+                locate_semantics(
+                    locate_type='GLOBAL' if layer_no == 0 else 'LAYER',
+                    layer_index=layer_no,
+                )
+                recipe.layer_no = layer_no
             if 'position_no' in data:
                 recipe.position_no = _as_int(data['position_no'], recipe.position_no)
             if 'rack_side' in data:
@@ -1825,6 +1841,11 @@ def api_vision_3d_recipes(request):
     # POST - 创建新配方
     try:
         data = _request_data(request)
+        layer_no = _as_int(data.get('layer_no'), 1)
+        locate_semantics(
+            locate_type='GLOBAL' if layer_no == 0 else 'LAYER',
+            layer_index=layer_no,
+        )
         reference_feature_config = normalize_reference_feature_config(
             data.get('reference_feature_config') or {},
         )
@@ -1834,7 +1855,7 @@ def api_vision_3d_recipes(request):
             rack_side=str(data.get('rack_side') or RackSide.BOTH).upper(),
             rack_type=data.get('rack_type') or '',
             position_no=_as_int(data.get('position_no'), 1),
-            layer_no=_as_int(data.get('layer_no'), 1),
+            layer_no=layer_no,
             layer_count=_as_int(data.get('layer_count'), 3),
             standard_x=float(reference['center_array'][0]) if reference else _as_float(data.get('standard_x'), 0),
             standard_y=float(reference['center_array'][1]) if reference else _as_float(data.get('standard_y'), 0),
@@ -1880,7 +1901,13 @@ def api_vision_3d_recipe_detail(request, recipe_id):
             recipe.standard_z = float(reference['center_array'][2])
         for field in ('position_no', 'layer_no', 'layer_count'):
             if field in data:
-                setattr(recipe, field, _as_int(data[field], getattr(recipe, field)))
+                value = _as_int(data[field], getattr(recipe, field))
+                if field == 'layer_no':
+                    locate_semantics(
+                        locate_type='GLOBAL' if value == 0 else 'LAYER',
+                        layer_index=value,
+                    )
+                setattr(recipe, field, value)
         recipe.save()
         return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
     except Exception as exc:  # noqa: BLE001

@@ -5,26 +5,30 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}AutomaticOrder{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260814-record-time-v3">
   {% block extra_css %}{% endblock %}
 </head>
 <body>
   <header class="topbar">
     <div class="brand">AutomaticOrder</div>
-    <nav>
+    <nav class="main-nav" aria-label="主导航">
       {% with path=request.path %}
-      <a href="{% url 'core:dashboard' %}" class="{% if path == '/' %}active{% endif %}">总览</a>
-      <a href="{% url 'workflow:current' %}" class="{% if '/workflow/' in path %}active{% endif %}">流程</a>
-      <a href="{% url 'devices:status' %}" class="{% if '/devices/' in path %}active{% endif %}">设备</a>
+      <a href="{% url 'core:dashboard' %}" class="{% if path == '/' or '/workflow/' in path %}active{% endif %}">生产运行</a>
       <a href="{% url 'vision:task_list' %}" class="{% if '/vision/' in path and '/vision/recipes/' not in path %}active{% endif %}">视觉</a>
       <a href="{% url 'vision:recipe_management' %}" class="{% if '/vision/recipes/' in path %}active{% endif %}">配方</a>
-      <a href="{% url 'mes:record_list' %}" class="{% if '/mes/' in path %}active{% endif %}">MES</a>
-      <a href="{% url 'traceability:search' %}" class="{% if '/traceability/' in path %}active{% endif %}">追溯</a>
-      <a href="{% url 'alarms:alarm_list' %}" class="{% if '/alarms/' in path %}active{% endif %}">报警</a>
+      <a href="{% url 'traceability:search' %}" class="{% if '/traceability/' in path or '/mes/' in path or '/alarms/' in path %}active{% endif %}">记录查询</a>
       {% endwith %}
     </nav>
+    <div class="topbar-status" aria-label="系统状态">
+      <a class="status-chip status-{{ nav_plc_tone }}" href="{% url 'devices:status' %}"><i></i>{{ nav_plc_label }}</a>
+      <a class="status-chip status-{{ nav_mes_tone }}" href="{% url 'mes:record_list' %}"><i></i>{{ nav_mes_label }}</a>
+      <a class="alarm-chip {% if nav_alarm_count %}has-alarm{% endif %}" href="{% url 'alarms:alarm_list' %}" title="未处理报警">
+        <span aria-hidden="true">♢</span> 报警 {{ nav_alarm_count }}
+      </a>
+      <a class="settings-link {% if request.path == '/settings/' or '/devices/' in request.path %}active{% endif %}" href="{% url 'core:system_settings' %}" title="系统设置" aria-label="系统设置">⚙</a>
+    </div>
   </header>
-  <main class="page">
+  <main class="page {% block page_class %}{% endblock %}">
     {% if messages %}
     <div class="messages">
       {% for message in messages %}
