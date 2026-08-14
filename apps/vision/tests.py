@@ -3354,6 +3354,41 @@ class Rack3DLocatorApiTests(TestCase):
         self.assertEqual(update.status_code, 200)
         self.assertFalse(update.json()['data']['recipe']['enabled'])
 
+    def test_vision_3d_recipe_list_tolerates_legacy_unsupported_layer(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        legacy = Recipe.objects.create(
+            recipe_name='LEGACY-L5',
+            rack_side='BOTH',
+            position_no=1,
+            layer_no=5,
+            layer_count=5,
+            standard_x=0,
+            standard_y=0,
+            standard_z=0,
+        )
+
+        response = self.client.get(reverse('vision:api_vision_3d_recipes'))
+
+        self.assertEqual(response.status_code, 200)
+        recipes = response.json()['data']['recipes']
+        payload = next(item for item in recipes if item['id'] == legacy.id)
+        self.assertEqual(payload['layer_index'], 5)
+        self.assertIn('requires layer_index 1, 2, or 3', payload['semantic_validation_error'])
+
+    def test_vision_3d_recipe_create_rejects_unsupported_layer_without_saving(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        count_before = Recipe.objects.count()
+
+        response = self.client.post(
+            reverse('vision:api_vision_3d_recipes'),
+            data=json.dumps({'recipe_name': 'INVALID-L5', 'layer_no': 5}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['success'])
+        self.assertEqual(Recipe.objects.count(), count_before)
+
     def test_vision_3d_roi_crud(self):
         create = self.client.post(
             reverse('vision:api_vision_3d_rois'),

@@ -438,7 +438,6 @@
 <div class="recipe-page">
   <!-- 标题栏 -->
   <div class="recipe-title-bar">
-    <h1>视觉配方模块 - AutomaticOrder</h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button id="btn-create-recipe" class="btn btn-sm" style="background:var(--success);" type="button">
         ➕ 新增配方
@@ -524,8 +523,8 @@
       
       <div class="form-group">
         <label>适用层号 <span style="color:red;">*</span></label>
-        <input type="number" id="modal-3d-layer" min="1" max="10" value="1" placeholder="1" required>
-        <small>配置第几层的定位配方（1-10）</small>
+        <input type="number" id="modal-3d-layer" min="1" max="3" value="1" placeholder="1" required>
+        <small>当前定位链路支持第 1～3 层</small>
       </div>
 
       <div class="form-section">
@@ -1245,6 +1244,11 @@ function render3DRecipeCards() {
             ${recipe.enabled ? '✔ 已启用' : '✕ 已禁用'}
           </span>
         </h3>
+        ${recipe.semantic_validation_error ? `
+          <div class="alert alert-warning" style="margin:8px 0;padding:8px 10px;">
+            层号配置异常：${escape3DHtml(recipe.semantic_validation_error)}。请编辑为第 1～3 层或删除此配方。
+          </div>
+        ` : ''}
         <div class="recipe-card-row">
           <strong>标准坐标（mm）：</strong>
           X: ${recipe.standard_x}, Y: ${recipe.standard_y}, Z: ${recipe.standard_z}, Rz: ${recipe.standard_rz || 0}
@@ -1394,8 +1398,8 @@ window.submit3DModal = async function() {
     document.getElementById('modal-3d-name').focus();
     return;
   }
-  if (!layer || Number(layer) < 1) {
-    showToast('层号至少为 1', 'error');
+  if (!layer || Number(layer) < 1 || Number(layer) > 3) {
+    showToast('当前定位链路仅支持第 1～3 层', 'error');
     document.getElementById('modal-3d-layer').focus();
     return;
   }

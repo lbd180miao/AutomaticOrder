@@ -1,6 +1,9 @@
 
+from datetime import timedelta
+
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.production.models import Product, ProductionBatch, Rack, RackRecipe
 
@@ -47,3 +50,30 @@ class TraceabilityViewTests(TestCase):
         self.assertContains(response, '流程事件')
         self.assertContains(response, '3D 料架定位')
         self.assertContains(response, 'MES 通讯记录')
+
+    def test_time_range_filters_recent_records(self):
+        old_product = Product.objects.create(product_code='TRACE-OLD-PRODUCT')
+        Product.objects.filter(pk=old_product.pk).update(
+            created_at=timezone.now() - timedelta(days=40),
+        )
+        today = timezone.localdate().isoformat()
+
+        response = self.client.get(reverse('traceability:search'), {
+            'start_date': today,
+            'end_date': today,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.product.product_code)
+        self.assertNotContains(response, old_product.product_code)
+        self.assertEqual(response.context['record_stats']['total_products'], 1)
+        self.assertTrue(response.context['time_filter_active'])
+
+    def test_invalid_time_range_shows_message(self):
+        response = self.client.get(reverse('traceability:search'), {
+            'start_date': '2026-08-14',
+            'end_date': '2026-08-01',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '开始日期不能晚于结束日期')
