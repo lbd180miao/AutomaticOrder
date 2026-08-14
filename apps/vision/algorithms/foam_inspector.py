@@ -27,6 +27,9 @@ from django.db import models
 from . import image_io
 
 
+FOAM_MASK_ALGORITHM_VERSION = 'neutral-anchor-v2'
+
+
 class StandardMaskConfigurationError(ValueError):
     """Raised when a configured foam template cannot be used safely."""
 
@@ -51,67 +54,121 @@ def generate_foam_mask(roi_image, cfg=None):
         roi_img = cv2.cvtColor(cv2.merge([l_channel, a_channel, b_channel]), cv2.COLOR_LAB2BGR)
 
     hsv = cv2.cvtColor(roi_img, cv2.COLOR_BGR2HSV)
-    gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
-    lab = cv2.cvtColor(roi_img, cv2.COLOR_BGR2LAB)
+    saturation = hsv[:, :, 1]
+    value = hsv[:, :, 2]
+    roi_height, roi_width = value.shape
+    roi_area = max(roi_height * roi_width, 1)
 
-    min_v = int(cfg.get('white_min_v', 150))
-    max_s = int(cfg.get('white_max_s', 100))
-    min_l = int(cfg.get('white_min_l', 160))
-    high_threshold = int(cfg.get('gray_high_threshold', 170))
+    def odd_kernel_size(requested):
+        min_dimension = min(roi_height, roi_width)
+        if min_dimension < 3:
+            return 1
+        size = max(3, min(int(requested), min_dimension))
+        return size if size % 2 == 1 else size - 1
 
-    mask_hsv = cv2.inRange(hsv, (0, 0, min_v), (180, max_s, 255))
-    mask_lab = cv2.inRange(lab[:, :, 0], min_l, 255)
-    _, mask_otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    _, mask_fixed = cv2.threshold(gray, high_threshold, 255, cv2.THRESH_BINARY)
-    min_dimension = min(gray.shape[:2])
-    block_size = max(3, int(cfg.get('adaptive_block_size', 21)))
-    if block_size % 2 == 0:
-        block_size += 1
-    max_block_size = min_dimension if min_dimension % 2 == 1 else min_dimension - 1
-    block_size = max(3, min(block_size, max_block_size))
-    if min_dimension >= 3:
-        mask_adaptive = cv2.adaptiveThreshold(
-            gray,
-            255,
-            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY,
-            blockSize=block_size,
-            C=int(cfg.get('adaptive_c', -5)),
+    # 先使用“非过曝的中性亮色”寻找泡棉主体。旧逻辑把 LAB、OTSU、
+    # 固定阈值和自适应阈值全部做 OR，会把过曝背景直接扩成整个 ROI。
+    seed_max_s = int(cfg.get('foam_seed_max_s', 70))
+    seed_min_v = int(cfg.get('foam_seed_min_v', 110))
+    seed_max_v = int(cfg.get('foam_seed_max_v', 248))
+    seed = cv2.inRange(
+        hsv,
+        (0, 0, max(0, seed_min_v)),
+        (180, min(255, seed_max_s), min(254, seed_max_v)),
+    )
+
+    seed_open_size = odd_kernel_size(cfg.get('foam_seed_open_size', 7))
+    seed_close_size = odd_kernel_size(cfg.get('foam_seed_close_size', 21))
+    if seed_open_size > 1:
+        seed = cv2.morphologyEx(
+            seed,
+            cv2.MORPH_OPEN,
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (seed_open_size, seed_open_size)),
         )
-    else:
-        mask_adaptive = mask_fixed.copy()
+    if seed_close_size > 1:
+        seed = cv2.morphologyEx(
+            seed,
+            cv2.MORPH_CLOSE,
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (seed_close_size, seed_close_size)),
+            iterations=2,
+        )
 
-    # 安全限制：OTSU和自适应阈值容易在全黑背景中提取噪点/反光，
-    # 必须限制它们只在有一定绝对亮度的区域生效
-    min_foam_gray = int(cfg.get('min_foam_gray', 110))
-    _, mask_min_gray = cv2.threshold(gray, min_foam_gray, 255, cv2.THRESH_BINARY)
-    mask_otsu = cv2.bitwise_and(mask_otsu, mask_min_gray)
-    mask_adaptive = cv2.bitwise_and(mask_adaptive, mask_min_gray)
+    component_count, seed_labels, seed_stats, seed_centroids = cv2.connectedComponentsWithStats(seed)
+    min_anchor_area = max(16, int(round(roi_area * float(cfg.get('foam_anchor_min_area_ratio', 0.01)))))
+    min_anchor_width = max(3, int(round(roi_width * float(cfg.get('foam_anchor_min_width_ratio', 0.20)))))
+    min_anchor_y = roi_height * float(cfg.get('foam_anchor_min_centroid_y_ratio', 0.15))
+    anchors = [
+        index for index in range(1, component_count)
+        if seed_stats[index, cv2.CC_STAT_AREA] >= min_anchor_area
+        and seed_stats[index, cv2.CC_STAT_WIDTH] >= min_anchor_width
+        and seed_centroids[index][1] >= min_anchor_y
+    ]
+    if not anchors:
+        anchors = [
+            index for index in range(1, component_count)
+            if seed_stats[index, cv2.CC_STAT_AREA] >= min_anchor_area
+        ]
 
-    mask = cv2.bitwise_or(mask_hsv, mask_lab)
-    mask = cv2.bitwise_or(mask, mask_otsu)
-    mask = cv2.bitwise_or(mask, mask_fixed)
-    mask = cv2.bitwise_or(mask, mask_adaptive)
+    anchor_index = max(
+        anchors,
+        key=lambda index: seed_stats[index, cv2.CC_STAT_AREA],
+        default=None,
+    )
 
-    # Broader neutral gray/white candidate for shadowed foam.
-    # 提高阈值，防止把黑色保险杠的高光反光（低饱和度，中等亮度）误认为阴影中的泡棉
-    foam_max_s = int(cfg.get('foam_max_s', 70))   # 泡棉几乎没有颜色，饱和度应极低（原135太宽）
-    foam_min_v = int(cfg.get('foam_min_v', 120))  # 亮度门槛提高（原85太容易把暗灰当白）
-    foam_min_l = int(cfg.get('foam_min_l', 130))  # LAB亮度提高（原105太低）
-    neutral_mask = cv2.inRange(hsv[:, :, 1], 0, foam_max_s)
-    value_mask = cv2.inRange(hsv[:, :, 2], foam_min_v, 255)
-    lightness_mask = cv2.inRange(lab[:, :, 0], foam_min_l, 255)
-    foam_candidate_mask = cv2.bitwise_and(neutral_mask, cv2.bitwise_or(value_mask, lightness_mask))
-    mask = cv2.bitwise_or(mask, foam_candidate_mask)
+    # 在主体所在的水平带内，用稍宽松阈值补回泡棉的过曝高光部分。
+    # 这样不会把主体上方同样为白色的车间背景一起染红。
+    foam_max_s = int(cfg.get('foam_max_s', 80))
+    foam_min_v = int(cfg.get('foam_min_v', 140))
+    candidate = cv2.inRange(
+        hsv,
+        (0, 0, max(0, foam_min_v)),
+        (180, min(255, foam_max_s), 255),
+    )
 
-    green_mask = cv2.inRange(hsv, (35, 40, 40), (100, 255, 255))
-    mask = cv2.bitwise_and(mask, cv2.bitwise_not(green_mask))
+    anchor_mask = None
+    if anchor_index is not None:
+        anchor_mask = (seed_labels == anchor_index).astype(np.uint8) * 255
+        anchor_x, anchor_y, anchor_w, anchor_h = seed_stats[anchor_index, :4]
+        pad_y = max(2, int(round(roi_height * float(cfg.get('foam_anchor_band_padding_ratio', 0.02)))))
+        search_band = np.zeros_like(candidate)
+        band_top = max(0, int(anchor_y) - pad_y)
+        band_bottom = min(roi_height, int(anchor_y + anchor_h) + max(2, pad_y // 3))
+        search_band[band_top:band_bottom, :] = 255
+        candidate = cv2.bitwise_and(candidate, search_band)
 
-    kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
-    kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close, iterations=3)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_open, iterations=2)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close, iterations=1)
+    close_size = odd_kernel_size(cfg.get('foam_close_size', 15))
+    open_size = odd_kernel_size(cfg.get('foam_open_size', 5))
+    if close_size > 1:
+        candidate = cv2.morphologyEx(
+            candidate,
+            cv2.MORPH_CLOSE,
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (close_size, close_size)),
+            iterations=2,
+        )
+    if open_size > 1:
+        candidate = cv2.morphologyEx(
+            candidate,
+            cv2.MORPH_OPEN,
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (open_size, open_size)),
+        )
+
+    if anchor_mask is None:
+        # 没有可靠主体时保留最大亮色连通域，让纯白色的测试样件仍可被识别；
+        # 全 ROI 过曝会在模板示教阶段被饱和面积保护拒绝。
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(candidate)
+        if count <= 1:
+            return candidate
+        largest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+        return (labels == largest).astype(np.uint8) * 255
+
+    # 只保留与可靠泡棉主体相交的连通域，滤掉同一水平带内的孤立反光。
+    count, labels, _, _ = cv2.connectedComponentsWithStats(candidate)
+    mask = np.zeros_like(candidate)
+    anchor_pixels = anchor_mask > 0
+    for index in range(1, count):
+        component = labels == index
+        if np.any(component & anchor_pixels):
+            mask[component] = 255
     return mask
 
 
@@ -139,7 +196,7 @@ def compute_coverage_ratio(detected_mask, standard_mask=None, roi_area=None):
     detected_pixels = np.count_nonzero(detected_mask)
     if standard_mask is not None:
         standard_pixels = np.count_nonzero(standard_mask)
-        return 0.0 if standard_pixels == 0 else detected_pixels / standard_pixels
+        return 0.0 if standard_pixels == 0 else min(detected_pixels / standard_pixels, 1.0)
     if not roi_area:
         return 0.0
     return detected_pixels / roi_area
@@ -255,7 +312,7 @@ def _load_standard_mask_for_side(cfg, side, expected_shape):
         direct_mask = cfg.get('standard_mask')
         mask_source = direct_mask if direct_mask is not None else cfg.get('standard_mask_path')
 
-    if mask_source is None:
+    if mask_source is None or (isinstance(mask_source, str) and not mask_source.strip()):
         return None
     if isinstance(mask_source, np.ndarray):
         mask = mask_source
@@ -631,9 +688,12 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         roi_area = max(roi_width * roi_height, 1)
 
     coverage_threshold = float(cfg.get('coverage_threshold', 0.08))
-    iou_threshold = float(cfg.get('iou_threshold', cfg.get('min_iou', 0.70)))
     max_offset_px = float(cfg.get('max_offset_px', 30))
     max_offset_mm = float(cfg.get('max_offset_mm', 0) or 0)
+    max_offset_x_px = float(cfg.get('max_offset_x_px', max_offset_px))
+    max_offset_y_px = float(cfg.get('max_offset_y_px', max_offset_px))
+    max_offset_x_mm = float(cfg.get('max_offset_x_mm', max_offset_mm) or 0)
+    max_offset_y_mm = float(cfg.get('max_offset_y_mm', max_offset_mm) or 0)
 
     if roi_width < 5 or roi_height < 5:
         return _empty_side_result(roi, reason='roi_too_small', coverage_threshold=coverage_threshold,
@@ -669,6 +729,9 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
 
     detected_pixels = int(np.count_nonzero(mask))
     standard_mask = _load_standard_mask_for_side(cfg, side, (roi_height, roi_width))
+    if standard_mask is None and cfg.get('require_standard_template'):
+        reason = cfg.get('standard_template_error') or f'{side} standard template is missing'
+        raise StandardMaskConfigurationError(reason)
     
     has_real_standard_mask = standard_mask is not None
     # 核心业务逻辑："ROI即标准模板"。如果未配置真实的掩膜，则认为整个ROI就是标准的泡棉形状
@@ -680,7 +743,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         
     standard_pixels = int(np.count_nonzero(standard_mask)) if standard_mask is not None else None
     coverage_ratio = round(compute_coverage_ratio(mask, standard_mask, roi_area), 4)
-    iou = round(compute_iou(mask, standard_mask), 4) if standard_mask is not None else None
+    iou = round(compute_iou(mask, standard_mask), 4) if has_real_standard_mask else None
     centroid = compute_mask_centroid(mask)
     box = _largest_mask_box(mask, (x1, y1))
 
@@ -712,7 +775,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
     )
 
     if centroid is None or detected_pixels == 0:
-        return _empty_side_result(
+        result = _empty_side_result(
             roi,
             reason='no_foam_detected',
             coverage_threshold=coverage_threshold,
@@ -726,6 +789,9 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
             },
             polygon_points=polygon_points,
         )
+        result['mask'] = mask
+        result['standard_mask'] = standard_mask if has_real_standard_mask else None
+        return result
 
     if coverage_ratio < coverage_threshold:
         result = _empty_side_result(
@@ -746,6 +812,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         if offset:
             result.update(offset)
         result['mask'] = mask
+        result['standard_mask'] = standard_mask if has_real_standard_mask else None
         return result
 
     offset_distance_px = offset['offset_distance_px'] if offset else 0.0
@@ -756,25 +823,26 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         and max_offset_mm > 0
     )
     if has_mm_calibration:
-        is_aligned = bool(offset_distance_mm <= max_offset_mm)
+        is_aligned = bool(
+            abs(offset['offset_x_mm']) <= max_offset_x_mm
+            and abs(offset['offset_y_mm']) <= max_offset_y_mm
+        )
         alignment_metric = 'mm'
     else:
-        is_aligned = bool(offset_distance_px <= max_offset_px)
+        is_aligned = bool(
+            abs(offset['offset_x_px']) <= max_offset_x_px
+            and abs(offset['offset_y_px']) <= max_offset_y_px
+        )
         alignment_metric = 'px'
         
     score = round(float(max(0.0, min(1.0, coverage_ratio / max(coverage_threshold, 0.01)))), 3)
-    if iou is not None:
-        iou = float(iou)
-        score = round(float(min(score, iou)), 3)
-        if iou < iou_threshold:
-            is_aligned = False
-
     result = {
         'roi': roi,
         'original_roi': roi,  # 矩形包围盒像素坐标 (x1,y1,x2,y2)
         'polygon_points': polygon_points,  # 全图比例坐标顶点列表 [[xr,yr],...], None 表示矩形ROI
         'box': box,
         'mask': mask,
+        'standard_mask': standard_mask if has_real_standard_mask else None,
         'is_present': True,
         'is_aligned': is_aligned,
         'coverage_ratio': float(coverage_ratio),
@@ -783,9 +851,12 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         'detected_pixels': int(detected_pixels),
         'standard_pixels': int(standard_pixels) if standard_pixels is not None else None,
         'iou': iou,
-        'iou_threshold': float(iou_threshold) if iou is not None else None,
         'max_offset_px': float(max_offset_px),
         'max_offset_mm': float(max_offset_mm) if has_mm_calibration else None,
+        'max_offset_x_px': float(max_offset_x_px),
+        'max_offset_y_px': float(max_offset_y_px),
+        'max_offset_x_mm': float(max_offset_x_mm) if has_mm_calibration else None,
+        'max_offset_y_mm': float(max_offset_y_mm) if has_mm_calibration else None,
         'alignment_metric': alignment_metric,
         'score': score,
         'coverage_threshold': float(coverage_threshold),
@@ -1014,6 +1085,7 @@ class FoamInspector:
                 annotated = image_io.annotate_foam(scene, roi, foam, result)
                 for details in side_details.values():
                     details.pop('mask', None)
+                    details.pop('standard_mask', None)
                 
                 result_path, _, _ = image_io.save_image(
                     annotated,
@@ -1034,7 +1106,7 @@ class FoamInspector:
                     'result_data': {
                         'algorithm': 'camera_foam_inspector',
                         'foam_target': 'bumper',
-                        'decision_rule': 'coverage_threshold_70_percent',
+                        'decision_rule': 'standard_template_coverage_and_xy_offset',
                         'camera_image_path': camera_image_path,
                         'defect_type': result['defect_type'],
                         'roi': roi,

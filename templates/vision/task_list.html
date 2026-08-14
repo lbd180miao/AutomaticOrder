@@ -7,12 +7,12 @@
   <div class="vision-module-card">
     <div>
       <h2>&#128247; 泡棉检测（2D 相机）</h2>
-      <p>2D 工业相机俧诶拍摄保险杆表面白色泡棉，判定泡棉是否存在；存在则对齐、起翘均自动 OK。</p>
+      <p>2D 工业相机拍摄保险杆表面白色泡棉，在固定搜索 ROI 内与合格标准模板比较覆盖率和 X/Y 偏移。</p>
       <ol>
         <li>进入工作台，点击「刷新预览」确认画面</li>
-        <li>首次/换型时：框选左、右泡棉 ROI 并保存标定</li>
+        <li>首次/换型时：保存左右固定搜索 ROI，并用同一张合格样件示教标准模板</li>
         <li>输入当前 POS 号，点击「拍照检测」</li>
-        <li>OK 则进入下一循环；NG 则人工核查漏贴</li>
+        <li>覆盖率和偏移均合格则进入下一循环；NG 则人工核查</li>
       </ol>
     </div>
     <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-primary">进入泡棉检测工作台</a>

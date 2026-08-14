@@ -8,8 +8,10 @@ DEFAULT_THRESHOLD_CONFIG = {
     'maxOffsetX': 30,
     'maxOffsetY': 30,
     'maxOffsetMm': 2.0,
+    'maxOffsetXMm': 2.0,
+    'maxOffsetYMm': 2.0,
     'minScore': 0.8,
-    'minIoU': 0.70,
+    'requireStandardTemplate': True,
     # mm_per_pixel 标定系数（0 表示未标定，不输出 mm 偏移）
     'mmPerPixelX': 0,
     'mmPerPixelY': 0,
@@ -77,6 +79,7 @@ def get_active_foam_2d_recipe_by_pos(pos):
 
 
 def serialize_recipe(recipe):
+    template_status = get_foam_standard_template_status(recipe)
     return {
         'id': recipe.id,
         'name': recipe.name,
@@ -91,6 +94,13 @@ def serialize_recipe(recipe):
         'roi_config': recipe.roi_config or {},
         'threshold_config': recipe.threshold_config or {},
         'algorithm_config': recipe.algorithm_config or {},
+        'standard_template': recipe.standard_template_config or {},
+        'standard_template_status': template_status,
+        'standard_template_version': recipe.standard_template_version or '',
+        'standard_template_built_at': (
+            recipe.standard_template_built_at.isoformat()
+            if recipe.standard_template_built_at else ''
+        ),
         'is_active': recipe.is_active,
         'remark': recipe.remark or '',
         'created_at': recipe.created_at.isoformat() if recipe.created_at else '',
@@ -180,6 +190,92 @@ def _threshold_value(thresholds, keys, default):
     return default
 
 
+def has_complete_foam_template_side_metadata(side_data):
+    """A usable template side must include mask area and ROI-local position data."""
+    if not isinstance(side_data, dict):
+        return False
+    bounding_box = side_data.get('bounding_box')
+    return bool(
+        side_data.get('path')
+        and int(side_data.get('pixels') or side_data.get('pixel_count') or 0) > 0
+        and int(side_data.get('search_area') or 0) > 0
+        and side_data.get('centroid_x') is not None
+        and side_data.get('centroid_y') is not None
+        and isinstance(bounding_box, dict)
+        and int(bounding_box.get('width') or 0) > 0
+        and int(bounding_box.get('height') or 0) > 0
+    )
+
+
+def get_foam_standard_template_status(recipe):
+    """Return whether a recipe has a usable left/right template for its current ROI."""
+    template = recipe.standard_template_config or {}
+    thresholds = recipe.threshold_config or {}
+    sides = template.get('sides') if isinstance(template.get('sides'), dict) else {}
+    legacy_paths = _threshold_value(
+        thresholds, ('standard_mask_paths', 'standardMaskPaths'), {}
+    )
+    legacy_paths = legacy_paths if isinstance(legacy_paths, dict) else {}
+    paths = {
+        side: (sides.get(side) or {}).get('path') or legacy_paths.get(side, '')
+        for side in ('left', 'right')
+    }
+
+    reason = ''
+    roi_matches = True
+    resolution_matches = True
+    if template:
+        saved_roi = template.get('roi_config')
+        if saved_roi is not None and saved_roi != (recipe.roi_config or {}):
+            roi_matches = False
+            reason = 'ROI已修改，需要重新示教标准模板'
+        saved_width = int(template.get('image_width') or 0)
+        saved_height = int(template.get('image_height') or 0)
+        if saved_width and saved_height and (
+            saved_width != int(recipe.image_width) or saved_height != int(recipe.image_height)
+        ):
+            resolution_matches = False
+            reason = '配方图像分辨率已修改，需要重新示教标准模板'
+
+    missing_sides = [side for side, path in paths.items() if not path]
+    incomplete_sides = [
+        side for side, path in paths.items()
+        if path and not has_complete_foam_template_side_metadata(sides.get(side))
+    ]
+    if (missing_sides or incomplete_sides) and not reason:
+        labels = {'left': '左侧', 'right': '右侧'}
+        if missing_sides and not incomplete_sides:
+            reason = '缺少' + '、'.join(labels[side] for side in missing_sides) + '标准模板'
+        elif incomplete_sides and not missing_sides:
+            reason = (
+                '、'.join(labels[side] for side in incomplete_sides)
+                + '旧模板缺少泡棉位置数据，需要重新示教'
+            )
+        else:
+            reason = (
+                '、'.join(labels[side] for side in incomplete_sides)
+                + '旧模板缺少泡棉位置数据；'
+                + '、'.join(labels[side] for side in missing_sides)
+                + '标准模板未示教，请重新示教左右模板'
+            )
+
+    ready = not missing_sides and not incomplete_sides and roi_matches and resolution_matches
+    return {
+        'ready': ready,
+        'reason': reason,
+        'paths': paths,
+        'roi_matches': roi_matches,
+        'resolution_matches': resolution_matches,
+        'version': recipe.standard_template_version or template.get('version', ''),
+        'built_at': (
+            recipe.standard_template_built_at.isoformat()
+            if recipe.standard_template_built_at else template.get('built_at', '')
+        ),
+        'sides': sides,
+        'incomplete_sides': incomplete_sides,
+    }
+
+
 def build_foam_inspection_config(recipe):
     roi_config = recipe.roi_config or {}
     thresholds = recipe.threshold_config or {}
@@ -209,8 +305,19 @@ def build_foam_inspection_config(recipe):
             f'(raw={right_roi_raw})。请重新标定右侧泡棉区域后保存配方。'
         )
 
-    max_offset_mm = float(
-        _threshold_value(thresholds, ('max_offset_mm', 'maxOffsetMm'), 2.0)
+    max_offset_mm = float(_threshold_value(thresholds, ('max_offset_mm', 'maxOffsetMm'), 2.0))
+    max_offset_x_mm = float(
+        _threshold_value(thresholds, ('max_offset_x_mm', 'maxOffsetXMm'), max_offset_mm)
+    )
+    max_offset_y_mm = float(
+        _threshold_value(thresholds, ('max_offset_y_mm', 'maxOffsetYMm'), max_offset_mm)
+    )
+    legacy_max_offset_px = float(_threshold_value(thresholds, ('max_offset_px',), 30))
+    max_offset_x_px = float(
+        _threshold_value(thresholds, ('max_offset_x_px', 'maxOffsetX'), legacy_max_offset_px)
+    )
+    max_offset_y_px = float(
+        _threshold_value(thresholds, ('max_offset_y_px', 'maxOffsetY'), legacy_max_offset_px)
     )
 
     # 优先读取 pixels_per_mm 配置，并换算为底层的 mm_per_pixel；兼容旧配置
@@ -230,9 +337,8 @@ def build_foam_inspection_config(recipe):
     standard_foam_area_ratio = float(
         _threshold_value(thresholds, ('standard_foam_area_ratio', 'standardFoamAreaRatio'), 0)
     )
-    standard_mask_paths = _threshold_value(
-        thresholds, ('standard_mask_paths', 'standardMaskPaths'), {}
-    )
+    template_status = get_foam_standard_template_status(recipe)
+    standard_mask_paths = template_status['paths']
     
     pos_str = str(recipe.pos)
     return {
@@ -254,13 +360,25 @@ def build_foam_inspection_config(recipe):
         'score_threshold': float(
             _threshold_value(thresholds, ('score_threshold', 'minScore'), 0.8)
         ),
-        'iou_threshold': float(
-            _threshold_value(thresholds, ('iou_threshold', 'minIoU'), 0.70)
-        ),
         'max_offset_mm': max_offset_mm,
+        'max_offset_x_mm': max_offset_x_mm,
+        'max_offset_y_mm': max_offset_y_mm,
+        'max_offset_px': max(max_offset_x_px, max_offset_y_px),
+        'max_offset_x_px': max_offset_x_px,
+        'max_offset_y_px': max_offset_y_px,
         'mm_per_pixel_x': mm_per_pixel_x,
         'mm_per_pixel_y': mm_per_pixel_y,
         'standard_foam_area_ratio': standard_foam_area_ratio,
-        'standard_mask_paths': standard_mask_paths if isinstance(standard_mask_paths, dict) else {},
+        # 模板必须成套使用；任一侧不完整时不要加载遗留的单侧掩膜。
+        'standard_mask_paths': (
+            standard_mask_paths
+            if template_status['ready'] and isinstance(standard_mask_paths, dict)
+            else {}
+        ),
+        'require_standard_template': bool(
+            _threshold_value(thresholds, ('require_standard_template', 'requireStandardTemplate'), True)
+        ),
+        'standard_template_ready': template_status['ready'],
+        'standard_template_error': template_status['reason'],
     }
 

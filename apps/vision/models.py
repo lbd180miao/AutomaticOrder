@@ -338,6 +338,13 @@ class VisionRecipe(TimeStampedModel):
     roi_config = models.JSONField(default=dict, blank=True)
     threshold_config = models.JSONField(default=dict, blank=True)
     algorithm_config = models.JSONField(default=dict, blank=True)
+    standard_template_config = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='2D泡棉标准模板快照，包含左右掩膜、ROI、分辨率和特征摘要',
+    )
+    standard_template_built_at = models.DateTimeField(null=True, blank=True)
+    standard_template_version = models.CharField(max_length=64, blank=True, default='')
     is_active = models.BooleanField(default=True)
     remark = models.TextField(blank=True, null=True)
 
