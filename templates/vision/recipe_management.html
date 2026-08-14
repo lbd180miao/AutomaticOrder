@@ -151,6 +151,36 @@
   display: flex;
   gap: 8px;
 }
+.foam-template-summary {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.foam-template-summary.ready {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.foam-template-summary.missing {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+.foam-template-title {
+  font-weight: 800;
+  color: #334155;
+  margin-bottom: 4px;
+}
+.foam-template-side {
+  color: #475569;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.foam-template-meta {
+  color: #64748b;
+  margin-top: 4px;
+}
 
 /* 空状态 */
 .recipe-empty {
@@ -691,6 +721,16 @@
         </div>
       </div>
 
+      <!-- 标准模板位置（由检测工作台示教并持久化到配方） -->
+      <div class="form-section">
+        <div class="form-section-title">🎯 泡棉标准模板位置（只读同步）</div>
+        <div id="edit-standard-template-data"></div>
+        <div class="rack3d-readonly-note">
+          保存内容包括左右泡棉掩膜、标准面积、ROI 内质心和边界框。模板由泡棉检测工作台示教或从检测结果保存；编辑 ROI 和阈值不会覆盖模板数据，ROI 发生变化时模板会自动标记为需要重新示教。
+        </div>
+        <a id="edit-standard-template-workbench" href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-secondary btn-sm" style="margin-top:10px;text-decoration:none;">前往工作台示教模板</a>
+      </div>
+
       <!-- 工作台提示 -->
       <div style="margin-top:8px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;font-size:12px;color:#0369a1;">
         💡 <strong>提示：</strong>如需在相机图像上直接框选ROI，请使用
@@ -818,6 +858,88 @@ function roiLabel(r) {
   return `✅ x=${r.x}, y=${r.y}, w=${r.width}, h=${r.height}`;
 }
 
+function escape2DHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function finiteNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function thresholdValue(config, keys, fallback) {
+  for (const key of keys) {
+    if (config?.[key] !== undefined && config[key] !== null) return finiteNumber(config[key], fallback);
+  }
+  return fallback;
+}
+
+function roiPixelGeometry(roi, recipe) {
+  if (!roi || typeof roi !== 'object') return {x:0, y:0, width:0, height:0};
+  const imageWidth = Math.max(1, finiteNumber(recipe?.image_width, 1));
+  const imageHeight = Math.max(1, finiteNumber(recipe?.image_height, 1));
+  if (roi.type === 'polygon' && Array.isArray(roi.points) && roi.points.length >= 3) {
+    const xs = roi.points.map(point => finiteNumber(point?.[0]) * imageWidth);
+    const ys = roi.points.map(point => finiteNumber(point?.[1]) * imageHeight);
+    const x = Math.round(Math.min(...xs));
+    const y = Math.round(Math.min(...ys));
+    return {
+      x, y,
+      width: Math.max(0, Math.round(Math.max(...xs)) - x),
+      height: Math.max(0, Math.round(Math.max(...ys)) - y),
+    };
+  }
+  if (['x1r','y1r','x2r','y2r'].every(key => roi[key] !== undefined)) {
+    const x = Math.round(finiteNumber(roi.x1r) * imageWidth);
+    const y = Math.round(finiteNumber(roi.y1r) * imageHeight);
+    return {
+      x, y,
+      width: Math.max(0, Math.round(finiteNumber(roi.x2r) * imageWidth) - x),
+      height: Math.max(0, Math.round(finiteNumber(roi.y2r) * imageHeight) - y),
+    };
+  }
+  return {
+    x: finiteNumber(roi.x),
+    y: finiteNumber(roi.y),
+    width: finiteNumber(roi.width),
+    height: finiteNumber(roi.height),
+  };
+}
+
+function editedRoiOrOriginal(original, edited, recipe) {
+  const current = roiPixelGeometry(original, recipe);
+  const unchanged = ['x','y','width','height'].every(key => finiteNumber(edited[key]) === finiteNumber(current[key]));
+  return unchanged ? JSON.parse(JSON.stringify(original || {})) : edited;
+}
+
+function foamTemplateSideHtml(sideName, sideData) {
+  if (!sideData || !finiteNumber(sideData.pixels)) {
+    return `<div class="foam-template-side">${sideName}：未保存完整位置数据</div>`;
+  }
+  const box = sideData.bounding_box || {};
+  return `<div class="foam-template-side">${sideName}：面积 ${finiteNumber(sideData.pixels)}px · 中心 (${finiteNumber(sideData.centroid_x).toFixed(1)}, ${finiteNumber(sideData.centroid_y).toFixed(1)}) · 边界框 [${finiteNumber(box.x)}, ${finiteNumber(box.y)}, ${finiteNumber(box.width)}, ${finiteNumber(box.height)}]</div>`;
+}
+
+function foamTemplateSummaryHtml(recipe) {
+  const status = recipe.standard_template_status || {};
+  const sides = status.sides || recipe.standard_template?.sides || {};
+  if (!status.ready) {
+    return `<div class="foam-template-summary missing"><div class="foam-template-title">⚠️ 标准模板未完成</div><div>${escape2DHtml(status.reason || '请使用合格样件重新示教左右模板')}</div></div>`;
+  }
+  return `
+    <div class="foam-template-summary ready">
+      <div class="foam-template-title">✅ 标准模板位置已保存到配方</div>
+      ${foamTemplateSideHtml('左侧', sides.left)}
+      ${foamTemplateSideHtml('右侧', sides.right)}
+      <div class="foam-template-meta">版本 ${escape2DHtml(status.version || recipe.standard_template_version || '—')} · 示教时间 ${escape2DHtml(status.built_at || recipe.standard_template_built_at || '—')}</div>
+    </div>`;
+}
+
 // ── 渲染配方卡片 ───────────────────────────────────
 function renderRecipeCards() {
   document.getElementById('recipe-current-pos').textContent = currentPOS();
@@ -857,9 +979,10 @@ function renderRecipeCards() {
           右ROI: ${hasRightRoi ? roiLabel(right) : '⚠️ 未配置'}
         </div>
         <div class="recipe-card-row">
-          阈值: 覆盖率 ≥ ${thresh.coverage_threshold || 0.08}, 得分 ≥ ${thresh.score_threshold || 0.8}
+          阈值: 覆盖率 ≥ ${thresholdValue(thresh, ['coverage_threshold','minCoverage'], 0.75)}, 得分 ≥ ${thresholdValue(thresh, ['score_threshold','minScore'], 0.8)}
           <a href="/vision/foam-inspector/?recipe_id=${recipe.id}" style="margin-left: 10px; color: var(--primary); text-decoration: none; font-size: 12px;">🔬 进入工作台 ➔</a>
         </div>
+        ${foamTemplateSummaryHtml(recipe)}
         <div class="recipe-card-actions">
           <button class="btn btn-sm" onclick="openEditModal(${recipe.id})">✏️ 编辑</button>
           <button class="btn btn-secondary btn-sm" onclick="copyRecipe(${recipe.id})">复制</button>
@@ -886,25 +1009,29 @@ window.openEditModal = function(recipeId) {
   const left = roi.leftFoamROI || {};
   const right = roi.rightFoamROI || {};
   const thresh = recipe.threshold_config || {};
+  const leftPixels = roiPixelGeometry(left, recipe);
+  const rightPixels = roiPixelGeometry(right, recipe);
   
   document.getElementById('edit-modal-title').textContent = `编辑配方：${recipe.name}`;
   document.getElementById('edit-modal-id').value = recipe.id;
   document.getElementById('edit-modal-pos').textContent = `POS ${recipe.pos}（第${recipe.pos + 1}层）`;
   
   // 左ROI
-  document.getElementById('edit-left-x').value = left.x || 0;
-  document.getElementById('edit-left-y').value = left.y || 0;
-  document.getElementById('edit-left-w').value = left.width || 0;
-  document.getElementById('edit-left-h').value = left.height || 0;
+  document.getElementById('edit-left-x').value = leftPixels.x;
+  document.getElementById('edit-left-y').value = leftPixels.y;
+  document.getElementById('edit-left-w').value = leftPixels.width;
+  document.getElementById('edit-left-h').value = leftPixels.height;
   // 右ROI
-  document.getElementById('edit-right-x').value = right.x || 0;
-  document.getElementById('edit-right-y').value = right.y || 0;
-  document.getElementById('edit-right-w').value = right.width || 0;
-  document.getElementById('edit-right-h').value = right.height || 0;
+  document.getElementById('edit-right-x').value = rightPixels.x;
+  document.getElementById('edit-right-y').value = rightPixels.y;
+  document.getElementById('edit-right-w').value = rightPixels.width;
+  document.getElementById('edit-right-h').value = rightPixels.height;
   // 阈值
-  document.getElementById('edit-thresh-cov').value = thresh.coverage_threshold || 0.08;
-  document.getElementById('edit-thresh-score').value = thresh.score_threshold || 0.8;
-  document.getElementById('edit-thresh-x').value = thresh.max_offset_px || 30;
+  document.getElementById('edit-thresh-cov').value = thresholdValue(thresh, ['coverage_threshold','minCoverage'], 0.75);
+  document.getElementById('edit-thresh-score').value = thresholdValue(thresh, ['score_threshold','minScore'], 0.8);
+  document.getElementById('edit-thresh-x').value = thresholdValue(thresh, ['max_offset_px','maxOffsetX'], 30);
+  document.getElementById('edit-standard-template-data').innerHTML = foamTemplateSummaryHtml(recipe);
+  document.getElementById('edit-standard-template-workbench').href = `/vision/foam-inspector/?recipe_id=${recipe.id}`;
   
   document.getElementById('recipe-edit-modal').style.display = 'flex';
 };
@@ -923,22 +1050,40 @@ window.submitEditModal = async function() {
     return;
   }
   
-  const leftFoamROI = {
+  const editedLeftFoamROI = {
     x: Number(document.getElementById('edit-left-x').value),
     y: Number(document.getElementById('edit-left-y').value),
     width: Number(document.getElementById('edit-left-w').value),
     height: Number(document.getElementById('edit-left-h').value),
   };
-  const rightFoamROI = {
+  const editedRightFoamROI = {
     x: Number(document.getElementById('edit-right-x').value),
     y: Number(document.getElementById('edit-right-y').value),
     width: Number(document.getElementById('edit-right-w').value),
     height: Number(document.getElementById('edit-right-h').value),
   };
+  const leftFoamROI = editedRoiOrOriginal(
+    recipe.roi_config?.leftFoamROI,
+    editedLeftFoamROI,
+    recipe,
+  );
+  const rightFoamROI = editedRoiOrOriginal(
+    recipe.roi_config?.rightFoamROI,
+    editedRightFoamROI,
+    recipe,
+  );
+  const coverageThreshold = Number(document.getElementById('edit-thresh-cov').value);
+  const scoreThreshold = Number(document.getElementById('edit-thresh-score').value);
+  const maxOffsetPx = Number(document.getElementById('edit-thresh-x').value);
   const threshold_config = {
-    coverage_threshold: Number(document.getElementById('edit-thresh-cov').value),
-    score_threshold: Number(document.getElementById('edit-thresh-score').value),
-    max_offset_px: Number(document.getElementById('edit-thresh-x').value),
+    ...(recipe.threshold_config || {}),
+    coverage_threshold: coverageThreshold,
+    minCoverage: coverageThreshold,
+    score_threshold: scoreThreshold,
+    minScore: scoreThreshold,
+    max_offset_px: maxOffsetPx,
+    maxOffsetX: maxOffsetPx,
+    maxOffsetY: maxOffsetPx,
   };
   
   try {

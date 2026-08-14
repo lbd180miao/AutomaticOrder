@@ -41,7 +41,9 @@ from .models import (
 from .recipe_utils import (
     build_foam_inspection_config,
     ensure_default_foam_2d_recipes,
+    get_foam_standard_template_status,
     get_active_foam_2d_recipe_by_pos,
+    has_complete_foam_template_side_metadata,
     serialize_recipe,
 )
 from .services import VisionService
@@ -236,6 +238,7 @@ def _result_payload(foam_result):
     result_image = task.images.filter(image_type='RESULT').first()
     original_image = task.images.filter(image_type='ORIGINAL').first()
     payload = {
+        'result_id': foam_result.id,
         'task_id': task.id,
         'position_index': foam_result.position_index,
         'is_present': foam_result.is_present,
@@ -267,6 +270,39 @@ def _result_payload(foam_result):
     if foam_result.result_data.get('recipe'):
         payload['recipe'] = foam_result.result_data['recipe']
     return payload
+
+
+def _save_foam_standard_template(recipe, image, source_metadata=None):
+    """Persist both foam masks and their ROI-local position metadata."""
+    version = timezone.now().strftime('v%Y%m%d%H%M%S%f')
+    template = StandardMaskManager().create_set_from_sample(
+        image,
+        recipe,
+        version,
+        build_foam_inspection_config(recipe),
+    )
+    built_at = timezone.now()
+    template['built_at'] = built_at.isoformat()
+    if source_metadata:
+        template['source'] = dict(source_metadata)
+
+    thresholds = dict(recipe.threshold_config or {})
+    thresholds['standardMaskPaths'] = {
+        side: template['sides'][side]['path'] for side in ('left', 'right')
+    }
+    thresholds['requireStandardTemplate'] = True
+    recipe.threshold_config = thresholds
+    recipe.standard_template_config = template
+    recipe.standard_template_version = version
+    recipe.standard_template_built_at = built_at
+    recipe.save(update_fields=[
+        'threshold_config',
+        'standard_template_config',
+        'standard_template_version',
+        'standard_template_built_at',
+        'updated_at',
+    ])
+    return template
 
 
 @require_http_methods(['GET'])
@@ -321,7 +357,9 @@ def api_foam_recipe_save(request):
         roi_config = body.get('roi_config') or {}
         if not roi_config.get('leftFoamROI') or not roi_config.get('rightFoamROI'):
             raise ValueError('leftFoamROI and rightFoamROI are required')
-        threshold_config = body.get('threshold_config') or {}
+        incoming_threshold_config = body.get('threshold_config') or {}
+        if not isinstance(incoming_threshold_config, dict):
+            raise ValueError('threshold_config must be an object')
 
         recipe_id = body.get('id')
         if recipe_id:
@@ -332,6 +370,10 @@ def api_foam_recipe_save(request):
             recipe = get_active_foam_2d_recipe_by_pos(pos)
         if recipe is None:
             recipe = VisionRecipe(recipe_type='FOAM_2D', pos=pos, camera_side='both')
+        # 阈值表单只编辑少数字段。合并而不是整体替换，避免清除模板路径、
+        # 毫米标定和模板必选开关；标准模板位置本体保存在独立模型字段中。
+        threshold_config = dict(recipe.threshold_config or {})
+        threshold_config.update(incoming_threshold_config)
         recipe.name = body.get('name') or f'第{pos + 1}层泡棉检测配方'
         recipe.pos = pos
         recipe.camera_side = body.get('camera_side') or recipe.camera_side or 'both'
@@ -345,6 +387,150 @@ def api_foam_recipe_save(request):
         return JsonResponse({'success': True, 'recipe': serialize_recipe(recipe)})
     except (TypeError, ValueError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+def _camera_image_from_preview_token(preview_capture_token, max_age=1800):
+    token_data = signing.loads(
+        preview_capture_token,
+        salt='foam-camera-preview',
+        max_age=max_age,
+    )
+    candidate = Path(token_data['image_path']).resolve(strict=True)
+    output_dir = Path(
+        getattr(settings, 'AUTOMATIC_ORDER', {})
+        .get('HIK_CAMERA', {})
+        .get('OUTPUT_DIR', Path(settings.MEDIA_ROOT) / 'hik_captures')
+    ).resolve(strict=True)
+    candidate.relative_to(output_dir)
+    if candidate.suffix.lower() not in {'.bmp', '.png', '.jpg', '.jpeg', '.tif', '.tiff'}:
+        raise ValueError('unsupported camera image format')
+    image = cv2.imread(str(candidate), cv2.IMREAD_COLOR)
+    if image is None:
+        raise ValueError('无法读取预览原图')
+    return image
+
+
+@require_POST
+def api_foam_standard_template_teach(request, recipe_id):
+    """Teach left/right standard templates atomically from one qualified image."""
+    try:
+        recipe = VisionRecipe.objects.filter(
+            id=recipe_id,
+            recipe_type='FOAM_2D',
+            is_active=True,
+        ).first()
+        if recipe is None:
+            return JsonResponse({'success': False, 'error': '未找到启用的泡棉配方'}, status=404)
+        if not (recipe.roi_config or {}).get('leftFoamROI') or not (
+            recipe.roi_config or {}
+        ).get('rightFoamROI'):
+            raise ValueError('请先保存左右两个固定搜索 ROI，再进行标准模板示教')
+
+        uploaded = request.FILES.get('image')
+        if uploaded:
+            image = _decode_uploaded_image(uploaded)
+        else:
+            body = json.loads(request.body or '{}')
+            preview_capture_token = body.get('preview_capture_token') or ''
+            if preview_capture_token:
+                image = _camera_image_from_preview_token(preview_capture_token)
+            else:
+                from apps.devices.adapters.camera import CameraAdapter
+
+                capture_result = CameraAdapter().capture(
+                    camera_code='CAM-INSPECT-FOAM-01',
+                    task_type='FOAM_STANDARD_TEMPLATE',
+                )
+                image_path = capture_result.get('image_path', '')
+                image = cv2.imread(image_path, cv2.IMREAD_COLOR) if image_path else None
+                if image is None:
+                    raise ValueError('相机未返回可用的标准样件图像')
+
+        template = _save_foam_standard_template(
+            recipe,
+            image,
+            {'type': 'qualified_image_teach'},
+        )
+
+        return JsonResponse({
+            'success': True,
+            'template': template,
+            'recipe': serialize_recipe(recipe),
+        })
+    except (TypeError, ValueError, signing.BadSignature, signing.SignatureExpired) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    except Exception as exc:
+        logger.exception('2D foam standard-template teaching failed')
+        return JsonResponse({'success': False, 'error': f'标准模板示教失败: {exc}'}, status=500)
+
+
+@require_POST
+def api_foam_standard_template_from_result(request, recipe_id, result_id):
+    """Promote one persisted inspection image to the recipe's standard template."""
+    try:
+        recipe = VisionRecipe.objects.filter(
+            id=recipe_id,
+            recipe_type='FOAM_2D',
+            is_active=True,
+        ).first()
+        if recipe is None:
+            return JsonResponse({'success': False, 'error': '未找到启用的泡棉配方'}, status=404)
+
+        inspection = (
+            FoamInspectionResult.objects
+            .select_related('vision_task')
+            .filter(id=result_id)
+            .first()
+        )
+        if inspection is None:
+            return JsonResponse({'success': False, 'error': '未找到本次泡棉检测记录'}, status=404)
+
+        result_recipe = (inspection.result_data or {}).get('recipe') or {}
+        result_recipe_id = result_recipe.get('id')
+        if result_recipe_id and int(result_recipe_id) != recipe.id:
+            raise ValueError('检测结果使用的配方与目标配方不一致')
+        if inspection.position_index != recipe.pos:
+            raise ValueError('检测结果的 POS 与目标配方不一致')
+
+        sides = (inspection.result_data or {}).get('sides') or {}
+        missing = [
+            label for side, label in (('left', '左侧'), ('right', '右侧'))
+            if not (sides.get(side) or {}).get('is_present')
+        ]
+        if missing:
+            raise ValueError('不能保存为模板：' + '、'.join(missing) + '泡棉未有效检出')
+
+        original = inspection.vision_task.images.filter(image_type='ORIGINAL').first()
+        if original is None or not original.file:
+            raise ValueError('本次检测没有可用的原图')
+        try:
+            original_path = Path(original.file.path)
+        except (NotImplementedError, ValueError):
+            raise ValueError('本次检测原图不在本地存储，无法建立模板')
+        image = cv2.imread(str(original_path), cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError('无法读取本次检测原图')
+
+        template = _save_foam_standard_template(
+            recipe,
+            image,
+            {
+                'type': 'inspection_result',
+                'result_id': inspection.id,
+                'task_id': inspection.vision_task_id,
+                'original_image': original.file.name,
+            },
+        )
+        return JsonResponse({
+            'success': True,
+            'template': template,
+            'recipe': serialize_recipe(recipe),
+        })
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    except Exception as exc:
+        logger.exception('Saving foam inspection result as standard template failed')
+        return JsonResponse({'success': False, 'error': f'保存标准模板失败: {exc}'}, status=500)
 
 
 @require_POST
@@ -412,62 +598,40 @@ def api_foam_standard_mask_status(request, recipe_id):
     ).first()
     if recipe is None:
         return JsonResponse({'success': False, 'error': '未找到配方'}, status=404)
-
-    thresholds = recipe.threshold_config or {}
-    mask_paths = (
-        thresholds.get('standardMaskPaths')
-        or thresholds.get('standard_mask_paths')
-        or {}
-    )
-
+    status = get_foam_standard_template_status(recipe)
     sides_info = {}
     for side in ('left', 'right'):
-        path_str = mask_paths.get(side, '')
-        if not path_str:
-            sides_info[side] = {'exists': False, 'path': ''}
-            continue
-
-        mask_path = Path(path_str)
-        if not mask_path.is_absolute():
+        metadata = dict((status.get('sides') or {}).get(side) or {})
+        path_str = status['paths'].get(side, '')
+        mask_path = Path(path_str) if path_str else None
+        if mask_path is not None and not mask_path.is_absolute():
             mask_path = Path(settings.MEDIA_ROOT) / mask_path
-
-        if not mask_path.is_file():
-            sides_info[side] = {'exists': False, 'path': path_str, 'error': '文件不存在'}
-            continue
-
-        mask_img = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
-        if mask_img is None:
-            sides_info[side] = {'exists': False, 'path': path_str, 'error': '文件无法读取'}
-            continue
-
-        total = mask_img.size
-        nonzero = int(np.count_nonzero(mask_img))
-        coverage = round(nonzero / max(total, 1), 4)
-        moments = cv2.moments(mask_img)
-        if moments['m00'] > 0:
-            cx = round(moments['m10'] / moments['m00'], 1)
-            cy = round(moments['m01'] / moments['m00'], 1)
-        else:
-            cx, cy = 0.0, 0.0
-
-        import os as _os
-        from datetime import datetime as _dt
-        mtime = _os.path.getmtime(str(mask_path))
-        updated_at = _dt.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
-
-        sides_info[side] = {
-            'exists': True,
+        file_exists = bool(mask_path and mask_path.is_file())
+        metadata_complete = has_complete_foam_template_side_metadata(metadata)
+        usable = bool(file_exists and metadata_complete)
+        metadata.update({
+            'exists': usable,
+            'file_exists': file_exists,
+            'metadata_complete': metadata_complete,
             'path': path_str,
-            'coverage_ratio': coverage,
-            'centroid_x': cx,
-            'centroid_y': cy,
-            'updated_at': updated_at,
-            'pixel_count': nonzero,
-        }
+        })
+        if path_str and not file_exists:
+            metadata['error'] = '模板文件不存在'
+        elif path_str and not metadata_complete:
+            metadata['error'] = '旧模板缺少面积、中心或边界框数据，请重新示教'
+        sides_info[side] = metadata
 
+    ready = bool(status['ready'] and all(item['exists'] for item in sides_info.values()))
+    reason = status['reason']
+    if status['ready'] and not ready:
+        reason = '标准模板文件不存在，需要重新示教'
     return JsonResponse({
         'success': True,
         'recipe_id': recipe_id,
+        'ready': ready,
+        'reason': reason,
+        'version': status['version'],
+        'built_at': status['built_at'],
         'sides': sides_info,
     })
 

@@ -73,7 +73,7 @@
 
 {% if foam_result %}
 <h2 class="section-title">泡棉检测数据</h2>
-<p class="page-hint">当前策略：泡棉存在即合格；对齐和起翘字段保留给 PLC / 前端展示，存在时自动 OK。</p>
+<p class="page-hint">当前策略：在固定搜索 ROI 内对比配方标准模板，覆盖率与 X/Y 偏移均达标才判定合格。</p>
 <div class="table-wrap">
   <table class="data-table">
     <thead>

@@ -74,6 +74,16 @@ class RackStructureValidatorThresholdTests(SimpleTestCase):
 
 
 class FoamPixelSegmentationTests(SimpleTestCase):
+    def test_mask_excludes_overexposed_background_above_foam(self):
+        roi = np.full((120, 100, 3), 255, dtype=np.uint8)
+        roi[22:34, :] = (30, 110, 220)  # 车间横梁/有色背景
+        roi[52:108, 10:90] = (225, 225, 225)  # 中性白色泡棉主体
+
+        mask = generate_foam_mask(roi, {})
+
+        self.assertLess(np.count_nonzero(mask[:45]) / mask[:45].size, 0.05)
+        self.assertGreater(np.count_nonzero(mask[55:105, 12:88]) / mask[55:105, 12:88].size, 0.90)
+
     def test_camera_original_inside_media_is_reused_without_png_reencoding(self):
         from apps.vision.algorithms.foam_inspector import _save_or_reuse_original
 
@@ -175,7 +185,7 @@ class FoamPixelSegmentationTests(SimpleTestCase):
                 },
             )
 
-    def test_mm_calibration_reports_offset_without_failing_alignment(self):
+    def test_mm_calibration_fails_alignment_when_axis_offset_exceeds_limit(self):
         image = np.zeros((100, 200, 3), dtype=np.uint8)
         image[30:70, 29:69] = 245
         image[30:70, 129:169] = 245
@@ -201,7 +211,7 @@ class FoamPixelSegmentationTests(SimpleTestCase):
             },
         )
 
-        self.assertTrue(result['is_aligned'])
+        self.assertFalse(result['is_aligned'])
         self.assertEqual(result['sides']['left']['alignment_metric'], 'mm')
         self.assertGreater(result['sides']['left']['offset_distance_mm'], 2)
 
@@ -248,6 +258,209 @@ class FoamStandardMaskApiTests(TestCase):
 
         recipe.refresh_from_db()
         self.assertEqual(recipe.threshold_config['standardMaskPaths']['left'], mask_path)
+
+    def test_teach_standard_template_builds_both_sides_from_one_image(self):
+        recipe = VisionRecipe.objects.create(
+            recipe_type='FOAM_2D',
+            name='左右同图示教',
+            pos=0,
+            camera_side='both',
+            image_width=200,
+            image_height=100,
+            roi_config={
+                'leftFoamROI': {'x': 0, 'y': 10, 'width': 80, 'height': 80},
+                'rightFoamROI': {'x': 100, 'y': 10, 'width': 80, 'height': 80},
+            },
+            threshold_config={'minCoverage': 0.5, 'requireStandardTemplate': True},
+        )
+        image = np.full((100, 200, 3), 20, dtype=np.uint8)
+        image[30:70, 20:60] = 245
+        image[30:70, 120:160] = 245
+        ok, encoded = cv2.imencode('.png', image)
+        self.assertTrue(ok)
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post(
+                reverse('vision:api_foam_standard_template_teach', args=[recipe.id]),
+                data={
+                    'image': SimpleUploadedFile(
+                        'qualified-both.png', encoded.tobytes(), content_type='image/png'
+                    ),
+                },
+            )
+
+            self.assertEqual(response.status_code, 200, response.content)
+            payload = response.json()
+            self.assertTrue(payload['success'])
+            self.assertTrue(payload['recipe']['standard_template_status']['ready'])
+            for side in ('left', 'right'):
+                path = payload['template']['sides'][side]['path']
+                self.assertTrue((Path(media_root) / path).is_file())
+
+        recipe.refresh_from_db()
+        self.assertTrue(recipe.standard_template_version.startswith('v'))
+        self.assertEqual(set(recipe.standard_template_config['sides']), {'left', 'right'})
+        self.assertEqual(
+            set(recipe.threshold_config['standardMaskPaths']), {'left', 'right'}
+        )
+
+    def test_detection_result_can_be_promoted_to_standard_template(self):
+        recipe = VisionRecipe.objects.create(
+            recipe_type='FOAM_2D',
+            name='检测结果转模板',
+            pos=0,
+            camera_side='both',
+            image_width=200,
+            image_height=100,
+            roi_config={
+                'leftFoamROI': {'x': 0, 'y': 10, 'width': 80, 'height': 80},
+                'rightFoamROI': {'x': 100, 'y': 10, 'width': 80, 'height': 80},
+            },
+            threshold_config={'minCoverage': 0.5, 'requireStandardTemplate': True},
+        )
+        image = np.full((100, 200, 3), 20, dtype=np.uint8)
+        image[30:70, 20:60] = 225
+        image[30:70, 120:160] = 225
+        ok, encoded = cv2.imencode('.png', image)
+        self.assertTrue(ok)
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            task = VisionTask.objects.create(task_type='FOAM_INSPECTION', status='SUCCESS')
+            inspection = FoamInspectionResult.objects.create(
+                vision_task=task,
+                position_index=0,
+                is_present=True,
+                is_aligned=True,
+                is_passed=True,
+                result_data={
+                    'recipe': {'id': recipe.id},
+                    'sides': {
+                        'left': {'is_present': True},
+                        'right': {'is_present': True},
+                    },
+                },
+            )
+            VisionImage.objects.create(
+                vision_task=task,
+                image_type='ORIGINAL',
+                file=SimpleUploadedFile(
+                    'inspection-source.png', encoded.tobytes(), content_type='image/png'
+                ),
+            )
+
+            response = self.client.post(
+                reverse(
+                    'vision:api_foam_standard_template_from_result',
+                    args=[recipe.id, inspection.id],
+                )
+            )
+
+            self.assertEqual(response.status_code, 200, response.content)
+            payload = response.json()
+            self.assertTrue(payload['success'])
+            self.assertTrue(payload['recipe']['standard_template_status']['ready'])
+            self.assertEqual(payload['template']['source']['result_id'], inspection.id)
+            for side in ('left', 'right'):
+                side_template = payload['template']['sides'][side]
+                self.assertGreater(side_template['pixels'], 0)
+                self.assertIn('centroid_x', side_template)
+                self.assertIn('bounding_box', side_template)
+
+        recipe.refresh_from_db()
+        self.assertEqual(
+            recipe.standard_template_config['source']['type'],
+            'inspection_result',
+        )
+
+    def test_recipe_detection_requires_left_and_right_standard_templates(self):
+        recipe = VisionRecipe.objects.create(
+            recipe_type='FOAM_2D',
+            name='未示教模板',
+            pos=0,
+            image_width=200,
+            image_height=100,
+            roi_config={
+                'leftFoamROI': {'x': 0, 'y': 10, 'width': 80, 'height': 80},
+                'rightFoamROI': {'x': 100, 'y': 10, 'width': 80, 'height': 80},
+            },
+            threshold_config={'requireStandardTemplate': True},
+        )
+        image = np.full((100, 200, 3), 20, dtype=np.uint8)
+        image[30:70, 20:60] = 245
+        image[30:70, 120:160] = 245
+
+        with self.assertRaisesMessage(StandardMaskConfigurationError, '缺少左侧、右侧标准模板'):
+            FoamInspector().inspect(
+                image=image,
+                inspection_config=build_foam_inspection_config(recipe),
+                simulated_pass=False,
+            )
+
+    def test_legacy_mask_path_without_position_metadata_is_not_shown_as_taught(self):
+        recipe = VisionRecipe.objects.create(
+            recipe_type='FOAM_2D',
+            name='旧版单侧模板',
+            pos=1,
+            image_width=200,
+            image_height=100,
+            roi_config={
+                'leftFoamROI': {'x': 0, 'y': 10, 'width': 80, 'height': 80},
+                'rightFoamROI': {'x': 100, 'y': 10, 'width': 80, 'height': 80},
+            },
+            threshold_config={
+                'standardMaskPaths': {'left': 'standard_masks/legacy-left.png'},
+            },
+        )
+        legacy_mask = np.full((80, 80), 255, dtype=np.uint8)
+        ok, encoded = cv2.imencode('.png', legacy_mask)
+        self.assertTrue(ok)
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            mask_path = Path(media_root) / 'standard_masks' / 'legacy-left.png'
+            mask_path.parent.mkdir(parents=True)
+            mask_path.write_bytes(encoded.tobytes())
+
+            response = self.client.get(
+                reverse('vision:api_foam_standard_mask_status', args=[recipe.id])
+            )
+
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertFalse(payload['ready'])
+            self.assertFalse(payload['sides']['left']['exists'])
+            self.assertTrue(payload['sides']['left']['file_exists'])
+            self.assertFalse(payload['sides']['left']['metadata_complete'])
+            self.assertIn('缺少面积、中心或边界框', payload['sides']['left']['error'])
+
+    def test_roi_change_invalidates_taught_template(self):
+        recipe = VisionRecipe.objects.create(
+            recipe_type='FOAM_2D',
+            name='ROI变更失效',
+            pos=0,
+            image_width=200,
+            image_height=100,
+            roi_config={
+                'leftFoamROI': {'x': 0, 'y': 10, 'width': 80, 'height': 80},
+                'rightFoamROI': {'x': 100, 'y': 10, 'width': 80, 'height': 80},
+            },
+            standard_template_config={
+                'roi_config': {
+                    'leftFoamROI': {'x': 1, 'y': 10, 'width': 80, 'height': 80},
+                    'rightFoamROI': {'x': 100, 'y': 10, 'width': 80, 'height': 80},
+                },
+                'image_width': 200,
+                'image_height': 100,
+                'sides': {
+                    'left': {'path': 'standard_masks/left.png'},
+                    'right': {'path': 'standard_masks/right.png'},
+                },
+            },
+        )
+
+        payload = serialize_recipe(recipe)
+
+        self.assertFalse(payload['standard_template_status']['ready'])
+        self.assertIn('ROI', payload['standard_template_status']['reason'])
 
 
 class Rack3DSemanticMappingTests(SimpleTestCase):
@@ -1143,6 +1356,62 @@ class VisionRecipeApiTests(TestCase):
         self.assertEqual(VisionRecipe.objects.get(pos=0, recipe_type='FOAM_2D').name, '第1层泡棉检测配方')
         self.assertEqual(VisionRecipe.objects.get(pos=2, recipe_type='FOAM_2D').name, '第3层泡棉检测配方')
 
+    def test_recipe_edit_preserves_standard_template_and_internal_threshold_fields(self):
+        recipe = VisionRecipe.objects.create(
+            recipe_type='FOAM_2D',
+            name='保留模板数据',
+            pos=0,
+            image_width=200,
+            image_height=100,
+            roi_config={
+                'leftFoamROI': {'x': 0, 'y': 10, 'width': 80, 'height': 80},
+                'rightFoamROI': {'x': 100, 'y': 10, 'width': 80, 'height': 80},
+            },
+            threshold_config={
+                'minCoverage': 0.7,
+                'mmPerPixelX': 0.1,
+                'standardMaskPaths': {
+                    'left': 'standard_masks/left.png',
+                    'right': 'standard_masks/right.png',
+                },
+                'requireStandardTemplate': True,
+            },
+            standard_template_config={
+                'version': 'v-position-data',
+                'sides': {
+                    'left': {'pixels': 100, 'centroid_x': 20, 'centroid_y': 30},
+                    'right': {'pixels': 120, 'centroid_x': 25, 'centroid_y': 35},
+                },
+            },
+            standard_template_version='v-position-data',
+        )
+        original_template = recipe.standard_template_config
+
+        response = self.client.post(
+            reverse('vision:api_foam_recipe_save'),
+            data={
+                'id': recipe.id,
+                'name': recipe.name,
+                'pos': recipe.pos,
+                'image_width': recipe.image_width,
+                'image_height': recipe.image_height,
+                'roi_config': recipe.roi_config,
+                'threshold_config': {'minCoverage': 0.8},
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        recipe.refresh_from_db()
+        self.assertEqual(recipe.standard_template_config, original_template)
+        self.assertEqual(recipe.standard_template_version, 'v-position-data')
+        self.assertEqual(recipe.threshold_config['minCoverage'], 0.8)
+        self.assertEqual(recipe.threshold_config['mmPerPixelX'], 0.1)
+        self.assertEqual(
+            set(recipe.threshold_config['standardMaskPaths']),
+            {'left', 'right'},
+        )
+
     def test_capture_inspect_api_passes_recipe_id_and_returns_recipe_payload(self):
         recipe = ensure_default_foam_2d_recipes()[0]
         task = VisionTask.objects.create(task_type=VisionTaskType.FOAM_INSPECTION, status=ResultStatus.SUCCESS)
@@ -1216,7 +1485,7 @@ class VisionRecipeApiTests(TestCase):
         kwargs = service_cls.return_value.inspect_foam.call_args.kwargs
         self.assertEqual(kwargs['captured_image_path'], str(image_path.resolve()))
 
-    def test_upload_inspect_api_accepts_recipe_id_and_returns_recipe_payload(self):
+    def test_upload_inspect_rejects_recipe_without_standard_template(self):
         recipe = ensure_default_foam_2d_recipes()[0]
         image = np.full((80, 120, 3), 220, dtype=np.uint8)
         ok, encoded = cv2.imencode('.png', image)
@@ -1233,10 +1502,10 @@ class VisionRecipeApiTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
         payload = response.json()
-        self.assertTrue(payload['success'])
-        self.assertEqual(payload['result']['recipe']['id'], recipe.id)
+        self.assertFalse(payload['success'])
+        self.assertIn('标准模板', payload['error'])
 
 
 class VisionServiceTests(TestCase):
@@ -1670,7 +1939,7 @@ class VisionServiceTests(TestCase):
         self.assertTrue(result['result_data']['sides']['left']['is_present'])
         self.assertFalse(result['result_data']['sides']['right']['is_present'])
 
-    def test_calibrated_foam_inspection_passes_when_foam_exists_even_if_offset(self):
+    def test_calibrated_foam_inspection_fails_when_foam_is_offset(self):
         image = np.zeros((120, 220, 3), dtype=np.uint8)
         image[:, :] = (35, 90, 80)
         image[55:85, 12:50] = 245
@@ -1691,11 +1960,10 @@ class VisionServiceTests(TestCase):
             simulated_pass=False,
         )
 
-        self.assertTrue(result['is_passed'])
-        self.assertEqual(result['defect_type'], FoamDefectType.NONE)
+        self.assertFalse(result['is_passed'])
+        self.assertEqual(result['defect_type'], FoamDefectType.MISALIGNED)
         self.assertTrue(result['result_data']['sides']['right']['is_present'])
-        self.assertTrue(result['result_data']['sides']['right']['is_aligned'])
-        self.assertFalse(result['has_lifted_edge'])
+        self.assertFalse(result['result_data']['sides']['right']['is_aligned'])
 
     def test_inspect_foam_uses_active_calibration_profile_for_camera_image(self):
         image = np.zeros((120, 220, 3), dtype=np.uint8)
@@ -2003,6 +2271,26 @@ class VisionRecipeWorkbenchTemplateTests(TestCase):
         self.assertContains(response, 'currentDetectionRecipe')
         self.assertContains(response, 'recipes:')
         self.assertContains(response, 'recipe_id')
+        self.assertContains(response, 'btn-teach-standard')
+        self.assertContains(response, 'ROI 是固定搜索范围，模板是合格泡棉')
+        self.assertContains(response, '首次检测无模板时')
+        self.assertContains(response, 'ensureStandardTemplateForDetection')
+        self.assertContains(response, 'foam-max-offset-x-mm')
+        self.assertContains(response, 'standard-template/teach')
+        self.assertContains(response, 'btn-save-result-standard')
+        self.assertContains(response, '保存本次结果为标准模板')
+        self.assertContains(response, 'standard-template/from-result')
+
+    def test_2d_recipe_page_displays_and_preserves_template_position_data(self):
+        response = self.client.get(reverse('vision:recipe_management'))
+
+        self.assertContains(response, '泡棉标准模板位置（只读同步）')
+        self.assertContains(response, '标准模板位置已保存到配方')
+        self.assertContains(response, 'foamTemplateSummaryHtml')
+        self.assertContains(response, 'centroid_x')
+        self.assertContains(response, 'bounding_box')
+        self.assertContains(response, 'editedRoiOrOriginal')
+        self.assertContains(response, '...(recipe.threshold_config || {})')
 
 
 class DepthRoiDebugViewTests(TestCase):

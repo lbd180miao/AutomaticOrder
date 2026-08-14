@@ -245,6 +245,20 @@ def annotate_foam(img, roi, foam, result):
             elif original_roi:
                 draw_roi(out, tuple(original_roi), color=COLOR_ROI, label=side_label, thickness=2)
 
+            # 标准模板轮廓（黄色）：始终保持在固定 ROI 的示教位置。
+            standard_mask = data.get('standard_mask')
+            if standard_mask is not None and side_roi:
+                template_contours, _ = cv2.findContours(
+                    standard_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+                )
+                if template_contours:
+                    rx1, ry1, _, _ = side_roi
+                    shifted_contours = [
+                        contour + np.array([[[rx1, ry1]]], dtype=contour.dtype)
+                        for contour in template_contours
+                    ]
+                    cv2.drawContours(out, shifted_contours, -1, (0, 215, 255), 2, cv2.LINE_AA)
+
             # 绘制泡棉实际掩膜（红色半透明覆盖）
             side_mask = data.get('mask')
             if side_mask is not None and side_roi:
