@@ -8,12 +8,13 @@ class PageAccessTests(TestCase):
     def test_dashboard(self):
         self.assertEqual(self.client.get(reverse('core:dashboard')).status_code, 200)
 
-    def test_dashboard_links_to_vision_recipe_workbench(self):
+    def test_dashboard_shows_db100_operator_overview(self):
         response = self.client.get(reverse('core:dashboard'))
 
-        self.assertContains(response, '视觉配方管理')
-        self.assertContains(response, reverse('vision:foam_inspector_interactive'))
-        self.assertContains(response, '配方管理')
+        self.assertContains(response, '生产总览')
+        self.assertContains(response, 'DBX120.0')
+        self.assertContains(response, '料框装载图')
+        self.assertContains(response, reverse('workflow:current'))
 
     def test_product_list(self):
         self.assertEqual(self.client.get(reverse('production:product_list')).status_code, 200)

@@ -6,3 +6,13 @@ document.addEventListener('submit', function (event) {
     event.preventDefault();
   }
 });
+
+// 操作台统一显示本机系统时间，避免每个业务页重复实现。
+(function updateClock() {
+  var clock = document.getElementById('system-clock');
+  if (!clock) return;
+  var now = new Date();
+  clock.dateTime = now.toISOString();
+  clock.textContent = now.toLocaleTimeString('zh-CN', {hour12: false});
+  window.setTimeout(updateClock, 1000);
+})();

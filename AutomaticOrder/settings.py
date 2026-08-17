@@ -180,7 +180,17 @@ RACK_3D_POSITIONING_MODE = os.environ.get('RACK_3D_POSITIONING_MODE', 'MOCK').up
 AUTOMATIC_ORDER = {
     'USE_SIMULATED_DEVICES': env_bool('USE_SIMULATED_DEVICES', False),
     'MES_BASE_URL': os.environ.get('MES_BASE_URL', ''),
+    'MES_TIMEOUT': int(os.environ.get('MES_TIMEOUT', 8)),
+    'MES_TOKEN': os.environ.get('MES_TOKEN', ''),
     'DEVICE_TIMEOUT_SECONDS': int(os.environ.get('DEVICE_TIMEOUT_SECONDS', 5)),
+    'VISION_POSITION_RECIPE_ID': (
+        int(os.environ['VISION_POSITION_RECIPE_ID'])
+        if os.environ.get('VISION_POSITION_RECIPE_ID') else None
+    ),
+    'RECIPE_MEASUREMENT_CALLABLE': os.environ.get(
+        'RECIPE_MEASUREMENT_CALLABLE',
+        'apps.vision.rack_measurement.measure_rack_recipe',
+    ),
     'HIK_CAMERA': {
         'OUTPUT_DIR': Path(os.environ.get('HIK_CAMERA_OUTPUT_DIR', BASE_DIR / 'media' / 'hik_captures')),
         'SDK_LIB_DIR': os.environ.get(

@@ -8,35 +8,19 @@ from django.views.decorators.http import require_POST
 
 from .models import Device, DeviceSignalRecord
 from apps.core.constants import DeviceType, DeviceStatus
+from .plc_db100 import DB100_POINTS
 
 
-# ── PLC 点位定义（对应需求文档四大场景所需的DB块点位）──────────────────────────
-# 每个点位: (信号名, 中文说明, 方向 IN=PLC→上位机 OUT=上位机→PLC, DB块号, 偏移)
-PLC_POINT_DEFINITIONS = [
-    # 场景一：料框到位
-    ('rack_barcode',          '料框条码',           'IN',  10, 0),
-    ('rack_arrived_trigger',  '料框到位触发',        'IN',  10, 20),
-    ('empty_check_trigger',   '空箱检查触发',        'IN',  10, 22),
-    ('mes_verify_result',     'MES校验结果反馈',     'OUT', 10, 24),
-    ('empty_check_result',    '空箱检测结果反馈',    'OUT', 10, 26),
-    # 场景二：料架定位补偿
-    ('locate_trigger',        '定位扫描触发',        'IN',  20, 0),
-    ('current_layer',         '当前装箱层数',        'IN',  20, 2),
-    ('offset_x',              '偏差X (mm)',          'OUT', 20, 4),
-    ('offset_y',              '偏差Y (mm)',          'OUT', 20, 8),
-    ('offset_z',              '偏差Z (mm)',          'OUT', 20, 12),
-    ('locate_result',         '定位结果反馈',        'OUT', 20, 16),
-    # 场景三：泡棉检测
-    ('foam_detect_trigger',   '泡棉检测触发',        'IN',  30, 0),
-    ('foam_detect_result',    '泡棉检测结果反馈',    'OUT', 30, 2),
-    ('foam_detect_reset',     '检测复位指令',        'IN',  30, 4),
-    # 场景四：装箱完成与上传
-    ('boxing_barcode',        '装箱条码',            'IN',  40, 0),
-    ('upload_trigger',        '上传触发',            'IN',  40, 20),
-    ('upload_result',         '上传结果反馈',        'OUT', 40, 22),
-    # 心跳
-    ('heartbeat',             '心跳',                'OUT', 1,  0),
-]
+PLC_POINT_DEFINITIONS = DB100_POINTS
+
+PLC_HANDSHAKES = (
+    ('产品条码', 'mark_trigger', 'DBX24.0', 'product_barcode', 'DBB2', 'mark_read_done', 'DBX25.0', ('WAIT_PRODUCT', 'WAIT_MARK_RESET')),
+    ('料框配方', 'rack_trigger', 'DBX48.0', 'rack_barcode', 'DBB26', 'rack_done', 'DBX49.0', ('WAIT_RACK', 'WAIT_RACK_RESET')),
+    ('3D 定位', 'position_trigger', 'DBX118.0', '', 'DBB54–117', 'position_done', 'DBX119.0', ('WAIT_POSITION', 'WAIT_POSITION_RESET')),
+    ('配方校验', 'recipe_verify_trigger', 'DBX50.0', 'boxing_allowed', 'DBX51.0', 'recipe_verify_done', 'DBX52.0', ('WAIT_RECIPE_VERIFY', 'WAIT_RECIPE_RESET')),
+    ('泡棉检测', 'foam_trigger', 'DBX120.0', 'foam_passed', 'DBX121.0', 'foam_done', 'DBX122.0', ('WAIT_FOAM', 'WAIT_FOAM_RESET')),
+    ('装箱上传', 'boxing_trigger', 'DBX123.0', 'mes_upload_success', 'DBX124.0', 'mes_upload_done', 'DBX125.0', ('WAIT_BOXING', 'WAIT_BOXING_RESET')),
+)
 
 
 def _get_plc_device():
@@ -45,12 +29,67 @@ def _get_plc_device():
 
 
 def status(request):
-    devices = Device.objects.order_by('device_type', 'code')
+    devices = Device.objects.filter(enabled=True).order_by('device_type', 'code')
     plc = _get_plc_device()
+    now = timezone.now()
+    heartbeat_age = None
+    plc_connected = False
+    if plc and plc.last_seen_at:
+        heartbeat_age = round((now - plc.last_seen_at).total_seconds(), 1)
+        plc_connected = plc.status == DeviceStatus.ONLINE and heartbeat_age <= 10
+
+    recent_signals = list(
+        DeviceSignalRecord.objects.filter(device=plc).order_by('-recorded_at')[:20]
+    ) if plc else []
+    signal_values = {}
+    for record in recent_signals:
+        signal_values.setdefault(record.signal_name, record.signal_value)
+
+    from apps.workflow.models import StationCycle, StationPhase
+    station_cycle = (
+        StationCycle.objects.exclude(phase=StationPhase.COMPLETED)
+        .order_by('-created_at').first()
+    )
+    phase = station_cycle.phase if station_cycle else ''
+    active_index = next(
+        (index for index, item in enumerate(PLC_HANDSHAKES) if phase in item[7]),
+        None,
+    )
+    handshake_rows = []
+    for index, item in enumerate(PLC_HANDSHAKES):
+        name, trigger_name, trigger_address, result_name, result_address, confirm_name, confirm_address, _phases = item
+        handshake_rows.append({
+            'number': index + 1,
+            'name': name,
+            'trigger_address': trigger_address,
+            'result_address': result_address,
+            'confirm_address': confirm_address,
+            'trigger_value': signal_values.get(trigger_name),
+            'result_value': signal_values.get(result_name) if result_name else None,
+            'confirm_value': signal_values.get(confirm_name),
+            'status': (
+                'done' if active_index is not None and index < active_index
+                else 'active' if active_index == index
+                else 'pending'
+            ),
+        })
+
+    main_devices = [device for device in devices if 'TEST' not in device.code.upper()]
+    hidden_test_count = len(devices) - len(main_devices)
+    config = plc.configuration if plc and plc.configuration else {}
     return render(request, 'devices/status.html', {
         'devices': devices,
+        'main_devices': main_devices,
+        'hidden_test_count': hidden_test_count,
         'plc': plc,
+        'plc_connected': plc_connected,
+        'heartbeat_age': heartbeat_age,
+        'plc_config': config,
         'plc_points': PLC_POINT_DEFINITIONS,
+        'recent_signals': recent_signals[:8],
+        'handshake_rows': handshake_rows,
+        'station_cycle': station_cycle,
+        'current_phase_label': station_cycle.get_phase_display() if station_cycle else '等待生产任务',
     })
 
 
@@ -89,7 +128,23 @@ def plc_config(request):
         if plc and request.POST.get('action') == 'save_connection':
             plc.address = request.POST.get('address', plc.address)
             plc.protocol = request.POST.get('protocol', plc.protocol)
-            plc.save(update_fields=['address', 'protocol', 'updated_at'])
+            rack_slot = request.POST.get('rack_slot', '0 / 1').replace(' ', '')
+            try:
+                rack, slot = [int(item) for item in rack_slot.split('/', 1)]
+            except (TypeError, ValueError):
+                rack, slot = 0, 1
+            try:
+                heartbeat_interval = int(request.POST.get('heartbeat_interval', 2))
+            except (TypeError, ValueError):
+                heartbeat_interval = 2
+            plc.configuration = {
+                **(plc.configuration or {}),
+                'rack': rack,
+                'slot': slot,
+                'heartbeat_interval': max(1, min(10, heartbeat_interval)),
+                'db_number': 100,
+            }
+            plc.save(update_fields=['address', 'protocol', 'configuration', 'updated_at'])
     return render(request, 'devices/plc_config.html', {
         'plc': plc,
         'plc_points': PLC_POINT_DEFINITIONS,

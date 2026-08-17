@@ -1,68 +1,22 @@
 {% extends "base.html" %}
-{% block title %}报警管理 - AutomaticOrder{% endblock %}
+{% block title %}报警处置 - AutomaticBoxing{% endblock %}
 {% block content %}
-<section class="page-header"><h1>报警管理</h1></section>
+<section class="page-header"><div><h1>报警处置</h1><p class="page-subtitle">确认表示“已看到”；关闭表示“故障已排除”；涉及工位锁定时，关闭操作同时尝试安全解锁。</p></div></section>
 
-<h2 class="section-title">未处理报警</h2>
-<div class="table-wrap">
-  <table class="data-table">
-    <thead>
-      <tr><th>编号</th><th>等级</th><th>来源</th><th>内容</th><th>产品</th><th>锁定</th><th>状态</th><th>时间</th><th>操作</th></tr>
-    </thead>
-    <tbody>
-      {% for a in open_alarms %}
-      <tr>
-        <td><a href="{% url 'alarms:alarm_detail' a.pk %}">{{ a.alarm_code }}</a></td>
-        <td>{{ a.get_level_display }}</td>
-        <td>{{ a.get_source_display }}</td>
-        <td>{{ a.message }}</td>
-        <td>{{ a.product.product_code|default:"-" }}</td>
-        <td>{% if a.locked_workstation %}<span class="badge badge-fail">锁定</span>{% else %}-{% endif %}</td>
-        <td><span class="badge badge-warn">{{ a.get_status_display }}</span></td>
-        <td>{{ a.created_at|date:"m-d H:i" }}</td>
-        <td>
-          <div class="inline-form">
-            {% if a.status == 'OPEN' %}
-            <form method="post" action="{% url 'alarms:acknowledge' a.pk %}">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-sm btn-secondary">确认</button>
-            </form>
-            {% endif %}
-            <form method="post" action="{% url 'alarms:close' a.pk %}"
-                  data-confirm="确认关闭该报警并解除工位锁定？">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-sm btn-danger">关闭</button>
-            </form>
-          </div>
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="9" class="empty">暂无未处理报警</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+<section class="alarm-rule-strip"><div><strong>{{ open_alarms|length }}</strong><span>当前未关闭</span></div><div><strong>确认</strong><span>记录响应，不解除锁定</span></div><div><strong>关闭</strong><span>需填写处置结果，可能解除锁定</span></div></section>
 
-<h2 class="section-title">历史报警</h2>
-<div class="table-wrap">
-  <table class="data-table">
-    <thead>
-      <tr><th>编号</th><th>等级</th><th>来源</th><th>内容</th><th>处理备注</th><th>关闭时间</th></tr>
-    </thead>
-    <tbody>
-      {% for a in closed_alarms %}
-      <tr>
-        <td><a href="{% url 'alarms:alarm_detail' a.pk %}">{{ a.alarm_code }}</a></td>
-        <td>{{ a.get_level_display }}</td>
-        <td>{{ a.get_source_display }}</td>
-        <td>{{ a.message }}</td>
-        <td>{{ a.operator_note|default:"-" }}</td>
-        <td>{{ a.closed_at|date:"m-d H:i"|default:"-" }}</td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="6" class="empty">暂无历史报警</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+<section class="active-alarm-stack">
+  {% for a in open_alarms %}
+  <article class="panel active-alarm-card level-{{ a.level|lower }}">
+    <div class="active-alarm-head"><div><span class="alarm-code">{{ a.alarm_code }}</span><span class="badge {% if a.level == 'CRITICAL' or a.level == 'ERROR' %}badge-fail{% else %}badge-warn{% endif %}">{{ a.get_level_display }}</span>{% if a.locked_workstation %}<span class="badge badge-fail">工位已锁定</span>{% endif %}</div><time>{{ a.created_at|date:"Y-m-d H:i:s" }}</time></div>
+    <div class="active-alarm-content"><div class="alarm-message"><span>{{ a.get_source_display }}</span><strong>{{ a.message }}</strong><small>产品 {{ a.product.product_code|default:"—" }} · 料框 {{ a.rack.rack_code|default:"—" }}</small></div><dl class="alarm-guidance"><div><dt>可能原因</dt><dd>{{ a.cause_hint }}</dd></div><div><dt>生产影响</dt><dd>{{ a.impact_hint }}</dd></div><div><dt>建议处置</dt><dd>{{ a.sop_hint }}</dd></div></dl></div>
+    <div class="active-alarm-actions"><a class="quiet-link" href="{% url 'alarms:alarm_detail' a.pk %}">查看完整详情 →</a><div class="inline-form">{% if a.status == 'OPEN' %}<form method="post" action="{% url 'alarms:acknowledge' a.pk %}">{% csrf_token %}<button type="submit" class="btn btn-secondary btn-sm">仅确认已看到</button></form>{% endif %}<form method="post" action="{% url 'alarms:close' a.pk %}" data-confirm="请确认故障已经排除。关闭报警可能同时解除工位锁定，是否继续？">{% csrf_token %}<input type="text" name="operator_note" placeholder="必填：处置结果" required><button type="submit" class="btn btn-danger btn-sm">关闭并尝试解锁</button></form></div></div>
+  </article>
+  {% empty %}<div class="panel alarm-healthy-state"><strong>✓ 当前无未关闭报警</strong><span>工位没有等待处置的异常；历史报警仅用于追溯。</span></div>{% endfor %}
+</section>
+
+<section class="panel alarm-history-panel">
+  <div class="panel-heading"><div><span class="eyebrow">CLOSED HISTORY</span><h2>最近关闭记录</h2></div><span class="table-scope">最近 50 条</span></div>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>关闭时间</th><th>报警编号</th><th>来源</th><th>内容</th><th>处理备注</th></tr></thead><tbody>{% for a in closed_alarms %}<tr><td>{{ a.closed_at|date:"m-d H:i:s"|default:"—" }}</td><td><a href="{% url 'alarms:alarm_detail' a.pk %}">{{ a.alarm_code }}</a></td><td>{{ a.get_source_display }}</td><td>{{ a.message|truncatechars:56 }}</td><td>{{ a.operator_note|default:"—" }}</td></tr>{% empty %}<tr><td colspan="5" class="empty">暂无历史报警</td></tr>{% endfor %}</tbody></table></div>
+</section>
 {% endblock %}

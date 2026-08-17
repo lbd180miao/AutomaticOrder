@@ -7,9 +7,13 @@ app_name = 'mes'
 urlpatterns = [
     # 主页面
     path('records/', views.record_list, name='record_list'),
+    path('recipe-check/', views.recipe_check, name='recipe_check'),
 
     # API
     path('api/stats/', views.stats_api, name='stats_api'),
+    path('api/recipe-verification/', views.recipe_verification_api, name='recipe_verification_api'),
+    path('api/rack-measurement/debug/', views.rack_measurement_debug_api, name='rack_measurement_debug_api'),
+    path('api/rack-measurement/profile/', views.rack_measurement_profile_api, name='rack_measurement_profile_api'),
     path('api/retry/<int:record_id>/', views.retry_api, name='retry_api'),
     path('api/test/', views.test_upload_api, name='test_upload_api'),
 ]

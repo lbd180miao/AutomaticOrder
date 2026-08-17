@@ -353,3 +353,62 @@ class VisionRecipe(TimeStampedModel):
 
     def __str__(self):
         return f'{self.name}({self.recipe_type}, POS {self.pos})'
+
+
+class RackMeasurementProfile(TimeStampedModel):
+    """2D 料架层高/层距测量参数，供手动调试和 PLC 自动流程共用。"""
+
+    name = models.CharField(max_length=128, default='默认料架测量配置')
+    camera_code = models.CharField(max_length=64, default='CAM-INSPECT-RACK-01')
+    roi_x = models.PositiveIntegerField(default=0)
+    roi_y = models.PositiveIntegerField(default=0)
+    roi_width = models.PositiveIntegerField(default=0, help_text='0 表示延伸到图像右边界')
+    roi_height = models.PositiveIntegerField(default=0, help_text='0 表示延伸到图像下边界')
+    mm_per_pixel = models.DecimalField(max_digits=10, decimal_places=6, default=1)
+    edge_threshold = models.DecimalField(max_digits=5, decimal_places=4, default=0.18)
+    min_peak_distance = models.PositiveIntegerField(default=8)
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        ordering = ['-is_active', '-updated_at']
+
+    def __str__(self):
+        return f'{self.name}:{self.camera_code}'
+
+
+class RackLayerMeasurement(TimeStampedModel):
+    """一次 2D 料架测量记录。手动调试不会推进工位状态机。"""
+
+    SOURCE_CHOICES = (
+        ('MANUAL_UPLOAD', '手动上传'),
+        ('MANUAL_CAMERA', '手动拍照'),
+        ('PLC_AUTO', 'PLC 自动触发'),
+    )
+
+    station_cycle = models.ForeignKey(
+        'workflow.StationCycle', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='rack_measurements',
+    )
+    profile = models.ForeignKey(
+        RackMeasurementProfile, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='measurements',
+    )
+    source = models.CharField(max_length=32, choices=SOURCE_CHOICES)
+    input_image_path = models.CharField(max_length=512, blank=True)
+    result_image_path = models.CharField(max_length=512, blank=True)
+    detected_layer_count = models.PositiveIntegerField(default=0)
+    measured_layer_height = models.DecimalField(
+        max_digits=10, decimal_places=3, null=True, blank=True,
+    )
+    measured_layer_spacing = models.DecimalField(
+        max_digits=10, decimal_places=3, null=True, blank=True,
+    )
+    confidence = models.DecimalField(max_digits=5, decimal_places=4, default=0)
+    passed = models.BooleanField(null=True, blank=True)
+    is_success = models.BooleanField(default=False)
+    parameters = models.JSONField(default=dict, blank=True)
+    result_data = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
