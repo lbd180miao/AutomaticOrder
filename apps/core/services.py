@@ -20,14 +20,16 @@ WORKFLOW_ORDER = [value for value, _label in WorkflowState.choices]
 
 
 def _stage_cards(current_state, demo_mode=False):
-    """将细粒度状态压缩为操作员能快速识别的四个生产阶段。"""
+    """将旧流程状态压缩为与 DB100 一致的六个操作员步骤。"""
     if demo_mode:
-        states = ['done', 'done', 'active', 'pending']
+        states = ['done', 'done', 'done', 'done', 'active', 'pending']
     else:
         current_index = WORKFLOW_ORDER.index(current_state) if current_state in WORKFLOW_ORDER else 0
         boundaries = [
-            WORKFLOW_ORDER.index(WorkflowState.MES_UPLOADED),
-            WORKFLOW_ORDER.index(WorkflowState.INJECTION_RELEASED),
+            WORKFLOW_ORDER.index(WorkflowState.BARCODE_READ),
+            WORKFLOW_ORDER.index(WorkflowState.RECIPE_LOADED),
+            WORKFLOW_ORDER.index(WorkflowState.RACK_LOCATED),
+            WORKFLOW_ORDER.index(WorkflowState.RECIPE_VERIFIED),
             WORKFLOW_ORDER.index(WorkflowState.FOAM_INSPECTING),
             WORKFLOW_ORDER.index(WorkflowState.COMPLETED),
         ]
@@ -42,13 +44,53 @@ def _stage_cards(current_state, demo_mode=False):
                 states.append('pending')
             previous = boundary
         if current_state == WorkflowState.COMPLETED:
-            states = ['done', 'done', 'done', 'done']
+            states = ['done'] * 6
 
     content = [
-        ('01', '产品打标', '产品码读取与校验'),
-        ('02', '机器人交接', '双机器人安全交接'),
-        ('03', '视觉装箱', '定位、装箱与泡棉检测'),
-        ('04', 'MES上传', '绑定关系与装箱结果'),
+        ('01', '产品条码', 'DBX24 → DBX25'),
+        ('02', '料框配方', 'DBX48 → DBX49'),
+        ('03', '3D 定位', 'DBX118 → DBX119'),
+        ('04', '配方核对', 'DBX50 → DBX51/52'),
+        ('05', '泡棉检测', 'DBX120 → DBX121/122'),
+        ('06', 'MES 上传', 'DBX123 → DBX124/125'),
+    ]
+    return [
+        {'number': number, 'name': name, 'description': description, 'status': status}
+        for (number, name, description), status in zip(content, states)
+    ]
+
+
+def _station_stage_cards(phase, resume_phase=''):
+    from apps.workflow.models import StationPhase
+
+    groups = [
+        {StationPhase.WAIT_PRODUCT, StationPhase.WAIT_MARK_RESET},
+        {StationPhase.WAIT_RACK, StationPhase.WAIT_RACK_RESET},
+        {StationPhase.WAIT_POSITION, StationPhase.WAIT_POSITION_RESET},
+        {StationPhase.WAIT_RECIPE_VERIFY, StationPhase.WAIT_RECIPE_RESET},
+        {StationPhase.WAIT_FOAM, StationPhase.WAIT_FOAM_RESET},
+        {StationPhase.WAIT_BOXING, StationPhase.WAIT_BOXING_RESET},
+    ]
+    effective_phase = resume_phase if phase == StationPhase.LOCKED and resume_phase else phase
+    active_index = next(
+        (index for index, values in enumerate(groups) if effective_phase in values), 3,
+    )
+    if phase == StationPhase.COMPLETED:
+        states = ['done'] * 6
+    else:
+        states = [
+            'done' if index < active_index else (
+                'active' if index == active_index else 'pending'
+            )
+            for index in range(6)
+        ]
+    content = [
+        ('01', '产品条码', 'DBX24 → DBX25'),
+        ('02', '料框配方', 'DBX48 → DBX49'),
+        ('03', '3D 定位', 'DBX118 → DBX119'),
+        ('04', '配方核对', 'DBX50 → DBX51/52'),
+        ('05', '泡棉检测', 'DBX120 → DBX121/122'),
+        ('06', 'MES 上传', 'DBX123 → DBX124/125'),
     ]
     return [
         {'number': number, 'name': name, 'description': description, 'status': status}
@@ -64,7 +106,14 @@ class DashboardService:
         from apps.devices.models import Device
         from apps.mes.models import MesRecord
         from apps.production.models import Product
-        from apps.workflow.models import WorkflowInstance
+        from apps.workflow.models import StationCycle, StationPhase, WorkflowInstance
+
+        station_cycle = (
+            StationCycle.objects
+            .exclude(phase=StationPhase.COMPLETED)
+            .select_related('workflow__product__rack__current_recipe')
+            .order_by('-created_at').first()
+        )
 
         # 当前活动流程：取最近更新且未结束的流程实例。
         active = (
@@ -73,7 +122,7 @@ class DashboardService:
             .select_related('product', 'product__rack', 'product__rack__current_recipe')
             .order_by('-updated_at')
             .first()
-        )
+        ) if station_cycle is None else station_cycle.workflow
 
         current_product = None
         current_rack = None
@@ -91,8 +140,12 @@ class DashboardService:
             is_locked = active.is_locked
             current_state = active.current_state
 
+        if station_cycle is not None:
+            workflow_state_label = station_cycle.get_phase_display()
+            is_locked = station_cycle.is_locked
+
         # 演示库中的 P-DEMO 流程用于展示整改后的运行界面；接入现场数据后自动使用真实值。
-        demo_mode = not active or (current_product or '').startswith('P-DEMO')
+        demo_mode = station_cycle is None and (not active or (current_product or '').startswith('P-DEMO'))
         if demo_mode:
             current_product = current_product or 'P-20260814-0008'
             current_rack = current_rack or 'RACK-A-20260814-01'
@@ -105,8 +158,66 @@ class DashboardService:
             loaded_quantity = Product.objects.filter(rack=active.product.rack).count()
             if active.product.rack.current_recipe_id:
                 planned_quantity = active.product.rack.current_recipe.total_quantity or 24
+        if station_cycle is not None:
+            loaded_quantity = station_cycle.loaded_quantity
+            planned_quantity = station_cycle.planned_quantity or planned_quantity
         if demo_mode:
             loaded_quantity = 12
+
+        quantity_per_layer = 6
+        layer_count = 4
+        if active and active.product.rack_id and active.product.rack.current_recipe_id:
+            quantity_per_layer = active.product.rack.current_recipe.quantity_per_layer or quantity_per_layer
+            layer_count = active.product.rack.current_recipe.layer_count or layer_count
+
+        # 首页只展示操作员需要理解的工位占位，不在这里复制业务状态机。
+        display_capacity = min(max(planned_quantity, 1), 48)
+        rack_slots = []
+        for slot_number in range(1, display_capacity + 1):
+            rack_slots.append({
+                'number': slot_number,
+                'layer': (slot_number - 1) // max(1, quantity_per_layer) + 1,
+                'position': (slot_number - 1) % max(1, quantity_per_layer) + 1,
+                'status': (
+                    'loaded' if slot_number <= loaded_quantity
+                    else 'current' if slot_number == loaded_quantity + 1
+                    else 'pending'
+                ),
+            })
+
+        phase_signal_map = {
+            StationPhase.WAIT_PRODUCT: ('DBX24.0', '等待打标完成触发', '读取 DBB2 产品条码'),
+            StationPhase.WAIT_MARK_RESET: ('DBX24.0', '等待 PLC 清除打标触发', 'DBX25.0 保持确认'),
+            StationPhase.WAIT_RACK: ('DBX48.0', '等待料框到位触发', '读取 DBB26 料框码'),
+            StationPhase.WAIT_RACK_RESET: ('DBX48.0', '等待 PLC 清除料框触发', 'DBX49.0 保持确认'),
+            StationPhase.WAIT_POSITION: ('DBX118.0', '等待 3D 定位触发', '结果写入 DBB54–117'),
+            StationPhase.WAIT_POSITION_RESET: ('DBX118.0', '等待 PLC 清除定位触发', 'DBX119.0 保持确认'),
+            StationPhase.WAIT_RECIPE_VERIFY: ('DBX50.0', '等待配方校验触发', '结果写入 DBX51/52'),
+            StationPhase.WAIT_RECIPE_RESET: ('DBX50.0', '等待 PLC 清除校验触发', 'DBX52.0 保持确认'),
+            StationPhase.WAIT_FOAM: ('DBX120.0', '等待泡棉检测触发', '结果写入 DBX121/122'),
+            StationPhase.WAIT_FOAM_RESET: ('DBX120.0', '等待 PLC 清除泡棉触发', 'DBX122.0 保持确认'),
+            StationPhase.WAIT_BOXING: ('DBX123.0', '等待装箱完成触发', '结果写入 DBX124/125'),
+            StationPhase.WAIT_BOXING_RESET: ('DBX123.0', '等待 PLC 清除装箱触发', 'DBX125.0 保持确认'),
+            StationPhase.COMPLETED: ('DBW128', '料框装箱已满', '等待下一生产任务'),
+            StationPhase.LOCKED: ('DBX126.0', '工位已锁定', '处理报警后人工解锁'),
+        }
+        if station_cycle is not None:
+            signal_code, wait_label, signal_hint = phase_signal_map.get(
+                StationPhase(station_cycle.phase), ('—', workflow_state_label, '等待状态更新')
+            )
+        elif demo_mode:
+            signal_code, wait_label, signal_hint = (
+                'DBX120.0', '等待泡棉检测触发', '合格结果写入 DBX121/122'
+            )
+        else:
+            signal_code, wait_label, signal_hint = ('DBX24.0', '等待打标完成触发', '读取 DBB2 产品条码')
+
+        if planned_quantity and loaded_quantity >= planned_quantity:
+            current_layer = layer_count
+            current_position = quantity_per_layer
+        else:
+            current_layer = min(layer_count, loaded_quantity // max(1, quantity_per_layer) + 1)
+            current_position = loaded_quantity % max(1, quantity_per_layer) + 1
 
         recent_events = []
         if active and not demo_mode:
@@ -146,6 +257,7 @@ class DashboardService:
         recent_alarms = list(
             open_alarms.order_by('-created_at')[:5]
         )
+        primary_alarm = recent_alarms[0] if recent_alarms else None
 
         devices = list(Device.objects.all())
         online = sum(1 for d in devices if d.status == DeviceStatus.ONLINE)
@@ -174,15 +286,26 @@ class DashboardService:
             'current_recipe': current_recipe,
             'workflow_state': workflow_state_label,
             'is_locked': is_locked,
-            'stage_cards': _stage_cards(current_state, demo_mode=demo_mode),
+            'stage_cards': (
+                _station_stage_cards(station_cycle.phase, station_cycle.resume_phase)
+                if station_cycle is not None else _stage_cards(current_state, demo_mode=demo_mode)
+            ),
             'line_mode': '自动运行',
             'shift_name': '白班 08:00—20:00',
             'cycle_time': '32.5',
             'loaded_quantity': loaded_quantity,
             'planned_quantity': planned_quantity,
+            'quantity_per_layer': quantity_per_layer,
+            'layer_count': layer_count,
+            'rack_slots': rack_slots,
+            'rack_columns': min(max(quantity_per_layer, 1), 12),
+            'signal_code': signal_code,
+            'wait_label': wait_label,
+            'signal_hint': signal_hint,
+            'data_timestamp': timezone.localtime().strftime('%Y-%m-%d %H:%M:%S'),
             'progress_percent': min(100, round(loaded_quantity / planned_quantity * 100)) if planned_quantity else 0,
-            'current_layer': 2 if demo_mode else '-',
-            'current_position': 6 if demo_mode else '-',
+            'current_layer': current_layer,
+            'current_position': current_position,
             'binding_status': '已绑定' if current_rack else '等待料框码',
             'mes_upload_label': (
                 '已上传' if active and active.product.mes_upload_status == MesUploadStatus.UPLOADED
@@ -191,6 +314,7 @@ class DashboardService:
             'recent_events': recent_events,
             'open_alarm_count': open_alarms.count(),
             'recent_alarms': recent_alarms,
+            'primary_alarm': primary_alarm,
             'device_total': len(devices),
             'device_online': online,
             'device_status': f'{online}/{len(devices)} 在线' if devices else '无设备',

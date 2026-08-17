@@ -1,467 +1,89 @@
 {% extends "base.html" %}
-{% block title %}MES 接口监控 - AutomaticOrder{% endblock %}
-
+{% block title %}MES 接口监控 - AutomaticBoxing{% endblock %}
 {% block content %}
 <section class="page-header">
-  <h1>MES 接口监控</h1>
-  <div class="toolbar-actions">
-    <button class="btn btn-sm btn-secondary" id="btn-refresh" onclick="location.reload()">
-      ↻ 刷新
-    </button>
-    <button class="btn btn-sm" id="btn-test-upload">
-      ▶ 测试上传
-    </button>
+  <div>
+    <div class="title-with-badge"><h1>MES 接口监控</h1>{% if demo_mode %}<span class="demo-label">模拟数据 · 非接口实绩</span>{% endif %}</div>
+    <p class="page-subtitle">只呈现接口健康、请求审计与失败重传；配方核对已独立。</p>
+  </div>
+  <a class="btn btn-primary" href="{% url 'mes:recipe_check' %}">进入配方核对</a>
+</section>
+
+<nav class="module-tabs" aria-label="MES 模块">
+  <a class="active" href="{% url 'mes:record_list' %}">接口记录</a>
+  <a href="{% url 'mes:recipe_check' %}">配方核对与 2D 调试</a>
+</nav>
+
+<section class="metric-grid mes-health-grid">
+  <article class="metric-card"><span>24 小时请求</span><strong id="stat-total">{{ stats.total }}</strong><small>所有 MES 业务动作</small></article>
+  <article class="metric-card metric-primary"><span>成功率</span><strong id="stat-rate">{{ stats.success_rate }}%</strong><small>成功 {{ stats.success }} 次</small></article>
+  <article class="metric-card {% if stats.fail %}metric-danger{% endif %}"><span>失败请求</span><strong id="stat-fail">{{ stats.fail }}</strong><small>需确认业务或网络原因</small></article>
+  <article class="metric-card {% if stats.pending_retry %}metric-warning{% endif %}"><span>待重传</span><strong id="stat-pending">{{ stats.pending_retry }}</strong><small>仅统计未被成功覆盖的请求</small></article>
+</section>
+
+<section class="panel mes-health-strip">
+  <div><span class="health-light {% if stats.fail %}warning{% else %}ok{% endif %}"></span><span>接口状态</span><strong>{% if stats.fail %}存在失败记录{% else %}运行正常{% endif %}</strong></div>
+  <div><span>业务地址</span><strong>由系统设置统一配置</strong></div>
+  <div><span>最近请求</span><strong>{% if latest_record %}{{ latest_record.created_at|date:"Y-m-d H:i:s" }}{% else %}演示 14:32:18{% endif %}</strong></div>
+  <div><span>刷新策略</span><strong>30 秒统计刷新</strong></div>
+</section>
+
+<section class="panel filter-panel mes-filter-panel">
+  <form method="get" class="mes-filter-form">
+    <label>开始日期<input type="date" name="start_date" value="{{ start_date }}"></label>
+    <label>结束日期<input type="date" name="end_date" value="{{ end_date }}"></label>
+    <label>业务动作<select name="action"><option value="">全部动作</option>{% for value,label in action_choices %}<option value="{{ value }}" {% if action_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label>调用结果<select name="result"><option value="">全部结果</option><option value="ok" {% if result_filter == 'ok' %}selected{% endif %}>成功</option><option value="fail" {% if result_filter == 'fail' %}selected{% endif %}>失败</option></select></label>
+    <button class="btn btn-primary" type="submit">查询</button>
+    <a class="btn btn-secondary" href="{% url 'mes:record_list' %}">重置</a>
+  </form>
+</section>
+
+<section class="panel mes-record-panel">
+  <div class="panel-heading"><div><span class="eyebrow">INTERFACE AUDIT</span><h2>请求审计</h2></div><span class="table-scope">最多显示 200 条</span></div>
+  <div class="table-wrap">
+    <table class="data-table mes-audit-table" id="mes-table">
+      <thead><tr><th>时间</th><th>业务动作</th><th>产品 / 料框</th><th>结果</th><th>异常摘要</th><th>报文</th><th>操作</th></tr></thead>
+      <tbody>
+        {% for record in records %}
+        <tr class="{% if not record.success %}row-fail{% endif %}">
+          <td class="mono-cell">{{ record.created_at|date:"m-d H:i:s" }}</td>
+          <td><strong>{{ record.get_action_display }}</strong><small class="cell-sub">{{ record.action }}</small></td>
+          <td><span>{{ record.product.product_code|default:"—" }}</span><small class="cell-sub">{{ record.rack.rack_code|default:"—" }}</small></td>
+          <td>{% if record.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td>
+          <td class="error-summary">{{ record.error_message|default:"—"|truncatechars:48 }}</td>
+          <td><details class="payload-details"><summary>查看</summary><div><strong>请求</strong><pre>{{ record.request_payload }}</pre><strong>响应</strong><pre>{{ record.response_payload }}</pre></div></details></td>
+          <td>{% if not record.success %}<button type="button" class="btn btn-secondary btn-sm retry-btn" data-id="{{ record.pk }}">重传</button>{% else %}<span class="text-faint">—</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr class="demo-table-row"><td class="mono-cell">08-15 14:32:18</td><td><strong>上传装箱结果</strong><small class="cell-sub">UPLOAD_BOXING_RESULT</small></td><td>P-20260815-0042<small class="cell-sub">RACK-A-0815-02</small></td><td><span class="badge badge-ok">成功</span></td><td>—</td><td><span class="text-faint">示意报文</span></td><td>—</td></tr>
+        <tr class="demo-table-row"><td class="mono-cell">08-15 14:31:46</td><td><strong>获取料框配方</strong><small class="cell-sub">GET_RACK_RECIPE</small></td><td>—<small class="cell-sub">RACK-A-0815-02</small></td><td><span class="badge badge-ok">成功</span></td><td>—</td><td><span class="text-faint">示意报文</span></td><td>—</td></tr>
+        <tr class="demo-table-row"><td class="mono-cell">08-15 14:26:09</td><td><strong>上传产品绑定</strong><small class="cell-sub">UPLOAD_PRODUCT_BARCODE</small></td><td>P-20260815-0041<small class="cell-sub">RACK-A-0815-02</small></td><td><span class="badge badge-fail">失败</span></td><td>MES 请求超时，将进入重传队列</td><td><span class="text-faint">示意报文</span></td><td><button type="button" class="btn btn-secondary btn-sm" disabled>示意</button></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </section>
 
-<!-- ── 状态统计卡片 ─────────────────────────────── -->
-<div class="grid mes-stats-grid" style="margin-bottom:20px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
-  <div class="panel stat-info">
-    <h2>24h 总请求</h2>
-    <p id="stat-total">{{ stats.total }}</p>
-  </div>
-  <div class="panel stat-ok">
-    <h2>24h 成功</h2>
-    <p id="stat-success">{{ stats.success }}</p>
-  </div>
-  <div class="panel stat-danger">
-    <h2>24h 失败</h2>
-    <p id="stat-fail">{{ stats.fail }}</p>
-  </div>
-  <div class="panel {% if stats.success_rate >= 95 %}stat-ok{% elif stats.success_rate >= 80 %}stat-warn{% else %}stat-danger{% endif %}">
-    <h2>成功率</h2>
-    <p id="stat-rate">{{ stats.success_rate }}%</p>
-  </div>
-  <div class="panel {% if stats.pending_retry > 0 %}stat-warn{% else %}stat-ok{% endif %}">
-    <h2>待重传</h2>
-    <p id="stat-pending">{{ stats.pending_retry }}</p>
-  </div>
-</div>
-
-<!-- ── 各动作分布 ─────────────────────────────────── -->
-{% if stats.by_action %}
-<div class="panel" style="margin-bottom:20px;padding:18px 22px;">
-  <div class="section-title" style="margin:0 0 14px;">动作分布（近 24h）</div>
-  <div style="display:flex;flex-wrap:wrap;gap:10px;">
-    {% for row in stats.by_action %}
-    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 16px;min-width:200px;">
-      <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">
-        {{ row.action }}
-      </div>
-      <div style="display:flex;gap:12px;align-items:center;">
-        <span style="font-size:20px;font-weight:700;">{{ row.total }}</span>
-        <span class="badge badge-ok">✓ {{ row.ok }}</span>
-        {% if row.fail %}<span class="badge badge-fail">✗ {{ row.fail }}</span>{% endif %}
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
-<!-- ── 过滤工具栏 ─────────────────────────────────── -->
-<div class="toolbar" style="margin-bottom:16px;">
-  <form method="get" class="inline-form" style="flex-wrap:wrap;gap:10px;">
-    <span class="field-label">动作</span>
-    <select name="action" onchange="this.form.submit()">
-      <option value="">全部</option>
-      {% for val, label in action_choices %}
-      <option value="{{ val }}" {% if action_filter == val %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-
-    <span class="field-label">结果</span>
-    <select name="result" onchange="this.form.submit()">
-      <option value="">全部</option>
-      <option value="ok" {% if result_filter == 'ok' %}selected{% endif %}>成功</option>
-      <option value="fail" {% if result_filter == 'fail' %}selected{% endif %}>失败</option>
-    </select>
-
-    {% if action_filter or result_filter %}
-    <a href="{% url 'mes:record_list' %}" class="btn btn-sm btn-secondary">✕ 清除过滤</a>
-    {% endif %}
-  </form>
-
-  <div style="margin-left:auto;font-size:13px;color:var(--text-muted);">
-    显示最近 {{ records|length }} 条 / 共过滤自数据库前 200 条
-  </div>
-</div>
-
-<!-- ── MES 记录表格 ─────────────────────────────────── -->
-<div class="table-wrap">
-  <table class="data-table" id="mes-table">
-    <thead>
-      <tr>
-        <th style="width:44px;">#</th>
-        <th style="width:148px;">时间</th>
-        <th style="width:160px;">动作</th>
-        <th>产品码</th>
-        <th>料框码</th>
-        <th style="width:80px;">结果</th>
-        <th>错误信息</th>
-        <th style="width:80px;text-align:center;">操作</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for m in records %}
-      <tr class="{% if not m.success %}row-fail{% endif %}" data-id="{{ m.pk }}">
-        <td style="color:var(--text-faint);font-size:12px;">{{ m.pk }}</td>
-        <td style="font-variant-numeric:tabular-nums;white-space:nowrap;">
-          {{ m.created_at|date:"m-d H:i:s" }}
-        </td>
-        <td>
-          <span class="mes-action-badge action-{{ m.action }}">{{ m.get_action_display }}</span>
-        </td>
-        <td>
-          {% if m.product %}
-            <code class="code-tag">{{ m.product.product_code }}</code>
-          {% else %}
-            <span class="text-faint">—</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if m.rack %}
-            <code class="code-tag">{{ m.rack.rack_code }}</code>
-          {% else %}
-            <span class="text-faint">—</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if m.success %}
-            <span class="badge badge-ok">成功</span>
-          {% else %}
-            <span class="badge badge-fail">失败</span>
-          {% endif %}
-        </td>
-        <td style="max-width:320px;">
-          {% if m.error_message %}
-            <span class="error-text" title="{{ m.error_message }}">{{ m.error_message|truncatechars:60 }}</span>
-          {% else %}
-            <span class="text-faint">—</span>
-          {% endif %}
-        </td>
-        <td style="text-align:center;">
-          {% if not m.success %}
-          <button class="btn btn-sm btn-danger retry-btn"
-                  data-id="{{ m.pk }}"
-                  title="重传此记录">
-            ↺ 重传
-          </button>
-          {% else %}
-            <span class="text-faint">—</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% empty %}
-      <tr>
-        <td colspan="8" class="empty">
-          <div style="padding:40px 0;">
-            <div style="font-size:32px;margin-bottom:8px;">📭</div>
-            暂无 MES 记录
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-<!-- ── 测试上传对话框 ─────────────────────────────────── -->
-<div id="test-modal" class="modal-overlay" style="display:none;">
-  <div class="modal-box">
-    <div class="modal-header">
-      <span>测试 MES 上传</span>
-      <button class="modal-close" onclick="closeModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <p style="margin:0 0 12px;color:var(--text-muted);font-size:13px;">
-        选择动作和 Payload，发送一次测试请求到 MES 接口，结果将记录到数据库。
-      </p>
-      <div style="margin-bottom:12px;">
-        <label class="field-label" style="display:block;margin-bottom:4px;">动作类型</label>
-        <select id="test-action" style="width:100%;">
-          {% for val, label in action_choices %}
-          <option value="{{ val }}">{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div style="margin-bottom:12px;">
-        <label class="field-label" style="display:block;margin-bottom:4px;">Payload (JSON)</label>
-        <textarea id="test-payload"
-                  rows="5"
-                  style="width:100%;padding:10px;border:1px solid var(--border-strong);
-                         border-radius:var(--radius-sm);font-family:monospace;font-size:13px;
-                         resize:vertical;box-sizing:border-box;"
-        >{"test": true, "rack_code": "RACK-001", "product_code": "P-2024-001"}</textarea>
-      </div>
-      <div id="test-result" style="display:none;"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary btn-sm" onclick="closeModal()">取消</button>
-      <button class="btn btn-sm" id="btn-send-test">发送请求</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── 操作反馈 Toast ─────────────────────────────────── -->
-<div id="toast" class="toast" style="display:none;"></div>
-
-<!-- ── 额外样式 ─────────────────────────────────── -->
-<style>
-/* 动作标签 */
-.mes-action-badge {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 5px;
-  font-size: 12px;
-  font-weight: 600;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-.action-GET_RACK_RECIPE        { background: var(--info-soft);    color: var(--info);    border-color: transparent; }
-.action-UPLOAD_PRODUCT_BARCODE { background: var(--primary-soft); color: var(--primary); border-color: transparent; }
-.action-UPLOAD_BOXING_RESULT   { background: var(--success-soft); color: var(--success); border-color: transparent; }
-.action-UPLOAD_VISION_RESULT   { background: var(--warn-soft);    color: var(--warn);    border-color: transparent; }
-.action-UPLOAD_ALARM           { background: var(--danger-soft);  color: var(--danger);  border-color: transparent; }
-
-/* 失败行高亮 */
-.row-fail { background: #fff8f8; }
-.row-fail:hover { background: #fde8e8 !important; }
-
-/* 代码标签 */
-.code-tag {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 7px;
-  font-size: 12px;
-  font-family: 'Consolas', 'Courier New', monospace;
-  color: var(--text);
-}
-
-/* 错误文本 */
-.error-text {
-  color: var(--danger);
-  font-size: 13px;
-  cursor: help;
-}
-
-.text-faint { color: var(--text-faint); }
-
-/* 模态框 */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.45);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-box {
-  background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
-  width: 480px;
-  max-width: 96vw;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-  font-weight: 700;
-  font-size: 15px;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 18px;
-  color: var(--text-muted);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-.modal-close:hover { background: var(--surface-2); }
-
-.modal-body {
-  padding: 20px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 20px;
-  border-top: 1px solid var(--border);
-  background: var(--surface-2);
-}
-
-/* Toast 通知 */
-.toast {
-  position: fixed;
-  bottom: 28px;
-  right: 28px;
-  z-index: 200;
-  padding: 14px 22px;
-  border-radius: var(--radius);
-  font-size: 14px;
-  font-weight: 600;
-  box-shadow: var(--shadow-lg);
-  animation: slideIn 0.2s ease;
-  max-width: 360px;
-}
-
-.toast-ok   { background: var(--success); color: #fff; }
-.toast-fail { background: var(--danger);  color: #fff; }
-.toast-info { background: var(--primary); color: #fff; }
-
-@keyframes slideIn {
-  from { transform: translateY(20px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
-}
-
-/* 重传按钮加载态 */
-.retry-btn.loading {
-  opacity: 0.6;
-  pointer-events: none;
-}
-</style>
-
-<!-- ── 交互脚本 ─────────────────────────────────── -->
+<div class="toast-container" id="toast-container"></div>
 <script>
 (function () {
-  /* ── Toast ── */
-  function showToast(msg, type = 'info') {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.className = `toast toast-${type}`;
-    t.style.display = 'block';
-    clearTimeout(t._timer);
-    t._timer = setTimeout(() => { t.style.display = 'none'; }, 3500);
+  const table = document.getElementById('mes-table');
+  const toastRoot = document.getElementById('toast-container');
+  function toast(message, tone) {
+    const item = document.createElement('div'); item.className = `toast toast-${tone || 'info'}`; item.textContent = message;
+    toastRoot.appendChild(item); setTimeout(() => item.remove(), 3200);
   }
-
-  /* ── 模态框 ── */
-  window.closeModal = function () {
-    document.getElementById('test-modal').style.display = 'none';
-    document.getElementById('test-result').style.display = 'none';
-  };
-
-  document.getElementById('btn-test-upload').addEventListener('click', () => {
-    document.getElementById('test-modal').style.display = 'flex';
-  });
-
-  document.getElementById('test-modal').addEventListener('click', function (e) {
-    if (e.target === this) closeModal();
-  });
-
-  /* ── 发送测试请求 ── */
-  document.getElementById('btn-send-test').addEventListener('click', async () => {
-    const action  = document.getElementById('test-action').value;
-    const payloadStr = document.getElementById('test-payload').value;
-    let payload;
+  table.addEventListener('click', async (event) => {
+    const button = event.target.closest('.retry-btn'); if (!button) return;
+    const original = button.textContent; button.disabled = true; button.textContent = '重传中…';
     try {
-      payload = JSON.parse(payloadStr);
-    } catch {
-      showToast('Payload 不是有效 JSON', 'fail');
-      return;
-    }
-
-    const btn = document.getElementById('btn-send-test');
-    btn.textContent = '发送中…';
-    btn.disabled = true;
-
-    try {
-      const resp = await fetch('{% url "mes:test_upload_api" %}', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ action, payload }),
-      });
-      const data = await resp.json();
-
-      const resultEl = document.getElementById('test-result');
-      resultEl.style.display = 'block';
-      resultEl.innerHTML = `
-        <div style="padding:12px;border-radius:var(--radius-sm);
-             background:${data.success ? 'var(--success-soft)' : 'var(--danger-soft)'};
-             border:1px solid ${data.success ? 'var(--success)' : 'var(--danger)'};
-             font-size:13px;">
-          <strong>${data.success ? '✓ 成功' : '✗ 失败'}</strong><br>
-          <pre style="margin:6px 0 0;white-space:pre-wrap;word-break:break-all;">${JSON.stringify(data, null, 2)}</pre>
-        </div>
-      `;
-      showToast(data.success ? 'MES 请求成功' : `请求失败: ${data.error || ''}`,
-                data.success ? 'ok' : 'fail');
-    } catch (err) {
-      showToast('网络错误: ' + err.message, 'fail');
-    } finally {
-      btn.textContent = '发送请求';
-      btn.disabled = false;
-    }
+      const response = await fetch(`/mes/api/retry/${button.dataset.id}/`, {method: 'POST'});
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'MES 返回失败');
+      toast(`记录 #${button.dataset.id} 重传成功`, 'ok'); setTimeout(() => location.reload(), 600);
+    } catch (error) { toast(`重传失败：${error.message}`, 'fail'); button.disabled = false; button.textContent = original; }
   });
-
-  /* ── 重传失败记录 ── */
-  document.getElementById('mes-table').addEventListener('click', async (e) => {
-    const btn = e.target.closest('.retry-btn');
-    if (!btn) return;
-
-    const id = btn.dataset.id;
-    btn.classList.add('loading');
-    btn.textContent = '…';
-
-    try {
-      const resp = await fetch(`/mes/api/retry/${id}/`, { method: 'POST' });
-      const data = await resp.json();
-
-      if (data.success) {
-        showToast(`记录 #${id} 重传成功`, 'ok');
-        // 更新该行样式
-        const row = btn.closest('tr');
-        row.classList.remove('row-fail');
-        row.querySelector('.badge-fail').className = 'badge badge-ok';
-        row.querySelector('.badge-fail, .badge-ok').textContent = '成功';
-        btn.remove();
-      } else {
-        showToast(`重传失败: ${data.error || '未知错误'}`, 'fail');
-        btn.classList.remove('loading');
-        btn.textContent = '↺ 重传';
-      }
-    } catch (err) {
-      showToast('网络错误: ' + err.message, 'fail');
-      btn.classList.remove('loading');
-      btn.textContent = '↺ 重传';
-    }
-  });
-
-  /* ── 实时刷新统计（每30秒） ── */
-  async function refreshStats() {
-    try {
-      const resp = await fetch('{% url "mes:stats_api" %}');
-      const d = await resp.json();
-      const set = (id, val) => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = val;
-      };
-      set('stat-total',   d.total);
-      set('stat-success', d.success);
-      set('stat-fail',    d.fail);
-      set('stat-rate',    d.success_rate + '%');
-      set('stat-pending', d.pending_retry);
-    } catch { /* 静默忽略 */ }
-  }
-  setInterval(refreshStats, 30000);
 })();
 </script>
 {% endblock %}

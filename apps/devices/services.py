@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from apps.core.constants import DeviceStatus, DeviceType, SignalDirection
 from .adapters.camera import CameraAdapter
+from .adapters.plc import MemoryPLCTransport, PLCAdapter
 from .adapters.simulated import SimulatedDeviceAdapter
 from .models import Device, DeviceSignalRecord
 
@@ -12,12 +13,50 @@ def get_device_adapter(**kwargs):
     """按配置返回设备适配器。"""
     conf = getattr(settings, 'AUTOMATIC_ORDER', {})
     device_type = kwargs.pop('device_type', None)
+    if device_type == DeviceType.PLC:
+        return get_plc_adapter()
     if conf.get('USE_SIMULATED_DEVICES', True):
         return SimulatedDeviceAdapter(**kwargs)
     if device_type in (DeviceType.DEPTH_CAMERA, DeviceType.INSPECT_CAMERA):
         return CameraAdapter()
     # 其他真实设备适配器（PLC/Scanner...）后续按设备类型接入。
     return SimulatedDeviceAdapter(**kwargs)
+
+
+_memory_plc_adapter = None
+
+
+def get_plc_adapter():
+    """Return the configured DB100 PLC adapter.
+
+    Simulation uses a process-wide memory DB so management commands and debug
+    APIs observe the same PLC state. Production resolves rack/slot from the PLC
+    device's JSON configuration.
+    """
+    global _memory_plc_adapter
+    conf = getattr(settings, 'AUTOMATIC_ORDER', {})
+    if conf.get('USE_SIMULATED_DEVICES', True):
+        if _memory_plc_adapter is None:
+            _memory_plc_adapter = PLCAdapter(transport=MemoryPLCTransport())
+            _memory_plc_adapter.connect()
+        return _memory_plc_adapter
+
+    device = Device.objects.filter(
+        device_type=DeviceType.PLC, enabled=True,
+    ).order_by('code').first()
+    if device is None:
+        raise RuntimeError('未配置启用的 PLC 设备')
+    if not device.address:
+        raise RuntimeError('PLC IP 地址未配置')
+    if (device.protocol or 'S7').upper() not in {'S7', 'S7COMM'}:
+        raise RuntimeError(f'DB100 Worker 当前仅支持 S7，现配置为 {device.protocol}')
+    config = device.configuration or {}
+    return PLCAdapter(
+        address=device.address,
+        rack=config.get('rack', 0),
+        slot=config.get('slot', 1),
+        tcp_port=config.get('tcp_port', 102),
+    )
 
 
 class DeviceService:

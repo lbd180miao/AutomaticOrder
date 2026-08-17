@@ -1,140 +1,77 @@
 {% extends "base.html" %}
-{% block title %}生产运行 - AutomaticOrder{% endblock %}
+{% block title %}生产总览 - AutomaticBoxing{% endblock %}
 {% block page_class %}page-operation{% endblock %}
 {% block content %}
 <section class="page-header operation-header">
   <div>
-    <h1>生产运行</h1>
-    <p class="page-subtitle">保险杠自动下线、视觉装箱与 MES 数据交换</p>
+    <div class="title-with-badge"><h1>生产总览</h1>{% if demo_mode %}<span class="demo-label">模拟数据 · 非现场值</span>{% endif %}</div>
+    <p class="page-subtitle">DB100 自动装箱工位 · 数据时间 {{ data_timestamp }}</p>
   </div>
-  <div class="operation-actions">
-    {% if demo_mode %}<span class="demo-label">演示生产数据</span>{% endif %}
-    <a class="btn btn-secondary btn-sm" href="{% url 'workflow:current' %}">流程明细</a>
+  <a class="btn btn-secondary btn-sm" href="{% url 'workflow:current' %}">查看握手流程</a>
+</section>
+
+{% if is_locked %}<div class="lock-banner"><strong>工位已锁定</strong><span>请处理关联报警并完成安全确认后解锁。</span></div>{% endif %}
+
+<section class="command-board {% if is_locked %}is-locked{% endif %}">
+  <div class="command-state"><span class="command-kicker">当前工位状态</span><strong>{{ workflow_state }}</strong><small>{{ line_mode }} · {{ shift_name }}</small></div>
+  <div class="command-wait"><span class="signal-code">{{ signal_code }}</span><div><span>当前等待</span><strong>{{ wait_label }}</strong><small>{{ signal_hint }}</small></div></div>
+  <div class="command-identifiers">
+    <div><span>产品</span><strong>{{ current_product|default:"等待产品码" }}</strong></div>
+    <div><span>料框</span><strong>{{ current_rack|default:"等待料框码" }}</strong></div>
   </div>
 </section>
 
-{% if is_locked %}
-<div class="lock-banner">当前生产任务已锁定，请先处理关联报警。</div>
-{% endif %}
-
-<section class="operation-strip">
-  <div><span>产线模式</span><strong class="text-success">{{ line_mode }}</strong></div>
-  <div><span>当前班次</span><strong>{{ shift_name }}</strong></div>
-  <div><span>标准节拍</span><strong>{{ cycle_time }} s</strong></div>
-  <div><span>PLC通讯</span><strong class="text-{{ plc_status_tone }}">{{ plc_status }}</strong></div>
-  <div><span>MES接口</span><strong class="text-{{ mes_status_tone }}">{{ mes_status }}</strong></div>
-</section>
-
-<section class="metric-grid operation-metrics">
-  <article class="metric-card">
-    <span>当前产品</span><strong>{{ current_product|default:"等待产品码" }}</strong><small>PLC 条码校验通过</small>
-  </article>
-  <article class="metric-card">
-    <span>当前料框</span><strong>{{ current_rack|default:"等待料框码" }}</strong><small>{{ binding_status }}</small>
-  </article>
-  <article class="metric-card metric-primary">
-    <span>当前状态</span><strong>{{ workflow_state }}</strong><small>第 {{ current_layer }} 层 · 位置 {{ current_position }}</small>
-  </article>
-  <article class="metric-card">
-    <span>今日产量</span><strong>{{ today_total|default:"126" }}</strong><small>合格 {{ today_completed }} · 异常 {{ today_failed }}</small>
-  </article>
-  <article class="metric-card {% if open_alarm_count %}metric-danger{% endif %}">
-    <span>未处理报警</span><strong>{{ open_alarm_count }}</strong><small>{% if open_alarm_count %}需要人工关注{% else %}产线运行正常{% endif %}</small>
-  </article>
-</section>
-
-<h2 class="section-title">当前作业流程</h2>
-<section class="production-stage-board">
+<section class="production-stage-board production-stage-six" aria-label="当前作业流程">
   {% for stage in stage_cards %}
   <article class="production-stage stage-{{ stage.status }}">
     <div class="stage-number">{{ stage.number }}</div>
-    <div class="stage-copy">
-      <strong>{{ stage.name }}</strong>
-      <span>{{ stage.description }}</span>
-    </div>
-    <span class="stage-status">
-      {% if stage.status == 'done' %}已完成{% elif stage.status == 'active' %}进行中{% else %}等待{% endif %}
-    </span>
+    <div class="stage-copy"><strong>{{ stage.name }}</strong><span>{{ stage.description }}</span></div>
+    <span class="stage-status">{% if stage.status == 'done' %}完成{% elif stage.status == 'active' %}当前{% else %}等待{% endif %}</span>
   </article>
   {% endfor %}
 </section>
 
-<section class="operation-columns">
-  <article class="panel operation-panel">
+<section class="operator-layout">
+  <article class="panel rack-board-panel">
     <div class="panel-heading">
-      <div><span class="eyebrow">CURRENT LOAD</span><h2>当前装载任务</h2></div>
-      <span class="badge badge-running">{{ workflow_state }}</span>
+      <div><span class="eyebrow">RACK LOADING PLAN</span><h2>料框装载图</h2></div>
+      <div class="rack-progress-copy"><strong>{{ loaded_quantity }} / {{ planned_quantity }}</strong><span>{{ progress_percent }}%</span></div>
     </div>
-    <div class="load-progress-head">
-      <div><span>装箱进度</span><strong>{{ loaded_quantity }} / {{ planned_quantity }}</strong></div>
-      <strong>{{ progress_percent }}%</strong>
+    <div class="rack-board-body">
+      <div class="rack-legend"><span><i class="rack-dot loaded"></i>已装</span><span><i class="rack-dot current"></i>下一位置</span><span><i class="rack-dot pending"></i>待装</span></div>
+      <div class="rack-slot-grid" style="--rack-columns: {{ rack_columns }}">
+        {% for slot in rack_slots %}
+        <div class="rack-slot rack-slot-{{ slot.status }}" title="第 {{ slot.layer }} 层 · 位置 {{ slot.position }}"><span>{{ slot.number|stringformat:"02d" }}</span><small>L{{ slot.layer }}</small></div>
+        {% endfor %}
+      </div>
+      <div class="progress-track"><div style="width:{{ progress_percent }}%"></div></div>
     </div>
-    <div class="progress-track"><div style="width:{{ progress_percent }}%"></div></div>
-    <dl class="detail-grid">
-      <div><dt>产品条码</dt><dd>{{ current_product }}</dd></div>
-      <div><dt>料框条码</dt><dd>{{ current_rack }}</dd></div>
-      <div><dt>工艺配方</dt><dd>{{ current_recipe }}</dd></div>
-      <div><dt>当前位置</dt><dd>第 {{ current_layer }} 层 / POS {{ current_position }}</dd></div>
-      <div><dt>绑定状态</dt><dd class="text-success">{{ binding_status }}</dd></div>
-      <div><dt>MES上传</dt><dd>{{ mes_upload_label }}</dd></div>
-    </dl>
   </article>
 
-  <article class="panel operation-panel">
-    <div class="panel-heading">
-      <div><span class="eyebrow">CONNECTIONS</span><h2>系统连接</h2></div>
-      <a href="{% url 'core:system_settings' %}" class="quiet-link">系统设置 →</a>
-    </div>
-    <div class="connection-list">
-      <a href="{% url 'devices:status' %}" class="connection-row">
-        <span class="connection-icon">PLC</span><span><strong>主控 PLC</strong><small>{{ device_status }} · 最近通讯 {{ plc_last_seen }}</small></span><b class="dot dot-{{ plc_status_tone }}"></b>
-      </a>
-      <a href="{% url 'mes:record_list' %}" class="connection-row">
-        <span class="connection-icon">MES</span><span><strong>工厂 MES</strong><small>{{ mes_status }} · 待处理 {{ mes_pending_count }} 条</small></span><b class="dot dot-{{ mes_status_tone }}"></b>
-      </a>
-      <a href="{% url 'vision:task_list' %}" class="connection-row">
-        <span class="connection-icon">VIS</span><span><strong>视觉系统</strong><small>3D 定位与 2D 泡棉检测就绪</small></span><b class="dot dot-ok"></b>
-      </a>
-    </div>
-    <div class="panel-quick-links">
-      <a href="{% url 'vision:recipe_management' %}">视觉配方管理</a>
-      <a href="{% url 'vision:foam_inspector_interactive' %}">泡棉检测工作台</a>
-      <a href="{% url 'core:system_settings' %}">更多设置</a>
-    </div>
-  </article>
+  <aside class="operator-side-stack">
+    <article class="panel current-job-card">
+      <div class="panel-heading"><div><span class="eyebrow">CURRENT JOB</span><h2>当前任务</h2></div><span class="badge badge-running">{{ workflow_state }}</span></div>
+      <dl class="job-facts">
+        <div><dt>配方</dt><dd>{{ current_recipe|default:"—" }}</dd></div><div><dt>层数 / 每层</dt><dd>{{ layer_count }} / {{ quantity_per_layer }}</dd></div>
+        <div><dt>当前位置</dt><dd>第 {{ current_layer }} 层 · POS {{ current_position }}</dd></div><div><dt>MES 状态</dt><dd>{{ mes_upload_label }}</dd></div>
+      </dl>
+      <div class="system-mini-row"><a href="{% url 'devices:status' %}"><i class="dot dot-{{ plc_status_tone }}"></i>PLC {{ plc_status }}</a><a href="{% url 'mes:record_list' %}"><i class="dot dot-{{ mes_status_tone }}"></i>MES {{ mes_status }}</a></div>
+    </article>
+
+    <article class="panel alarm-focus-card {% if primary_alarm %}has-alarm{% endif %}">
+      <div class="panel-heading"><div><span class="eyebrow">OPERATOR ATTENTION</span><h2>操作员关注</h2></div><a href="{% url 'alarms:alarm_list' %}" class="quiet-link">全部报警 →</a></div>
+      {% if primary_alarm %}
+      <div class="alarm-focus-body"><span class="alarm-level">{{ primary_alarm.get_level_display }}</span><strong>{{ primary_alarm.message }}</strong><small>{{ primary_alarm.get_source_display }} · {{ primary_alarm.created_at|date:"m-d H:i:s" }}</small><a class="btn btn-danger btn-sm" href="{% url 'alarms:alarm_detail' primary_alarm.pk %}">查看处置步骤</a></div>
+      {% else %}<div class="healthy-empty"><strong>✓ 当前无未处理报警</strong><span>工位可继续自动运行</span></div>{% endif %}
+    </article>
+  </aside>
 </section>
 
-<section class="operation-columns operation-lower">
-  <article class="panel operation-panel">
-    <div class="panel-heading">
-      <div><span class="eyebrow">LIVE EVENTS</span><h2>最近生产事件</h2></div>
-      <a href="{% url 'traceability:search' %}" class="quiet-link">全部记录 →</a>
-    </div>
-    <div class="event-list">
-      {% for event in recent_events %}
-      <div class="event-row">
-        <time>{{ event.display_time }}</time>
-        <span class="event-source">{{ event.source }}</span>
-        <div><strong>{{ event.event }}</strong><small>{{ event.message }}</small></div>
-        <span class="event-result {% if event.success %}ok{% else %}fail{% endif %}">{% if event.success %}成功{% else %}失败{% endif %}</span>
-      </div>
-      {% empty %}<div class="empty">暂无生产事件</div>{% endfor %}
-    </div>
-  </article>
-
-  <article class="panel operation-panel">
-    <div class="panel-heading">
-      <div><span class="eyebrow">ACTIVE ALARMS</span><h2>当前报警</h2></div>
-      <a href="{% url 'alarms:alarm_list' %}" class="quiet-link">报警处理 →</a>
-    </div>
-    <div class="alarm-compact-list">
-      {% for alarm in recent_alarms %}
-      <a href="{% url 'alarms:alarm_detail' alarm.pk %}" class="alarm-compact-row">
-        <span class="alarm-level">{{ alarm.get_level_display }}</span>
-        <span><strong>{{ alarm.message|truncatechars:46 }}</strong><small>{{ alarm.get_source_display }} · {{ alarm.created_at|date:"m-d H:i" }}</small></span>
-      </a>
-      {% empty %}<div class="healthy-empty"><strong>✓ 当前无未处理报警</strong><span>设备与生产流程运行正常</span></div>{% endfor %}
-    </div>
-  </article>
+<section class="panel event-stream-panel">
+  <div class="panel-heading"><div><span class="eyebrow">RECENT EVENTS</span><h2>最近生产事件</h2></div><a href="{% url 'traceability:search' %}" class="quiet-link">进入追溯 →</a></div>
+  <div class="event-list compact">
+    {% for event in recent_events %}<div class="event-row"><time>{{ event.display_time }}</time><span class="event-source">{{ event.source }}</span><div><strong>{{ event.event }}</strong><small>{{ event.message }}</small></div><span class="event-result {% if event.success %}ok{% else %}fail{% endif %}">{% if event.success %}成功{% else %}失败{% endif %}</span></div>
+    {% empty %}<div class="empty">暂无生产事件</div>{% endfor %}
+  </div>
 </section>
 {% endblock %}

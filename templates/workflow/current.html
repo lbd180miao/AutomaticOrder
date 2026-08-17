@@ -1,97 +1,58 @@
 {% extends "base.html" %}
-{% block title %}当前流程 - AutomaticOrder{% endblock %}
+{% block title %}PLC 握手流程 - AutomaticBoxing{% endblock %}
 {% block content %}
-<section class="page-header"><h1>当前流程</h1></section>
+<section class="page-header">
+  <div><div class="title-with-badge"><h1>PLC 握手流程</h1>{% if demo_mode %}<span class="demo-label">模拟数据 · 非 PLC 实时值</span>{% endif %}</div><p class="page-subtitle">面向调试与维护：按 DB100 顺序查看触发、业务结果和完成确认。</p></div>
+  <a href="{% url 'workflow:history' %}" class="btn btn-secondary">历史流程</a>
+</section>
 
-<div class="toolbar">
-  <form method="post" action="{% url 'workflow:start' %}" class="inline-form">
-    {% csrf_token %}
-    <input type="text" name="product_code" placeholder="产品条码（留空自动生成）">
-    <button type="submit" class="btn">新建流程</button>
-  </form>
-  <a href="{% url 'workflow:history' %}" class="btn btn-secondary">查看历史</a>
-</div>
-
-{% if not workflow %}
-<section class="panel"><p>当前没有进行中的流程，点击“新建流程”开始一个演示流程。</p></section>
-{% else %}
-
-{% if workflow.is_locked %}
-<div class="lock-banner">
-  流程已锁定：{{ workflow.last_error }}
-  <form method="post" action="{% url 'workflow:unlock' workflow.pk %}" class="inline-form" style="margin-top:10px;">
-    {% csrf_token %}
-    <input type="text" name="operator_note" placeholder="处理备注">
-    <button type="submit" name="action" value="resume" class="btn">解除并继续</button>
-    <button type="submit" name="action" value="fail" class="btn btn-danger"
-            data-confirm="确认将该流程判定为失败？">判定失败</button>
-  </form>
-</div>
+{% if workflow and workflow.is_locked %}
+<div class="lock-banner"><strong>工位锁定：{{ workflow.last_error }}</strong><form method="post" action="{% url 'workflow:unlock' workflow.pk %}" class="inline-form">{% csrf_token %}<input type="text" name="operator_note" placeholder="处理备注" required><button type="submit" name="action" value="resume" class="btn btn-danger">确认处理并解锁</button></form></div>
 {% endif %}
 
-<section class="grid">
-  <div class="panel text-panel">
-    <h2>产品条码</h2>
-    <p>{{ workflow.product.product_code }}</p>
-  </div>
-  <div class="panel text-panel">
-    <h2>料框码</h2>
-    <p>{{ workflow.product.rack.rack_code|default:"未绑定" }}</p>
-  </div>
-  <div class="panel text-panel stat-info">
-    <h2>当前状态</h2>
-    <p><span class="badge badge-running">{{ state_label }}</span></p>
-  </div>
-  <div class="panel text-panel">
-    <h2>操作</h2>
-    {% if not is_terminal and not workflow.is_locked %}
-    <form method="post" action="{% url 'workflow:advance' workflow.pk %}">
-      {% csrf_token %}
-      <button type="submit" class="btn">模拟 PLC 信号 · 推进下一步</button>
-    </form>
-    {% else %}
-    <p>{% if is_terminal %}流程已结束{% else %}已锁定{% endif %}</p>
-    {% endif %}
+<section class="workflow-command">
+  <div><span>当前阶段</span><strong>{{ display_phase }}</strong></div><div><span>产品条码</span><strong>{{ display_product|default:"等待 DBB2" }}</strong></div><div><span>料框码</span><strong>{{ display_rack|default:"等待 DBB26" }}</strong></div><div><span>配方</span><strong>{{ display_recipe|default:"等待 MES" }}</strong></div>
+</section>
+
+<section class="panel handshake-panel">
+  <div class="panel-heading"><div><span class="eyebrow">DB100 HANDSHAKE</span><h2>自动流程握手</h2></div><span class="table-scope">绿：完成 · 蓝：当前 · 灰：等待</span></div>
+  <div class="handshake-list">
+    {% for item in handshakes %}
+    <article class="handshake-row handshake-{{ item.status }}">
+      <span class="handshake-number">{{ item.number|stringformat:"02d" }}</span>
+      <div class="handshake-name"><strong>{{ item.name }}</strong><small>{% if item.status == 'done' %}本轮已完成{% elif item.status == 'active' %}当前等待阶段{% else %}尚未进入{% endif %}</small></div>
+      <div class="plc-point"><span>PLC 触发</span><strong>{{ item.trigger }}</strong><i>{% if item.status == 'active' %}监听中{% elif item.status == 'done' %}已响应{% else %}—{% endif %}</i></div>
+      <span class="handshake-arrow">→</span>
+      <div class="plc-point"><span>业务结果</span><strong>{{ item.result }}</strong><i>{% if item.status == 'done' %}已写入{% elif item.status == 'active' %}等待计算{% else %}—{% endif %}</i></div>
+      <span class="handshake-arrow">→</span>
+      <div class="plc-point"><span>完成确认</span><strong>{{ item.confirm }}</strong><i>{% if item.status == 'done' %}已完成{% elif item.status == 'active' %}待置位{% else %}—{% endif %}</i></div>
+      <span class="handshake-status">{% if item.status == 'done' %}完成{% elif item.status == 'active' %}当前{% else %}等待{% endif %}</span>
+    </article>
+    {% endfor %}
   </div>
 </section>
 
-<h2 class="section-title">阶段进度</h2>
-{% for stage_name, steps in stage_order %}
-<div class="stage-group">
-  <h3>{{ stage_name }}</h3>
-  <div class="stage-track">
-    {% for step in steps %}
-    <span class="stage-step {% if step.active %}active{% elif step.done %}done{% endif %}">{{ step.label }}</span>
-    {% endfor %}
-  </div>
-</div>
-{% endfor %}
-
-<h2 class="section-title">最近流程事件</h2>
-<div class="table-wrap">
-  <table class="data-table">
-    <thead>
-      <tr><th>时间</th><th>事件</th><th>来源</th><th>原状态</th><th>目标状态</th><th>结果</th><th>说明</th></tr>
-    </thead>
-    <tbody>
-      {% for ev in recent_events %}
-      <tr>
-        <td>{{ ev.occurred_at|date:"m-d H:i:s" }}</td>
-        <td>{{ ev.event_type }}</td>
-        <td>{{ ev.source }}</td>
-        <td>{{ ev.from_state }}</td>
-        <td>{{ ev.to_state }}</td>
-        <td>
-          {% if ev.success %}<span class="badge badge-ok">成功</span>
-          {% else %}<span class="badge badge-fail">失败</span>{% endif %}
-        </td>
-        <td>{{ ev.message }}</td>
-      </tr>
+<section class="workflow-lower-grid">
+  <article class="panel workflow-event-panel">
+    <div class="panel-heading"><div><span class="eyebrow">EVENT TIMELINE</span><h2>最近事件</h2></div></div>
+    <div class="workflow-timeline">
+      {% for ev in recent_events %}<div class="timeline-item {% if not ev.success %}failed{% endif %}"><time>{{ ev.occurred_at|default:ev.created_at|date:"H:i:s" }}</time><i></i><div><strong>{{ ev.event_type }}</strong><span>{{ ev.message|default:"状态已更新" }}</span><small>{{ ev.get_source_display }} · {{ ev.from_state|default:"—" }} → {{ ev.to_state|default:"—" }}</small></div></div>
       {% empty %}
-      <tr><td colspan="7" class="empty">暂无事件</td></tr>
+      {% if demo_mode %}<div class="timeline-item"><time>14:32:18</time><i></i><div><strong>RACK_LOCATED</strong><span>定位矩阵已写入 DBB54–117</span><small>模拟事件</small></div></div><div class="timeline-item"><time>14:31:46</time><i></i><div><strong>RECIPE_LOADED</strong><span>配方 BUMPER-A-04 获取成功</span><small>模拟事件</small></div></div>{% else %}<div class="empty">暂无流程事件</div>{% endif %}
       {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
+    </div>
+  </article>
+
+  <aside class="panel engineering-tool-panel">
+    <div class="panel-heading"><div><span class="eyebrow">ENGINEERING TOOL</span><h2>流程联调</h2></div><span class="badge badge-muted">非生产操作</span></div>
+    <div class="engineering-tool-body">
+      <p>此区域只用于无 PLC 环境下验证旧流程状态机，现场自动模式无需操作。</p>
+      {% if not station_cycle %}
+        {% if not workflow %}<form method="post" action="{% url 'workflow:start' %}">{% csrf_token %}<label>演示产品条码<input type="text" name="product_code" placeholder="留空自动生成"></label><button type="submit" class="btn btn-secondary btn-block">新建演示流程</button></form>
+        {% elif not is_terminal and not workflow.is_locked %}<form method="post" action="{% url 'workflow:advance' workflow.pk %}" data-confirm="确认模拟一次 PLC 信号并推进旧流程？">{% csrf_token %}<button type="submit" class="btn btn-secondary btn-block">模拟信号 · 推进下一步</button></form>
+        {% else %}<span class="text-muted">当前流程不可手动推进。</span>{% endif %}
+      {% else %}<span class="text-muted">Station Worker 正在接管，手动推进已禁用。</span>{% endif %}
+    </div>
+  </aside>
+</section>
 {% endblock %}

@@ -10,6 +10,7 @@ class Device(TimeStampedModel):
     device_type = models.CharField(max_length=64, choices=DeviceType.choices)
     protocol = models.CharField(max_length=64, blank=True)
     address = models.CharField(max_length=255, blank=True)
+    configuration = models.JSONField(default=dict, blank=True)
     enabled = models.BooleanField(default=True)
     last_seen_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=32, choices=DeviceStatus.choices, default=DeviceStatus.UNKNOWN)

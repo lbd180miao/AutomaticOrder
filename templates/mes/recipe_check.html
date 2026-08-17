@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}配方核对与 2D 调试 - AutomaticBoxing{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div><h1>配方核对与 2D 调试</h1><p class="page-subtitle">自动模式由 PLC DBX50.0 触发；手动调试始终旁路，不写 PLC、不推进工位。</p></div>
+  <a class="btn btn-secondary" href="{% url 'mes:record_list' %}">返回 MES 记录</a>
+</section>
+
+<nav class="module-tabs" aria-label="MES 模块"><a href="{% url 'mes:record_list' %}">接口记录</a><a class="active" href="{% url 'mes:recipe_check' %}">配方核对与 2D 调试</a></nav>
+
+<section class="auto-mode-banner">
+  <div><span class="mode-pill">AUTO</span><div><strong>PLC 自动计算已接入</strong><small>DBX50.0 = 1 → 相机拍照 → 计算层高/层距 → 与 MES 配方比对 → 写 DBX51.0 与 DBX52.0</small></div></div>
+  <span class="badge badge-{{ verification.state_tone }}" id="verification-state">{{ verification.state_label }}</span>
+</section>
+
+<section class="panel verification-card">
+  <div class="panel-heading">
+    <div><span class="eyebrow">RECIPE VERIFICATION</span><h2>当前自动核对结果</h2></div>
+    <span class="camera-state" id="verification-camera-state">2D 相机：{{ verification.camera_state }}</span>
+  </div>
+  <div class="verification-context">
+    <div><span>产品</span><strong>{{ verification.product.product_code|default:"等待任务" }}</strong></div>
+    <div><span>料框</span><strong>{{ verification.rack.rack_code|default:"—" }}</strong></div>
+    <div><span>MES 配方</span><strong>{{ verification.recipe.recipe_code|default:"—" }}</strong></div>
+    <div><span>允许容差</span><strong>{% if verification.recipe %}± {{ verification.recipe.tolerance_z }} mm{% else %}—{% endif %}</strong></div>
+  </div>
+  <div class="table-wrap"><table class="data-table verification-table"><thead><tr><th>核对项</th><th>MES 配方值</th><th>2D 实测值</th><th>偏差</th><th>判定</th></tr></thead><tbody>
+    {% for item in verification.items %}
+    <tr data-measurement-key="{{ forloop.counter0 }}"><td><strong>{{ item.label }}</strong></td><td>{% if item.expected != None %}{{ item.expected }} mm{% else %}—{% endif %}</td><td class="js-measured">{% if item.measured != None %}{{ item.measured }} mm{% else %}<span class="text-faint">等待测量</span>{% endif %}</td><td class="js-difference">{% if item.difference != None %}{{ item.difference }} mm{% else %}—{% endif %}</td><td class="js-result">{% if item.passed == True %}<span class="badge badge-ok">合格</span>{% elif item.passed == False %}<span class="badge badge-fail">不合格</span>{% else %}<span class="badge badge-muted">待校验</span>{% endif %}</td></tr>
+    {% endfor %}
+  </tbody></table></div>
+  <div class="verification-result-bar verification-{{ verification.state_tone }}" id="verification-footer">
+    <div><span>判定说明</span><strong id="verification-footer-label">{{ verification.state_label }}</strong><small id="verification-message">{{ verification.state_message }}</small></div>
+    <div class="plc-writeback"><span>DBX51 可装箱 <strong id="plc-allowed">{% if verification.plc_allowed == True %}已写入 1{% elif verification.plc_allowed == False %}已写入 0{% else %}等待{% endif %}</strong></span><span>DBX52 完成 <strong id="plc-done">{% if verification.plc_done %}已发送{% else %}等待{% endif %}</strong></span></div>
+  </div>
+</section>
+
+<section class="panel manual-debug-card">
+  <div class="panel-heading">
+    <div><span class="eyebrow">MANUAL BYPASS DEBUG</span><h2>手动图片计算</h2></div>
+    <div class="debug-heading-status"><span class="badge badge-muted">旁路调试 · 不写 PLC</span><span class="badge {% if measurement_profile %}badge-ok{% else %}badge-muted{% endif %}" id="profile-status">{% if measurement_profile %}自动参数已配置{% else %}使用默认参数{% endif %}</span></div>
+  </div>
+  <div class="manual-debug-layout">
+    <div class="debug-viewer-column">
+      <div class="viewer-toolbar"><strong>图像与识别结果</strong><span id="debug-image-meta">等待选择图片</span></div>
+      <div class="viewer-stage"><img id="debug-preview" alt="料架测量预览" hidden><div class="viewer-empty" id="debug-viewer-empty"><strong>选择现场料架图片开始调试</strong><span>支持 JPG / PNG；计算结果会叠加标出层边界。</span></div></div>
+      <div class="debug-result-strip" id="debug-result-strip" hidden><div><span>识别层数</span><strong id="debug-layers">—</strong></div><div><span>实测层高</span><strong id="debug-height">—</strong></div><div><span>实测层距</span><strong id="debug-spacing">—</strong></div><div><span>置信度</span><strong id="debug-confidence">—</strong></div><div><span>配方判定</span><strong id="debug-passed">—</strong></div></div>
+    </div>
+
+    <div class="debug-controls-column">
+      <section class="debug-control-section"><h3><span>01</span>图像来源</h3><label class="file-drop"><input type="file" id="rack-image-input" accept="image/png,image/jpeg"><strong>选择本地图片</strong><span id="rack-file-name">尚未选择文件</span></label><button class="btn btn-secondary btn-block" type="button" id="btn-camera-measure">相机拍照并计算</button></section>
+      <section class="debug-control-section"><h3><span>02</span>配方与标定</h3><div class="debug-form-grid">
+        <label>目标层数<input type="number" id="debug-layer-count" min="1" max="20" value="{{ verification.recipe.layer_count|default:4 }}"></label><label>毫米 / 像素<input type="number" id="debug-mm-per-pixel" min="0.000001" max="100" step="0.000001" value="{{ profile_data.mm_per_pixel }}"></label>
+        <label>MES 层高 (mm)<input type="number" id="debug-expected-height" min="0.001" step="0.001" value="{{ verification.recipe.layer_height|default:120 }}"></label><label>MES 层距 (mm)<input type="number" id="debug-expected-spacing" min="0.001" step="0.001" value="{{ verification.recipe.layer_spacing|default:150 }}"></label>
+        <label>允许容差 (mm)<input type="number" id="debug-tolerance" min="0" step="0.001" value="{{ verification.recipe.tolerance_z|default:3 }}"></label><label>边缘阈值<input type="number" id="debug-edge-threshold" min="0.03" max="0.95" step="0.01" value="{{ profile_data.edge_threshold }}"></label>
+        <label>最小峰间距 (px)<input type="number" id="debug-min-peak-distance" min="3" max="500" value="{{ profile_data.min_peak_distance }}"></label><label>相机代码<input type="text" id="debug-camera-code" value="{{ profile_data.camera_code }}"></label>
+      </div></section>
+      <details class="roi-details"><summary>03 · ROI 高级参数</summary><div class="debug-form-grid roi-grid"><label>X<input type="number" id="debug-roi-x" min="0" value="{{ profile_data.roi_x }}"></label><label>Y<input type="number" id="debug-roi-y" min="0" value="{{ profile_data.roi_y }}"></label><label>宽<input type="number" id="debug-roi-width" min="0" value="{{ profile_data.roi_width }}"></label><label>高<input type="number" id="debug-roi-height" min="0" value="{{ profile_data.roi_height }}"></label></div></details>
+      <div class="debug-actions"><button class="btn btn-primary" type="button" id="btn-debug-calculate">计算当前图片</button><button class="btn btn-secondary" type="button" id="btn-save-profile">保存为自动参数</button></div>
+      <div class="debug-message" id="debug-message">手动计算仅生成测量记录；保存参数后，PLC 自动触发会复用同一组参数。</div>
+    </div>
+  </div>
+</section>
+
+<div class="toast-container" id="toast-container"></div>
+<script>
+(function () {
+  const fileInput = document.getElementById('rack-image-input');
+  const preview = document.getElementById('debug-preview');
+  const empty = document.getElementById('debug-viewer-empty');
+  const message = document.getElementById('debug-message');
+  const value = id => Number(document.getElementById(id).value);
+  const parameters = () => ({layer_count:value('debug-layer-count'), expected_layer_height:value('debug-expected-height'), expected_layer_spacing:value('debug-expected-spacing'), tolerance:value('debug-tolerance'), mm_per_pixel:value('debug-mm-per-pixel'), edge_threshold:value('debug-edge-threshold'), min_peak_distance:value('debug-min-peak-distance'), camera_code:document.getElementById('debug-camera-code').value.trim(), roi_x:value('debug-roi-x'), roi_y:value('debug-roi-y'), roi_width:value('debug-roi-width'), roi_height:value('debug-roi-height')});
+  function setMessage(text, tone) { message.textContent = text; message.className = `debug-message ${tone || ''}`; }
+  function toast(text, tone) { const el=document.createElement('div'); el.className=`toast toast-${tone || 'info'}`; el.textContent=text; document.getElementById('toast-container').appendChild(el); setTimeout(()=>el.remove(),3200); }
+  function showImage(url, meta) { preview.src=url; preview.hidden=false; empty.hidden=true; document.getElementById('debug-image-meta').textContent=meta; }
+  fileInput.addEventListener('change', () => { const file=fileInput.files[0]; if(!file)return; document.getElementById('rack-file-name').textContent=`${file.name} · ${(file.size/1048576).toFixed(2)} MB`; showImage(URL.createObjectURL(file),'待计算原图'); setMessage('图片已加载，请确认标定参数后计算。'); });
+
+  async function measure(mode) {
+    if(mode==='upload' && !fileInput.files[0]) { setMessage('请先选择一张料架图片。','fail'); return; }
+    const calc=document.getElementById('btn-debug-calculate'), camera=document.getElementById('btn-camera-measure'), active=mode==='camera'?camera:calc, original=active.textContent;
+    calc.disabled=camera.disabled=true; active.textContent=mode==='camera'?'拍照计算中…':'计算中…'; setMessage('正在执行 2D 层边界测量…','running');
+    const form=new FormData(); form.append('mode',mode); form.append('parameters',JSON.stringify(parameters())); if(mode==='upload')form.append('image',fileInput.files[0]);
+    try { const response=await fetch('{% url "mes:rack_measurement_debug_api" %}',{method:'POST',body:form}); const data=await response.json();
+      if(data.result_image_url)showImage(`${data.result_image_url}?v=${Date.now()}`,`测量记录 #${data.measurement_id}`);
+      document.getElementById('debug-result-strip').hidden=false; document.getElementById('debug-layers').textContent=`${data.detected_layer_count ?? 0} / ${parameters().layer_count}`; document.getElementById('debug-height').textContent=data.measured_layer_height==null?'—':`${Number(data.measured_layer_height).toFixed(3)} mm`; document.getElementById('debug-spacing').textContent=data.measured_layer_spacing==null?'—':`${Number(data.measured_layer_spacing).toFixed(3)} mm`; document.getElementById('debug-confidence').textContent=data.confidence==null?'—':`${(Number(data.confidence)*100).toFixed(1)}%`; const passed=document.getElementById('debug-passed'); passed.textContent=data.passed===true?'合格':data.passed===false?'不合格':'无法判定'; passed.className=data.passed===true?'text-ok':data.passed===false?'text-fail':'';
+      if(!data.success)throw new Error(data.error||'图像计算失败'); setMessage(`${data.side_effects}。识别候选边缘 ${data.candidate_lines.length} 条。`,'ok'); toast('计算完成','ok');
+    } catch(error) { setMessage(error.message||'计算失败','fail'); toast(`计算失败：${error.message}`,'fail'); } finally { active.textContent=original; calc.disabled=camera.disabled=false; }
+  }
+  document.getElementById('btn-debug-calculate').addEventListener('click',()=>measure('upload')); document.getElementById('btn-camera-measure').addEventListener('click',()=>measure('camera'));
+  document.getElementById('btn-save-profile').addEventListener('click',async function(){const original=this.textContent;this.disabled=true;this.textContent='保存中…';try{const response=await fetch('{% url "mes:rack_measurement_profile_api" %}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...parameters(),name:'料架层高层距自动测量'})});const data=await response.json();if(!data.success)throw new Error(data.error||'保存失败');document.getElementById('profile-status').textContent='自动参数已配置';document.getElementById('profile-status').className='badge badge-ok';setMessage('参数已保存，PLC DBX50.0 触发时会自动使用。','ok');toast('自动测量参数已保存','ok');}catch(error){setMessage(`保存失败：${error.message}`,'fail');}finally{this.disabled=false;this.textContent=original;}});
+
+  function renderVerification(data){const state=document.getElementById('verification-state');state.textContent=data.state_label;state.className=`badge badge-${data.state_tone}`;document.getElementById('verification-camera-state').textContent=`2D 相机：${data.camera_state}`;document.getElementById('verification-footer-label').textContent=data.state_label;document.getElementById('verification-message').textContent=data.state_message;document.getElementById('verification-footer').className=`verification-result-bar verification-${data.state_tone}`;document.querySelectorAll('[data-measurement-key]').forEach((row,index)=>{const item=data.items[index];row.querySelector('.js-measured').textContent=item.measured==null?'等待测量':`${Number(item.measured).toFixed(3)} mm`;row.querySelector('.js-difference').textContent=item.difference==null?'—':`${Number(item.difference).toFixed(3)} mm`;row.querySelector('.js-result').innerHTML=item.passed===true?'<span class="badge badge-ok">合格</span>':item.passed===false?'<span class="badge badge-fail">不合格</span>':'<span class="badge badge-muted">待校验</span>';});const allowed=document.getElementById('plc-allowed');allowed.textContent=data.plc_allowed===true?'已写入 1':data.plc_allowed===false?'已写入 0':'等待';document.getElementById('plc-done').textContent=data.plc_done?'已发送':'等待';}
+  let version='{{ verification.updated_at|date:"c" }}'; setInterval(async()=>{try{const response=await fetch('{% url "mes:recipe_verification_api" %}');const data=await response.json();if(data.updated_at!==version){version=data.updated_at;renderVerification(data);}}catch(error){}},2000);
+})();
+</script>
+{% endblock %}
