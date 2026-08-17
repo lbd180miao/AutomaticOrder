@@ -562,6 +562,34 @@ class Rack3DSerializationSemanticsTests(TestCase):
         self.assertEqual(payload['rack_compensation']['meaning'], 'standard_rack_to_current_rack')
         self.assertEqual(len(payload['compensation_matrix']), 4)
 
+    def test_result_payload_exposes_robot_translation_from_matrix(self):
+        from apps.vision.rack_location import result_payload as rack_location_result_payload
+
+        result = RackLocationResult.objects.create(
+            vision_task=self.task,
+            recipe=self.recipe,
+            side='BOTH',
+            position_no=1,
+            layer_no=1,
+            is_success=True,
+            result_data={
+                'robot_rack_compensation': {
+                    'matrix': [
+                        [1.0, 0.0, 0.0, -19.541617],
+                        [0.0, 1.0, 0.0, -11.105309],
+                        [0.0, 0.0, 1.0, 61.350851],
+                        [0.0, 0.0, 0.0, 1.0],
+                    ],
+                },
+            },
+        )
+
+        payload = rack_location_result_payload(result)
+
+        self.assertAlmostEqual(payload['robot_delta_x'], -19.541617, places=6)
+        self.assertAlmostEqual(payload['robot_delta_y'], -11.105309, places=6)
+        self.assertAlmostEqual(payload['robot_delta_z'], 61.350851, places=6)
+
 
 @override_settings(MEDIA_ROOT=mkdtemp())
 class Rack3DCurrentRecipeAndRoiApiTests(TestCase):
@@ -988,6 +1016,8 @@ class Rack3DWorkbenchStateSourceTests(SimpleTestCase):
         self.assertIn('btn-roi-plane1', template)
         self.assertIn('btn-roi-plane2', template)
         self.assertIn('btn-roi-plane3', template)
+        self.assertIn('id="measured-layer-spacing"', template)
+        self.assertIn('function renderLayerSpacing(result)', script)
         self.assertNotIn('selectNextRecipe();', script)
 
     def test_invalid_local_template_has_visible_save_block_reason(self):
@@ -3216,6 +3246,10 @@ class RackLocationWorkbenchTests(TestCase):
         self.assertFalse(result['local_template_std_available'])
         self.assertEqual(set(result['local_template_rois']), {'plane1', 'plane2', 'plane3'})
         self.assertTrue(result['local_template_validation']['is_valid'])
+        self.assertAlmostEqual(result['measured_layer_spacing'], 190.0, places=1)
+        self.assertAlmostEqual(
+            result['result_data']['measured_layer_spacing'], 190.0, places=1,
+        )
         for key in ('offset_x', 'offset_y', 'offset_z', 'offset_rx', 'offset_ry', 'offset_rz'):
             self.assertEqual(result[key], 0.0)
         self.assertIsNotNone(result['result_id'])
@@ -3228,6 +3262,12 @@ class RackLocationWorkbenchTests(TestCase):
         for key in ('plane1', 'plane2', 'plane3'):
             self.assertGreater(current[key]['point_count'], 50)
             self.assertGreater(current[key]['inlier_ratio'], 0.99)
+        saved = RackLocationResult.objects.get(pk=result['result_id'])
+        self.assertAlmostEqual(float(saved.measured_layer_spacing), 190.0, places=1)
+        from apps.vision.rack_location import result_payload
+        self.assertAlmostEqual(
+            result_payload(saved)['measured_layer_spacing'], 190.0, places=1,
+        )
 
     def test_calibrate_standard_persists_valid_local_template_result(self):
         service = self._service()

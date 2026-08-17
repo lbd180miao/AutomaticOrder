@@ -58,6 +58,35 @@ def _decimal(value: Any, places: str = '0.001') -> Decimal:
     return Decimal(str(value or 0)).quantize(Decimal(places))
 
 
+def _local_template_layer_spacing_mm(local_template: dict) -> float:
+    """Return the perpendicular spacing between the fitted Π1 and Π3 planes."""
+    plane1 = (local_template or {}).get('plane1') or {}
+    plane3 = (local_template or {}).get('plane3') or {}
+    normal1 = np.asarray(plane1.get('normal'), dtype=float)
+    normal3 = np.asarray(plane3.get('normal'), dtype=float)
+    centroid1 = np.asarray(plane1.get('centroid'), dtype=float)
+    centroid3 = np.asarray(plane3.get('centroid'), dtype=float)
+    if any(value.shape != (3,) for value in (normal1, normal3, centroid1, centroid3)):
+        raise ValueError('Π1/Π3 平面数据不完整，无法计算层距')
+    if not all(np.all(np.isfinite(value)) for value in (normal1, normal3, centroid1, centroid3)):
+        raise ValueError('Π1/Π3 平面数据无效，无法计算层距')
+
+    normal1_norm = float(np.linalg.norm(normal1))
+    normal3_norm = float(np.linalg.norm(normal3))
+    if normal1_norm < 1e-9 or normal3_norm < 1e-9:
+        raise ValueError('Π1/Π3 平面法向量无效，无法计算层距')
+    normal1 = normal1 / normal1_norm
+    normal3 = normal3 / normal3_norm
+    if float(np.dot(normal1, normal3)) < 0:
+        normal3 = -normal3
+    common_normal = normal1 + normal3
+    common_normal_norm = float(np.linalg.norm(common_normal))
+    if common_normal_norm < 1e-9:
+        raise ValueError('Π1/Π3 平面法向量不一致，无法计算层距')
+    common_normal = common_normal / common_normal_norm
+    return float(abs(np.dot(centroid3 - centroid1, common_normal)))
+
+
 LOCATE_TYPE_GLOBAL = 'GLOBAL'
 LOCATE_TYPE_LAYER = 'LAYER'
 
@@ -2711,6 +2740,10 @@ class RackLocationService:
             }
             compensation_source = 'local_template_current_baseline'
 
+        measured_layer_spacing = _local_template_layer_spacing_mm(
+            local_result['local_template_cur'],
+        )
+
         values = local_result['compensation']
         validation = local_result.get('validation') or {}
         within_limits = all((
@@ -2760,6 +2793,7 @@ class RackLocationService:
         result_data = {
             'algorithm_version': 'LOCAL_TEMPLATE_3D_V2',
             'source': 'workbench_three_explicit_rois',
+            'measured_layer_spacing': measured_layer_spacing,
             'local_template_cur': local_result['local_template_cur'],
             'local_template_std': recipe.local_template_std,
             'local_template_std_available': has_standard,
@@ -2816,6 +2850,7 @@ class RackLocationService:
                 actual_y=_decimal(float(recipe.standard_y) + values['dY']),
                 actual_z=_decimal(float(recipe.standard_z) + values['dZ']),
                 confidence=_decimal(local_result['confidence'], '0.0001'),
+                measured_layer_spacing=_decimal(measured_layer_spacing),
                 is_recipe_matched=locate_ok, is_success=locate_ok,
                 error_code=error_code, error_message=error_message,
                 raw_data_path=token or '', result_image_path=result_rel,
@@ -2846,6 +2881,7 @@ class RackLocationService:
             'offset_x': values['dX'], 'offset_y': values['dY'], 'offset_z': values['dZ'],
             'offset_rx': values['dRx'], 'offset_ry': values['dRy'], 'offset_rz': values['dRz'],
             'confidence': local_result['confidence'],
+            'measured_layer_spacing': measured_layer_spacing,
             'error_code': error_code, 'error_message': error_message,
             'local_template_cur': local_result['local_template_cur'],
             'local_template_std': recipe.local_template_std,
@@ -3333,6 +3369,19 @@ def result_payload(result: RackLocationResult) -> dict:
     }:
         camera_rack_compensation = rack_compensation
     robot_rack_compensation = data.get('robot_rack_compensation')
+    robot_delta = {'x': None, 'y': None, 'z': None}
+    if robot_rack_compensation:
+        robot_pose = robot_rack_compensation.get('pose6d') or {}
+        robot_matrix = robot_rack_compensation.get('matrix') or []
+        for index, axis in enumerate(('x', 'y', 'z')):
+            value = robot_pose.get(axis)
+            if value is None and len(robot_matrix) > index and len(robot_matrix[index]) > 3:
+                value = robot_matrix[index][3]
+            try:
+                numeric = float(value)
+                robot_delta[axis] = numeric if np.isfinite(numeric) else None
+            except (TypeError, ValueError):
+                robot_delta[axis] = None
     return {
         'id': result.id,
         'task_id': result.vision_task_id,
@@ -3365,6 +3414,9 @@ def result_payload(result: RackLocationResult) -> dict:
         'final_offset_y': float(final.get('y', result.offset_y)),
         'final_offset_z': float(final.get('z', result.offset_z)),
         'final_offset_rz': float(final.get('rz', result.offset_rz)),
+        'measured_layer_spacing': float(
+            data.get('measured_layer_spacing', result.measured_layer_spacing)
+        ),
         'confidence': float(result.confidence),
         'error_code': result.error_code,
         'error_message': result.error_message,
@@ -3379,6 +3431,9 @@ def result_payload(result: RackLocationResult) -> dict:
         'rack_compensation': rack_compensation,
         'camera_rack_compensation': camera_rack_compensation,
         'robot_rack_compensation': robot_rack_compensation,
+        'robot_delta_x': robot_delta['x'],
+        'robot_delta_y': robot_delta['y'],
+        'robot_delta_z': robot_delta['z'],
         'robot_conversion_applied': bool(robot_rack_compensation),
         'compensation_coordinate_system': (
             (camera_rack_compensation or {}).get('coordinate_system')

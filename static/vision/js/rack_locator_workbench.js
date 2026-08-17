@@ -412,6 +412,17 @@
     setHtml('tpl-cur-p3', formatPlane(curTpl?.plane3));
   }
 
+  function renderLayerSpacing(result) {
+    const node = $('measured-layer-spacing');
+    if (!node) return;
+    const rawValue = result?.measured_layer_spacing
+      ?? result?.result_data?.measured_layer_spacing;
+    const value = Number(rawValue);
+    node.textContent = rawValue !== null && rawValue !== undefined && Number.isFinite(value)
+      ? `${value.toFixed(1)} mm`
+      : '—';
+  }
+
   function renderCompensation(result) {
     const comp = compensationOf(result);
     const source = $('comp-source');
@@ -584,6 +595,7 @@
         ? (state.lastResult || {})
         : {};
       renderLocalTemplate(resultForRecipe);
+      renderLayerSpacing(resultForRecipe);
       return recipe;
     } catch (e) {
       if (requestSeq !== state.recipeRequestSeq) return null;
@@ -1625,6 +1637,7 @@
 
 
     renderLocalTemplate(r);
+    renderLayerSpacing(r);
     renderCompensation(r);
 
     if (r.result_image_url) {
