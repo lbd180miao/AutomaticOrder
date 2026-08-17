@@ -62,7 +62,7 @@
   .he-record-workspace { display:grid; grid-template-columns:minmax(340px,.36fr) minmax(0,1fr); gap:12px; align-items:start; }
   .he-record-workspace:has(.he-detail[hidden]) .he-records-card { grid-column:1 / -1; }
   .he-record-list { display:grid; gap:7px; max-height:calc(100vh - 230px); min-height:120px; overflow-y:auto; padding:10px; scrollbar-gutter:stable; }
-  .he-record { width:100%; display:grid; grid-template-columns:58px minmax(110px,1fr) 72px 44px 20px; align-items:center; gap:8px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); cursor:pointer; text-align:left; }
+  .he-record { box-sizing:border-box; width:100%; display:grid; grid-template-columns:58px minmax(110px,1fr) 72px 44px 20px; align-items:center; gap:8px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); cursor:pointer; text-align:left; }
   .he-record:hover,.he-record.selected { border-color:#93c5fd; background:#eff6ff; }
   .he-record-id { color:#1d4ed8; font:800 12px Consolas,monospace; }
   .he-record-summary { min-width:0; }
@@ -73,6 +73,9 @@
   .he-record-status.ng { background:#fef2f2; color:#dc2626; }
   .he-record-chevron { color:var(--text-muted); font-size:18px; transform:rotate(0); transition:transform .15s; }
   .he-record.selected .he-record-chevron { transform:rotate(90deg); }
+  .he-record-delta { grid-column:1 / -1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; width:100%; }
+  .he-record-delta span { display:flex; align-items:center; justify-content:flex-start; gap:5px; min-width:0; padding:4px 6px; border-radius:5px; background:var(--surface-2); color:var(--text); font:600 10px Consolas,monospace; }
+  .he-record-delta b { color:var(--text-muted); font-size:9px; }
   .he-empty { padding:34px; color:var(--text-muted); text-align:center; }
 
   .he-detail { position:sticky; top:72px; margin:0; }
@@ -237,10 +240,21 @@
 
   function cameraComp(record) { return record.camera_rack_compensation||record.result_data?.camera_rack_compensation||null; }
   function robotComp(record) { return record.robot_rack_compensation||record.result_data?.robot_rack_compensation||null; }
+  function robotDelta(record,axis,index) {
+    const explicit=record[`robot_delta_${axis}`];
+    if(explicit!==null&&explicit!==undefined&&Number.isFinite(Number(explicit)))return Number(explicit);
+    const comp=robotComp(record),pose=comp?.pose6d||{},matrix=comp?.matrix||[];
+    if(pose[axis]!==null&&pose[axis]!==undefined&&Number.isFinite(Number(pose[axis])))return Number(pose[axis]);
+    const matrixValue=matrix?.[index]?.[3];
+    return matrixValue!==null&&matrixValue!==undefined&&Number.isFinite(Number(matrixValue))?Number(matrixValue):null;
+  }
+  function recordDeltaHtml(record) {
+    return ['x','y','z'].map((axis,index)=>{const value=robotDelta(record,axis,index);return `<span><b>Δ${axis.toUpperCase()}</b>${value===null?'—':fmt(value,3)}</span>`;}).join('');
+  }
   function recordButton(record) {
     const button=document.createElement('button');button.type='button';button.className=`he-record${state.selectedId===record.id?' selected':''}`;button.dataset.id=record.id;
     const date=record.created_at?new Date(record.created_at).toLocaleString():'—';
-    button.innerHTML=`<span class="he-record-id">#${record.id}</span><span class="he-record-summary"><span class="he-record-name">${escapeHtml(record.recipe_name||'未关联配方')}</span><span class="he-record-time">${escapeHtml(date)}</span></span><span class="he-record-meta">POS${record.position_no} · L${record.layer_no}</span><span class="he-record-status ${record.locate_ok?'':'ng'}">${record.locate_ok?'OK':'NG'}</span><span class="he-record-chevron">›</span>`;
+    button.innerHTML=`<span class="he-record-id">#${record.id}</span><span class="he-record-summary"><span class="he-record-name">${escapeHtml(record.recipe_name||'未关联配方')}</span><span class="he-record-time">${escapeHtml(date)}</span></span><span class="he-record-meta">POS${record.position_no} · L${record.layer_no}</span><span class="he-record-status ${record.locate_ok?'':'ng'}">${record.locate_ok?'OK':'NG'}</span><span class="he-record-chevron">›</span><span class="he-record-delta">${recordDeltaHtml(record)}</span>`;
     button.addEventListener('click',()=>selectRecord(record.id));return button;
   }
   function escapeHtml(value){const node=document.createElement('span');node.textContent=String(value??'');return node.innerHTML;}
@@ -270,6 +284,7 @@
     renderMatrix('baseDeltaMatrix',identity);renderPoseStrip('basePoseStrip',{});setDetailStatus('旧记录兼容换算中…');
     try {
       const result=await requestJson(endpoints.compute,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({delta_T_cam:{matrix:matrixFrom(comp.matrix)},T_base_flange:{matrix:state.robotPoseMatrix},T_flange_camera:{matrix:state.handEyeMatrix}})});
+      record.robot_delta_x=result.delta_base?.x??null;record.robot_delta_y=result.delta_base?.y??null;record.robot_delta_z=result.delta_base?.z??null;renderRecords();
       renderMatrix('baseDeltaMatrix',result.delta_T_base);renderPoseStrip('basePoseStrip',result.delta_base);setDetailStatus('换算完成','ok');
     } catch(error){setDetailStatus('换算失败','error');showDetailError(error.message||'坐标换算失败');}
   }

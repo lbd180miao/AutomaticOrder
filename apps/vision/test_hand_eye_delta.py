@@ -226,5 +226,8 @@ class HandEyeCalculatorPageTests(TestCase):
         self.assertContains(response, 'name="csrfmiddlewaretoken"')
         self.assertContains(response, "'X-CSRFToken'")
         self.assertContains(response, 'robot_rack_compensation')
+        self.assertContains(response, 'robot_delta_x')
+        self.assertContains(response, 'recordDeltaHtml')
+        self.assertContains(response, 'he-record-delta')
         self.assertContains(response, '检测时已换算 · 记录快照')
         self.assertNotContains(response, 'data.success === false')

@@ -625,6 +625,30 @@
     padding: 12px;
   }
 
+  .rl-layer-spacing-result {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    border: 1px solid #bae6fd;
+    border-radius: 8px;
+    background: #f0f9ff;
+    color: #0c4a6e;
+  }
+
+  .rl-layer-spacing-result strong {
+    font-size: 14px;
+  }
+
+  .rl-layer-spacing-value {
+    font-size: 22px;
+    font-weight: 800;
+    font-family: monospace;
+    color: #0284c7;
+  }
+
   .rl-pose-grid {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -961,6 +985,10 @@
             <button id="btn-save-as-std" class="btn btn-sm btn-secondary" style="background:#22c55e; color:white; border:none; display:none;">保存为标准模板</button>
           </div>
           <div class="rl-comp-body" style="background:#f8fafc; padding:12px; border-radius:6px; border:1px solid #e2e8f0; font-size:12px;">
+            <div class="rl-layer-spacing-result" aria-live="polite">
+              <strong>检测层距：</strong>
+              <span class="rl-layer-spacing-value" id="measured-layer-spacing">—</span>
+            </div>
             <div class="rl-template-validation-message" id="template-validation-message" role="alert"></div>
             <table style="width:100%; text-align:left; border-collapse: collapse;">
               <thead>
@@ -1378,6 +1406,6 @@
     offlinePackagesUrl: '{% url "vision:offline_packages" %}',
   };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=25" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=26" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
 <script src="{% static 'vision/js/offline_package_manager.js' %}?v=21"></script>
 {% endblock %}
