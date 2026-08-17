@@ -7,7 +7,7 @@
     <div class="title-with-badge"><h1>生产总览</h1>{% if demo_mode %}<span class="demo-label">模拟数据 · 非现场值</span>{% endif %}</div>
     <p class="page-subtitle">DB100 自动装箱工位 · 数据时间 {{ data_timestamp }}</p>
   </div>
-  <a class="btn btn-secondary btn-sm" href="{% url 'workflow:current' %}">查看握手流程</a>
+  <a class="btn btn-secondary btn-sm" href="{% url 'devices:status' %}">查看设备监控</a>
 </section>
 
 {% if is_locked %}<div class="lock-banner"><strong>工位已锁定</strong><span>请处理关联报警并完成安全确认后解锁。</span></div>{% endif %}

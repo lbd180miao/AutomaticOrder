@@ -20,6 +20,8 @@ class TraceabilityService:
         return self._build_product_view(product)
 
     def trace_by_rack_code(self, rack_code):
+        from apps.workflow.models import StationCycle
+
         try:
             rack = Rack.objects.select_related('current_recipe').get(rack_code=rack_code)
         except Rack.DoesNotExist:
@@ -27,11 +29,42 @@ class TraceabilityService:
         products = (
             Product.objects.filter(rack=rack).select_related('batch').order_by('created_at')
         )
+        recipe = rack.current_recipe
+        layer_count = int(recipe.layer_count) if recipe else 0
+        quantity_per_layer = int(recipe.quantity_per_layer) if recipe else 0
+        slot_rows = []
+        if layer_count and quantity_per_layer:
+            for layer_no in range(1, layer_count + 1):
+                cells = []
+                for slot_no in range(1, quantity_per_layer + 1):
+                    global_position = (layer_no - 1) * quantity_per_layer + slot_no
+                    cells.append({
+                        'layer_no': layer_no,
+                        'slot_no': slot_no,
+                        'global_position': global_position,
+                    })
+                slot_rows.append({'layer_no': layer_no, 'cells': cells})
+        latest_cycle = (
+            StationCycle.objects
+            .filter(workflow__product__rack=rack)
+            .select_related('workflow__product')
+            .order_by('-created_at')
+            .first()
+        )
         return {
             'rack': rack,
-            'recipe': rack.current_recipe,
+            'recipe': recipe,
             'products': list(products),
             'product_count': products.count(),
+            'latest_cycle': latest_cycle,
+            'slot_rows': slot_rows,
+            'planned_quantity': (
+                latest_cycle.planned_quantity
+                if latest_cycle and latest_cycle.planned_quantity
+                else recipe.total_quantity if recipe else 0
+            ),
+            # 当前 Product 模型还没有层号/槽位号字段，不能推测绑定位置。
+            'position_binding_available': False,
         }
 
     def _build_product_view(self, product):

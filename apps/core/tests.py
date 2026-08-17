@@ -14,7 +14,7 @@ class PageAccessTests(TestCase):
         self.assertContains(response, '生产总览')
         self.assertContains(response, 'DBX120.0')
         self.assertContains(response, '料框装载图')
-        self.assertContains(response, reverse('workflow:current'))
+        self.assertContains(response, reverse('devices:status'))
 
     def test_product_list(self):
         self.assertEqual(self.client.get(reverse('production:product_list')).status_code, 200)
@@ -26,7 +26,10 @@ class PageAccessTests(TestCase):
         self.assertEqual(self.client.get(reverse('production:recipe_list')).status_code, 200)
 
     def test_workflow_current(self):
-        self.assertEqual(self.client.get(reverse('workflow:current')).status_code, 200)
+        self.assertRedirects(
+            self.client.get(reverse('workflow:current')),
+            reverse('devices:status'),
+        )
 
     def test_workflow_history(self):
         self.assertEqual(self.client.get(reverse('workflow:history')).status_code, 200)

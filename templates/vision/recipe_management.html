@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}视觉配方模块 - AutomaticBoxing v1.2{% endblock %}
+{% block title %}视觉配方系统 - AutomaticBoxing{% endblock %}
 {% block content %}
 
 <style>
-/* ========== 视觉配方管理页面样式 v1.2 ========== */
+/* ========== 视觉配方管理页面样式 v2.0 ========== */
 .recipe-page {
   display: flex;
   flex-direction: column;
@@ -23,6 +23,29 @@
   margin: 0;
   font-size: 22px;
   font-weight: 700;
+}
+.recipe-title-copy {
+  max-width: 660px;
+}
+.recipe-title-copy .eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+.recipe-title-copy p {
+  margin: 7px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.recipe-title-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .recipe-title-bar h1::before {
   content: "";
@@ -102,12 +125,146 @@
   font-weight: 700;
 }
 
+/* 2D 配方业务层级：料架规格 → 产品档案 → 检测位置 */
+.foam-system-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.foam-system-header h2 { margin: 0; color: #172033; font-size: 20px; }
+.foam-system-header p { margin: 6px 0 0; color: var(--text-muted); font-size: 13px; }
+.view-only-note {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+}
+.recipe-structure-flow {
+  display: grid;
+  grid-template-columns: 1fr 34px 1.25fr 34px 1.15fr;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+.structure-node {
+  padding: 15px 16px;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.structure-node.active { border-color: #93c5fd; background: #eff6ff; }
+.structure-node small { display: block; margin-bottom: 6px; color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+.structure-node strong { display: block; color: #172033; font-size: 15px; }
+.structure-node span { display: block; margin-top: 4px; color: #64748b; font-size: 12px; line-height: 1.45; }
+.structure-arrow { display: grid; place-items: center; color: #94a3b8; font-size: 18px; }
+.configuration-level {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.configuration-level + .configuration-level { margin-top: 12px; }
+.configuration-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.configuration-heading h3 { margin: 0; color: #1e293b; font-size: 16px; }
+.configuration-heading p { margin: 4px 0 0; color: #64748b; font-size: 12px; }
+.level-number {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #1e293b;
+  color: #fff;
+  font-size: 12px;
+}
+.rack-option-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.rack-option { position: relative; padding: 14px 14px 13px; border: 1px solid #dbe3ef; border-radius: 10px; background: #f8fafc; }
+.rack-option.active { border: 2px solid var(--primary); padding: 13px 13px 12px; background: var(--primary-soft); }
+.rack-option strong, .rack-option span { display: block; }
+.rack-option strong { color: #1e293b; font-size: 15px; }
+.rack-option span { margin-top: 5px; color: #64748b; font-size: 12px; }
+.rack-option em { position: absolute; top: 10px; right: 10px; padding: 3px 7px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 10px; font-style: normal; font-weight: 800; }
+.product-profile {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.25fr) repeat(3, minmax(110px, .75fr));
+  overflow: hidden;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+.product-profile > div { padding: 15px 16px; border-left: 1px solid #dbeafe; }
+.product-profile > div:first-child { border-left: 0; background: #eff6ff; }
+.product-profile span, .product-profile strong, .product-profile small { display: block; }
+.product-profile span { color: #64748b; font-size: 11px; font-weight: 700; }
+.product-profile strong { margin-top: 5px; color: #172033; font-size: 18px; }
+.product-profile small { margin-top: 4px; color: #64748b; font-size: 11px; }
+.product-code { display: inline-grid !important; place-items: center; float: left; width: 34px; height: 34px; margin: 0 10px 0 0; border-radius: 8px; background: #2563eb; color: #fff !important; font-size: 17px !important; }
+.matrix-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 22px 0 14px; }
+.matrix-heading h3 { margin: 0; color: #1e293b; font-size: 17px; }
+.matrix-heading p { margin: 5px 0 0; color: #64748b; font-size: 12px; }
+.matrix-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.matrix-stat { min-width: 78px; padding: 8px 10px; border: 1px solid #dbe3ef; border-radius: 8px; background: #f8fafc; text-align: center; }
+.matrix-stat strong, .matrix-stat span { display: block; }
+.matrix-stat strong { color: #1e293b; font-size: 16px; }
+.matrix-stat span { margin-top: 2px; color: #64748b; font-size: 10px; }
+.recipe-current-context { display: flex; align-items: center; gap: 7px; margin-bottom: 12px; padding: 9px 12px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #475569; font-size: 12px; }
+.recipe-current-context strong { color: #1d4ed8; }
+
 /* 配方卡片列表 */
 #foam-recipe-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 20px;
+}
+.recipe-layer-section { overflow: hidden; border: 1px solid #dbe3ef; border-radius: 12px; background: #f8fafc; }
+.recipe-layer-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 15px; border-bottom: 1px solid #dbe3ef; background: #f1f5f9; }
+.recipe-layer-head strong { color: #1e293b; font-size: 14px; }
+.recipe-layer-head span { color: #64748b; font-size: 11px; }
+.recipe-position-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 12px; }
+.recipe-slot-card { min-width: 0; padding: 13px; border: 1px solid #dbe3ef; border-radius: 9px; background: #fff; }
+.recipe-slot-card.active { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.12); }
+.recipe-slot-card.pending { border-style: dashed; background: rgba(255,255,255,.55); }
+.slot-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.slot-card-top h4 { margin: 0; color: #1e293b; font-size: 13px; }
+.slot-card-top small { display: block; margin-top: 3px; color: #64748b; font-size: 10px; }
+.slot-status { flex: 0 0 auto; padding: 3px 6px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: 9px; font-weight: 800; }
+.slot-status.pending { background: #f1f5f9; color: #64748b; }
+.slot-data-name { overflow: hidden; margin: 10px 0 8px; color: #334155; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.slot-roi-state { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 8px; }
+.slot-roi-state span { padding: 5px 6px; border-radius: 5px; background: #f1f5f9; color: #475569; font-size: 9px; text-align: center; }
+.slot-roi-state span.ready { background: #ecfdf5; color: #047857; }
+.slot-threshold { color: #64748b; font-size: 10px; line-height: 1.5; }
+.slot-actions { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; }
+.slot-actions .btn { padding: 5px 8px; font-size: 10px; }
+.slot-actions .slot-delete { border-color: #fecaca; background: #fff; color: #dc2626; }
+.slot-actions .slot-delete:hover { background: #fef2f2; }
+.slot-details { margin-top: 9px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+.slot-details summary { color: #2563eb; cursor: pointer; font-size: 10px; font-weight: 700; }
+.slot-details .foam-template-summary { padding: 8px; font-size: 9px; overflow-wrap: anywhere; }
+.slot-details .foam-template-side { font-family: inherit; }
+.slot-pending-copy { min-height: 78px; display: grid; place-items: center; color: #94a3b8; font-size: 11px; line-height: 1.5; text-align: center; }
+.slot-create-button { width: 100%; padding: 7px 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #475569; cursor: pointer; font-size: 10px; font-weight: 700; }
+.slot-create-button:hover { border-color: #93c5fd; color: #1d4ed8; }
+
+@media (max-width: 1100px) {
+  .recipe-position-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .product-profile { grid-template-columns: 1.3fr repeat(3, 1fr); }
+}
+@media (max-width: 760px) {
+  .recipe-title-bar, .foam-system-header, .matrix-heading { align-items: stretch; flex-direction: column; }
+  .recipe-title-actions { justify-content: flex-start; }
+  .recipe-structure-flow { grid-template-columns: 1fr; gap: 7px; }
+  .structure-arrow { transform: rotate(90deg); }
+  .rack-option-grid, .product-profile, .recipe-position-grid { grid-template-columns: 1fr; }
+  .product-profile > div { border-left: 0; border-top: 1px solid #dbeafe; }
+  .product-profile > div:first-child { border-top: 0; }
 }
 
 /* 配方卡片 */
@@ -468,9 +625,14 @@
 <div class="recipe-page">
   <!-- 标题栏 -->
   <div class="recipe-title-bar">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <div class="recipe-title-copy">
+      <span class="eyebrow">VISION RECIPE SYSTEM</span>
+      <h1>视觉配方管理</h1>
+      <p>按料架规格和产品分类组织配方；2D 泡棉配方落实到每一个实际装箱位置。</p>
+    </div>
+    <div class="recipe-title-actions">
       <button id="btn-create-recipe" class="btn btn-sm" style="background:var(--success);" type="button">
-        ➕ 新增配方
+        新增位置配方
       </button>
       <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-secondary btn-sm" id="btn-foam-workbench">泡棉检测工作台</a>
       <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-secondary btn-sm" id="btn-rack-workbench" style="display:none;">料架定位工作台</a>
@@ -492,10 +654,107 @@
   <div class="recipe-content">
     <!-- 泡棉检测配方标签页 -->
     <section id="recipe-tab-foam2d" class="recipe-tab-section tab-active">
-      <div class="recipe-current-hint">
-        当前自动匹配 POS <strong id="recipe-current-pos">0</strong>
+      <div class="foam-system-header">
+        <div>
+          <h2>2D 泡棉配方矩阵</h2>
+          <p>一件产品对应一个检测位置配方；料架容量决定该产品需要维护的配方总数。</p>
+        </div>
+        <span class="view-only-note">当前结构：三层料架 · A 产品</span>
       </div>
-      
+
+      <div class="recipe-structure-flow" aria-label="配方组织规则">
+        <div class="structure-node active">
+          <small>LEVEL 1 · 料架规格</small>
+          <strong>三层料架</strong>
+          <span>决定可用层数和位置容量</span>
+        </div>
+        <div class="structure-arrow">→</div>
+        <div class="structure-node active">
+          <small>LEVEL 2 · 产品分类</small>
+          <strong>A 产品 · 每层 5 个</strong>
+          <span>产品参数决定总位置数：3 × 5 = 15</span>
+        </div>
+        <div class="structure-arrow">→</div>
+        <div class="structure-node active">
+          <small>LEVEL 3 · 位置配方</small>
+          <strong>15 个 2D 泡棉配方</strong>
+          <span>每个装箱位置独立维护 ROI、阈值和模板</span>
+        </div>
+      </div>
+
+      <section class="configuration-level">
+        <div class="configuration-heading">
+          <div>
+            <h3><span class="level-number">1</span>料架规格</h3>
+            <p>系统按料架层数建立一级分类；当前生产档案使用三层料架。</p>
+          </div>
+        </div>
+        <div class="rack-option-grid">
+          <div class="rack-option">
+            <strong>二层料架</strong>
+            <span>同类产品容量：10 个位置</span>
+          </div>
+          <div class="rack-option active">
+            <em>当前</em>
+            <strong>三层料架</strong>
+            <span>同类产品容量：15 个位置</span>
+          </div>
+          <div class="rack-option">
+            <strong>四层料架</strong>
+            <span>同类产品容量：20 个位置</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="configuration-level">
+        <div class="configuration-heading">
+          <div>
+            <h3><span class="level-number">2</span>产品分类</h3>
+            <p>每种产品单独定义每层装载数，并拥有自己的一整套位置配方。</p>
+          </div>
+        </div>
+        <div class="product-profile">
+          <div>
+            <span class="product-code">A</span>
+            <span>当前产品档案</span>
+            <strong>A 产品</strong>
+            <small>适用于当前三层料架</small>
+          </div>
+          <div>
+            <span>料架层数</span>
+            <strong>3 层</strong>
+            <small>由料架规格决定</small>
+          </div>
+          <div>
+            <span>每层产品数</span>
+            <strong>5 个</strong>
+            <small>产品装载参数</small>
+          </div>
+          <div>
+            <span>料架总产品数</span>
+            <strong>15 个</strong>
+            <small>对应 15 套 2D 配方</small>
+          </div>
+        </div>
+      </section>
+
+      <div class="matrix-heading">
+        <div>
+          <h3><span class="level-number">3</span>A 产品 · 位置配方</h3>
+          <p>按实际料架层分组；POS 为全料架连续位置编号，从 0 开始。</p>
+        </div>
+        <div class="matrix-stats">
+          <div class="matrix-stat"><strong id="recipe-configured-count">0</strong><span>已配置</span></div>
+          <div class="matrix-stat"><strong id="recipe-pending-count">15</strong><span>待配置</span></div>
+          <div class="matrix-stat"><strong>15</strong><span>总位置</span></div>
+        </div>
+      </div>
+
+      <div class="recipe-current-context">
+        当前自动匹配：<strong id="recipe-current-location">第 1 层 · 1 号产品位置</strong>
+        <span>（POS <strong id="recipe-current-pos">0</strong>）</span>
+      </div>
+
       <div id="foam-recipe-list"></div>
     </section>
 
@@ -515,13 +774,13 @@
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label>配方名称 <span style="color:red;">*</span></label>
-        <input type="text" id="modal-name" placeholder="例如：第1层泡棉检测配方">
+        <label>位置配方名称 <span style="color:red;">*</span></label>
+        <input type="text" id="modal-name" placeholder="例如：A产品-L1-P04 泡棉配方">
       </div>
       <div class="form-group">
-        <label>POS 位置 <span style="color:red;">*</span></label>
-        <input type="number" id="modal-pos" min="0" placeholder="0">
-        <small>对应料架的层数位置，从 0 开始</small>
+        <label>全料架产品位置（POS） <span style="color:red;">*</span></label>
+        <input type="number" id="modal-pos" min="0" max="14" placeholder="0">
+        <small id="modal-position-preview">POS 从 0 开始；三层料架 A 产品可使用 POS 0～14</small>
       </div>
       <div class="form-group">
         <label>备注</label>
@@ -749,7 +1008,7 @@
 // ============================================================
 //  视觉配方管理 · 前端逻辑 v1.2 (无Loading版本)
 // ============================================================
-console.log('配方管理页面已加载 - v1.2 (Toast提示版本)');
+console.log('配方管理页面已加载 - v2.0 (料架/产品/位置三级结构)');
 
 const API = {
   recipes: '{% url "vision:api_vision_recipes" %}',
@@ -814,6 +1073,33 @@ let selectedRecipeForEdit = null;
 let currentPosIndex = 0;
 let modalMode = 'create'; // 'create' or 'edit'
 let editingRecipeId = null;
+
+// 当前生产档案只用于组织既有配方的页面视图，不会回写或改动数据库数据。
+const FOAM_SYSTEM_PROFILE = Object.freeze({
+  rackLayers: 3,
+  productCode: 'A',
+  productName: 'A 产品',
+  unitsPerLayer: 5,
+});
+
+function totalFoamPositions() {
+  return FOAM_SYSTEM_PROFILE.rackLayers * FOAM_SYSTEM_PROFILE.unitsPerLayer;
+}
+
+function positionMeta(pos) {
+  const normalizedPos = Math.max(0, Number(pos) || 0);
+  return {
+    pos: normalizedPos,
+    globalNumber: normalizedPos + 1,
+    layer: Math.floor(normalizedPos / FOAM_SYSTEM_PROFILE.unitsPerLayer) + 1,
+    slot: normalizedPos % FOAM_SYSTEM_PROFILE.unitsPerLayer + 1,
+  };
+}
+
+function positionLabel(pos) {
+  const meta = positionMeta(pos);
+  return `第 ${meta.layer} 层 · ${meta.slot} 号产品位置`;
+}
 
 function currentPOS() {
   return currentPosIndex;
@@ -943,53 +1229,92 @@ function foamTemplateSummaryHtml(recipe) {
 // ── 渲染配方卡片 ───────────────────────────────────
 function renderRecipeCards() {
   document.getElementById('recipe-current-pos').textContent = currentPOS();
+  document.getElementById('recipe-current-location').textContent = positionLabel(currentPOS());
   const list = document.getElementById('foam-recipe-list');
-  
-  if (!foam2DRecipes.length) {
-    list.innerHTML = '<div class="recipe-empty">暂无配方，请点击下方「补齐默认配方」创建初始配方</div>';
-    return;
-  }
-
   const currentRecipe = currentDetectionRecipe();
-  list.innerHTML = foam2DRecipes.map(recipe => {
-    const isActive = recipe.id === currentRecipe?.id;
-    const isManual = recipe.id === manualSelectedRecipe?.id;
-    const classes = ['recipe-card'];
-    if (isActive) classes.push('active');
-    if (isManual) classes.push('manual');
+  const recipeByPosition = new Map(
+    foam2DRecipes.map(recipe => [Number(recipe.pos), recipe])
+  );
+  const configuredCount = Array.from(recipeByPosition.keys())
+    .filter(pos => pos >= 0 && pos < totalFoamPositions()).length;
+  document.getElementById('recipe-configured-count').textContent = configuredCount;
+  document.getElementById('recipe-pending-count').textContent = totalFoamPositions() - configuredCount;
 
+  const renderConfiguredSlot = (recipe, layer, slot) => {
+    const isActive = recipe.id === currentRecipe?.id;
     const roi = recipe.roi_config || {};
     const left = roi.leftFoamROI || {};
     const right = roi.rightFoamROI || {};
     const thresh = recipe.threshold_config || {};
-
     const hasLeftRoi = isRoiConfigured(left);
     const hasRightRoi = isRoiConfigured(right);
-    
+
     return `
-      <div class="${classes.join(' ')}">
-        <h3>第${recipe.pos + 1}层泡棉检测配方${isActive ? ' · 当前自动使用' : ''}</h3>
-        <div class="recipe-card-row">
-          <strong>POS ${recipe.pos}</strong> / 第${recipe.pos + 1}层
+      <article class="recipe-slot-card configured ${isActive ? 'active' : ''}">
+        <div class="slot-card-top">
+          <div>
+            <h4>${slot} 号产品位置</h4>
+            <small>第 ${layer} 层 · POS ${recipe.pos}</small>
+          </div>
+          <span class="slot-status">${isActive ? '当前使用' : '已配置'}</span>
         </div>
-        <div class="recipe-card-row">
-          左ROI: ${hasLeftRoi ? roiLabel(left) : '⚠️ 未配置'}
+        <div class="slot-data-name" title="${escape2DHtml(recipe.name)}">数据名称：${escape2DHtml(recipe.name)}</div>
+        <div class="slot-roi-state">
+          <span class="${hasLeftRoi ? 'ready' : ''}">左 ROI ${hasLeftRoi ? '✓' : '待配置'}</span>
+          <span class="${hasRightRoi ? 'ready' : ''}">右 ROI ${hasRightRoi ? '✓' : '待配置'}</span>
         </div>
-        <div class="recipe-card-row">
-          右ROI: ${hasRightRoi ? roiLabel(right) : '⚠️ 未配置'}
+        <div class="slot-threshold">
+          覆盖率 ≥ ${thresholdValue(thresh, ['coverage_threshold','minCoverage'], 0.75)} · 得分 ≥ ${thresholdValue(thresh, ['score_threshold','minScore'], 0.8)}
         </div>
-        <div class="recipe-card-row">
-          阈值: 覆盖率 ≥ ${thresholdValue(thresh, ['coverage_threshold','minCoverage'], 0.75)}, 得分 ≥ ${thresholdValue(thresh, ['score_threshold','minScore'], 0.8)}
-          <a href="/vision/foam-inspector/?recipe_id=${recipe.id}" style="margin-left: 10px; color: var(--primary); text-decoration: none; font-size: 12px;">🔬 进入工作台 ➔</a>
-        </div>
-        ${foamTemplateSummaryHtml(recipe)}
-        <div class="recipe-card-actions">
-          <button class="btn btn-sm" onclick="openEditModal(${recipe.id})">✏️ 编辑</button>
+        <details class="slot-details">
+          <summary>查看 ROI、模板与版本详情</summary>
+          <div class="slot-threshold" style="margin-top:8px;">左 ROI：${hasLeftRoi ? roiLabel(left) : '未配置'}</div>
+          <div class="slot-threshold">右 ROI：${hasRightRoi ? roiLabel(right) : '未配置'}</div>
+          ${foamTemplateSummaryHtml(recipe)}
+        </details>
+        <div class="slot-actions">
+          <button class="btn btn-sm" onclick="openEditModal(${recipe.id})">编辑</button>
+          <a class="btn btn-secondary btn-sm" href="/vision/foam-inspector/?recipe_id=${recipe.id}" style="text-decoration:none;">进入工作台</a>
           <button class="btn btn-secondary btn-sm" onclick="copyRecipe(${recipe.id})">复制</button>
-          <button class="btn btn-sm" style="background:#ef4444;" onclick="deleteRecipe(${recipe.id}, '${recipe.name}')">删除</button>
+          <button class="btn btn-secondary btn-sm slot-delete" onclick="deleteRecipeById(${recipe.id})">删除</button>
         </div>
-      </div>
-    `;
+      </article>`;
+  };
+
+  const renderPendingSlot = (pos, layer, slot) => `
+      <article class="recipe-slot-card pending">
+        <div class="slot-card-top">
+          <div>
+            <h4>${slot} 号产品位置</h4>
+            <small>第 ${layer} 层 · POS ${pos}</small>
+          </div>
+          <span class="slot-status pending">待配置</span>
+        </div>
+        <div class="slot-pending-copy">尚未建立该位置的<br>2D 泡棉配方</div>
+        <button class="slot-create-button" type="button" onclick="openCreateModalForPosition(${pos})">+ 建立位置配方</button>
+      </article>`;
+
+  list.innerHTML = Array.from({length: FOAM_SYSTEM_PROFILE.rackLayers}, (_, layerIndex) => {
+    const layer = layerIndex + 1;
+    const startPos = layerIndex * FOAM_SYSTEM_PROFILE.unitsPerLayer;
+    const configuredInLayer = Array.from({length: FOAM_SYSTEM_PROFILE.unitsPerLayer}, (_, slotIndex) =>
+      recipeByPosition.has(startPos + slotIndex)
+    ).filter(Boolean).length;
+    const slots = Array.from({length: FOAM_SYSTEM_PROFILE.unitsPerLayer}, (_, slotIndex) => {
+      const pos = startPos + slotIndex;
+      const recipe = recipeByPosition.get(pos);
+      return recipe
+        ? renderConfiguredSlot(recipe, layer, slotIndex + 1)
+        : renderPendingSlot(pos, layer, slotIndex + 1);
+    }).join('');
+    return `
+      <section class="recipe-layer-section">
+        <div class="recipe-layer-head">
+          <strong>第 ${layer} 层</strong>
+          <span>位置 ${startPos + 1}～${startPos + FOAM_SYSTEM_PROFILE.unitsPerLayer} · 已配置 ${configuredInLayer}/5</span>
+        </div>
+        <div class="recipe-position-grid">${slots}</div>
+      </section>`;
   }).join('');
 }
 
@@ -1012,9 +1337,9 @@ window.openEditModal = function(recipeId) {
   const leftPixels = roiPixelGeometry(left, recipe);
   const rightPixels = roiPixelGeometry(right, recipe);
   
-  document.getElementById('edit-modal-title').textContent = `编辑配方：${recipe.name}`;
+  document.getElementById('edit-modal-title').textContent = `编辑 ${FOAM_SYSTEM_PROFILE.productName} · ${positionLabel(recipe.pos)}`;
   document.getElementById('edit-modal-id').value = recipe.id;
-  document.getElementById('edit-modal-pos').textContent = `POS ${recipe.pos}（第${recipe.pos + 1}层）`;
+  document.getElementById('edit-modal-pos').textContent = `${positionLabel(recipe.pos)}（POS ${recipe.pos}）`;
   
   // 左ROI
   document.getElementById('edit-left-x').value = leftPixels.x;
@@ -1131,8 +1456,35 @@ window.openCreateModal = function() {
   document.getElementById('modal-name').value = '';
   document.getElementById('modal-pos').value = '';
   document.getElementById('modal-remark').value = '';
+  updateModalPositionPreview();
   document.getElementById('recipe-modal').style.display = 'flex';
 };
+
+window.openCreateModalForPosition = function(pos) {
+  openCreateModal();
+  const meta = positionMeta(pos);
+  document.getElementById('modal-title').textContent = `新增 ${positionLabel(pos)} 配方`;
+  document.getElementById('modal-name').value = `${FOAM_SYSTEM_PROFILE.productCode}产品-L${meta.layer}-P${String(meta.slot).padStart(2, '0')} 泡棉配方`;
+  document.getElementById('modal-pos').value = String(pos);
+  updateModalPositionPreview();
+};
+
+function updateModalPositionPreview() {
+  const input = document.getElementById('modal-pos');
+  const preview = document.getElementById('modal-position-preview');
+  if (!input || !preview) return;
+  const value = input.value.trim();
+  if (value === '') {
+    preview.textContent = 'POS 从 0 开始；三层料架 A 产品可使用 POS 0～14';
+    return;
+  }
+  const pos = Number(value);
+  if (!Number.isInteger(pos) || pos < 0 || pos >= totalFoamPositions()) {
+    preview.textContent = '超出当前三层料架 A 产品的有效范围（POS 0～14）';
+    return;
+  }
+  preview.textContent = `将映射到：${positionLabel(pos)} · 全料架第 ${pos + 1} 个产品`;
+}
 
 // ── 复制配方 ────────────────────────────────────────
 window.copyRecipe = function(recipeId) {
@@ -1145,10 +1497,16 @@ window.copyRecipe = function(recipeId) {
   document.getElementById('modal-name').value = recipe.name + ' (副本)';
   document.getElementById('modal-pos').value = '';
   document.getElementById('modal-remark').value = recipe.remark || '';
+  updateModalPositionPreview();
   document.getElementById('recipe-modal').style.display = 'flex';
 };
 
 // ── 删除配方 ────────────────────────────────────────
+window.deleteRecipeById = function(recipeId) {
+  const recipe = foam2DRecipes.find(r => r.id === recipeId);
+  if (recipe) deleteRecipe(recipeId, recipe.name);
+};
+
 window.deleteRecipe = async function(recipeId, recipeName) {
   if (!confirm(`确定要删除配方「${recipeName}」吗？\n\n此操作无法撤销！`)) return;
   
@@ -1185,8 +1543,8 @@ window.submitModal = async function() {
     return;
   }
   
-  if (pos === '' || pos < 0) {
-    showToast('请输入有效的 POS 位置（从 0 开始）', 'error');
+  if (pos === '' || Number(pos) < 0 || Number(pos) >= totalFoamPositions()) {
+    showToast('请输入有效的 POS 位置（当前为 0～14）', 'error');
     return;
   }
   
@@ -1641,6 +1999,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('btn-create-recipe')?.addEventListener('click', openCreateModal);
+  document.getElementById('modal-pos')?.addEventListener('input', updateModalPositionPreview);
 
   loadRecipes();
   const requestedTab = new URLSearchParams(window.location.search).get('tab');

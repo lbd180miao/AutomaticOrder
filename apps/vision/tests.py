@@ -2292,6 +2292,18 @@ class VisionRecipeWorkbenchTemplateTests(TestCase):
         self.assertContains(response, 'editedRoiOrOriginal')
         self.assertContains(response, '...(recipe.threshold_config || {})')
 
+    def test_2d_recipe_page_organizes_recipes_by_rack_product_and_position(self):
+        response = self.client.get(reverse('vision:recipe_management'))
+
+        self.assertContains(response, 'LEVEL 1 · 料架规格')
+        self.assertContains(response, 'LEVEL 2 · 产品分类')
+        self.assertContains(response, 'LEVEL 3 · 位置配方')
+        self.assertContains(response, 'A 产品 · 每层 5 个')
+        self.assertContains(response, '3 × 5 = 15')
+        self.assertContains(response, 'FOAM_SYSTEM_PROFILE')
+        self.assertContains(response, 'recipe-position-grid')
+        self.assertContains(response, 'openCreateModalForPosition')
+
 
 class DepthRoiDebugViewTests(TestCase):
     def setUp(self):

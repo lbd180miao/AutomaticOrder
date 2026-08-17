@@ -14,8 +14,7 @@
     <nav class="main-nav" aria-label="主导航">
       {% with path=request.path %}
       <a href="{% url 'core:dashboard' %}" class="{% if path == '/' %}active{% endif %}">总览</a>
-      <a href="{% url 'workflow:current' %}" class="{% if '/workflow/' in path %}active{% endif %}">流程</a>
-      <a href="{% url 'devices:status' %}" class="{% if '/devices/' in path %}active{% endif %}">设备</a>
+      <a href="{% url 'devices:status' %}" class="{% if '/devices/' in path or '/workflow/' in path %}active{% endif %}">设备</a>
       <a href="{% url 'mes:record_list' %}" class="{% if '/mes/' in path %}active{% endif %}">MES</a>
       <a href="{% url 'vision:task_list' %}" class="{% if '/vision/' in path and '/vision/recipes/' not in path %}active{% endif %}">视觉</a>
       <a href="{% url 'vision:recipe_management' %}" class="{% if '/vision/recipes/' in path %}active{% endif %}">配方</a>
@@ -23,10 +22,7 @@
       {% endwith %}
     </nav>
     <div class="topbar-status" aria-label="系统状态">
-      <span class="topbar-mode">AUTO</span>
       <time class="topbar-clock" id="system-clock" aria-label="系统时间"></time>
-      <a class="status-chip status-{{ nav_plc_tone }}" href="{% url 'devices:status' %}"><i></i>{{ nav_plc_label }}</a>
-      <a class="status-chip status-{{ nav_mes_tone }}" href="{% url 'mes:record_list' %}"><i></i>{{ nav_mes_label }}</a>
       <a class="alarm-chip {% if nav_alarm_count %}has-alarm{% endif %}" href="{% url 'alarms:alarm_list' %}" title="未处理报警">
         <span aria-hidden="true">♢</span> 报警 {{ nav_alarm_count }}
       </a>
