@@ -64,53 +64,8 @@ def _build_stage_view(states, current_state):
 
 
 def current(request):
-    station_cycle = (
-        StationCycle.objects.exclude(phase=StationPhase.COMPLETED)
-        .select_related('workflow__product__rack__current_recipe')
-        .order_by('-created_at').first()
-    )
-    workflow = (
-        WorkflowInstance.objects
-        .exclude(current_state__in=list(TERMINAL_STATES))
-        .select_related('product', 'product__rack')
-        .order_by('-updated_at')
-        .first()
-    ) if station_cycle is None else station_cycle.workflow
-    recent_events = []
-    stage_order = []
-    if workflow:
-        recent_events = WorkflowEvent.objects.filter(workflow=workflow).order_by('-created_at')[:15]
-        cur = workflow.current_state
-        stage_order = [
-            ('阶段一 注塑下线与打标', _build_stage_view(STAGE_ONE_STATES, cur)),
-            ('阶段二 空中交接', _build_stage_view(STAGE_TWO_STATES, cur)),
-            ('阶段三 视觉装箱与泡棉', _build_stage_view(STAGE_THREE_STATES, cur)),
-        ]
-
-    demo_mode = station_cycle is None and (workflow is None or workflow.product.product_code.startswith('P-DEMO'))
-    display_product = workflow.product.product_code if workflow else ('P-20260815-0042' if demo_mode else '')
-    display_rack = workflow.product.rack.rack_code if workflow and workflow.product.rack_id else ('RACK-A-0815-02' if demo_mode else '')
-    display_recipe = (
-        workflow.product.rack.current_recipe.recipe_code
-        if workflow and workflow.product.rack_id and workflow.product.rack.current_recipe_id
-        else ('BUMPER-A-04' if demo_mode else '')
-    )
-    display_phase = station_cycle.get_phase_display() if station_cycle else ('等待泡棉检测触发' if demo_mode else state_label if workflow else '等待生产任务')
-    context = {
-        'workflow': workflow,
-        'recent_events': recent_events,
-        'state_label': WorkflowState(workflow.current_state).label if workflow else '',
-        'is_terminal': workflow.current_state in TERMINAL_STATES if workflow else False,
-        'stage_order': stage_order,
-        'station_cycle': station_cycle,
-        'demo_mode': demo_mode,
-        'handshakes': _handshake_cards(station_cycle, demo_mode=demo_mode),
-        'display_product': display_product,
-        'display_rack': display_rack,
-        'display_recipe': display_recipe,
-        'display_phase': display_phase,
-    }
-    return render(request, 'workflow/current.html', context)
+    """兼容旧入口；实时流程监控已合并到设备页面。"""
+    return redirect(reverse('devices:status'))
 
 
 def history(request):
@@ -143,7 +98,7 @@ def start(request):
     batch = ProductionBatch.objects.filter(batch_no='BATCH-DEMO-001').first()
     workflow = WorkflowService().start(code, batch=batch)
     messages.success(request, f'已创建流程：{code}')
-    return redirect(reverse('workflow:current'))
+    return redirect(reverse('devices:status'))
 
 
 @require_POST
@@ -154,7 +109,7 @@ def advance(request, pk):
         messages.success(request, f'流程已推进至：{WorkflowState(workflow.current_state).label}')
     except AutomaticOrderError as exc:
         messages.error(request, str(exc))
-    return redirect(reverse('workflow:current'))
+    return redirect(reverse('devices:status'))
 
 
 @require_POST
@@ -182,4 +137,4 @@ def unlock(request, pk):
         messages.success(request, '已解除锁定' if resume else '已判定流程失败')
     except Exception as exc:
         messages.error(request, str(exc))
-    return redirect(reverse('workflow:current'))
+    return redirect(reverse('devices:status'))

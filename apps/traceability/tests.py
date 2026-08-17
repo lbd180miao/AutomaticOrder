@@ -5,6 +5,9 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.alarms.models import Alarm
+from apps.core.constants import AlarmSource, MesAction
+from apps.mes.models import MesRecord
 from apps.production.models import Product, ProductionBatch, Rack, RackRecipe
 
 
@@ -12,6 +15,7 @@ class TraceabilityViewTests(TestCase):
     def setUp(self):
         recipe = RackRecipe.objects.create(
             recipe_code='TRACE-RCP', name='追溯配方', rack_type='STANDARD',
+            layer_count=3, quantity_per_layer=5, total_quantity=15,
         )
         rack = Rack.objects.create(
             rack_code='TRACE-RACK', current_recipe=recipe, status='IN_USE',
@@ -77,3 +81,42 @@ class TraceabilityViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '开始日期不能晚于结束日期')
+
+    def test_search_page_uses_rack_product_and_evidence_workspaces(self):
+        response = self.client.get(reverse('traceability:search'))
+
+        self.assertContains(response, '料框装箱任务')
+        self.assertContains(response, '单件产品记录')
+        self.assertContains(response, '完整性与异常')
+        self.assertContains(response, 'PLC 信号证据')
+        self.assertContains(response, '追溯主对象')
+
+    def test_rack_search_builds_recipe_position_matrix_without_guessing_binding(self):
+        response = self.client.get(reverse('traceability:search'), {
+            'mode': 'rack', 'q': self.product.rack.rack_code,
+        })
+
+        self.assertContains(response, '关键流程证据')
+        self.assertContains(response, '料框位置矩阵')
+        self.assertContains(response, '第 3 层')
+        self.assertContains(response, 'POS 15')
+        self.assertContains(response, '页面不会按创建顺序推测位置')
+
+    def test_unlinked_mes_and_alarm_records_render_as_unassociated(self):
+        MesRecord.objects.create(
+            action=MesAction.GET_RACK_RECIPE,
+            success=False,
+            error_message='测试 MES 失败',
+        )
+        Alarm.objects.create(
+            alarm_code='TRACE-ALARM-001',
+            source=AlarmSource.WORKFLOW,
+            message='测试未关联报警',
+        )
+
+        response = self.client.get(reverse('traceability:search'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '测试 MES 失败')
+        self.assertContains(response, 'TRACE-ALARM-001')
+        self.assertContains(response, '未关联')

@@ -1,168 +1,120 @@
 {% extends "base.html" %}
-{% block title %}记录查询 - AutomaticBoxing{% endblock %}
+{% block title %}生产追溯 - AutomaticBoxing{% endblock %}
 {% block content %}
-<section class="page-header">
-  <div>
-    <h1>记录查询</h1>
-    <p class="page-subtitle">统一查询生产追溯、MES 通讯、PLC 事件和报警记录</p>
-  </div>
+<section class="trace-page-header">
+  <div><span class="eyebrow">PRODUCTION TRACEABILITY</span><h1>生产追溯</h1><p>以料框装箱任务为主线，关联每件产品、PLC 握手、MES、3D 定位、配方校验、泡棉检测和报警处置。</p></div>
+  <div class="trace-data-clock"><span>数据时间口径</span><strong>Asia/Shanghai</strong><small>历史记录 · 非实时控制页面</small></div>
 </section>
 
-<section class="metric-grid record-metrics">
-  <article class="metric-card"><span>{% if time_filter_active %}筛选产品记录{% else %}累计产品记录{% endif %}</span><strong>{{ record_stats.total_products }}</strong><small>可按产品码追溯</small></article>
-  <article class="metric-card"><span>MES通讯记录</span><strong>{{ record_stats.mes_total }}</strong><small>失败 {{ record_stats.mes_failed }} 条</small></article>
-  <article class="metric-card {% if record_stats.open_alarms %}metric-danger{% endif %}"><span>未处理报警</span><strong>{{ record_stats.open_alarms }}</strong><small>包含已确认未关闭</small></article>
-  <article class="metric-card"><span>查询范围</span><strong>{% if time_filter_active %}时间筛选{% else %}全部记录{% endif %}</strong><small>{{ record_scope_label }} · 全流程</small></article>
+<section class="trace-kpi-grid">
+  <article class="trace-kpi"><span>料框追溯任务</span><strong>{{ record_stats.rack_tasks }}</strong><small>当前查询范围内的料框档案</small></article>
+  <article class="trace-kpi"><span>单件产品</span><strong>{{ record_stats.total_products }}</strong><small>完成 {{ record_stats.completed_products }} 件</small></article>
+  <article class="trace-kpi {% if record_stats.foam_ng %}is-warning{% endif %}"><span>泡棉检测</span><strong>{% if record_stats.foam_total %}{{ record_stats.foam_ok }}/{{ record_stats.foam_total }}{% else %}—{% endif %}</strong><small>OK / 总检测 · NG {{ record_stats.foam_ng }}</small></article>
+  <article class="trace-kpi {% if record_stats.mes_failed or record_stats.open_alarms %}is-danger{% endif %}"><span>生产异常</span><strong>{{ record_stats.open_alarms }}</strong><small>未关闭报警 · MES失败 {{ record_stats.mes_failed }}</small></article>
+  <article class="trace-kpi {% if record_stats.incomplete %}is-warning{% endif %}"><span>追溯完整性</span><strong>{{ record_stats.incomplete }}</strong><small>条待补齐的关键关联</small></article>
 </section>
 
-<section class="panel unified-search-panel">
-  <form method="get" class="unified-search-form">
-    <div>
-      <label class="field-label" for="traceMode">查询类型</label>
-      <select id="traceMode" name="mode">
-        <option value="product" {% if mode == 'product' %}selected{% endif %}>产品条码</option>
-        <option value="rack" {% if mode == 'rack' %}selected{% endif %}>料框码</option>
-      </select>
-    </div>
-    <div class="record-query-field">
-      <label class="field-label" for="traceQuery">生产标识</label>
-      <input id="traceQuery" name="q" type="text" value="{{ query }}" placeholder="扫描或输入产品条码 / 料框码" autofocus>
-    </div>
-    <button class="btn" type="submit">查询完整记录</button>
-    <div class="time-filter-row">
-      <div class="time-filter-title">
-        <span class="eyebrow">TIME RANGE</span>
-        <strong>按发生日期查询</strong>
-      </div>
-      <div class="date-field">
-        <label class="field-label" for="startDate">开始日期</label>
-        <input id="startDate" name="start_date" type="date" value="{{ start_date }}">
-      </div>
-      <span class="date-separator">至</span>
-      <div class="date-field">
-        <label class="field-label" for="endDate">结束日期</label>
-        <input id="endDate" name="end_date" type="date" value="{{ end_date }}">
-      </div>
-      <div class="time-shortcuts" aria-label="快捷时间范围">
-        <button type="button" data-date-days="1">今天</button>
-        <button type="button" data-date-days="7">近7天</button>
-        <button type="button" data-date-days="30">近30天</button>
-      </div>
-      <button class="btn btn-secondary btn-sm" type="submit">应用时间</button>
-      {% if start_date or end_date %}
-      <a class="clear-time-link" href="{% url 'traceability:search' %}?mode={{ mode }}{% if query %}&q={{ query|urlencode }}{% endif %}">清除时间</a>
-      {% endif %}
+<section class="panel trace-query-panel">
+  <div class="trace-query-heading"><div><span class="eyebrow">TRACE QUERY</span><h2>查找生产对象</h2></div><span class="trace-query-tip">支持扫码枪直接输入后回车</span></div>
+  <form method="get" class="trace-query-form">
+    <div><label class="field-label" for="traceMode">追溯入口</label><select id="traceMode" name="mode"><option value="product" {% if mode == 'product' %}selected{% endif %}>产品条码</option><option value="rack" {% if mode == 'rack' %}selected{% endif %}>料框条码</option></select></div>
+    <div class="trace-query-keyword"><label class="field-label" for="traceQuery">生产标识</label><input id="traceQuery" name="q" type="text" value="{{ query }}" placeholder="扫描或输入产品条码 / 料框条码" autofocus></div>
+    <button class="btn trace-submit" type="submit">查询完整追溯</button>
+    <div class="trace-filter-row">
+      <div class="trace-filter-title"><span class="eyebrow">RANGE FILTER</span><strong>范围筛选</strong></div>
+      <div><label class="field-label" for="startDate">开始日期</label><input id="startDate" name="start_date" type="date" value="{{ start_date }}"></div>
+      <div><label class="field-label" for="endDate">结束日期</label><input id="endDate" name="end_date" type="date" value="{{ end_date }}"></div>
+      <div><label class="field-label" for="stateFilter">产品流程状态</label><select id="stateFilter" name="state"><option value="">全部状态</option>{% for value, label in state_choices %}<option value="{{ value }}" {% if state_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div><label class="field-label" for="mesFilter">MES状态</label><select id="mesFilter" name="mes_status"><option value="">全部状态</option>{% for value, label in mes_choices %}<option value="{{ value }}" {% if mes_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="trace-date-shortcuts" aria-label="快捷时间范围"><button type="button" data-date-days="1">今天</button><button type="button" data-date-days="7">近7天</button><button type="button" data-date-days="30">近30天</button></div>
+      <button class="btn btn-secondary btn-sm" type="submit">应用筛选</button>
+      {% if start_date or end_date or state_filter or mes_filter %}<a class="trace-clear-filter" href="{% url 'traceability:search' %}?mode={{ mode }}{% if query %}&q={{ query|urlencode }}{% endif %}">清除筛选</a>{% endif %}
     </div>
   </form>
 </section>
 
-{% if date_error %}
-<div class="date-filter-message error">{{ date_error }}</div>
-{% elif time_filter_active %}
-<div class="date-filter-message active"><span>当前时间范围</span><strong>{{ record_scope_label }}</strong><small>以下四类记录均已按该时间过滤，最多展示 100 条。</small></div>
-{% endif %}
-
-{% if not_found %}
-<div class="trace-empty"><strong>未找到匹配记录</strong><span>请检查条码和查询类型后重试。</span></div>
-{% endif %}
+{% if date_error %}<div class="trace-message is-error"><strong>时间范围无效</strong><span>{{ date_error }}</span></div>
+{% elif time_filter_active or state_filter or mes_filter %}<div class="trace-message is-active"><strong>当前查询范围</strong><span>{{ record_scope_label }}{% if state_filter %} · 已筛选流程状态{% endif %}{% if mes_filter %} · 已筛选 MES 状态{% endif %}</span></div>{% endif %}
+{% if not_found %}<div class="trace-message is-empty"><strong>未找到匹配的生产对象</strong><span>请检查条码类型和输入内容；系统不会使用模糊结果代替精确追溯。</span></div>{% endif %}
 
 {% if result %}
-<section class="panel trace-result-card">
-  <div><span class="eyebrow">PRODUCT TRACE</span><h2>{{ result.product.product_code }}</h2><p>批次 {{ result.batch.batch_no|default:"-" }} · 料框 {{ result.rack.rack_code|default:"未绑定" }}</p></div>
-  <div class="trace-result-actions"><span class="badge badge-running">{{ result.product.get_current_state_display }}</span><a class="btn btn-sm" href="{% url 'traceability:product_detail' result.product.product_code %}">查看完整时间线 →</a></div>
+<section class="panel trace-hit-card">
+  <div class="trace-hit-main"><span class="trace-object-icon">P</span><div><span class="eyebrow">PRODUCT MATCH</span><h2>{{ result.product.product_code }}</h2><p>料框 {{ result.rack.rack_code|default:"未绑定" }} · 批次 {{ result.batch.batch_no|default:"未记录" }}</p></div></div>
+  <div class="trace-hit-status"><span class="badge badge-running">{{ result.product.get_current_state_display }}</span>{% if not result.rack %}<span class="badge badge-warn">追溯链不完整</span>{% endif %}<a class="btn btn-sm" href="{% url 'traceability:product_detail' result.product.product_code %}">打开单件时间线 →</a></div>
 </section>
 {% endif %}
 
 {% if rack_result %}
-<section class="panel trace-rack-panel">
-  <div class="panel-heading"><div><span class="eyebrow">RACK TRACE</span><h2>料框 {{ rack_result.rack.rack_code }}</h2></div><span class="badge badge-info">产品 {{ rack_result.product_count }} 件</span></div>
-  <div class="trace-rack-summary"><span>状态 <strong>{{ rack_result.rack.status }}</strong></span><span>配方 <strong>{{ rack_result.recipe.recipe_code|default:"-" }}</strong></span></div>
-  <div class="table-wrap"><table class="data-table"><thead><tr><th>产品条码</th><th>批次</th><th>当前状态</th><th>创建时间</th><th></th></tr></thead><tbody>
-    {% for product in rack_result.products %}<tr><td><strong>{{ product.product_code }}</strong></td><td>{{ product.batch.batch_no|default:"-" }}</td><td><span class="badge badge-running">{{ product.get_current_state_display }}</span></td><td>{{ product.created_at|date:"Y-m-d H:i:s" }}</td><td><a class="quiet-link" href="{% url 'traceability:product_detail' product.product_code %}">详情 →</a></td></tr>{% empty %}<tr><td colspan="5" class="empty">该料框尚未绑定产品</td></tr>{% endfor %}
-  </tbody></table></div>
+<section class="panel rack-trace-detail">
+  <div class="rack-trace-head"><div class="trace-hit-main"><span class="trace-object-icon rack">R</span><div><span class="eyebrow">RACK LOAD TRACE</span><h2>料框 {{ rack_result.rack.rack_code }}</h2><p>{{ rack_result.recipe.name|default:"尚未关联装箱配方" }}</p></div></div><div class="rack-trace-state"><span class="badge badge-info">{{ rack_result.rack.status }}</span>{% if not rack_result.latest_cycle %}<span class="badge badge-warn">未形成工位周期</span>{% endif %}</div></div>
+  <div class="rack-summary-grid">
+    <div><span>配方 / 版本</span><strong>{{ rack_result.recipe.recipe_code|default:"—" }}</strong><small>当前模型尚未保存版本快照</small></div>
+    <div><span>装箱结构</span><strong>{% if rack_result.recipe %}{{ rack_result.recipe.layer_count }} 层 × {{ rack_result.recipe.quantity_per_layer }} 件{% else %}—{% endif %}</strong><small>计划 {{ rack_result.planned_quantity }} 件</small></div>
+    <div><span>已关联产品</span><strong>{{ rack_result.product_count }}/{{ rack_result.planned_quantity|default:"—" }}</strong><small>仅统计已有产品—料框关系</small></div>
+    <div><span>当前工位阶段</span><strong>{% if rack_result.latest_cycle %}{{ rack_result.latest_cycle.get_phase_display }}{% else %}无周期记录{% endif %}</strong><small>{% if rack_result.latest_cycle %}周期 #{{ rack_result.latest_cycle.pk }}{% else %}无法还原 PLC 循环{% endif %}</small></div>
+  </div>
+  <div class="trace-section-heading"><div><span class="eyebrow">DB100 CHECKPOINTS</span><h3>关键流程证据</h3></div><span>有记录才标记完成</span></div>
+  <div class="trace-checkpoint-grid">
+    <article class="checkpoint {% if rack_result.product_count %}done{% endif %}"><b>01</b><strong>产品读码</strong><span>DB24 / DB2 / DB25</span><small>{% if rack_result.product_count %}已有产品记录{% else %}缺少产品记录{% endif %}</small></article>
+    <article class="checkpoint {% if rack_result.recipe %}done{% endif %}"><b>02</b><strong>料框与 MES 配方</strong><span>DB48 / DB26 / DB49</span><small>{% if rack_result.recipe %}配方 {{ rack_result.recipe.recipe_code }}{% else %}缺少配方快照{% endif %}</small></article>
+    <article class="checkpoint {% if rack_result.latest_cycle.positioning_matrix %}done{% endif %}"><b>03</b><strong>3D 定位</strong><span>DB118 / DB54～119</span><small>{% if rack_result.latest_cycle.positioning_matrix %}矩阵已记录{% else %}无定位矩阵{% endif %}</small></article>
+    <article class="checkpoint {% if rack_result.latest_cycle.recipe_verified %}done{% endif %}"><b>04</b><strong>配方校验</strong><span>DB50 / DB51 / DB52</span><small>{% if rack_result.latest_cycle.recipe_verified %}层高层距通过{% else %}无通过记录{% endif %}</small></article>
+    <article class="checkpoint {% if rack_result.latest_cycle.foam_passed %}done{% endif %}"><b>05</b><strong>泡棉循环</strong><span>DB120～122</span><small>{% if rack_result.latest_cycle.foam_passed %}最近一次 OK{% else %}无合格结果{% endif %}</small></article>
+    <article class="checkpoint {% if rack_result.latest_cycle.mes_upload_success %}done{% endif %}"><b>06</b><strong>装箱上传</strong><span>DB123～125</span><small>{% if rack_result.latest_cycle.mes_upload_success %}最近一次上传成功{% else %}无成功记录{% endif %}</small></article>
+    <article class="checkpoint"><b>07</b><strong>数量与满框</strong><span>DB128</span><small>{% if rack_result.latest_cycle %}{{ rack_result.latest_cycle.loaded_quantity }}/{{ rack_result.planned_quantity }}{% else %}无数量快照{% endif %}</small></article>
+  </div>
+  <div class="trace-section-heading"><div><span class="eyebrow">RACK POSITION MAP</span><h3>料框位置矩阵</h3></div><span>产品应唯一绑定到层号和层内位置</span></div>
+  {% if rack_result.slot_rows %}<div class="rack-position-map">{% for row in rack_result.slot_rows %}<div class="rack-position-row"><div class="rack-layer-label"><strong>第 {{ row.layer_no }} 层</strong><span>Layer {{ row.layer_no }}</span></div>{% for cell in row.cells %}<div class="rack-position-cell missing"><b>{{ cell.slot_no }} 号位</b><span>POS {{ cell.global_position }}</span><small>未形成位置绑定</small></div>{% endfor %}</div>{% endfor %}</div><div class="trace-integrity-note">当前 Product 数据只有产品—料框关系，没有层号、层内位置和循环序号。页面不会按创建顺序推测位置。</div>{% else %}<div class="trace-empty-state">料框未关联有效配方，无法生成位置矩阵。</div>{% endif %}
+  {% if rack_result.products %}<div class="trace-section-heading compact"><div><h3>已关联但位置未明确的产品</h3></div><span>{{ rack_result.product_count }} 件</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>产品条码</th><th>批次</th><th>位置</th><th>流程状态</th><th>创建时间</th><th></th></tr></thead><tbody>{% for product in rack_result.products %}<tr><td><strong>{{ product.product_code }}</strong></td><td>{{ product.batch.batch_no|default:"—" }}</td><td><span class="badge badge-warn">未记录</span></td><td>{{ product.get_current_state_display }}</td><td>{{ product.created_at|date:"Y-m-d H:i:s" }}</td><td><a class="quiet-link" href="{% url 'traceability:product_detail' product.product_code %}">单件追溯 →</a></td></tr>{% endfor %}</tbody></table></div>{% endif %}
 </section>
 {% endif %}
 
-<nav class="record-tabs" aria-label="记录类型" role="tablist">
-  <button type="button" class="active" role="tab" aria-selected="true" data-record-target="production-records">生产追溯 <span>{{ recent_products|length }}</span></button>
-  <button type="button" role="tab" aria-selected="false" data-record-target="mes-records">MES通讯 <span>{{ recent_mes_records|length }}</span></button>
-  <button type="button" role="tab" aria-selected="false" data-record-target="plc-records">PLC事件 <span>{{ recent_signals|length }}</span></button>
-  <button type="button" role="tab" aria-selected="false" data-record-target="alarm-records">报警记录 <span>{{ recent_alarms|length }}</span></button>
+<nav class="trace-workspace-tabs" aria-label="追溯工作区" role="tablist">
+  <button type="button" class="active" role="tab" aria-selected="true" data-trace-target="rack-task-panel"><span>01</span>料框任务 <b>{{ rack_tasks|length }}</b></button>
+  <button type="button" role="tab" aria-selected="false" data-trace-target="product-item-panel"><span>02</span>单件产品 <b>{{ product_rows|length }}</b></button>
+  <button type="button" role="tab" aria-selected="false" data-trace-target="integrity-panel"><span>03</span>完整性与异常 <b>{{ integrity_issues|length }}</b></button>
+  <button type="button" role="tab" aria-selected="false" data-trace-target="engineering-panel"><span>04</span>工程证据</button>
 </nav>
 
-<section id="production-records" class="panel record-section record-tab-panel is-active" role="tabpanel">
-  <div class="panel-heading"><div><span class="eyebrow">PRODUCTION</span><h2>生产记录</h2></div><span class="table-scope">{{ record_scope_label }}</span></div>
-  <div class="table-wrap"><table class="data-table"><thead><tr><th>产品条码</th><th>料框码</th><th>流程状态</th><th>MES状态</th><th>创建时间</th><th></th></tr></thead><tbody>
-    {% for product in recent_products %}<tr><td><strong>{{ product.product_code }}</strong></td><td>{{ product.rack.rack_code|default:"未绑定" }}</td><td><span class="badge badge-running">{{ product.get_current_state_display }}</span></td><td>{{ product.get_mes_upload_status_display }}</td><td>{{ product.created_at|date:"Y-m-d H:i:s" }}</td><td><a class="quiet-link" href="{% url 'traceability:product_detail' product.product_code %}">追溯 →</a></td></tr>{% empty %}<tr><td colspan="6" class="empty">暂无生产记录</td></tr>{% endfor %}
-  </tbody></table></div>
+<section id="rack-task-panel" class="panel trace-workspace-panel is-active" role="tabpanel">
+  <div class="trace-panel-heading"><div><span class="eyebrow">RACK LOAD TASKS</span><h2>料框装箱任务</h2><p>追溯主对象：一个料框、一份冻结配方、若干单件产品和一次完整装箱周期。</p></div><span class="table-scope">{{ record_scope_label }}</span></div>
+  <div class="table-wrap"><table class="data-table trace-main-table"><thead><tr><th>料框</th><th>配方与结构</th><th>装箱进度</th><th>泡棉质量</th><th>异常</th><th>追溯完整性</th><th>更新时间</th><th></th></tr></thead><tbody>{% for task in rack_tasks %}<tr>
+    <td><strong>{{ task.rack.rack_code }}</strong><small class="cell-sub">{{ task.rack.rack_type|default:"料架类型未记录" }}</small></td>
+    <td>{% if task.recipe %}<strong>{{ task.recipe.recipe_code }}</strong><small class="cell-sub">{{ task.recipe.layer_count }} 层 × {{ task.recipe.quantity_per_layer }} 件 · 共 {{ task.recipe.total_quantity }}</small>{% else %}<span class="badge badge-warn">未关联配方</span>{% endif %}</td>
+    <td><strong>{{ task.loaded_quantity }}/{{ task.planned_quantity|default:"—" }}</strong><small class="cell-sub">{% if task.cycle %}{{ task.cycle.get_phase_display }}{% else %}仅有料框档案{% endif %}</small></td>
+    <td>{% if task.foam.total %}<span class="badge {% if task.foam.ng %}badge-fail{% else %}badge-ok{% endif %}">OK {{ task.foam.ok }} / NG {{ task.foam.ng }}</span>{% else %}<span class="text-muted">无检测</span>{% endif %}</td>
+    <td>{% if task.open_alarms or task.mes_failures %}<span class="badge badge-fail">报警 {{ task.open_alarms }} · MES失败 {{ task.mes_failures }}</span>{% else %}<span class="badge badge-muted">无已知异常</span>{% endif %}</td>
+    <td>{% if task.gaps %}<span class="trace-health warning">待补齐</span><small class="cell-sub">{{ task.gaps|join:"、" }}</small>{% else %}<span class="trace-health ok">完整</span>{% endif %}</td><td>{{ task.rack.updated_at|date:"Y-m-d H:i:s" }}</td><td><a class="quiet-link" href="{% url 'traceability:search' %}?mode=rack&q={{ task.rack.rack_code|urlencode }}">展开追溯 →</a></td>
+  </tr>{% empty %}<tr><td colspan="8" class="empty">当前范围没有料框任务记录</td></tr>{% endfor %}</tbody></table></div>
 </section>
 
-<section id="mes-records" class="panel record-section record-tab-panel" role="tabpanel" hidden>
-  <div class="panel-heading"><div><span class="eyebrow">MES EXCHANGE</span><h2>MES 通讯</h2></div><div class="panel-heading-actions"><span class="table-scope">{{ record_scope_label }}</span><a class="quiet-link" href="{% url 'mes:record_list' %}">接口监控详情 →</a></div></div>
-  <div class="table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>接口动作</th><th>产品码</th><th>料框码</th><th>结果</th><th>错误信息</th></tr></thead><tbody>
-    {% for item in recent_mes_records %}<tr><td>{{ item.created_at|date:"m-d H:i:s" }}</td><td>{{ item.get_action_display }}</td><td>{{ item.product.product_code|default:"-" }}</td><td>{{ item.rack.rack_code|default:"-" }}</td><td>{% if item.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td><td>{{ item.error_message|default:"-"|truncatechars:48 }}</td></tr>{% empty %}<tr><td colspan="6" class="empty">暂无 MES 通讯记录</td></tr>{% endfor %}
-  </tbody></table></div>
+<section id="product-item-panel" class="panel trace-workspace-panel" role="tabpanel" hidden>
+  <div class="trace-panel-heading"><div><span class="eyebrow">PRODUCT ITEMS</span><h2>单件产品记录</h2><p>每件产品最终应关联料框、层号、位置、泡棉检测和 MES 单件上传。</p></div><span class="table-scope">{{ record_scope_label }}</span></div>
+  <div class="table-wrap"><table class="data-table trace-main-table"><thead><tr><th>产品条码</th><th>料框 / 位置</th><th>流程状态</th><th>泡棉检测</th><th>MES状态</th><th>追溯完整性</th><th>创建时间</th><th></th></tr></thead><tbody>{% for row in product_rows %}<tr>
+    <td><strong>{{ row.product.product_code }}</strong><small class="cell-sub">{{ row.product.batch.product_type|default:"产品型号未记录" }}</small></td><td>{{ row.product.rack.rack_code|default:"未绑定料框" }}<small class="cell-sub">层号 / 位置：未记录</small></td><td><span class="badge badge-running">{{ row.product.get_current_state_display }}</span></td>
+    <td>{% if row.foam.total %}<span class="badge {% if row.foam.ng %}badge-fail{% else %}badge-ok{% endif %}">OK {{ row.foam.ok }} / NG {{ row.foam.ng }}</span>{% else %}<span class="text-muted">无检测记录</span>{% endif %}</td><td>{{ row.product.get_mes_upload_status_display }}{% if row.latest_mes %}<small class="cell-sub">最近交互：{% if row.latest_mes.success %}成功{% else %}失败{% endif %}</small>{% endif %}</td><td>{% if row.gaps %}<span class="trace-health warning">{{ row.gaps|join:"、" }}</span>{% else %}<span class="trace-health ok">核心关系已建立</span>{% endif %}</td><td>{{ row.product.created_at|date:"Y-m-d H:i:s" }}</td><td><a class="quiet-link" href="{% url 'traceability:product_detail' row.product.product_code %}">单件时间线 →</a></td>
+  </tr>{% empty %}<tr><td colspan="8" class="empty">当前范围没有产品记录</td></tr>{% endfor %}</tbody></table></div>
 </section>
 
-<section id="plc-records" class="panel record-section record-tab-panel" role="tabpanel" hidden>
-  <div class="panel-heading"><div><span class="eyebrow">PLC EVENTS</span><h2>PLC 事件</h2></div><div class="panel-heading-actions"><span class="table-scope">{{ record_scope_label }}</span><a class="quiet-link" href="{% url 'devices:signals' %}">完整信号记录 →</a></div></div>
-  <div class="table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>设备</th><th>信号名称</th><th>方向</th><th>信号值</th></tr></thead><tbody>
-    {% for item in recent_signals %}<tr><td>{{ item.recorded_at|date:"m-d H:i:s" }}</td><td>{{ item.device.code }}</td><td>{{ item.signal_name }}</td><td>{% if item.direction == 'IN' %}<span class="badge badge-info">PLC → 上位机</span>{% else %}<span class="badge badge-ok">上位机 → PLC</span>{% endif %}</td><td><code>{{ item.signal_value }}</code></td></tr>{% empty %}<tr><td colspan="5" class="empty">暂无 PLC 事件记录</td></tr>{% endfor %}
-  </tbody></table></div>
+<section id="integrity-panel" class="panel trace-workspace-panel" role="tabpanel" hidden>
+  <div class="trace-panel-heading"><div><span class="eyebrow">TRACE INTEGRITY</span><h2>完整性与异常</h2><p>这里只展示真实断链和失败，不用默认值掩盖缺失记录。</p></div><span class="table-scope">{{ integrity_issues|length }} 条</span></div>
+  <div class="integrity-list">{% for issue in integrity_issues %}<article class="integrity-item {{ issue.level }}"><span class="integrity-mark"></span><div><strong>{{ issue.category }} · {{ issue.object_code }}</strong><p>{{ issue.message }}</p></div><time>{{ issue.time|date:"Y-m-d H:i:s" }}</time>{% if issue.product %}<a class="quiet-link" href="{% url 'traceability:product_detail' issue.product.product_code %}">查看对象 →</a>{% endif %}</article>{% empty %}<div class="trace-empty-state">当前范围未发现已知追溯断链。</div>{% endfor %}</div>
 </section>
 
-<section id="alarm-records" class="panel record-section record-tab-panel" role="tabpanel" hidden>
-  <div class="panel-heading"><div><span class="eyebrow">ALARMS</span><h2>报警记录</h2></div><div class="panel-heading-actions"><span class="table-scope">{{ record_scope_label }}</span><a class="quiet-link" href="{% url 'alarms:alarm_list' %}">报警处理 →</a></div></div>
-  <div class="table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>报警编号</th><th>来源</th><th>报警内容</th><th>状态</th><th></th></tr></thead><tbody>
-    {% for alarm in recent_alarms %}<tr><td>{{ alarm.created_at|date:"m-d H:i:s" }}</td><td>{{ alarm.alarm_code }}</td><td>{{ alarm.get_source_display }}</td><td>{{ alarm.message|truncatechars:60 }}</td><td><span class="badge {% if alarm.status == 'CLOSED' %}badge-muted{% else %}badge-warn{% endif %}">{{ alarm.get_status_display }}</span></td><td><a class="quiet-link" href="{% url 'alarms:alarm_detail' alarm.pk %}">详情 →</a></td></tr>{% empty %}<tr><td colspan="6" class="empty">暂无报警记录</td></tr>{% endfor %}
-  </tbody></table></div>
+<section id="engineering-panel" class="trace-workspace-panel" role="tabpanel" hidden>
+  <div class="engineering-evidence-grid">
+    <article class="panel evidence-panel"><div class="trace-panel-heading"><div><span class="eyebrow">MES EXCHANGE</span><h2>MES 请求与响应</h2></div><a class="quiet-link" href="{% url 'mes:record_list' %}">接口监控 →</a></div><div class="table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>动作</th><th>对象</th><th>结果</th><th>错误</th></tr></thead><tbody>{% for item in recent_mes_records %}<tr><td>{{ item.created_at|date:"m-d H:i:s" }}</td><td>{{ item.get_action_display }}</td><td>{% if item.product %}{{ item.product.product_code }}{% elif item.rack %}{{ item.rack.rack_code }}{% else %}未关联{% endif %}</td><td>{% if item.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td><td>{{ item.error_message|default:"—"|truncatechars:32 }}</td></tr>{% empty %}<tr><td colspan="5" class="empty">暂无 MES 记录</td></tr>{% endfor %}</tbody></table></div></article>
+    <article class="panel evidence-panel"><div class="trace-panel-heading"><div><span class="eyebrow">PLC HANDSHAKE</span><h2>PLC 信号证据</h2></div><a class="quiet-link" href="{% url 'devices:signals' %}">完整信号 →</a></div><div class="table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>信号</th><th>方向</th><th>值</th></tr></thead><tbody>{% for item in recent_signals %}<tr><td>{{ item.recorded_at|date:"m-d H:i:s" }}</td><td>{{ item.signal_name }}<small class="cell-sub">{{ item.device.code }}</small></td><td>{% if item.direction == 'IN' %}PLC → 上位机{% else %}上位机 → PLC{% endif %}</td><td><code>{{ item.signal_value }}</code></td></tr>{% empty %}<tr><td colspan="4" class="empty">暂无 PLC 信号记录</td></tr>{% endfor %}</tbody></table></div></article>
+  </div>
+  <article class="panel evidence-panel alarm-evidence"><div class="trace-panel-heading"><div><span class="eyebrow">ALARMS & INTERVENTION</span><h2>报警与人工处置</h2></div><a class="quiet-link" href="{% url 'alarms:alarm_list' %}">报警中心 →</a></div><div class="table-wrap"><table class="data-table"><thead><tr><th>发生时间</th><th>报警编号</th><th>关联对象</th><th>内容</th><th>锁站</th><th>状态</th><th></th></tr></thead><tbody>{% for alarm in recent_alarms %}<tr><td>{{ alarm.created_at|date:"Y-m-d H:i:s" }}</td><td><strong>{{ alarm.alarm_code }}</strong></td><td>{% if alarm.product %}{{ alarm.product.product_code }}{% elif alarm.rack %}{{ alarm.rack.rack_code }}{% else %}未关联{% endif %}</td><td>{{ alarm.message|truncatechars:60 }}</td><td>{% if alarm.locked_workstation %}<span class="badge badge-fail">是</span>{% else %}否{% endif %}</td><td>{{ alarm.get_status_display }}</td><td><a class="quiet-link" href="{% url 'alarms:alarm_detail' alarm.pk %}">处置记录 →</a></td></tr>{% empty %}<tr><td colspan="7" class="empty">暂无报警记录</td></tr>{% endfor %}</tbody></table></div></article>
 </section>
 
+<style>
+.trace-page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:18px}.trace-page-header h1{margin:2px 0 4px;font-size:28px}.trace-page-header p{max-width:820px;margin:0;color:var(--text-muted);font-size:13px;line-height:1.65}.trace-data-clock{min-width:190px;padding:11px 14px;border:1px solid var(--border);border-radius:9px;background:var(--surface);text-align:right}.trace-data-clock span,.trace-data-clock small,.trace-data-clock strong,.trace-kpi span,.trace-kpi small,.trace-kpi strong{display:block}.trace-data-clock span,.trace-data-clock small{color:var(--text-muted);font-size:10px}.trace-data-clock strong{margin:3px 0;color:var(--text);font-size:13px}.trace-kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px}.trace-kpi{padding:15px 16px;border:1px solid var(--border);border-top:3px solid #94a3b8;border-radius:9px;background:var(--surface);box-shadow:var(--shadow-sm)}.trace-kpi.is-warning{border-top-color:#f59e0b}.trace-kpi.is-danger{border-top-color:#ef4444}.trace-kpi span{color:var(--text-muted);font-size:11px;font-weight:700}.trace-kpi strong{margin:6px 0 3px;color:var(--text);font-size:24px}.trace-kpi small{color:var(--text-faint);font-size:10px}.trace-query-panel{padding:18px 20px}.trace-query-heading,.trace-panel-heading,.trace-section-heading,.rack-trace-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.trace-query-heading{margin-bottom:13px}.trace-query-heading h2,.trace-panel-heading h2,.trace-section-heading h3{margin:2px 0 0}.trace-query-tip{padding:5px 9px;border-radius:999px;background:var(--surface-2);color:var(--text-muted);font-size:10px}.trace-query-form{display:grid;grid-template-columns:170px minmax(280px,1fr) auto;gap:10px;align-items:end}.trace-query-form select,.trace-query-form input{width:100%;height:40px}.trace-filter-row{grid-column:1/-1;display:grid;grid-template-columns:110px 145px 145px minmax(145px,1fr) minmax(135px,.8fr) auto auto auto;gap:9px;align-items:end;margin-top:5px;padding-top:13px;border-top:1px solid var(--border)}.trace-filter-title{align-self:center}.trace-filter-title strong{display:block;font-size:13px}.trace-date-shortcuts{display:flex;gap:4px}.trace-date-shortcuts button{height:32px;padding:0 8px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--text-muted);cursor:pointer;font-size:10px}.trace-date-shortcuts button.selected{border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}.trace-clear-filter{align-self:center;color:var(--text-muted);font-size:11px}.trace-message{display:flex;align-items:center;gap:10px;margin:12px 0;padding:11px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}.trace-message span{color:var(--text-muted);font-size:12px}.trace-message.is-error{border-color:#fecaca;background:#fef2f2}.trace-message.is-active{border-color:#bfdbfe;background:#eff6ff}.trace-message.is-empty{justify-content:center;padding:22px}.trace-hit-card,.rack-trace-detail{margin-top:14px;padding:18px 20px}.trace-hit-card{display:flex;align-items:center;justify-content:space-between;gap:20px}.trace-hit-main,.trace-hit-status,.rack-trace-state{display:flex;align-items:center;gap:10px}.trace-hit-main h2{margin:2px 0}.trace-hit-main p{margin:0;color:var(--text-muted);font-size:12px}.trace-object-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:9px;background:#2563eb;color:#fff;font-size:18px;font-weight:800}.trace-object-icon.rack{background:#0f766e}.rack-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:hidden;margin:16px 0;border:1px solid var(--border);border-radius:9px}.rack-summary-grid>div{padding:13px 15px;border-left:1px solid var(--border)}.rack-summary-grid>div:first-child{border-left:0}.rack-summary-grid span,.rack-summary-grid strong,.rack-summary-grid small{display:block}.rack-summary-grid span,.rack-summary-grid small{color:var(--text-muted);font-size:10px}.rack-summary-grid strong{margin:5px 0;color:var(--text);font-size:15px}.trace-section-heading{align-items:flex-end;margin:20px 0 10px}.trace-section-heading>span{color:var(--text-muted);font-size:10px}.trace-section-heading.compact{margin-top:16px}.trace-checkpoint-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}.checkpoint{min-width:0;padding:11px;border:1px solid var(--border);border-top:3px solid #cbd5e1;border-radius:7px;background:#f8fafc}.checkpoint.done{border-top-color:#22c55e;background:#f0fdf4}.checkpoint b,.checkpoint strong,.checkpoint span,.checkpoint small{display:block}.checkpoint b{color:#94a3b8;font-size:9px}.checkpoint strong{margin:5px 0;color:var(--text);font-size:11px}.checkpoint span,.checkpoint small{overflow:hidden;color:var(--text-muted);font-size:8px;text-overflow:ellipsis;white-space:nowrap}.checkpoint small{margin-top:5px}.rack-position-map{display:flex;flex-direction:column;gap:7px}.rack-position-row{display:grid;grid-template-columns:105px repeat(5,minmax(0,1fr));gap:7px}.rack-layer-label,.rack-position-cell{padding:10px;border:1px solid var(--border);border-radius:7px;background:#fff}.rack-layer-label{background:#1e293b;color:#fff}.rack-layer-label strong,.rack-layer-label span,.rack-position-cell b,.rack-position-cell span,.rack-position-cell small{display:block}.rack-layer-label span{margin-top:3px;color:#94a3b8;font-size:9px}.rack-position-cell span,.rack-position-cell small{margin-top:3px;color:var(--text-muted);font-size:9px}.rack-position-cell.missing{border-style:dashed;background:#f8fafc}.trace-integrity-note{margin-top:9px;padding:9px 11px;border:1px solid #fde68a;border-radius:7px;background:#fffbeb;color:#92400e;font-size:10px}.trace-workspace-tabs{position:sticky;top:68px;z-index:15;display:flex;gap:4px;margin:18px 0 10px;padding:5px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.95);box-shadow:var(--shadow-sm);backdrop-filter:blur(8px)}.trace-workspace-tabs button{display:flex;align-items:center;gap:7px;padding:8px 13px;border:0;border-radius:6px;background:transparent;color:var(--text-muted);cursor:pointer;font:inherit;font-size:12px;font-weight:700}.trace-workspace-tabs button>span{color:#94a3b8;font-size:8px}.trace-workspace-tabs button>b{min-width:19px;padding:2px 5px;border-radius:999px;background:#e2e8f0;font-size:9px;text-align:center}.trace-workspace-tabs button.active{background:var(--primary-soft);color:var(--primary)}.trace-workspace-tabs button.active>b{background:#fff}.trace-workspace-panel{display:none;margin-bottom:14px}.trace-workspace-panel.is-active{display:block}.trace-workspace-panel[hidden]{display:none!important}.trace-workspace-panel.panel,.evidence-panel{padding:0;overflow:hidden}.trace-panel-heading{align-items:center;padding:15px 17px;border-bottom:1px solid var(--border)}.trace-panel-heading p{margin:3px 0 0;color:var(--text-muted);font-size:10px}.trace-main-table td{vertical-align:top}.trace-health{display:inline-block;padding:3px 7px;border-radius:999px;font-size:9px;font-weight:800}.trace-health.ok{background:#dcfce7;color:#166534}.trace-health.warning{background:#fef3c7;color:#92400e}.integrity-list{padding:5px 16px 16px}.integrity-item{display:grid;grid-template-columns:10px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}.integrity-mark{width:7px;height:7px;border-radius:50%;background:#f59e0b}.integrity-item.error .integrity-mark{background:#ef4444}.integrity-item strong{font-size:12px}.integrity-item p{margin:3px 0 0;color:var(--text-muted);font-size:10px}.integrity-item time{color:var(--text-muted);font-size:10px}.engineering-evidence-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.alarm-evidence{margin-top:12px}.trace-empty-state{padding:28px;color:var(--text-muted);text-align:center}.text-muted{color:var(--text-muted);font-size:10px}
+@media(max-width:1150px){.trace-kpi-grid{grid-template-columns:repeat(3,1fr)}.trace-filter-row{grid-template-columns:repeat(3,1fr)}.trace-filter-title,.trace-date-shortcuts{grid-column:1/-1}.trace-checkpoint-grid{grid-template-columns:repeat(4,1fr)}.rack-position-row{grid-template-columns:90px repeat(5,minmax(115px,1fr));overflow-x:auto}}
+@media(max-width:760px){.trace-page-header,.trace-hit-card,.rack-trace-head{flex-direction:column}.trace-data-clock{text-align:left}.trace-kpi-grid,.rack-summary-grid,.engineering-evidence-grid{grid-template-columns:1fr}.trace-query-form,.trace-filter-row{grid-template-columns:1fr}.trace-filter-title,.trace-date-shortcuts{grid-column:auto}.trace-workspace-tabs{top:0;overflow-x:auto}.trace-checkpoint-grid{grid-template-columns:repeat(2,1fr)}.rack-summary-grid>div{border-left:0;border-top:1px solid var(--border)}.rack-summary-grid>div:first-child{border-top:0}}
+</style>
 <script>
-(function () {
-  const startInput = document.getElementById('startDate');
-  const endInput = document.getElementById('endDate');
-  const formatDate = date => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  document.querySelectorAll('[data-date-days]').forEach(button => {
-    button.addEventListener('click', () => {
-      const days = Number(button.dataset.dateDays);
-      const end = new Date();
-      const start = new Date();
-      start.setDate(end.getDate() - Math.max(0, days - 1));
-      startInput.value = formatDate(start);
-      endInput.value = formatDate(end);
-      document.querySelectorAll('[data-date-days]').forEach(item => item.classList.remove('selected'));
-      button.classList.add('selected');
-    });
-  });
-
-  const tabs = Array.from(document.querySelectorAll('[data-record-target]'));
-  const panels = Array.from(document.querySelectorAll('.record-tab-panel'));
-
-  function activate(targetId, updateHash) {
-    if (!panels.some(panel => panel.id === targetId)) return;
-    tabs.forEach(tab => {
-      const selected = tab.dataset.recordTarget === targetId;
-      tab.classList.toggle('active', selected);
-      tab.setAttribute('aria-selected', selected ? 'true' : 'false');
-    });
-    panels.forEach(panel => {
-      const selected = panel.id === targetId;
-      panel.classList.toggle('is-active', selected);
-      panel.hidden = !selected;
-    });
-    if (updateHash) history.replaceState(null, '', '#' + targetId);
-  }
-
-  tabs.forEach(tab => tab.addEventListener('click', () => activate(tab.dataset.recordTarget, true)));
-  const initial = location.hash ? location.hash.slice(1) : 'production-records';
-  activate(initial, false);
-})();
+(function(){const s=document.getElementById('startDate'),e=document.getElementById('endDate'),f=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;document.querySelectorAll('[data-date-days]').forEach(b=>b.addEventListener('click',()=>{const n=Number(b.dataset.dateDays),z=new Date(),a=new Date();a.setDate(z.getDate()-Math.max(0,n-1));s.value=f(a);e.value=f(z);document.querySelectorAll('[data-date-days]').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')}));const t=[...document.querySelectorAll('[data-trace-target]')],p=[...document.querySelectorAll('.trace-workspace-panel')];function a(id,h){if(!p.some(x=>x.id===id))return;t.forEach(x=>{const y=x.dataset.traceTarget===id;x.classList.toggle('active',y);x.setAttribute('aria-selected',y?'true':'false')});p.forEach(x=>{const y=x.id===id;x.classList.toggle('is-active',y);x.hidden=!y});if(h)history.replaceState(null,'','#'+id)}t.forEach(x=>x.addEventListener('click',()=>a(x.dataset.traceTarget,true)));a(location.hash?location.hash.slice(1):'rack-task-panel',false)})();
 </script>
 {% endblock %}
