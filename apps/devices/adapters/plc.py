@@ -6,9 +6,6 @@ DB simulator used for offline end-to-end testing.
 """
 from __future__ import annotations
 
-import struct
-import math
-
 from apps.devices.plc_db100 import (
     DB_NUMBER, DB_SIZE, POINTS_BY_NAME, decode_value, encode_value,
 )
@@ -147,22 +144,6 @@ class PLCAdapter(BaseDeviceAdapter):
             if point.direction == 'IN' or name == 'heartbeat'
         }
 
-    def write_matrix(self, matrix):
-        if len(matrix) != 4 or any(len(row) != 4 for row in matrix):
-            raise ValueError('定位矩阵必须是 4x4')
-        flat = [float(value) for row in matrix for value in row]
-        if not all(math.isfinite(value) for value in flat):
-            raise ValueError('定位矩阵不能包含 NaN 或无穷值')
-        payload = b''.join(struct.pack('>f', value) for value in flat)
-        self._ensure_connected()
-        self.transport.write(DB_NUMBER, 54, payload)
-
-    def read_matrix(self):
-        self._ensure_connected()
-        raw = self.transport.read(DB_NUMBER, 54, 64)
-        flat = struct.unpack('>16f', raw)
-        return [list(flat[index:index + 4]) for index in range(0, 16, 4)]
-
     def tick_heartbeat(self):
         current = self.read_point('heartbeat')
         value = -32768 if current >= 32767 else current + 1
@@ -221,10 +202,12 @@ class PLCAdapter(BaseDeviceAdapter):
         返回：
             {success: bool, sent_at: str, echo: payload}
         """
-        matrix = payload.get('matrix') or payload.get('compensation_matrix')
-        if matrix is None:
-            return {'success': False, 'error': 'DB100 规则要求下发 4x4 matrix'}
-        self.write_matrix(matrix)
+        delta_z = payload.get('layer_delta_z')
+        if delta_z is None:
+            delta_z = payload.get('compensation_z', payload.get('offset_z'))
+        if delta_z is None:
+            return {'success': False, 'error': 'DB100 规则要求下发当前层 ΔZ'}
+        self.write_point('layer_delta_z', delta_z)
         return {'success': True, 'echo': payload}
 
     def send_offsets(self, product_code, side, x, y, z):

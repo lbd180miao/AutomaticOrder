@@ -38,7 +38,7 @@
     <div class="workflow-timeline">
       {% for ev in recent_events %}<div class="timeline-item {% if not ev.success %}failed{% endif %}"><time>{{ ev.occurred_at|default:ev.created_at|date:"H:i:s" }}</time><i></i><div><strong>{{ ev.event_type }}</strong><span>{{ ev.message|default:"状态已更新" }}</span><small>{{ ev.get_source_display }} · {{ ev.from_state|default:"—" }} → {{ ev.to_state|default:"—" }}</small></div></div>
       {% empty %}
-      {% if demo_mode %}<div class="timeline-item"><time>14:32:18</time><i></i><div><strong>RACK_LOCATED</strong><span>定位矩阵已写入 DBB54–117</span><small>模拟事件</small></div></div><div class="timeline-item"><time>14:31:46</time><i></i><div><strong>RECIPE_LOADED</strong><span>配方 BUMPER-A-04 获取成功</span><small>模拟事件</small></div></div>{% else %}<div class="empty">暂无流程事件</div>{% endif %}
+      {% if demo_mode %}<div class="timeline-item"><time>14:32:18</time><i></i><div><strong>RACK_LOCATED</strong><span>当前层 ΔZ 已写入 DBD60</span><small>模拟事件</small></div></div><div class="timeline-item"><time>14:31:46</time><i></i><div><strong>RECIPE_LOADED</strong><span>配方 BUMPER-A-04 获取成功</span><small>模拟事件</small></div></div>{% else %}<div class="empty">暂无流程事件</div>{% endif %}
       {% endfor %}
     </div>
   </article>

@@ -11,6 +11,7 @@ urlpatterns = [
 
     # API
     path('api/stats/', views.stats_api, name='stats_api'),
+    path('api/racks/<int:rack_id>/refresh-recipe/', views.refresh_recipe_api, name='refresh_recipe_api'),
     path('api/recipe-verification/', views.recipe_verification_api, name='recipe_verification_api'),
     path('api/rack-measurement/debug/', views.rack_measurement_debug_api, name='rack_measurement_debug_api'),
     path('api/rack-measurement/profile/', views.rack_measurement_profile_api, name='rack_measurement_profile_api'),

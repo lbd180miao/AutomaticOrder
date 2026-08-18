@@ -12,7 +12,7 @@ class PageAccessTests(TestCase):
         response = self.client.get(reverse('core:dashboard'))
 
         self.assertContains(response, '生产总览')
-        self.assertContains(response, 'DBX120.0')
+        self.assertContains(response, 'DBX64.0')
         self.assertContains(response, '料框装载图')
         self.assertContains(response, reverse('devices:status'))
 

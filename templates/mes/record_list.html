@@ -1,88 +1,120 @@
 {% extends "base.html" %}
-{% block title %}MES 接口监控 - AutomaticBoxing{% endblock %}
+{% block title %}MES 数据工作台 - AutomaticBoxing{% endblock %}
+{% block page_class %}page-operation{% endblock %}
 {% block content %}
-<section class="page-header">
+<section class="page-header mes-workbench-header">
   <div>
-    <div class="title-with-badge"><h1>MES 接口监控</h1>{% if demo_mode %}<span class="demo-label">模拟数据 · 非接口实绩</span>{% endif %}</div>
-    <p class="page-subtitle">只呈现接口健康、请求审计与失败重传；配方核对已独立。</p>
+    <h1>MES 数据工作台</h1>
+    <p class="page-subtitle">查询料框绑定和 MES 配方，统一处理待补传、数据一致性与接口审计。</p>
   </div>
-  <a class="btn btn-primary" href="{% url 'mes:recipe_check' %}">进入配方核对</a>
+  <a class="btn btn-secondary" href="{% url 'mes:recipe_check' %}">配方核验与 2D 调试</a>
 </section>
 
-<nav class="module-tabs" aria-label="MES 模块">
-  <a class="active" href="{% url 'mes:record_list' %}">接口记录</a>
-  <a href="{% url 'mes:recipe_check' %}">配方核对与 2D 调试</a>
+<section class="metric-grid mes-health-grid" aria-label="MES 摘要">
+  <article class="metric-card metric-{{ mes_link.tone }}"><span>MES 通信</span><strong>{{ mes_link.label }}</strong><small>{{ mes_link.detail }}</small></article>
+  <article class="metric-card metric-primary"><span>当前料框</span><strong class="metric-code">{{ current_rack.rack_code|default:"—" }}</strong><small>{% if current_rack %}{{ current_rack.status }}{% else %}当前无进行中装箱任务{% endif %}</small></article>
+  <article class="metric-card {% if stats.pending_retry %}metric-warning{% endif %}"><span>待上传 / 补传</span><strong>{{ stats.pending_retry }}</strong><small>未被后续成功请求覆盖</small></article>
+  <article class="metric-card {% if consistency_issues %}metric-danger{% endif %}"><span>数据一致性异常</span><strong>{{ consistency_issues|length }}</strong><small>本地绑定、配方和 MES 调用</small></article>
+</section>
+
+<nav class="module-tabs mes-workbench-tabs" aria-label="MES 数据栏目">
+  <a class="{% if tab == 'bindings' %}active{% endif %}" href="?tab=bindings">料框产品绑定 <em>{{ binding_total }}</em></a>
+  <a class="{% if tab == 'recipes' %}active{% endif %}" href="?tab=recipes">MES 配方数据 <em>{{ recipe_total }}</em></a>
+  <a class="{% if tab == 'pending' %}active{% endif %}" href="?tab=pending">待上传 / 补传 <em>{{ pending_records|length }}</em></a>
+  <a class="{% if tab == 'consistency' %}active{% endif %}" href="?tab=consistency">数据一致性 <em>{{ consistency_issues|length }}</em></a>
+  <a class="{% if tab == 'records' %}active{% endif %}" href="?tab=records">接口记录</a>
 </nav>
 
-<section class="metric-grid mes-health-grid">
-  <article class="metric-card"><span>24 小时请求</span><strong id="stat-total">{{ stats.total }}</strong><small>所有 MES 业务动作</small></article>
-  <article class="metric-card metric-primary"><span>成功率</span><strong id="stat-rate">{{ stats.success_rate }}%</strong><small>成功 {{ stats.success }} 次</small></article>
-  <article class="metric-card {% if stats.fail %}metric-danger{% endif %}"><span>失败请求</span><strong id="stat-fail">{{ stats.fail }}</strong><small>需确认业务或网络原因</small></article>
-  <article class="metric-card {% if stats.pending_retry %}metric-warning{% endif %}"><span>待重传</span><strong id="stat-pending">{{ stats.pending_retry }}</strong><small>仅统计未被成功覆盖的请求</small></article>
+{% if tab == 'bindings' %}
+<section class="panel mes-context-strip">
+  <div><span>查询口径</span><strong>本地已保存绑定</strong><small>MES 状态取最近一次产品条码上传结果</small></div>
+  <div><span>位置来源</span><strong>泡棉检测 position_index</strong><small>没有实测位置时不推测层号和槽位</small></div>
+  <div><span>记录总数</span><strong>{{ binding_total }} 条</strong><small>当前筛选命中 {{ binding_page.paginator.count }} 条</small></div>
 </section>
-
-<section class="panel mes-health-strip">
-  <div><span class="health-light {% if stats.fail %}warning{% else %}ok{% endif %}"></span><span>接口状态</span><strong>{% if stats.fail %}存在失败记录{% else %}运行正常{% endif %}</strong></div>
-  <div><span>业务地址</span><strong>由系统设置统一配置</strong></div>
-  <div><span>最近请求</span><strong>{% if latest_record %}{{ latest_record.created_at|date:"Y-m-d H:i:s" }}{% else %}演示 14:32:18{% endif %}</strong></div>
-  <div><span>刷新策略</span><strong>30 秒统计刷新</strong></div>
-</section>
-
 <section class="panel filter-panel mes-filter-panel">
-  <form method="get" class="mes-filter-form">
-    <label>开始日期<input type="date" name="start_date" value="{{ start_date }}"></label>
-    <label>结束日期<input type="date" name="end_date" value="{{ end_date }}"></label>
-    <label>业务动作<select name="action"><option value="">全部动作</option>{% for value,label in action_choices %}<option value="{{ value }}" {% if action_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
-    <label>调用结果<select name="result"><option value="">全部结果</option><option value="ok" {% if result_filter == 'ok' %}selected{% endif %}>成功</option><option value="fail" {% if result_filter == 'fail' %}selected{% endif %}>失败</option></select></label>
-    <button class="btn btn-primary" type="submit">查询</button>
-    <a class="btn btn-secondary" href="{% url 'mes:record_list' %}">重置</a>
+  <form method="get" class="mes-filter-form mes-binding-filter">
+    <input type="hidden" name="tab" value="bindings">
+    <label>料框码<input name="rack_code" value="{{ rack_code }}" placeholder="支持模糊查询"></label>
+    <label>产品条码<input name="product_code" value="{{ product_code }}" placeholder="输入产品码"></label>
+    <label>配方编号<input name="recipe_code" value="{{ recipe_code }}" placeholder="输入配方编号"></label>
+    <label>MES 同步<select name="sync_status"><option value="">全部状态</option><option value="PENDING" {% if sync_status == 'PENDING' %}selected{% endif %}>待上传</option><option value="UPLOADED" {% if sync_status == 'UPLOADED' %}selected{% endif %}>已上传</option><option value="FAILED" {% if sync_status == 'FAILED' %}selected{% endif %}>上传失败</option></select></label>
+    <label>开始日期<input type="date" name="start_date" value="{{ start_date }}"></label><label>结束日期<input type="date" name="end_date" value="{{ end_date }}"></label>
+    <button class="btn btn-primary" type="submit">查询</button><a class="btn btn-secondary" href="?tab=bindings">重置</a>
   </form>
 </section>
-
 <section class="panel mes-record-panel">
-  <div class="panel-heading"><div><span class="eyebrow">INTERFACE AUDIT</span><h2>请求审计</h2></div><span class="table-scope">最多显示 200 条</span></div>
-  <div class="table-wrap">
-    <table class="data-table mes-audit-table" id="mes-table">
-      <thead><tr><th>时间</th><th>业务动作</th><th>产品 / 料框</th><th>结果</th><th>异常摘要</th><th>报文</th><th>操作</th></tr></thead>
-      <tbody>
-        {% for record in records %}
-        <tr class="{% if not record.success %}row-fail{% endif %}">
-          <td class="mono-cell">{{ record.created_at|date:"m-d H:i:s" }}</td>
-          <td><strong>{{ record.get_action_display }}</strong><small class="cell-sub">{{ record.action }}</small></td>
-          <td><span>{{ record.product.product_code|default:"—" }}</span><small class="cell-sub">{{ record.rack.rack_code|default:"—" }}</small></td>
-          <td>{% if record.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td>
-          <td class="error-summary">{{ record.error_message|default:"—"|truncatechars:48 }}</td>
-          <td><details class="payload-details"><summary>查看</summary><div><strong>请求</strong><pre>{{ record.request_payload }}</pre><strong>响应</strong><pre>{{ record.response_payload }}</pre></div></details></td>
-          <td>{% if not record.success %}<button type="button" class="btn btn-secondary btn-sm retry-btn" data-id="{{ record.pk }}">重传</button>{% else %}<span class="text-faint">—</span>{% endif %}</td>
-        </tr>
-        {% empty %}
-        <tr class="demo-table-row"><td class="mono-cell">08-15 14:32:18</td><td><strong>上传装箱结果</strong><small class="cell-sub">UPLOAD_BOXING_RESULT</small></td><td>P-20260815-0042<small class="cell-sub">RACK-A-0815-02</small></td><td><span class="badge badge-ok">成功</span></td><td>—</td><td><span class="text-faint">示意报文</span></td><td>—</td></tr>
-        <tr class="demo-table-row"><td class="mono-cell">08-15 14:31:46</td><td><strong>获取料框配方</strong><small class="cell-sub">GET_RACK_RECIPE</small></td><td>—<small class="cell-sub">RACK-A-0815-02</small></td><td><span class="badge badge-ok">成功</span></td><td>—</td><td><span class="text-faint">示意报文</span></td><td>—</td></tr>
-        <tr class="demo-table-row"><td class="mono-cell">08-15 14:26:09</td><td><strong>上传产品绑定</strong><small class="cell-sub">UPLOAD_PRODUCT_BARCODE</small></td><td>P-20260815-0041<small class="cell-sub">RACK-A-0815-02</small></td><td><span class="badge badge-fail">失败</span></td><td>MES 请求超时，将进入重传队列</td><td><span class="text-faint">示意报文</span></td><td><button type="button" class="btn btn-secondary btn-sm" disabled>示意</button></td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <div class="panel-heading"><div><span class="eyebrow">RACK / PRODUCT BINDINGS</span><h2>绑定明细</h2></div><span class="table-scope">每页 50 条</span></div>
+  <div class="table-wrap"><table class="data-table mes-binding-table"><thead><tr><th>料框码</th><th>产品条码</th><th>配方</th><th>层 / 槽位</th><th>泡棉检测</th><th>本地记录</th><th>MES 同步</th><th>MES 回执</th></tr></thead><tbody>
+    {% for row in binding_rows %}<tr>
+      <td><strong>{{ row.rack.rack_code|default:"未绑定" }}</strong><small class="cell-sub">{{ row.rack.rack_type|default:"—" }}</small></td>
+      <td><strong class="mono-code">{{ row.product.product_code }}</strong><small class="cell-sub">{{ row.product.batch.batch_no|default:"无批次" }}</small></td>
+      <td>{{ row.recipe.recipe_code|default:"—" }}<small class="cell-sub">{{ row.recipe.name|default:"未关联配方" }}</small></td>
+      <td>{% if row.position %}<strong>L{{ row.layer_no }} / {{ row.slot_no }}</strong><small class="cell-sub">位置序号 {{ row.position }}</small>{% else %}<span class="text-faint">未记录</span>{% endif %}</td>
+      <td>{% if row.foam %}{% if row.foam.is_passed %}<span class="badge badge-ok">合格</span>{% else %}<span class="badge badge-fail">不合格</span>{% endif %}<small class="cell-sub">{{ row.foam.created_at|date:"m-d H:i:s" }}</small>{% else %}<span class="badge badge-muted">待检测</span>{% endif %}</td>
+      <td><span class="badge badge-ok">已保存</span><small class="cell-sub">{{ row.product.updated_at|date:"Y-m-d H:i:s" }}</small></td>
+      <td><span class="badge badge-{{ row.sync_tone }}">{{ row.sync_label }}</span>{% if row.upload %}<small class="cell-sub">{{ row.upload.created_at|date:"Y-m-d H:i:s" }}</small>{% endif %}</td>
+      <td>{% if row.mes_id %}<code>{{ row.mes_id }}</code>{% elif row.upload and not row.upload.success %}<span class="text-danger">{{ row.upload.error_message|truncatechars:32 }}</span>{% else %}<span class="text-faint">—</span>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="8"><div class="empty"><strong>没有找到绑定数据</strong><span>调整料框码、产品码或日期条件后重新查询。</span></div></td></tr>{% endfor %}
+  </tbody></table></div>
+  {% if binding_page.has_other_pages %}<div class="mes-pagination"><span>第 {{ binding_page.number }} / {{ binding_page.paginator.num_pages }} 页</span><div>{% if binding_page.has_previous %}<a class="btn btn-secondary btn-sm" href="?tab=bindings&page={{ binding_page.previous_page_number }}&rack_code={{ rack_code|urlencode }}&product_code={{ product_code|urlencode }}&recipe_code={{ recipe_code|urlencode }}">上一页</a>{% endif %}{% if binding_page.has_next %}<a class="btn btn-secondary btn-sm" href="?tab=bindings&page={{ binding_page.next_page_number }}&rack_code={{ rack_code|urlencode }}&product_code={{ product_code|urlencode }}&recipe_code={{ recipe_code|urlencode }}">下一页</a>{% endif %}</div></div>{% endif %}
 </section>
+
+{% elif tab == 'recipes' %}
+<section class="panel mes-context-strip">
+  <div><span>数据来源</span><strong>本地配方缓存 + 最近 MES 返回</strong><small>两份数据并列展示，不用本地值冒充 MES 实时值</small></div>
+  <div><span>配方核验</span><strong>层数、层高、层距、数量和容差</strong><small>发现差异时进入一致性异常</small></div>
+  <div><span>工程调试</span><strong>与业务查询分离</strong><small><a href="{% url 'mes:recipe_check' %}">进入配方核验与 2D 调试</a></small></div>
+</section>
+<section class="panel filter-panel mes-filter-panel"><form method="get" class="mes-filter-form mes-recipe-filter"><input type="hidden" name="tab" value="recipes"><label>综合查询<input name="keyword" value="{{ keyword }}" placeholder="料框 / 配方 / 名称"></label><label>料框码<input name="rack_code" value="{{ rack_code }}" placeholder="支持模糊查询"></label><label>配方编号<input name="recipe_code" value="{{ recipe_code }}" placeholder="输入配方编号"></label><button class="btn btn-primary" type="submit">查询</button><a class="btn btn-secondary" href="?tab=recipes">重置</a></form></section>
+<section class="mes-recipe-list">
+  {% for row in recipe_rows %}<article class="panel mes-recipe-card {% if row.mismatch_count %}has-mismatch{% endif %}">
+    <div class="mes-recipe-head"><div><span class="eyebrow">{{ row.rack.rack_code }}</span><h2>{{ row.recipe.recipe_code|default:"未关联 MES 配方" }}</h2><small>{{ row.recipe.name|default:"请在料框入站流程中读取配方" }}</small></div><div class="recipe-state">{% if not row.recipe %}<span class="badge badge-fail">本地无配方</span>{% elif row.mismatch_count %}<span class="badge badge-fail">{{ row.mismatch_count }} 项不一致</span>{% elif row.record and row.record.success %}<span class="badge badge-ok">MES 与本地一致</span>{% elif row.record %}<span class="badge badge-fail">MES 获取失败</span>{% else %}<span class="badge badge-warn">尚无 MES 快照</span>{% endif %}<small>{% if row.record %}最近获取 {{ row.record.created_at|date:"Y-m-d H:i:s" }}{% else %}仅有本地缓存{% endif %}</small></div></div>
+    <div class="recipe-parameter-grid">{% for item in row.comparisons %}<div class="{% if item.matches == False %}parameter-mismatch{% endif %}"><span>{{ item.label }}</span><strong>{{ item.local|default:"—" }}{% if item.key == 'layer_height' or item.key == 'layer_spacing' or 'tolerance' in item.key %} mm{% endif %}</strong><small>MES：{{ item.mes|default:"—" }}</small></div>{% endfor %}</div>
+    <div class="mes-recipe-foot"><span>料框类型 <strong>{{ row.rack.rack_type|default:"—" }}</strong></span><span>本地缓存 <strong>{{ row.recipe.updated_at|date:"Y-m-d H:i:s"|default:"—" }}</strong></span>{% if row.record %}<details class="payload-details"><summary>查看 MES 原始返回</summary><div><pre>{{ row.record.response_payload }}</pre></div></details>{% endif %}<button type="button" class="btn btn-secondary btn-sm refresh-recipe-btn" data-rack-id="{{ row.rack.pk }}">从 MES 刷新</button></div>
+  </article>{% empty %}<section class="panel empty"><strong>没有找到料框配方</strong><span>请调整查询条件，或等待料框入站后从 MES 获取配方。</span></section>{% endfor %}
+</section>
+
+{% elif tab == 'pending' %}
+<section class="panel mes-record-panel">
+  <div class="panel-heading"><div><span class="eyebrow">MES OUTBOX</span><h2>待上传与自动补传</h2><small>只显示尚未被同业务成功请求覆盖的最新失败记录。</small></div><span class="badge {% if pending_records %}badge-warn{% else %}badge-ok{% endif %}">{{ pending_records|length }} 条</span></div>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>记录时间</th><th>业务类型</th><th>料框 / 产品</th><th>本地数据</th><th>最后错误</th><th>状态</th><th>操作</th></tr></thead><tbody>
+    {% for record in pending_records %}<tr class="row-fail"><td class="mono-cell">{{ record.created_at|date:"Y-m-d H:i:s" }}</td><td><strong>{{ record.get_action_display }}</strong><small class="cell-sub">{{ record.action }}</small></td><td>{{ record.display_rack_code }}<small class="cell-sub">{{ record.display_product_code }}</small></td><td><details class="payload-details"><summary>查看待传数据</summary><div><pre>{{ record.request_payload }}</pre></div></details></td><td class="error-summary">{{ record.error_message|default:"MES 返回失败" }}</td><td><span class="badge badge-warn">等待补传</span></td><td><button type="button" class="btn btn-primary btn-sm retry-btn" data-id="{{ record.pk }}">立即重传</button></td></tr>{% empty %}<tr><td colspan="7"><div class="empty empty-success"><strong>没有待补传数据</strong><span>当前所有 MES 请求均已成功，或已经被后续成功请求覆盖。</span></div></td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+{% elif tab == 'consistency' %}
+<section class="panel mes-record-panel">
+  <div class="panel-heading"><div><span class="eyebrow">DATA RECONCILIATION</span><h2>本地与 MES 数据一致性</h2><small>集中显示未绑定产品、待补传请求和配方参数差异。</small></div><span class="badge {% if consistency_issues %}badge-fail{% else %}badge-ok{% endif %}">{{ consistency_issues|length }} 项</span></div>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>发现时间</th><th>异常类型</th><th>料框码</th><th>产品条码</th><th>说明</th><th>处理入口</th></tr></thead><tbody>
+    {% for issue in consistency_issues %}<tr><td class="mono-cell">{{ issue.updated_at|date:"Y-m-d H:i:s" }}</td><td><span class="badge badge-{{ issue.level }}">{{ issue.type }}</span></td><td>{{ issue.rack_code }}</td><td>{{ issue.product_code }}</td><td>{{ issue.message }}</td><td>{% if issue.record_id %}<button class="btn btn-secondary btn-sm retry-btn" data-id="{{ issue.record_id }}">重新上传</button>{% elif issue.type == '配方参数不一致' %}<a class="btn btn-secondary btn-sm" href="?tab=recipes&rack_code={{ issue.rack_code|urlencode }}">查看配方</a>{% else %}<span class="text-faint">等待流程处理</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="6"><div class="empty empty-success"><strong>数据一致</strong><span>当前未发现本地绑定、MES 请求或配方参数异常。</span></div></td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+{% else %}
+<section class="panel mes-health-strip"><div><span>24 小时请求</span><strong>{{ stats.total }} 次</strong></div><div><span>成功率</span><strong>{{ stats.success_rate }}%</strong></div><div><span>失败</span><strong>{{ stats.fail }} 次</strong></div><div><span>最近请求</span><strong>{{ latest_record.created_at|date:"Y-m-d H:i:s"|default:"—" }}</strong></div></section>
+<section class="panel filter-panel mes-filter-panel"><form method="get" class="mes-filter-form"><input type="hidden" name="tab" value="records"><label>开始日期<input type="date" name="start_date" value="{{ start_date }}"></label><label>结束日期<input type="date" name="end_date" value="{{ end_date }}"></label><label>业务动作<select name="action"><option value="">全部动作</option>{% for value,label in action_choices %}<option value="{{ value }}" {% if action_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label><label>调用结果<select name="result"><option value="">全部结果</option><option value="ok" {% if result_filter == 'ok' %}selected{% endif %}>成功</option><option value="fail" {% if result_filter == 'fail' %}selected{% endif %}>失败</option></select></label><button class="btn btn-primary" type="submit">查询</button><a class="btn btn-secondary" href="?tab=records">重置</a></form></section>
+<section class="panel mes-record-panel"><div class="panel-heading"><div><span class="eyebrow">INTERFACE AUDIT</span><h2>MES 接口记录</h2></div><span class="table-scope">最多显示 200 条</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>业务动作</th><th>产品 / 料框</th><th>结果</th><th>异常摘要</th><th>报文</th><th>操作</th></tr></thead><tbody>
+  {% for record in records %}<tr class="{% if not record.success %}row-fail{% endif %}"><td class="mono-cell">{{ record.created_at|date:"m-d H:i:s" }}</td><td><strong>{{ record.get_action_display }}</strong><small class="cell-sub">{{ record.action }}</small></td><td>{{ record.display_product_code }}<small class="cell-sub">{{ record.display_rack_code }}</small></td><td>{% if record.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td><td class="error-summary">{{ record.error_message|default:"—"|truncatechars:48 }}</td><td><details class="payload-details"><summary>查看</summary><div><strong>请求</strong><pre>{{ record.request_payload }}</pre><strong>响应</strong><pre>{{ record.response_payload }}</pre></div></details></td><td>{% if not record.success %}<button type="button" class="btn btn-secondary btn-sm retry-btn" data-id="{{ record.pk }}">重传</button>{% else %}<span class="text-faint">—</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="7"><div class="empty"><strong>暂无接口记录</strong><span>MES 请求发生后会在这里保留完整报文和结果。</span></div></td></tr>{% endfor %}
+</tbody></table></div></section>
+{% endif %}
 
 <div class="toast-container" id="toast-container"></div>
 <script>
 (function () {
-  const table = document.getElementById('mes-table');
   const toastRoot = document.getElementById('toast-container');
-  function toast(message, tone) {
-    const item = document.createElement('div'); item.className = `toast toast-${tone || 'info'}`; item.textContent = message;
-    toastRoot.appendChild(item); setTimeout(() => item.remove(), 3200);
-  }
-  table.addEventListener('click', async (event) => {
+  function toast(message, tone) { const item = document.createElement('div'); item.className = `toast toast-${tone || 'info'}`; item.textContent = message; toastRoot.appendChild(item); setTimeout(() => item.remove(), 3200); }
+  document.addEventListener('click', async (event) => {
+    const refreshButton = event.target.closest('.refresh-recipe-btn');
+    if (refreshButton) {
+      const original = refreshButton.textContent; refreshButton.disabled = true; refreshButton.textContent = '获取中…';
+      try { const response = await fetch(`/mes/api/racks/${refreshButton.dataset.rackId}/refresh-recipe/`, {method: 'POST'}); const data = await response.json(); if (!data.success) throw new Error(data.error || 'MES 返回失败'); toast(data.message || 'MES 配方刷新成功', 'ok'); setTimeout(() => location.reload(), 650); }
+      catch (error) { toast(`配方刷新失败：${error.message}`, 'fail'); refreshButton.disabled = false; refreshButton.textContent = original; }
+      return;
+    }
     const button = event.target.closest('.retry-btn'); if (!button) return;
     const original = button.textContent; button.disabled = true; button.textContent = '重传中…';
-    try {
-      const response = await fetch(`/mes/api/retry/${button.dataset.id}/`, {method: 'POST'});
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error || 'MES 返回失败');
-      toast(`记录 #${button.dataset.id} 重传成功`, 'ok'); setTimeout(() => location.reload(), 600);
-    } catch (error) { toast(`重传失败：${error.message}`, 'fail'); button.disabled = false; button.textContent = original; }
+    try { const response = await fetch(`/mes/api/retry/${button.dataset.id}/`, {method: 'POST'}); const data = await response.json(); if (!data.success) throw new Error(data.error || 'MES 返回失败'); toast(`记录 #${button.dataset.id} 重传成功`, 'ok'); setTimeout(() => location.reload(), 650); }
+    catch (error) { toast(`重传失败：${error.message}`, 'fail'); button.disabled = false; button.textContent = original; }
   });
 })();
 </script>

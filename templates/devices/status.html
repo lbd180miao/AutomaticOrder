@@ -1,149 +1,191 @@
 {% extends "base.html" %}
-{% block title %}PLC 工位监控 - AutomaticBoxing{% endblock %}
+{% block title %}PLC 流程监控 - AutomaticBoxing{% endblock %}
 {% block content %}
-<section class="page-header plc-page-header">
+<section class="page-header station-page-header">
   <div>
-    <h1>PLC 工位监控</h1>
-    <p class="page-subtitle">Siemens S7-1200 / S7-1500 · DB100 自动装箱握手</p>
+    <h1>PLC 流程监控</h1>
+    <p class="page-subtitle">只展示当前流程位置，以及每个场景与 PLC 的交互结果</p>
   </div>
   <div class="toolbar-actions">
     <a href="{% url 'workflow:history' %}" class="btn btn-secondary">流程历史</a>
-    <a href="{% url 'devices:signals' %}" class="btn btn-secondary">通信日志</a>
+    <a href="{% url 'devices:signals' %}" class="btn btn-secondary">原始通信日志</a>
     <a href="{% url 'devices:plc_config' %}" class="btn btn-primary">连接与点位配置</a>
   </div>
 </section>
 
-<section class="plc-hero {% if plc_connected %}is-online{% else %}is-offline{% endif %}" id="plc-hero">
-  <div class="plc-hero-state">
-    <span class="plc-state-orb"><i></i></span>
-    <div>
-      <span class="plc-hero-kicker">MAIN CONTROLLER</span>
-      <strong id="plc-state-label">{% if not plc %}PLC 未配置{% elif plc_connected %}PLC 通信正常{% else %}PLC 离线{% endif %}</strong>
-      <small id="plc-state-detail">{% if plc_connected %}S7 会话与 DB100 心跳正常{% elif plc %}最近心跳已超时，请检查现场链路{% else %}请先完成 PLC 连接配置{% endif %}</small>
-    </div>
+<section class="station-link-bar {% if plc_connected %}is-online{% else %}is-offline{% endif %}" id="station-link-bar">
+  <div class="station-link-main">
+    <span class="station-link-light"></span>
+    <div><small>PLC CONNECTION</small><strong id="connection-label">{{ station_snapshot.connection_label }}</strong></div>
   </div>
-  <div class="plc-endpoint">
-    <span>连接端点</span>
-    <strong>{{ plc.address|default:"192.168.43.214" }}<b>:{{ plc_config.tcp_port|default:102 }}</b></strong>
-    <small>{{ plc.protocol|default:"S7" }} Protocol</small>
-  </div>
-  <div class="plc-hero-facts">
-    <div><span>机架 / 槽位</span><strong>{{ plc_config.rack|default:0 }} / {{ plc_config.slot|default:1 }}</strong></div>
-    <div><span>数据块</span><strong>DB{{ plc_config.db_number|default:100 }}</strong></div>
-    <div><span>心跳周期</span><strong>{{ plc_config.heartbeat_interval|default:2 }} s</strong></div>
-    <div><span>最后通信</span><strong id="plc-last-seen">{{ plc.last_seen_at|date:"H:i:s"|default:"—" }}</strong></div>
-  </div>
+  <dl class="station-link-facts">
+    <div><dt>端点</dt><dd id="connection-address">{{ station_snapshot.address }}</dd></div>
+    <div><dt>当前阶段</dt><dd id="current-phase-label">{{ station_snapshot.phase_label }}</dd></div>
+    <div><dt>最后通信</dt><dd id="last-seen">{{ station_snapshot.last_seen }}</dd></div>
+    <div><dt>刷新周期</dt><dd>2 秒</dd></div>
+  </dl>
 </section>
 
-{% if not plc_connected %}
-<div class="plc-offline-notice" id="plc-offline-notice">
-  <span>!</span>
-  <div><strong>当前页面没有实时 PLC 数据</strong><small>下方点位显示“—”代表未知值，不代表 0。请检查 PLC 电源、CPU RUN 状态、网线及 192.168.43.214:102 可达性。</small></div>
-  <a href="{% url 'devices:plc_config' %}">检查配置 →</a>
-</div>
-{% endif %}
-
-<section class="plc-status-strip">
-  <div><span>工位状态</span><strong>{% if station_cycle and station_cycle.is_locked %}<i class="status-mark fail"></i>已锁定{% elif plc_connected %}<i class="status-mark ok"></i>自动运行{% else %}<i class="status-mark muted"></i>不可判定{% endif %}</strong></div>
-  <div><span>当前流程阶段</span><strong>{{ current_phase_label }}</strong></div>
-  <div><span>心跳新鲜度</span><strong id="plc-heartbeat-age">{% if heartbeat_age != None %}{{ heartbeat_age }} s{% else %}—{% endif %}</strong></div>
-  <div><span>最近信号</span><strong id="plc-signal-count">{{ recent_signals|length }} 条</strong></div>
+<section class="station-alert" id="station-alert" {% if not station_snapshot.locked and plc_connected %}hidden{% endif %}>
+  <strong id="station-alert-title">{% if station_snapshot.locked %}工位已锁定{% else %}PLC 当前离线{% endif %}</strong>
+  <span id="station-alert-message">{% if station_snapshot.locked %}{{ station_snapshot.error }}{% else %}页面数据为最近一次通信快照，不代表 PLC 当前值。{% endif %}</span>
 </section>
 
-<section class="plc-main-layout">
-  <article class="panel plc-handshake-panel">
-    <div class="panel-heading">
-      <div><span class="eyebrow">LIVE DB100 HANDSHAKE</span><h2>工位握手监控</h2></div>
-      <div class="plc-legend"><span><i class="direction-in"></i>PLC → 上位机</span><span><i class="direction-out"></i>上位机 → PLC</span></div>
+<section class="panel station-flow-panel">
+  <div class="panel-heading station-panel-heading">
+    <div><span class="eyebrow">PROCESS PROGRESS</span><h2>当前流程到哪里了</h2></div>
+    <div class="station-cycle-context">
+      <span>料框 <strong id="rack-code">{{ station_snapshot.rack_code }}</strong></span>
+      <span>产品 <strong id="product-code">{{ station_snapshot.product_code }}</strong></span>
+      <span>进度 <strong id="boxing-progress">{{ station_snapshot.progress }}</strong></span>
     </div>
-    <div class="plc-handshake-head"><span>步骤</span><span>PLC 触发</span><span>业务结果</span><span>完成确认</span><span>状态</span></div>
-    <div class="plc-handshake-body">
-      {% for row in handshake_rows %}
-      <div class="plc-handshake-line is-{{ row.status }}">
-        <div class="plc-step-name"><b>{{ row.number|stringformat:"02d" }}</b><span><strong>{{ row.name }}</strong><small>{% if row.status == 'active' %}当前阶段{% elif row.status == 'done' %}本轮已通过{% else %}等待前序步骤{% endif %}</small></span></div>
-        <div class="plc-point-box point-in"><span>{{ row.trigger_address }}</span><strong data-signal-address="{{ row.trigger_address }}">{{ row.trigger_value|default_if_none:"—" }}</strong></div>
-        <div class="plc-point-box point-out"><span>{{ row.result_address }}</span><strong data-signal-address="{{ row.result_address }}">{{ row.result_value|default_if_none:"—" }}</strong></div>
-        <div class="plc-point-box point-out"><span>{{ row.confirm_address }}</span><strong data-signal-address="{{ row.confirm_address }}">{{ row.confirm_value|default_if_none:"—" }}</strong></div>
-        <span class="plc-step-status">{% if row.status == 'active' %}监听中{% elif row.status == 'done' %}完成{% else %}等待{% endif %}</span>
+  </div>
+  <div class="station-flow-track" id="station-flow-track" aria-label="四个生产场景"></div>
+</section>
+
+<section class="panel station-plc-panel">
+  <div class="panel-heading station-panel-heading">
+    <div><span class="eyebrow">PLC INTERACTION</span><h2>与 PLC 的交互结果</h2></div>
+    <div class="station-detail-state" id="scene-detail-state">等待</div>
+  </div>
+  <div class="station-plc-layout">
+    <aside class="station-scene-focus">
+      <span class="station-scene-number" id="scene-number">01</span>
+      <div>
+        <small>当前查看场景</small>
+        <h3 id="scene-name">料框入站检查</h3>
+        <p id="scene-subtitle">料框码、MES 配方与可装箱判定</p>
       </div>
-      {% endfor %}
+      <dl>
+        <div><dt>执行状态</dt><dd id="scene-status">等待</dd></div>
+        <div><dt>最近交互</dt><dd id="scene-time">—</dd></div>
+        <div><dt>流程阶段</dt><dd id="scene-phase">{{ station_snapshot.phase_label }}</dd></div>
+      </dl>
+      <p class="station-interaction-rule">PLC 触发 → 上位机处理 → 结果写回 → 完成确认</p>
+    </aside>
+    <div class="station-interaction-table-wrap">
+      <table class="station-interaction-table">
+        <thead><tr><th>方向</th><th>信号</th><th>DB100 地址</th><th>交互结果</th><th>原始值</th><th>时间</th></tr></thead>
+        <tbody id="interaction-body"></tbody>
+      </table>
+      <div class="station-interaction-empty" id="interaction-empty" hidden>当前场景尚无 PLC 交互记录</div>
     </div>
-  </article>
-
-  <aside class="panel db100-map-panel">
-    <div class="panel-heading"><div><span class="eyebrow">MEMORY MAP</span><h2>DB100 内存布局</h2></div><span class="badge badge-muted">130 BYTE</span></div>
-    <div class="db100-map">
-      <div class="memory-segment segment-system"><span>0–1</span><strong>心跳</strong><small>INT</small></div>
-      <div class="memory-segment segment-code"><span>2–25</span><strong>产品条码</strong><small>STRING + 握手</small></div>
-      <div class="memory-segment segment-rack"><span>26–53</span><strong>料框与配方</strong><small>条码 · 配方校验</small></div>
-      <div class="memory-segment segment-matrix"><span>54–117</span><strong>4 × 4 定位矩阵</strong><small>16 × REAL</small></div>
-      <div class="memory-segment segment-cycle"><span>118–126</span><strong>装箱循环信号</strong><small>定位 · 泡棉 · MES · 锁定</small></div>
-      <div class="memory-segment segment-count"><span>127–129</span><strong>数量</strong><small>DBW128</small></div>
-    </div>
-    <div class="db100-contract-note"><strong>控制边界</strong><p>PLC 是动作和安全主站。上位机只响应约定触发、写入业务结果及完成确认。</p></div>
-    <a class="db100-map-link" href="{% url 'devices:plc_config' %}">查看全部 {{ plc_points|length }} 个点位定义 →</a>
-  </aside>
+  </div>
 </section>
 
-<section class="plc-lower-layout">
-  <article class="panel plc-events-panel">
-    <div class="panel-heading"><div><span class="eyebrow">RECENT TELEGRAMS</span><h2>最近通信</h2></div><span class="badge badge-running">2 秒刷新</span></div>
-    <div class="plc-event-list" id="plc-event-list">
-      {% for signal in recent_signals %}
-      <div class="plc-event-row"><time>{{ signal.recorded_at|date:"H:i:s" }}</time><span class="event-direction {% if signal.direction == 'IN' %}in{% else %}out{% endif %}">{% if signal.direction == 'IN' %}读入{% else %}写出{% endif %}</span><strong>{{ signal.signal_name }}</strong><code>{{ signal.signal_value }}</code></div>
-      {% empty %}<div class="plc-events-empty"><strong>暂无通信记录</strong><span>建立 S7 连接并完成一次 DB100 读写后，这里会显示最近报文。</span></div>{% endfor %}
-    </div>
-  </article>
-
-  <article class="panel plc-device-panel">
-    <div class="panel-heading"><div><span class="eyebrow">PRODUCTION NODES</span><h2>生产设备节点</h2></div><span class="table-scope">{{ main_devices|length }} 个节点</span></div>
-    <div class="plc-device-list">
-      {% for device in main_devices %}
-      <div class="plc-device-row"><span class="device-type-icon">{% if device.device_type == 'PLC' %}PLC{% elif 'CAMERA' in device.device_type %}CAM{% else %}DEV{% endif %}</span><div><strong>{{ device.name }}</strong><small>{{ device.code }} · {{ device.address|default:"地址未配置" }}</small></div><span class="device-node-state state-{{ device.status|lower }}"><i></i>{{ device.get_status_display }}</span></div>
-      {% empty %}<div class="empty">暂无生产设备节点</div>{% endfor %}
-    </div>
-    {% if hidden_test_count %}<div class="test-node-notice">已隐藏 {{ hidden_test_count }} 个名称含 TEST 的开发节点，避免混入生产监控。</div>{% endif %}
-  </article>
-</section>
-
+{{ station_snapshot|json_script:"station-snapshot" }}
 <script>
 (function () {
   const apiUrl = '{% url "devices:api_plc_status" %}';
-  const hero = document.getElementById('plc-hero');
-  const eventList = document.getElementById('plc-event-list');
-  let lastSignature = '';
+  const initial = JSON.parse(document.getElementById('station-snapshot').textContent);
+  const flowTrack = document.getElementById('station-flow-track');
+  const interactionBody = document.getElementById('interaction-body');
+  const interactionEmpty = document.getElementById('interaction-empty');
+  let selectedSceneKey = null;
+  let manualSelection = false;
+  let snapshot = initial;
 
-  function renderSignals(signals) {
-    const signature = JSON.stringify(signals || []);
-    if (signature === lastSignature) return;
-    lastSignature = signature;
-    document.getElementById('plc-signal-count').textContent = `${(signals || []).length} 条`;
-    if (!signals || !signals.length) {
-      eventList.innerHTML = '<div class="plc-events-empty"><strong>暂无通信记录</strong><span>建立 S7 连接并完成一次 DB100 读写后，这里会显示最近报文。</span></div>';
-      return;
+  const escapeHtml = value => String(value == null ? '' : value)
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+
+  function preferredScene(data) {
+    return data.scenes.find(scene => scene.status === 'failed')
+      || data.scenes.find(scene => scene.status === 'active')
+      || [...data.scenes].reverse().find(scene => scene.status === 'done')
+      || data.scenes[0];
+  }
+
+  function renderFlow(data) {
+    const preferred = preferredScene(data);
+    if (!manualSelection || !selectedSceneKey || !data.scenes.some(scene => scene.key === selectedSceneKey)) {
+      selectedSceneKey = preferred ? preferred.key : null;
     }
-    eventList.innerHTML = signals.slice(0, 8).map(item => `<div class="plc-event-row"><time>${item.recorded_at}</time><span class="event-direction ${item.direction === 'IN' ? 'in' : 'out'}">${item.direction === 'IN' ? '读入' : '写出'}</span><strong>${item.signal_name}</strong><code>${item.signal_value}</code></div>`).join('');
+    flowTrack.innerHTML = data.scenes.map(scene => `
+      <button type="button" class="station-flow-step is-${escapeHtml(scene.status)} ${scene.key === selectedSceneKey ? 'is-selected' : ''}"
+        data-scene-key="${escapeHtml(scene.key)}" aria-pressed="${scene.key === selectedSceneKey}">
+        <span class="station-step-index">${String(scene.number).padStart(2, '0')}</span>
+        <span class="station-step-copy"><strong>${escapeHtml(scene.name)}</strong><small>${escapeHtml(scene.subtitle)}</small></span>
+        <span class="station-step-meta"><b>${escapeHtml(scene.status_label)}</b><time>${escapeHtml(scene.time)}</time></span>
+      </button>`).join('');
+    flowTrack.querySelectorAll('[data-scene-key]').forEach(button => {
+      button.addEventListener('click', () => {
+        selectedSceneKey = button.dataset.sceneKey;
+        manualSelection = true;
+        renderFlow(snapshot);
+        renderDetail(snapshot);
+      });
+    });
+  }
+
+  function renderDetail(data) {
+    const scene = data.scenes.find(item => item.key === selectedSceneKey) || preferredScene(data);
+    if (!scene) return;
+    document.getElementById('scene-number').textContent = String(scene.number).padStart(2, '0');
+    document.getElementById('scene-name').textContent = scene.name;
+    document.getElementById('scene-subtitle').textContent = scene.subtitle;
+    document.getElementById('scene-status').textContent = scene.status_label;
+    document.getElementById('scene-time').textContent = scene.time;
+    document.getElementById('scene-phase').textContent = data.phase_label;
+    const detailState = document.getElementById('scene-detail-state');
+    detailState.textContent = scene.status_label;
+    detailState.className = `station-detail-state is-${scene.status}`;
+    const rows = scene.interactions || [];
+    interactionBody.innerHTML = rows.map(row => {
+      const resultClass = row.value === 'OK' ? 'is-ok' : row.value === 'NG' || row.value === '已锁定' ? 'is-ng' : '';
+      return `<tr>
+        <td><span class="station-direction is-${row.direction === 'IN' ? 'in' : 'out'}">${escapeHtml(row.direction_label)}</span></td>
+        <td><strong>${escapeHtml(row.label)}</strong><small>${escapeHtml(row.name)}</small></td>
+        <td><code>${escapeHtml(row.address)}</code></td>
+        <td><span class="station-result ${resultClass}">${escapeHtml(row.value)}</span></td>
+        <td><code>${escapeHtml(row.raw_value)}</code></td>
+        <td><time>${escapeHtml(row.time)}</time></td>
+      </tr>`;
+    }).join('');
+    interactionEmpty.hidden = rows.length > 0;
+  }
+
+  function renderHeader(data) {
+    const bar = document.getElementById('station-link-bar');
+    bar.classList.toggle('is-online', Boolean(data.connected));
+    bar.classList.toggle('is-offline', !data.connected);
+    document.getElementById('connection-label').textContent = data.connection_label;
+    document.getElementById('connection-address').textContent = data.address;
+    document.getElementById('current-phase-label').textContent = data.phase_label;
+    document.getElementById('last-seen').textContent = data.last_seen;
+    document.getElementById('rack-code').textContent = data.rack_code;
+    document.getElementById('product-code').textContent = data.product_code;
+    document.getElementById('boxing-progress').textContent = data.progress;
+    const alert = document.getElementById('station-alert');
+    alert.hidden = data.connected && !data.locked;
+    document.getElementById('station-alert-title').textContent = data.locked ? '工位已锁定' : 'PLC 当前离线';
+    document.getElementById('station-alert-message').textContent = data.locked
+      ? (data.error || '请查看失败场景的 PLC 交互结果')
+      : '页面数据为最近一次通信快照，不代表 PLC 当前值。';
+  }
+
+  function render(data) {
+    snapshot = data;
+    renderHeader(data);
+    renderFlow(data);
+    renderDetail(data);
   }
 
   async function poll() {
     try {
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-      hero.classList.toggle('is-online', Boolean(data.connected));
-      hero.classList.toggle('is-offline', !data.connected);
-      document.getElementById('plc-state-label').textContent = data.error ? 'PLC 未配置' : data.connected ? 'PLC 通信正常' : 'PLC 离线';
-      document.getElementById('plc-state-detail').textContent = data.error || (data.connected ? 'S7 会话与 DB100 心跳正常' : '最近心跳已超时，请检查现场链路');
-      document.getElementById('plc-last-seen').textContent = data.last_seen || '—';
-      document.getElementById('plc-heartbeat-age').textContent = data.heartbeat_age == null ? '—' : `${data.heartbeat_age} s`;
-      renderSignals(data.signals);
+      const response = await fetch(apiUrl, {headers: {'Accept': 'application/json'}});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      render(await response.json());
     } catch (error) {
-      hero.classList.remove('is-online'); hero.classList.add('is-offline');
-      document.getElementById('plc-state-label').textContent = '监控接口异常';
-      document.getElementById('plc-state-detail').textContent = error.message;
+      document.getElementById('station-link-bar').classList.remove('is-online');
+      document.getElementById('station-link-bar').classList.add('is-offline');
+      document.getElementById('connection-label').textContent = '监控接口异常';
     }
     window.setTimeout(poll, 2000);
   }
-  poll();
+
+  render(initial);
+  window.setTimeout(poll, 2000);
 })();
 </script>
 {% endblock %}

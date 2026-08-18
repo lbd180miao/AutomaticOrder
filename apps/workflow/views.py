@@ -17,12 +17,12 @@ STAGE_THREE_STATES = [s for s, st in STATE_STAGE_MAP.items() if st == Stage.STAG
 ORDERED_STATES = STAGE_ONE_STATES + STAGE_TWO_STATES + STAGE_THREE_STATES + [WorkflowState.COMPLETED]
 
 HANDSHAKE_DEFINITIONS = [
-    ('产品条码', 'DBX24.0', 'DBB2', 'DBX25.0', {StationPhase.WAIT_PRODUCT, StationPhase.WAIT_MARK_RESET}),
-    ('料框与配方', 'DBX48.0', 'DBB26', 'DBX49.0', {StationPhase.WAIT_RACK, StationPhase.WAIT_RACK_RESET}),
-    ('3D 定位', 'DBX118.0', 'DBB54–117', 'DBX119.0', {StationPhase.WAIT_POSITION, StationPhase.WAIT_POSITION_RESET}),
-    ('配方核对', 'DBX50.0', 'DBX51.0', 'DBX52.0', {StationPhase.WAIT_RECIPE_VERIFY, StationPhase.WAIT_RECIPE_RESET}),
-    ('泡棉检测', 'DBX120.0', 'DBX121.0', 'DBX122.0', {StationPhase.WAIT_FOAM, StationPhase.WAIT_FOAM_RESET}),
-    ('装箱上传', 'DBX123.0', 'DBX124.0', 'DBX125.0', {StationPhase.WAIT_BOXING, StationPhase.WAIT_BOXING_RESET}),
+    ('产品条码', 'DBX24.0', 'DBX26.0', 'DBX25.0', {StationPhase.WAIT_PRODUCT, StationPhase.WAIT_MARK_RESET}),
+    ('料框与配方', 'DBX50.0', 'DBX52.0', 'DBX51.0', {StationPhase.WAIT_RACK, StationPhase.WAIT_RACK_RESET}),
+    ('3D 定位', 'DBX56.0', 'DBD60 / DBX58.0', 'DBX57.0', {StationPhase.WAIT_POSITION, StationPhase.WAIT_POSITION_RESET}),
+    ('配方核对', 'DBX53.0', 'DBX55.0', 'DBX54.0', {StationPhase.WAIT_RECIPE_VERIFY, StationPhase.WAIT_RECIPE_RESET}),
+    ('泡棉检测', 'DBX64.0', 'DBX65.0', 'DBX66.0', {StationPhase.WAIT_FOAM, StationPhase.WAIT_FOAM_RESET}),
+    ('装箱上传', 'DBX67.0', 'DBX69.0', 'DBX68.0', {StationPhase.WAIT_BOXING, StationPhase.WAIT_BOXING_RESET}),
 ]
 
 
