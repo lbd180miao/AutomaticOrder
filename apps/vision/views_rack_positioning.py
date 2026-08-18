@@ -535,9 +535,18 @@ def v2_save_as_standard_template(request):
         body = json.loads(request.body)
         recipe_id = int(body["recipe_id"])
         template = body["template"]
-        
+
+        from .algorithms.local_template_3d import LocalFrameResult
+        from .algorithms.rack_structure_validator import RackStructureValidator
+
+        frame = LocalFrameResult.from_dict(template)
+        validation = RackStructureValidator().validate(frame_cur=frame, frame_std=None)
         recipe = RackLocationRecipe.objects.get(pk=recipe_id)
-        recipe.local_template_std = template
+        recipe.local_template_std = {
+            **template,
+            "quality_validation": validation.to_dict(),
+            "quality_gate_mode": "warning_only",
+        }
         from django.utils import timezone
         recipe.local_template_built_at = timezone.now()
         recipe.save(update_fields=["local_template_std", "local_template_built_at"])

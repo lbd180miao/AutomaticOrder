@@ -20,6 +20,11 @@
     roiPlane1: null,     // Π1 顶部横梁 ROI
     roiPlane2: null,     // Π2 左侧立柱 ROI
     roiPlane3: null,     // Π3 底部横梁 ROI
+    layerSpacingLine: null, // 层距测量线（真实图像像素坐标）
+    pendingLayerSpacingLine: null,
+    lineDrawing: false,
+    lineStart: null,
+    displayLayerSpacingLine: null,
     drawing: false,
     start: null,
     displayRoi: null,
@@ -33,10 +38,13 @@
     source: '',          // 最近一次点云数据源
     captureRecipeId: null,
     captureLayerNo: null,
+    pointcloudConsumed: false, // 每份点云只允许计算一次；再次计算必须重新采集
     lastResultRecipeId: null,
     lastCalculation: null,
     standardRackModel: null,
     standardRackCandidate: null,
+    invalidRoiKeys: [],  // 最近一次结构校验失败所对应的 ROI
+    localTemplateGeometryValid: null,
     recipeRequestSeq: 0,
     // ── 画笔（多边形）模式 ──
     drawMode: 'rect',        // 'rect' | 'polygon'
@@ -44,9 +52,11 @@
     polyDrawing: false,      // 是否正在添加多边形顶点
     polyMousePos: null,      // 鼠标当前位置（用于实时预览连线）
   };
+  let roiSaveChain = Promise.resolve();
+  let roiSaveRequestSeq = 0;
 
   // ── 暴露设置 ROI 的接口供外部调用 ────────────────────────
-  window.rackLocatorSetRoi = function(targetRoi, localTemplateRois) {
+  window.rackLocatorSetRoi = function(targetRoi, localTemplateRois, layerSpacingLine) {
     // 外部JS初始化完成时，将页面初始化阶段暂存的 tempPendingRoi 迁移进来
     if (window.tempPendingRoi) {
       state.pendingRoi = window.tempPendingRoi;
@@ -57,6 +67,10 @@
       state.pendingLocalTemplateRois = window.tempPendingLocalTemplateRois;
       window.tempPendingLocalTemplateRois = null;
     }
+    if (window.tempPendingLayerSpacingLine) {
+      state.pendingLayerSpacingLine = window.tempPendingLayerSpacingLine;
+      window.tempPendingLayerSpacingLine = null;
+    }
 
     const hasLocalTemplateRois = arguments.length >= 2;
     if (hasLocalTemplateRois) {
@@ -65,6 +79,13 @@
       } else {
         // 使用空对象表示“配方明确没有局部 ROI”，避免沿用上一配方的框。
         state.pendingLocalTemplateRois = localTemplateRois || {};
+      }
+    }
+    if (arguments.length >= 3) {
+      if (state.token && image.style.display !== 'none') {
+        applyLayerSpacingLine(layerSpacingLine);
+      } else {
+        state.pendingLayerSpacingLine = layerSpacingLine || null;
       }
     }
 
@@ -102,7 +123,9 @@
     state.displayRoi = null;
     state.pendingRoi = null;
     state.pendingLocalTemplateRois = null;
+    state.pendingLayerSpacingLine = null;
     clearLocalTemplateRois();
+    clearLayerSpacingLine();
     state.currentRecipe = null;
     state.alignmentToken = null;
     draw();
@@ -321,10 +344,59 @@
   function localTemplateValidationMessage(templateValidation) {
     if (!templateValidation) return '';
     const failedChecks = (templateValidation.checks || [])
+      .filter((check) => check && check.passed === false);
+    const detail = failedChecks.map((check) => {
+      const value = Number(check.value);
+      const threshold = Number(check.threshold);
+      const unit = check.unit || '';
+      const digits = unit === '%' ? 1 : 2;
+      const valueText = Number.isFinite(value) ? value.toFixed(digits) : '—';
+      const thresholdText = Number.isFinite(threshold) ? threshold.toFixed(digits) : '—';
+      const operator = unit === '%' ? '≥' : '≤';
+      return `${check.name || '校验项'} ${valueText}${unit}（要求 ${operator}${thresholdText}${unit}）`;
+    });
+    const names = failedChecks.map((check) => String(check.name || '')).join(' ');
+    const actions = [];
+    if (/区域1|Π1|上水平面/.test(names)) {
+      actions.push('Π1 缩小到一块连续的上层横梁平面，避开布料、边缘和背景');
+    }
+    if (/区域2|Π2|左竖直面/.test(names)) {
+      actions.push('Π2 只框一块立柱侧平面，不要包含底板或横梁');
+    }
+    if (/区域3|Π3|下水平面/.test(names)) {
+      actions.push('Π3 缩小到与 Π1 同类型、同朝向的下层横梁平面');
+    }
+    if (/平行/.test(names)) {
+      actions.push('Π1/Π3 必须选择同一种表面；即使图像旋转了，也不能一个选侧面、另一个选正面');
+    }
+    if (/正交/.test(names)) {
+      actions.push('Π2 应与 Π1/Π3 垂直，重新选择立柱的对应侧面');
+    }
+    const heading = String(templateValidation.message || '三平面质量提示')
+      .replace(/^校验失败/, '质量提示');
+    const lines = [heading];
+    if (detail.length) lines.push(`实测：${detail.join('；')}`);
+    if (actions.length) lines.push(`建议：${actions.join('；')}。直检模式不会因此停止计算或保存。`);
+    return lines.join('\n');
+  }
+
+  function invalidRoiKeysFromValidation(templateValidation) {
+    if (!templateValidation || templateValidation.is_valid !== false) return [];
+    const names = (templateValidation.checks || [])
       .filter((check) => check && check.passed === false)
-      .map((check) => check.message || check.name)
-      .filter(Boolean);
-    return templateValidation.message || failedChecks.join('；') || '三平面结构校验未通过';
+      .map((check) => String(check.name || ''));
+    const keys = new Set();
+    names.forEach((name) => {
+      if (/区域1|Π1|上水平面/.test(name)) keys.add('roiPlane1');
+      if (/区域2|Π2|左竖直面/.test(name)) keys.add('roiPlane2');
+      if (/区域3|Π3|下水平面/.test(name)) keys.add('roiPlane3');
+      if (/平行/.test(name)) {
+        keys.add('roiPlane1');
+        keys.add('roiPlane3');
+      }
+      if (/正交/.test(name)) keys.add('roiPlane2');
+    });
+    return [...keys];
   }
 
   function renderLocalTemplate(result) {
@@ -336,16 +408,41 @@
     const templateValidation = result?.local_template_validation
       || result?.result_data?.local_template_validation
       || null;
-    const invalidTemplate = Boolean(templateValidation && templateValidation.is_valid === false);
+    const standardValidation = result?.local_template_standard_validation
+      || result?.result_data?.local_template_standard_validation
+      || null;
+    const qualityGateEnabled = Boolean(
+      result?.quality_gate_enabled
+      ?? result?.result_data?.quality_gate_enabled
+      ?? false,
+    );
+    const invalidTemplate = qualityGateEnabled
+      && Boolean(templateValidation && templateValidation.is_valid === false);
+    const invalidStandard = qualityGateEnabled
+      && Boolean(standardValidation && standardValidation.is_valid === false);
+    state.invalidRoiKeys = qualityGateEnabled ? invalidRoiKeysFromValidation(templateValidation) : [];
+    state.localTemplateGeometryValid = qualityGateEnabled
+      ? (templateValidation ? templateValidation.is_valid === true : null)
+      : (curTpl ? true : null);
+    updateLocalTemplateRoiCount();
+    draw();
     const status = $('template-status');
     const validationMessage = $('template-validation-message');
+    const inlierComparison = result?.ransac_inlier_ratio_comparison
+      || result?.result_data?.ransac_inlier_ratio_comparison
+      || null;
+    const fittedThreshold = Number(
+      result?.ransac_distance_threshold_mm
+      ?? result?.result_data?.ransac_distance_threshold_mm
+      ?? selectedRansacThreshold(),
+    );
 
     const btnSaveStd = $('btn-save-as-std');
     if (curTpl) {
       if (btnSaveStd) {
         btnSaveStd.style.display = 'inline-block';
-        btnSaveStd.disabled = invalidTemplate;
-        btnSaveStd.textContent = invalidTemplate ? '结构NG，禁止保存' : '保存为标准模板';
+        btnSaveStd.disabled = false;
+        btnSaveStd.textContent = invalidTemplate ? '保存为标准模板（忽略质量提示）' : '保存为标准模板';
         // 暂存供保存按钮使用
         window._tempCurTpl = curTpl;
         window._tempCurTplValidation = templateValidation;
@@ -356,10 +453,20 @@
       window._tempCurTplValidation = null;
     }
 
-    if (validationMessage) {
+    if (validationMessage && !qualityGateEnabled) {
+      validationMessage.textContent = '';
+      validationMessage.style.display = 'none';
+    } else if (validationMessage) {
       if (invalidTemplate) {
-        validationMessage.textContent = localTemplateValidationMessage(templateValidation);
-        validationMessage.className = 'rl-template-validation-message';
+        const standardHint = invalidStandard
+          ? '\n标准模板：当前标准也有质量提示；直检模式允许继续计算或用本次结果覆盖。'
+          : '';
+        validationMessage.textContent = localTemplateValidationMessage(templateValidation) + standardHint;
+        validationMessage.className = 'rl-template-validation-message warning';
+        validationMessage.style.display = 'block';
+      } else if (invalidStandard) {
+        validationMessage.textContent = '现场三平面质量检查通过；当前标准模板有质量提示。直检模式仍允许计算，也可以用本次结果覆盖标准。';
+        validationMessage.className = 'rl-template-validation-message warning';
         validationMessage.style.display = 'block';
       } else if (templateValidation) {
         validationMessage.textContent = '三平面结构校验通过，可以保存为标准模板。';
@@ -371,10 +478,41 @@
       }
     }
 
+    const comparisonPanel = $('ransac-inlier-comparison');
+    if (comparisonPanel && inlierComparison) {
+      comparisonPanel.style.display = 'block';
+      const title = $('ransac-comparison-title');
+      if (title) title.textContent = `内点率对比（本次正式拟合阈值 ${fittedThreshold.toFixed(1)} mm）`;
+      ['1', '2', '3'].forEach((planeNo) => {
+        ['2', '3', '5'].forEach((threshold) => {
+          const ratio = Number(inlierComparison[`plane${planeNo}`]?.[threshold]);
+          const node = $(`ransac-p${planeNo}-${threshold}`);
+          if (node) node.textContent = Number.isFinite(ratio) ? `${(ratio * 100).toFixed(1)}%` : '—';
+        });
+      });
+    } else if (comparisonPanel) {
+      comparisonPanel.style.display = 'none';
+    }
+
     if (!curTpl) {
       if (status) {
         status.textContent = '未计算现场模板';
         status.className = 'badge badge-muted';
+      }
+    } else if (!qualityGateEnabled) {
+      if (status) {
+        status.textContent = '已计算 · 直检';
+        status.className = 'badge badge-ok';
+      }
+    } else if (invalidTemplate) {
+      if (status) {
+        status.textContent = '已计算 · 质量提示';
+        status.className = 'badge badge-warning';
+      }
+    } else if (invalidStandard) {
+      if (status) {
+        status.textContent = '需重建标准';
+        status.className = 'badge badge-warning';
       }
     } else if (!stdTpl) {
       if (status) {
@@ -415,12 +553,25 @@
   function renderLayerSpacing(result) {
     const node = $('measured-layer-spacing');
     if (!node) return;
+    const methodNode = $('layer-spacing-method');
     const rawValue = result?.measured_layer_spacing
       ?? result?.result_data?.measured_layer_spacing;
+    const method = result?.layer_spacing_method
+      || result?.result_data?.layer_spacing_method
+      || '';
+    const warning = result?.layer_spacing_warning
+      || result?.result_data?.layer_spacing_warning
+      || '';
     const value = Number(rawValue);
     node.textContent = rawValue !== null && rawValue !== undefined && Number.isFinite(value)
       ? `${value.toFixed(1)} mm`
       : '—';
+    if (methodNode) {
+      methodNode.textContent = warning
+        ? warning
+        : (method === 'endpoint_depth_cluster_3d_distance' ? '测量线 · 端点3D深度簇' : '三平面估算');
+      methodNode.classList.toggle('warning', Boolean(warning));
+    }
   }
 
   function renderCompensation(result) {
@@ -510,7 +661,14 @@
     setButton('btn-capture', true);
     setButton('btn-redraw', hasCloud);
     setButton('btn-polygon', hasCloud);
-    setButton('btn-save-recipe', Boolean(state.roi));
+    const localRoisReady = hasAllLocalTemplateRois();
+    const measurementSummary = updateMeasurementConfigProgress();
+    setButton('btn-save-recipe', measurementSummary.count > 0);
+    if ($('btn-save-recipe')) {
+      $('btn-save-recipe').title = localRoisReady && state.localTemplateGeometryValid !== true
+        ? '当前三平面有质量提示；直检模式允许保存'
+        : '将外框、三平面与层距测量线保存到当前配方';
+    }
     setButton('btn-calculate', hasCloud);
     setButton('btn-auto-align', hasCloud);
     setButton('btn-save-roi', Boolean(state.alignmentToken));
@@ -521,6 +679,7 @@
     setButton('btn-roi-plane1', hasCloud);
     setButton('btn-roi-plane2', hasCloud);
     setButton('btn-roi-plane3', hasCloud);
+    setButton('btn-layer-spacing-line', hasCloud);
   }
 
   /** 更新「三平面已框选 x/3」计数徽章 */
@@ -537,6 +696,7 @@
       ['btn-roi-plane3', 'roiPlane3'],
     ].forEach(([buttonId, stateKey]) => {
       $(buttonId)?.classList.toggle('done', Boolean(state[stateKey]));
+      $(buttonId)?.classList.toggle('invalid', state.invalidRoiKeys.includes(stateKey));
     });
   }
 
@@ -544,7 +704,50 @@
     state.roiPlane1 = null;
     state.roiPlane2 = null;
     state.roiPlane3 = null;
+    state.invalidRoiKeys = [];
+    state.localTemplateGeometryValid = null;
     updateLocalTemplateRoiCount();
+    updateMeasurementConfigProgress();
+  }
+
+  function normalizeLayerSpacingLine(line) {
+    if (!line) return null;
+    const normalized = {
+      x1: Number(line.x1), y1: Number(line.y1),
+      x2: Number(line.x2), y2: Number(line.y2),
+      sample_radius: Math.max(4, Math.min(30, Number(line.sample_radius || 10))),
+      depth_window_mm: Math.max(5, Math.min(80, Number(line.depth_window_mm || 25))),
+    };
+    if (![normalized.x1, normalized.y1, normalized.x2, normalized.y2].every(Number.isFinite)) {
+      return null;
+    }
+    return normalized;
+  }
+
+  function updateLayerSpacingLineUI() {
+    const button = $('btn-layer-spacing-line');
+    if (!button) return;
+    button.classList.toggle('done', Boolean(state.layerSpacingLine));
+    button.classList.toggle('active', state.drawMode === 'line');
+  }
+
+  function applyLayerSpacingLine(line) {
+    state.layerSpacingLine = normalizeLayerSpacingLine(line);
+    state.displayLayerSpacingLine = null;
+    updateLayerSpacingLineUI();
+    updateMeasurementConfigProgress();
+    draw();
+  }
+
+  function clearLayerSpacingLine() {
+    state.layerSpacingLine = null;
+    state.pendingLayerSpacingLine = null;
+    state.displayLayerSpacingLine = null;
+    state.lineDrawing = false;
+    state.lineStart = null;
+    if (state.drawMode === 'line') state.drawMode = 'rect';
+    updateLayerSpacingLineUI();
+    updateMeasurementConfigProgress();
   }
 
   /** 是否三个平面 ROI 已全部框选 */
@@ -583,6 +786,7 @@
       // 用户快速切换配方时，旧请求不得覆盖最后一次选择。
       if (requestSeq !== state.recipeRequestSeq) return null;
       state.currentRecipe = recipe;
+      syncRansacThreshold(recipe?.roi_config || {});
       if (recipe && recipe.id && $('recipe-id')) {
         $('recipe-id').value = recipe.id;
       }
@@ -604,6 +808,106 @@
       renderLocalTemplate({});
       return null;
     }
+  }
+
+  function cleanTargetRoi() {
+    if (!state.roi) return null;
+    return {
+      x: state.roi.x,
+      y: state.roi.y,
+      w: state.roi.w,
+      h: state.roi.h,
+      feature_type: state.roi.feature_type || 'rack_reference',
+      ...(state.roi.polygon ? { polygon: state.roi.polygon } : {}),
+    };
+  }
+
+  function selectedRansacThreshold() {
+    const value = Number($('ransac-distance-threshold')?.value ?? 2);
+    return Number.isFinite(value) && value >= 0.5 && value <= 20 ? value : 2.0;
+  }
+
+  function syncRansacThreshold(config) {
+    const input = $('ransac-distance-threshold');
+    if (!input) return;
+    const value = Number(config?.ransac_distance_threshold_mm ?? 2.0);
+    input.value = (Number.isFinite(value) && value >= 0.5 && value <= 20 ? value : 2.0).toFixed(1);
+  }
+
+  function measurementConfigPatch(changedKey = 'all') {
+    if (changedKey === 'roi') {
+      const targetRoi = cleanTargetRoi();
+      return targetRoi ? { target_roi: targetRoi } : {};
+    }
+    const planeKeyByState = {
+      roiPlane1: 'plane1',
+      roiPlane2: 'plane2',
+      roiPlane3: 'plane3',
+    };
+    if (planeKeyByState[changedKey]) {
+      const roi = state[changedKey];
+      return roi ? {
+        local_template_rois: {
+          [planeKeyByState[changedKey]]: { x: roi.x, y: roi.y, w: roi.w, h: roi.h },
+        },
+      } : {};
+    }
+    if (changedKey === 'layerSpacingLine') {
+      const line = cleanLayerSpacingLine();
+      return line ? { layer_spacing_line: line } : {};
+    }
+    if (changedKey === 'ransacThreshold') {
+      return { ransac_distance_threshold_mm: selectedRansacThreshold() };
+    }
+
+    const config = {};
+    const targetRoi = cleanTargetRoi();
+    if (targetRoi) config.target_roi = targetRoi;
+    const localRois = cleanLocalTemplateRois();
+    const configuredLocalRois = Object.fromEntries(
+      Object.entries(localRois).filter(([, roi]) => Boolean(roi)),
+    );
+    if (Object.keys(configuredLocalRois).length) {
+      config.local_template_rois = configuredLocalRois;
+    }
+    const line = cleanLayerSpacingLine();
+    if (line) config.layer_spacing_line = line;
+    config.ransac_distance_threshold_mm = selectedRansacThreshold();
+    return config;
+  }
+
+  function measurementConfigSummary(config = measurementConfigPatch('all')) {
+    const localRois = config.local_template_rois || {};
+    const items = [
+      [Boolean(config.target_roi), '外框'],
+      [Boolean(localRois.plane1), 'Π1'],
+      [Boolean(localRois.plane2), 'Π2'],
+      [Boolean(localRois.plane3), 'Π3'],
+      [Boolean(config.layer_spacing_line), '层距线'],
+    ];
+    return {
+      count: items.filter(([configured]) => configured).length,
+      labels: items.filter(([configured]) => configured).map(([, label]) => label),
+    };
+  }
+
+  function updateMeasurementConfigProgress() {
+    const summary = measurementConfigSummary();
+    const badge = $('roi-config-progress');
+    if (badge) {
+      badge.textContent = `五项位置 ${summary.count}/5`;
+      badge.className = summary.count === 5 ? 'badge badge-ok' : 'badge badge-muted';
+    }
+    return summary;
+  }
+
+  function cleanLayerSpacingLine() {
+    const line = state.layerSpacingLine;
+    return line ? {
+      x1: line.x1, y1: line.y1, x2: line.x2, y2: line.y2,
+      sample_radius: line.sample_radius || 10,
+      depth_window_mm: line.depth_window_mm || 25,
+    } : null;
   }
 
   function currentRoi3D() {
@@ -717,6 +1021,7 @@
     state.roiPlane2 = normalizePixelRoi(source.plane2);
     state.roiPlane3 = normalizePixelRoi(source.plane3);
     updateLocalTemplateRoiCount();
+    updateMeasurementConfigProgress();
     draw();
   }
 
@@ -750,6 +1055,7 @@
         h: roi.h * canvas.height / nat.h,
       };
     }
+    updateMeasurementConfigProgress();
     draw();
     setReadout();
     syncRoiToRightSide();
@@ -787,6 +1093,10 @@
         applyLocalTemplateRois(state.pendingLocalTemplateRois);
         state.pendingLocalTemplateRois = null;
       }
+      if (state.pendingLayerSpacingLine !== null) {
+        applyLayerSpacingLine(state.pendingLayerSpacingLine);
+        state.pendingLayerSpacingLine = null;
+      }
       // 优先级：① 调用方直接传入的 targetRoi
       //         ② 用户切换配方时已存入 state.pendingRoi
       //         ③ 页面初始化时外部JS尚未加载导致暂存的 window.tempPendingRoi（兜底）
@@ -805,6 +1115,7 @@
 
       state.pendingRoi = null;
       window.tempPendingRoi = null;
+      refreshActionState();
       setStatus(`${source}2D ROI 已自动显示 (${roi.w}×${roi.h})，可直接计算偏差。`);
       console.log(`[自动ROI] 已从${source}加载2D ROI`, roi);
       return true;
@@ -837,8 +1148,16 @@
 
   function resizeCanvas() {
     const rect = image.getBoundingClientRect();
+    const stageRect = $('rl-stage').getBoundingClientRect();
     canvas.width = Math.max(1, Math.round(rect.width));
     canvas.height = Math.max(1, Math.round(rect.height));
+    // 舞台有最小高度时图像会垂直居中；画布必须只覆盖实际图像，
+    // 否则鼠标像素与点云像素在 Y 方向会产生系统性偏移。
+    canvas.style.inset = 'auto';
+    canvas.style.left = `${rect.left - stageRect.left}px`;
+    canvas.style.top = `${rect.top - stageRect.top}px`;
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
     draw();
   }
 
@@ -864,6 +1183,69 @@
       w: roi.w * canvas.width / nat.w,
       h: roi.h * canvas.height / nat.h,
     };
+  }
+
+  function realPointToDisplay(point) {
+    const nat = naturalDims();
+    if (!point || !nat.w || !nat.h || !canvas.width || !canvas.height) return null;
+    return {
+      x: point.x * canvas.width / nat.w,
+      y: point.y * canvas.height / nat.h,
+    };
+  }
+
+  function displayPointToReal(point) {
+    const nat = naturalDims();
+    return {
+      x: Math.round(point.x * nat.w / canvas.width),
+      y: Math.round(point.y * nat.h / canvas.height),
+    };
+  }
+
+  function drawLayerSpacingLineOverlay(line, { preview = false } = {}) {
+    if (!line) return;
+    const start = line.displayCoordinates
+      ? { x: line.x1, y: line.y1 }
+      : realPointToDisplay({ x: line.x1, y: line.y1 });
+    const end = line.displayCoordinates
+      ? { x: line.x2, y: line.y2 }
+      : realPointToDisplay({ x: line.x2, y: line.y2 });
+    if (!start || !end) return;
+    const nat = naturalDims();
+    const radiusPx = line.displayCoordinates
+      ? Number(line.sample_radius || 10)
+      : Number(line.sample_radius || 10) * canvas.width / Math.max(1, nat.w);
+    ctx.save();
+    ctx.strokeStyle = '#16a34a';
+    ctx.fillStyle = 'rgba(22,163,74,0.16)';
+    ctx.lineWidth = preview ? 4 : 3;
+    ctx.setLineDash(preview ? [7, 4] : []);
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    [start, end].forEach((point) => {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, Math.max(5, radiusPx), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#16a34a';
+      ctx.fill();
+      ctx.fillStyle = 'rgba(22,163,74,0.16)';
+    });
+    const midX = (start.x + end.x) / 2;
+    const midY = (start.y + end.y) / 2;
+    const label = preview ? '层距测量线（绘制中）' : '层距测量线';
+    ctx.font = '600 14px sans-serif';
+    const labelWidth = ctx.measureText(label).width + 12;
+    ctx.fillStyle = '#16a34a';
+    ctx.fillRect(Math.max(0, midX - labelWidth / 2), Math.max(0, midY - 24), labelWidth, 20);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, Math.max(6, midX - labelWidth / 2 + 6), Math.max(15, midY - 9));
+    ctx.restore();
   }
 
   function drawRectOverlay(roi, style, { active = false, preview = false } = {}) {
@@ -896,10 +1278,22 @@
     roiOverlayStyles.forEach((style) => {
       const roi = state[style.key];
       if (!roi || (style.key === 'roi' && roi.displayPolygon?.length >= 2)) return;
-      drawRectOverlay(realToDisplay(roi), style, {
+      const invalid = state.invalidRoiKeys.includes(style.key);
+      const displayStyle = invalid
+        ? { ...style, label: `${style.label} · 提示`, color: '#d97706', fill: 'rgba(217,119,6,0.18)' }
+        : style;
+      drawRectOverlay(realToDisplay(roi), displayStyle, {
         active: style.key === (state.activeRoiStateKey || 'roi'),
       });
     });
+
+    if (state.layerSpacingLine) drawLayerSpacingLineOverlay(state.layerSpacingLine);
+    if (state.lineDrawing && state.displayLayerSpacingLine) {
+      drawLayerSpacingLineOverlay(
+        { ...state.displayLayerSpacingLine, displayCoordinates: true, sample_radius: 10 },
+        { preview: true },
+      );
+    }
 
     // 外框 ROI 可以使用多边形，绘制它时也不隐藏三个平面矩形。
     if (state.roi && state.roi.displayPolygon && state.roi.displayPolygon.length >= 2) {
@@ -959,8 +1353,8 @@
   function pointerToCanvas(e) {
     const rect = canvas.getBoundingClientRect();
     return {
-      x: Math.max(0, Math.min(canvas.width, e.clientX - rect.left)),
-      y: Math.max(0, Math.min(canvas.height, e.clientY - rect.top)),
+      x: Math.max(0, Math.min(canvas.width, (e.clientX - rect.left) * canvas.width / rect.width)),
+      y: Math.max(0, Math.min(canvas.height, (e.clientY - rect.top) * canvas.height / rect.height)),
     };
   }
   function naturalDims() {
@@ -977,6 +1371,12 @@
   function setReadout() {
     const n = $('rl-roi-readout');
     if (!n) return;
+    if (state.drawMode === 'line') {
+      n.textContent = state.layerSpacingLine
+        ? `层距测量线：(${state.layerSpacingLine.x1}, ${state.layerSpacingLine.y1}) → (${state.layerSpacingLine.x2}, ${state.layerSpacingLine.y2})`
+        : '拖拽绘制层距测量线';
+      return;
+    }
     const key = state.activeRoiStateKey || 'roi';
     const style = roiOverlayStyles.find((item) => item.key === key) || roiOverlayStyles[0];
     const r = state[key];
@@ -997,6 +1397,16 @@
   canvas.addEventListener('mousedown', (e) => {
     if (!state.token) return;
     if (state.drawMode === 'polygon') return;  // 多边形模式由 click 处理
+    if (state.drawMode === 'line') {
+      const point = pointerToCanvas(e);
+      state.lineDrawing = true;
+      state.lineStart = point;
+      state.displayLayerSpacingLine = {
+        x1: point.x, y1: point.y, x2: point.x, y2: point.y,
+      };
+      draw();
+      return;
+    }
     state.drawing = true;
     state.start = pointerToCanvas(e);
     state.displayRoi = { x: state.start.x, y: state.start.y, w: 0, h: 0 };
@@ -1011,6 +1421,17 @@
       }
       return;
     }
+    if (state.drawMode === 'line') {
+      if (state.lineDrawing && state.lineStart) {
+        const point = pointerToCanvas(e);
+        state.displayLayerSpacingLine = {
+          x1: state.lineStart.x, y1: state.lineStart.y,
+          x2: point.x, y2: point.y,
+        };
+        draw();
+      }
+      return;
+    }
     if (!state.drawing || !state.start) return;
     const c = pointerToCanvas(e);
     state.displayRoi = {
@@ -1021,6 +1442,33 @@
   });
   window.addEventListener('mouseup', () => {
     if (state.drawMode === 'polygon') return;  // 多边形模式不使用 mouseup
+    if (state.drawMode === 'line') {
+      if (!state.lineDrawing || !state.displayLayerSpacingLine) return;
+      const displayLine = state.displayLayerSpacingLine;
+      state.lineDrawing = false;
+      state.lineStart = null;
+      const length = Math.hypot(displayLine.x2 - displayLine.x1, displayLine.y2 - displayLine.y1);
+      if (length < 12) {
+        state.displayLayerSpacingLine = null;
+        setStatus('层距测量线太短，请从上层对应点拖到下层对应点。');
+        draw();
+        return;
+      }
+      const start = displayPointToReal({ x: displayLine.x1, y: displayLine.y1 });
+      const end = displayPointToReal({ x: displayLine.x2, y: displayLine.y2 });
+      state.layerSpacingLine = {
+        x1: start.x, y1: start.y, x2: end.x, y2: end.y,
+        sample_radius: 10,
+        depth_window_mm: 25,
+      };
+      state.displayLayerSpacingLine = null;
+      state.drawMode = 'rect';
+      updateLayerSpacingLineUI();
+      draw();
+      refreshActionState();
+      autoSaveRoiToRecipe({ changedKey: 'layerSpacingLine' });
+      return;
+    }
     if (!state.drawing || !state.displayRoi) return;
     state.drawing = false;
     state.start = null;
@@ -1029,18 +1477,21 @@
     const roiData = { x: real.x, y: real.y, w: real.w, h: real.h, feature_type: 'rack_reference' };
     const key = state.activeRoiStateKey || 'roi';
     state[key] = roiData;
+    state.invalidRoiKeys = state.invalidRoiKeys.filter((item) => item !== key);
+    if (key !== 'roi') state.localTemplateGeometryValid = null;
     if (key === 'roi') {
       // 外框 ROI 自动保存到配方
       setReadout();
       syncRoiToRightSide();
       refreshActionState();
-      autoSaveRoiToRecipe();
+      autoSaveRoiToRecipe({ changedKey: 'roi' });
     } else {
       // 局部模板 ROI：更新三平面计数显示
       updateLocalTemplateRoiCount();
       setReadout();
       refreshActionState();
       draw();
+      autoSaveRoiToRecipe({ changedKey: key });
     }
   });
 
@@ -1083,7 +1534,7 @@
     setReadout();
     syncRoiToRightSide();
     refreshActionState();
-    autoSaveRoiToRecipe();
+    autoSaveRoiToRecipe({ changedKey: 'roi' });
     setStatus(`✅ 多边形 ROI 已闭合（${realPts.length} 个顶点），正在自动保存...`);
   }
 
@@ -1173,12 +1624,12 @@
 
   // ── 保存配方按钮（手动保存当前 ROI 到配方）─────────────────
   $('btn-save-recipe')?.addEventListener('click', async () => {
-    if (!state.roi) { setStatus('请先画好 ROI 再保存。'); return; }
+    if (measurementConfigSummary().count === 0) { setStatus('请先画好至少一项位置再保存。'); return; }
     const btn = $('btn-save-recipe');
     const origText = btn.textContent;
     btn.disabled = true;
     btn.textContent = '保存中...';
-    await autoSaveRoiToRecipe();
+    await autoSaveRoiToRecipe({ changedKey: 'all' });
     btn.textContent = origText;
     btn.disabled = false;
     refreshActionState();
@@ -1202,6 +1653,7 @@
       state.source = data.source || '';
       state.captureRecipeId = $('recipe-id').value || null;
       state.captureLayerNo = currentLayerIndex();
+      state.pointcloudConsumed = false;
       state.alignmentToken = null;
       state.lastResultId = null;
       state.lastResultOk = false;
@@ -1257,8 +1709,20 @@
 
   $('btn-redraw').addEventListener('click', () => {
     const key = state.activeRoiStateKey || 'roi';
+    if (key === 'layerSpacingLine') {
+      clearLayerSpacingLine();
+      state.drawMode = 'line';
+      state.activeRoiStateKey = 'layerSpacingLine';
+      updateLayerSpacingLineUI();
+      draw();
+      setStatus('已清除层距测量线，请重新从上层对应点拖到下层对应点。');
+      refreshActionState();
+      return;
+    }
     const style = roiOverlayStyles.find((item) => item.key === key) || roiOverlayStyles[0];
     state[key] = null;
+    state.invalidRoiKeys = state.invalidRoiKeys.filter((item) => item !== key);
+    if (key !== 'roi') state.localTemplateGeometryValid = null;
     state.displayRoi = null;
     state.alignmentToken = null;
     if (key === 'roi') {
@@ -1274,6 +1738,30 @@
     refreshActionState();
   });
 
+  let ransacThresholdSaveTimer = null;
+  async function saveRansacThresholdInput(input) {
+    const value = Number(input.value);
+    if (!Number.isFinite(value) || value < 0.5 || value > 20) {
+      syncRansacThreshold(state.currentRecipe?.roi_config || {});
+      setStatus('RANSAC距离阈值必须在 0.5～20.0 mm 之间。');
+      return;
+    }
+    input.value = value.toFixed(1);
+    const saved = await autoSaveRoiToRecipe({ changedKey: 'ransacThreshold' });
+    if (saved) {
+      setStatus(`✅ RANSAC距离阈值 ${value.toFixed(1)} mm 已保存到当前配方；下次计算生效。`);
+    }
+  }
+  const ransacThresholdInput = $('ransac-distance-threshold');
+  ransacThresholdInput?.addEventListener('input', () => {
+    clearTimeout(ransacThresholdSaveTimer);
+    ransacThresholdSaveTimer = setTimeout(() => saveRansacThresholdInput(ransacThresholdInput), 500);
+  });
+  ransacThresholdInput?.addEventListener('change', () => {
+    clearTimeout(ransacThresholdSaveTimer);
+    saveRansacThresholdInput(ransacThresholdInput);
+  });
+
   // ── ROI 模式切换按鈕（外框/਀1/਀2/਀3）───────────────────────────────────
   (function bindRoiModeButtons() {
     const roiModes = [
@@ -1284,6 +1772,7 @@
     ];
 
     function setActiveRoiBtn(activeId) {
+      $('btn-layer-spacing-line')?.classList.remove('active');
       roiModes.forEach(({ id }) => {
         const btn = $(id);
         if (btn) btn.classList.toggle('active', id === activeId);
@@ -1309,6 +1798,22 @@
     state.activeRoiMode = 'btn-roi-target';
     state.activeRoiStateKey = 'roi';
   }());
+
+  $('btn-layer-spacing-line')?.addEventListener('click', () => {
+    if (!state.token) { setStatus('请先采集或加载点云。'); return; }
+    document.querySelectorAll('.rl-roi-editor-btn').forEach((button) => {
+      button.classList.remove('active');
+    });
+    state.drawMode = 'line';
+    state.activeRoiStateKey = 'layerSpacingLine';
+    state.lineDrawing = false;
+    state.lineStart = null;
+    state.displayLayerSpacingLine = null;
+    updateLayerSpacingLineUI();
+    draw();
+    setReadout();
+    setStatus('请从上层基准点按住鼠标，拖到下层对应点；两个端点请落在同类钢架表面上。');
+  });
 
 
   $('btn-auto-align')?.addEventListener('click', async () => {
@@ -1439,8 +1944,9 @@
 
   // ── 计算偏差 ─────────────────────────────────────────────
   $('btn-calculate').addEventListener('click', async () => {
-    // 若尚未采集点云，自动先采集再计算（一键流程）
-    if (!state.token) {
+    // 未采集或当前点云已经计算过时，必须重新采集。禁止把建立标准
+    // 模板时的同一帧再次用于验证，避免标准与自身比较得到假性零误差。
+    if (!state.token || state.pointcloudConsumed) {
       showLoading('3D 相机采集中...');
       try {
         const captureApiUrl = CFG.captureUrl || CFG.legacyCaptureUrl || '/vision/api/rack-location/workbench/capture/';
@@ -1454,6 +1960,7 @@
         state.source = captureData.source || '';
         state.captureRecipeId = $('recipe-id').value || null;
         state.captureLayerNo = currentLayerIndex();
+        state.pointcloudConsumed = false;
         state.alignmentToken = null;
         state.roi = null; state.displayRoi = null;
         const previewUrl = captureData.pointcloud_preview_url || captureData.preview_image_url;
@@ -1477,26 +1984,13 @@
       const calculateApiUrl = CFG.calculateUrl || CFG.legacyCalculateUrl || CFG.testLocateUrl || CFG.locateUrl || '/vision/api/rack-location/workbench/calculate/';
       console.log('[计算偏差] 使用API端点:', calculateApiUrl);
 
-      // 构建干净的 target_roi（去掉 displayPolygon 等前端内部字段，不传给后端）
-      const cleanTargetRoi = state.roi ? {
-        x: state.roi.x,
-        y: state.roi.y,
-        w: state.roi.w,
-        h: state.roi.h,
-        feature_type: state.roi.feature_type || 'rack_reference',
-        ...(state.roi.polygon ? { polygon: state.roi.polygon } : {}),
-      } : null;
-
-      const localRegions = cleanLocalTemplateRois();
-      const hasLocalRois = hasAllLocalTemplateRois();
+      // 五项位置统一走同一个清洗器，避免保存值与计算值发生漂移。
+      const measurementConfig = measurementConfigPatch('all');
       const calculation = {
         pointcloud_token: state.token,
         roi: currentRoi3D(),
         roi_3d: currentRoi3D(),
-        roi_config: {
-          target_roi: cleanTargetRoi,
-          ...(hasLocalRois ? { local_template_rois: localRegions } : {}),
-        },
+        roi_config: measurementConfig,
         rack_side: currentRackSide(),
         recipe_id: $('recipe-id').value || null,
         recipe_data: currentRecipeData(),
@@ -1514,6 +2008,10 @@
         await refreshCurrentRecipe(state.lastResultRecipeId);
       }
       renderResult(data.result);
+      // 后端已经完整重跑算法并保存本次结果。保留 token 仅供结果导出，
+      // 但标记为已消费；下一次“开始计算”会先采集新帧。
+      state.pointcloudConsumed = true;
+      state.alignmentToken = null;
       const saveStatus = $('record-save-status');
       if (saveStatus) {
         saveStatus.className = 'badge badge-ok';
@@ -1525,9 +2023,15 @@
       if (lastTime) {
         lastTime.textContent = '上次计算：' + new Date().toLocaleString('zh-CN', { hour12: false });
       }
-      setStatus(data.result.locate_ok
-        ? '计算完成：定位 OK，本次3D记录已自动保存。'
-        : ('计算完成：定位 NG，本次3D记录已自动保存 · ' + (data.result.error_message || data.result.error_code || '')));
+      if (data.result.direct_detection_mode) {
+        setStatus('计算完成：直接检测完成，本次3D记录已自动保存'
+          + (data.result.warning_message ? ' · ' + data.result.warning_message : '。')
+          + ' 再次计算将重新采集点云。');
+      } else {
+        setStatus(data.result.locate_ok
+          ? '计算完成：定位 OK，本次3D记录已自动保存。'
+          : ('计算完成：定位 NG，本次3D记录已自动保存 · ' + (data.result.error_message || data.result.error_code || '')));
+      }
 
       // 保持当前配方不变，确保后续「保存为标准模板」仍绑定本次计算的配方。
     } catch (e) {
@@ -1537,40 +2041,46 @@
 
 
   // ── 自动保存 ROI 到配方 ──────────────────────────────────
-  async function autoSaveRoiToRecipe() {
+  async function autoSaveRoiToRecipe({ changedKey = 'all' } = {}) {
     const recipeId = $('recipe-id')?.value;
     if (!recipeId) { setStatus('未找到配方·请先选择配方'); return; }
-    if (!state.roi) { setStatus('请先在画布上绘制 ROI 区域'); return; }
+    const roiConfig = measurementConfigPatch(changedKey);
+    if (!Object.keys(roiConfig).length) { setStatus('当前项目没有可保存的位置数据'); return false; }
+    const requestSeq = ++roiSaveRequestSeq;
+    const payload = JSON.parse(JSON.stringify({ id: recipeId, roi_config: roiConfig }));
+    const currentRecipeId = () => String($('recipe-id')?.value || '');
+    const isCurrentRequest = () => (
+      currentRecipeId() === String(recipeId) && requestSeq === roiSaveRequestSeq
+    );
+    if (currentRecipeId() === String(recipeId)) setStatus('正在保存位置数据到配方...');
 
-    setStatus('正在保存 ROI 到配方...');
-    try {
-      // 构建干净的 target_roi：去掉 displayPolygon 等前端内部字段
-      const targetRoi = {
-        x: state.roi.x,
-        y: state.roi.y,
-        w: state.roi.w,
-        h: state.roi.h,
-        feature_type: state.roi.feature_type || 'rack_reference',
-      };
-      if (state.roi.polygon && state.roi.polygon.length > 0) {
-        targetRoi.polygon = state.roi.polygon;
+    const executeSave = async () => {
+      try {
+        const raw = await postJson(
+          CFG.recipeApiUrl || '/vision/api/vision/3d/recipes/',
+          semanticPayload(payload),
+          'PATCH',
+        );
+        const data = apiPayload(raw);
+        if (!data.success) throw new Error(data.error || '保存失败，请查看控制台');
+        const savedRecipe = data.recipe || null;
+        if (currentRecipeId() === String(recipeId) && savedRecipe) {
+          state.currentRecipe = savedRecipe;
+        }
+        if (isCurrentRequest()) {
+          const summary = measurementConfigSummary(savedRecipe?.roi_config || measurementConfigPatch('all'));
+          setStatus(`✅ 已保存到配方：${summary.labels.join('、')}（${summary.count}/5），可点击「开始计算」。`);
+        }
+        return true;
+      } catch (e) {
+        if (isCurrentRequest()) setStatus('位置数据保存失败：' + e.message);
+        return false;
       }
+    };
 
-      // 直接发送包含 target_roi 的 roi_config，后端会 merge 到现有配置中
-      const payload = {
-        id: recipeId,
-        roi_config: { target_roi: targetRoi },
-      };
-
-      const raw = await postJson('/vision/api/vision/3d/recipes/', semanticPayload(payload), 'PATCH');
-      const data = apiPayload(raw);
-      if (!data.success) { setStatus(data.error || '保存失败，请查看控制台'); return; }
-
-      const roiType = state.roi.polygon ? `多边形（${state.roi.polygon.length} 点）` : '矩形';
-      setStatus(`✅ ${roiType} ROI 已保存到配方，可点击「开始计算」。`);
-    } catch (e) {
-      setStatus('保存失败：' + e.message);
-    }
+    const savePromise = roiSaveChain.then(executeSave, executeSave);
+    roiSaveChain = savePromise.then(() => undefined, () => undefined);
+    return savePromise;
   }
 
   // ── 自动选中下一个配方 ──────────────────────────────────
@@ -1633,7 +2143,9 @@
       state.lastResultRecipeId = r.recipe_id;
     }
     const ok = r.locate_ok ?? r.is_success;
-    state.lastResultOk = Boolean(ok);
+    state.lastResultOk = r?.direct_detection_mode
+      ? Boolean(r?.plc_payload?.compensation_valid)
+      : Boolean(ok);
 
 
     renderLocalTemplate(r);
@@ -1748,7 +2260,7 @@
         source: state.source,
         roi_config: {
           ...currentRoi3D(),
-          target_roi: state.roi ? { ...state.roi } : null,
+          ...measurementConfigPatch('all'),
         },
         result: state.lastResult,
         recipe_id: state.captureRecipeId || $('recipe-id')?.value || null,
@@ -1758,6 +2270,7 @@
     load(payload) {
       if (!payload || !payload.pointcloud_token) throw new Error('数据包未返回有效点云');
       state.token = payload.pointcloud_token;
+      state.pointcloudConsumed = false;
       state.source = payload.source || 'offline_package';
       state.captureRecipeId = payload.metadata?.recipe?.recipe_id || $('recipe-id')?.value || null;
       state.captureLayerNo = payload.metadata?.layer?.layer_no || currentLayerIndex();
@@ -1766,6 +2279,7 @@
       state.roi = null;
       state.displayRoi = null;
       clearLocalTemplateRois();
+      clearLayerSpacingLine();
       const previewUrl = payload.preview_image_url;
       if (previewUrl) {
         image.src = previewUrl + (previewUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
@@ -1791,6 +2305,9 @@
       if (payload.roi_projection_error) console.warn('[自动ROI] 数据包3D ROI投影提示：', payload.roi_projection_error);
       const packageRoi = normalizePixelRoi(payload.recipe_pixel_roi)
         || normalizePixelRoi(payload.roi_config?.target_roi);
+      state.pendingLocalTemplateRois = payload.roi_config?.local_template_rois || null;
+      state.pendingLayerSpacingLine = normalizeLayerSpacingLine(payload.roi_config?.layer_spacing_line);
+      syncRansacThreshold(payload.roi_config || state.currentRecipe?.roi_config || {});
       afterPreviewLoaded(() => autoLoadAndShowRecipeRoi({
         recipeId: state.captureRecipeId,
         targetRoi: packageRoi,
@@ -1836,10 +2353,6 @@
       const resultId = state.lastResultId;
       if (!recipeId) { setStatus('无选中配方'); return; }
       if (!window._tempCurTpl) { setStatus('无现场模板可保存，请先点击「开始计算」'); return; }
-      if (window._tempCurTplValidation?.is_valid === false) {
-        setStatus('标准模板未保存：' + localTemplateValidationMessage(window._tempCurTplValidation));
-        return;
-      }
       if (!resultId) {
         setStatus('标准模板未保存：缺少本次计算记录，请重新点击「开始计算」。');
         return;
@@ -1877,7 +2390,7 @@
         setStatus('标准模板保存失败：' + e.message);
       } finally {
         btn.textContent = oldText;
-        btn.disabled = Boolean(window._tempCurTplValidation?.is_valid === false);
+        btn.disabled = false;
       }
     });
   }

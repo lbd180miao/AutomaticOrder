@@ -572,7 +572,10 @@ class RigidBodyCompensationService:
                 "recipe_id": recipe_id,
             }
 
-        result["status"] = "ok"
+        result["status"] = "ok" if result.get("is_valid") else "error"
+        if not result.get("is_valid"):
+            result["error_code"] = result.get("validation", {}).get("error_code", "INVALID_TEMPLATE")
+            result["message"] = result.get("validation", {}).get("message", "三平面结构校验未通过")
         result["recipe_id"] = recipe_id
         result["recipe_name"] = recipe.recipe_name
 
