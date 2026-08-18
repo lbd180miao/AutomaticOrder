@@ -43,20 +43,19 @@ class Command(BaseCommand):
                 vision_gateway=ExistingVisionGateway(),
             )
             service.poll_once()
-            plc.write_point('product_barcode', product_code)
-            self._pulse(service, plc, 'mark_trigger')
             plc.write_point('rack_barcode', rack_code)
             self._pulse(service, plc, 'rack_trigger')
-            self._pulse(service, plc, 'position_trigger')
             self._pulse(service, plc, 'recipe_verify_trigger')
+            self._pulse(service, plc, 'position_trigger')
             for loaded in range(1, quantity + 1):
+                item_code = product_code if quantity == 1 else f'{product_code[:16]}-{loaded:03d}'
+                plc.write_point('product_barcode', item_code)
+                self._pulse(service, plc, 'mark_trigger')
+                plc.write_point('foam_passed', True)
                 self._pulse(service, plc, 'foam_trigger')
-                plc.write_point('boxing_trigger', True)
-                service.poll_once()
-                plc.write_point('loaded_quantity', loaded)
-                plc.write_point('boxing_trigger', False)
-                cycle, _ = service.poll_once()
+                cycle = service.active_cycle()
                 self.stdout.write(f'已装 {loaded}/{quantity} · {cycle.get_phase_display()}')
+            cycle = self._pulse(service, plc, 'boxing_trigger')
 
         if cycle.phase != StationPhase.COMPLETED:
             raise CommandError(f'联调未完成，最终阶段: {cycle.phase}')
@@ -69,5 +68,5 @@ class Command(BaseCommand):
         plc.write_point(point, True)
         service.poll_once()
         plc.write_point(point, False)
-        service.poll_once()
-
+        cycle, _ = service.poll_once()
+        return cycle

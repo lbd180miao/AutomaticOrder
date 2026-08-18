@@ -57,6 +57,10 @@ class StationCycle(TimeStampedModel):
         WorkflowInstance, null=True, blank=True, on_delete=models.SET_NULL,
         related_name='station_cycle',
     )
+    rack = models.ForeignKey(
+        'production.Rack', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='station_cycles',
+    )
     phase = models.CharField(
         max_length=32, choices=StationPhase.choices,
         default=StationPhase.WAIT_PRODUCT, db_index=True,
@@ -68,6 +72,9 @@ class StationCycle(TimeStampedModel):
     planned_quantity = models.PositiveIntegerField(default=0)
     loaded_quantity = models.PositiveIntegerField(default=0)
     positioning_matrix = models.JSONField(default=list, blank=True)
+    position_delta_z = models.DecimalField(
+        max_digits=10, decimal_places=3, null=True, blank=True,
+    )
     measured_layer_height = models.DecimalField(
         max_digits=10, decimal_places=3, null=True, blank=True,
     )

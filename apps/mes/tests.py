@@ -88,12 +88,80 @@ class MesRecordPageTests(TestCase):
         self.assertContains(response, '保存为自动参数')
         self.assertContains(response, '旁路调试 · 不写 PLC')
 
-    def test_record_page_is_separated_from_recipe_debug(self):
+    def test_record_page_is_mes_data_workbench_and_separates_recipe_debug(self):
         response = self.client.get(reverse('mes:record_list'))
 
-        self.assertContains(response, 'MES 接口监控')
+        self.assertContains(response, 'MES 数据工作台')
+        self.assertContains(response, '料框产品绑定')
+        self.assertContains(response, 'MES 配方数据')
+        self.assertContains(response, '待上传 / 补传')
+        self.assertContains(response, '数据一致性')
+        self.assertContains(response, '接口记录')
         self.assertContains(response, reverse('mes:recipe_check'))
         self.assertNotContains(response, 'id="rack-image-input"')
+
+    def test_binding_tab_can_query_product_and_show_mes_acknowledgement(self):
+        recipe = RackRecipe.objects.create(
+            recipe_code='RCP-BIND', name='绑定配方', rack_type='A',
+            layer_count=2, quantity_per_layer=2, total_quantity=4,
+        )
+        rack = Rack.objects.create(
+            rack_code='RACK-BIND', rack_type='A', current_recipe=recipe,
+        )
+        product = Product.objects.create(product_code='PRODUCT-BIND-001', rack=rack)
+        MesRecord.objects.create(
+            action=MesAction.UPLOAD_PRODUCT_BARCODE, product=product, rack=rack,
+            request_payload={'product_code': product.product_code, 'rack_code': rack.rack_code},
+            response_payload={'success': True, 'mes_id': 'MES-BIND-001'}, success=True,
+        )
+
+        response = self.client.get(reverse('mes:record_list'), {
+            'product_code': 'BIND-001', 'sync_status': 'UPLOADED',
+        })
+
+        self.assertContains(response, 'RACK-BIND')
+        self.assertContains(response, 'PRODUCT-BIND-001')
+        self.assertContains(response, 'MES-BIND-001')
+        self.assertContains(response, '已确认')
+
+    def test_recipe_tab_marks_mes_and_local_parameter_difference(self):
+        recipe = RackRecipe.objects.create(
+            recipe_code='RCP-DIFF', name='差异配方', rack_type='A',
+            layer_count=4, quantity_per_layer=6, total_quantity=24,
+            layer_height=Decimal('120'), layer_spacing=Decimal('150'),
+        )
+        rack = Rack.objects.create(
+            rack_code='RACK-DIFF', rack_type='A', current_recipe=recipe,
+        )
+        MesRecord.objects.create(
+            action=MesAction.GET_RACK_RECIPE, rack=rack,
+            request_payload={'rack_code': rack.rack_code}, success=True,
+            response_payload={'success': True, 'recipe': {
+                'layer_count': 4, 'quantity_per_layer': 6, 'total_quantity': 24,
+                'layer_height': 121, 'layer_spacing': 150,
+                'tolerance_x': 0, 'tolerance_y': 0, 'tolerance_z': 0,
+            }},
+        )
+
+        response = self.client.get(reverse('mes:record_list'), {'tab': 'recipes', 'rack_code': 'RACK-DIFF'})
+
+        self.assertContains(response, '1 项不一致')
+        self.assertContains(response, '本地缓存')
+        self.assertContains(response, 'MES：121')
+
+    @override_settings(AUTOMATIC_ORDER={'USE_SIMULATED_DEVICES': True})
+    def test_recipe_refresh_reads_mes_and_updates_local_cache(self):
+        rack = Rack.objects.create(rack_code='RACK-REFRESH', rack_type='')
+
+        response = self.client.post(reverse('mes:refresh_recipe_api', args=[rack.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['success'])
+        rack.refresh_from_db()
+        self.assertEqual(rack.current_recipe.recipe_code, 'RCP-RACK-REFRESH')
+        self.assertTrue(MesRecord.objects.filter(
+            action=MesAction.GET_RACK_RECIPE, rack=rack, success=True,
+        ).exists())
 
 
 class RackMeasurementDebugApiTests(TestCase):

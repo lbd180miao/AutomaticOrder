@@ -6,16 +6,21 @@ from types import SimpleNamespace
 import cv2
 import numpy as np
 from django.conf import settings
+from django.core.paginator import Paginator
 from django.db import transaction
+from django.db.models import OuterRef, Q, Subquery
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from apps.core.constants import MesAction
+from apps.production.models import Product, Rack, RackRecipe
+from apps.production.services import ProductionService
 from apps.workflow.models import StationCycle, StationPhase
+from apps.vision.models import FoamInspectionResult
 from apps.vision.models import RackMeasurementProfile
 from apps.vision.rack_measurement import (
     RackMeasurementError,
@@ -29,41 +34,127 @@ from .services import MesService
 # ─── 页面视图 ─────────────────────────────────────────────────────
 
 def record_list(request):
-    """MES 接口监控页；视觉测量和配方核对在独立页面展示。"""
+    """MES 数据工作台：业务查询、补传和接口审计统一入口。"""
+    tab = request.GET.get('tab', 'bindings')
+    valid_tabs = {'bindings', 'recipes', 'pending', 'consistency', 'records'}
+    if tab not in valid_tabs:
+        tab = 'bindings'
+
+    keyword = request.GET.get('keyword', '').strip()
+    rack_code = request.GET.get('rack_code', '').strip()
+    product_code = request.GET.get('product_code', '').strip()
+    recipe_code = request.GET.get('recipe_code', '').strip()
+    sync_status = request.GET.get('sync_status', '').strip()
     action_filter = request.GET.get('action', '')
     result_filter = request.GET.get('result', '')
     start_date = request.GET.get('start_date', '')
     end_date = request.GET.get('end_date', '')
 
-    qs = MesRecord.objects.select_related('product', 'rack').order_by('-created_at')
+    record_qs = MesRecord.objects.select_related('product', 'rack').order_by('-created_at')
 
     if action_filter:
-        qs = qs.filter(action=action_filter)
+        record_qs = record_qs.filter(action=action_filter)
     if result_filter == 'ok':
-        qs = qs.filter(success=True)
+        record_qs = record_qs.filter(success=True)
     elif result_filter == 'fail':
-        qs = qs.filter(success=False)
+        record_qs = record_qs.filter(success=False)
 
     start_value = parse_date(start_date) if start_date else None
     end_value = parse_date(end_date) if end_date else None
     if start_value:
-        qs = qs.filter(created_at__gte=timezone.make_aware(datetime.combine(start_value, time.min)))
+        record_qs = record_qs.filter(created_at__gte=timezone.make_aware(datetime.combine(start_value, time.min)))
     if end_value:
         exclusive_end = end_value + timedelta(days=1)
-        qs = qs.filter(created_at__lt=timezone.make_aware(datetime.combine(exclusive_end, time.min)))
+        record_qs = record_qs.filter(created_at__lt=timezone.make_aware(datetime.combine(exclusive_end, time.min)))
 
-    records = list(qs[:200])
+    records = list(record_qs[:200])
+    _decorate_mes_records(records)
+
+    binding_qs = Product.objects.select_related(
+        'rack', 'rack__current_recipe', 'batch',
+    ).filter(rack__isnull=False).order_by('-updated_at')
+    latest_upload = MesRecord.objects.filter(
+        action=MesAction.UPLOAD_PRODUCT_BARCODE,
+        product_id=OuterRef('pk'),
+    ).order_by('-created_at', '-pk')
+    binding_qs = binding_qs.annotate(
+        latest_mes_success=Subquery(latest_upload.values('success')[:1]),
+    )
+    if keyword:
+        binding_qs = binding_qs.filter(
+            Q(product_code__icontains=keyword) |
+            Q(rack__rack_code__icontains=keyword) |
+            Q(rack__current_recipe__recipe_code__icontains=keyword)
+        )
+    if rack_code:
+        binding_qs = binding_qs.filter(rack__rack_code__icontains=rack_code)
+    if product_code:
+        binding_qs = binding_qs.filter(product_code__icontains=product_code)
+    if recipe_code:
+        binding_qs = binding_qs.filter(rack__current_recipe__recipe_code__icontains=recipe_code)
+    if sync_status == 'UPLOADED':
+        binding_qs = binding_qs.filter(
+            Q(latest_mes_success=True) |
+            Q(latest_mes_success__isnull=True, mes_upload_status='UPLOADED')
+        )
+    elif sync_status == 'FAILED':
+        binding_qs = binding_qs.filter(
+            Q(latest_mes_success=False) |
+            Q(latest_mes_success__isnull=True, mes_upload_status='FAILED')
+        )
+    elif sync_status == 'PENDING':
+        binding_qs = binding_qs.filter(
+            latest_mes_success__isnull=True, mes_upload_status='PENDING',
+        )
+    if start_value:
+        binding_qs = binding_qs.filter(updated_at__gte=timezone.make_aware(datetime.combine(start_value, time.min)))
+    if end_value:
+        binding_qs = binding_qs.filter(updated_at__lt=timezone.make_aware(datetime.combine(end_value + timedelta(days=1), time.min)))
+
+    binding_page = Paginator(binding_qs, 50).get_page(request.GET.get('page'))
+    binding_rows = _build_binding_rows(binding_page.object_list)
+    recipe_rows = _build_recipe_rows(keyword=keyword, rack_code=rack_code, recipe_code=recipe_code)
+    pending_records = MesService.pending_retry_records(limit=200)
+    _decorate_mes_records(pending_records)
+    consistency_issues = _build_consistency_issues(pending_records, recipe_rows)
 
     # 统计数据
     stats = MesService.get_stats(hours=24)
-    demo_mode = not records
-    if demo_mode:
-        stats = {
-            'hours': 24, 'total': 128, 'success': 126, 'fail': 2,
-            'success_rate': 98.4, 'pending_retry': 1, 'by_action': [],
-        }
+    latest_record = MesRecord.objects.order_by('-created_at').first()
+    recent_cutoff = timezone.now() - timedelta(minutes=10)
+    mes_link = {
+        'label': '尚无通信', 'tone': 'muted', 'detail': '等待第一次 MES 调用',
+    }
+    if latest_record:
+        if latest_record.created_at < recent_cutoff:
+            mes_link = {'label': '无近期通信', 'tone': 'warn', 'detail': '最后一次调用超过 10 分钟'}
+        elif latest_record.success:
+            mes_link = {'label': '通信正常', 'tone': 'ok', 'detail': '最近一次调用成功'}
+        else:
+            mes_link = {'label': '通信异常', 'tone': 'fail', 'detail': latest_record.error_message or '最近一次调用失败'}
+
+    active_cycle = (
+        StationCycle.objects.exclude(phase=StationPhase.COMPLETED)
+        .select_related('rack').order_by('-created_at').first()
+    )
+    current_rack = active_cycle.rack if active_cycle and active_cycle.rack_id else None
 
     context = {
+        'tab': tab,
+        'keyword': keyword,
+        'rack_code': rack_code,
+        'product_code': product_code,
+        'recipe_code': recipe_code,
+        'sync_status': sync_status,
+        'binding_rows': binding_rows,
+        'binding_page': binding_page,
+        'binding_total': Product.objects.filter(rack__isnull=False).count(),
+        'recipe_rows': recipe_rows,
+        'recipe_total': RackRecipe.objects.count(),
+        'pending_records': pending_records,
+        'consistency_issues': consistency_issues,
+        'mes_link': mes_link,
+        'current_rack': current_rack,
         'records': records,
         'stats': stats,
         'action_choices': MesAction.choices,
@@ -71,10 +162,156 @@ def record_list(request):
         'result_filter': result_filter,
         'start_date': start_date,
         'end_date': end_date,
-        'latest_record': records[0] if records else None,
-        'demo_mode': demo_mode,
+        'latest_record': latest_record,
     }
     return render(request, 'mes/record_list.html', context)
+
+
+def _decorate_mes_records(records):
+    """Expose safe display values even when historical JSON lacks a key."""
+    for record in records:
+        record.display_rack_code = (
+            record.rack.rack_code if record.rack_id
+            else record.request_payload.get('rack_code') or '—'
+        )
+        record.display_product_code = (
+            record.product.product_code if record.product_id
+            else record.request_payload.get('product_code') or '—'
+        )
+
+
+def _build_binding_rows(products):
+    """Combine local binding, foam result and latest MES acknowledgement."""
+    products = list(products)
+    if not products:
+        return []
+    product_ids = [item.pk for item in products]
+    foam_by_product = {}
+    for foam in (
+        FoamInspectionResult.objects.filter(product_id__in=product_ids)
+        .order_by('-created_at', '-pk')
+    ):
+        foam_by_product.setdefault(foam.product_id, foam)
+
+    upload_by_code = {}
+    upload_records = MesRecord.objects.filter(
+        action=MesAction.UPLOAD_PRODUCT_BARCODE,
+    ).select_related('product').order_by('-created_at', '-pk')[:2000]
+    for record in upload_records:
+        code = record.product.product_code if record.product_id else record.request_payload.get('product_code')
+        if code:
+            upload_by_code.setdefault(str(code), record)
+
+    rows = []
+    for product in products:
+        foam = foam_by_product.get(product.pk)
+        upload = upload_by_code.get(product.product_code)
+        recipe = product.rack.current_recipe if product.rack_id else None
+        position = foam.position_index if foam and foam.position_index else None
+        layer_no = slot_no = None
+        if position and recipe and recipe.quantity_per_layer:
+            layer_no = (position - 1) // recipe.quantity_per_layer + 1
+            slot_no = (position - 1) % recipe.quantity_per_layer + 1
+        if upload:
+            sync_label = '已确认' if upload.success else '上传失败'
+            sync_tone = 'ok' if upload.success else 'fail'
+        else:
+            sync_labels = {'UPLOADED': '已上传', 'FAILED': '上传失败', 'PENDING': '待上传'}
+            sync_label = sync_labels.get(product.mes_upload_status, '待上传')
+            sync_tone = {'UPLOADED': 'ok', 'FAILED': 'fail'}.get(product.mes_upload_status, 'warn')
+        rows.append({
+            'product': product, 'rack': product.rack, 'recipe': recipe,
+            'foam': foam, 'upload': upload, 'position': position,
+            'layer_no': layer_no, 'slot_no': slot_no,
+            'sync_label': sync_label, 'sync_tone': sync_tone,
+            'mes_id': upload.response_payload.get('mes_id', '') if upload and upload.success else '',
+        })
+    return rows
+
+
+def _build_recipe_rows(*, keyword='', rack_code='', recipe_code=''):
+    racks = Rack.objects.select_related('current_recipe').order_by('-updated_at')
+    if keyword:
+        racks = racks.filter(
+            Q(rack_code__icontains=keyword) |
+            Q(current_recipe__recipe_code__icontains=keyword) |
+            Q(current_recipe__name__icontains=keyword)
+        )
+    if rack_code:
+        racks = racks.filter(rack_code__icontains=rack_code)
+    if recipe_code:
+        racks = racks.filter(current_recipe__recipe_code__icontains=recipe_code)
+
+    latest_by_rack = {}
+    for record in (
+        MesRecord.objects.filter(action=MesAction.GET_RACK_RECIPE)
+        .order_by('-created_at', '-pk')[:1000]
+    ):
+        code = record.rack.rack_code if record.rack_id else record.request_payload.get('rack_code')
+        if code:
+            latest_by_rack.setdefault(str(code), record)
+
+    compare_fields = (
+        ('layer_count', '层数'), ('quantity_per_layer', '每层数量'),
+        ('total_quantity', '总数量'), ('layer_height', '层高'),
+        ('layer_spacing', '层距'), ('tolerance_x', 'X 容差'),
+        ('tolerance_y', 'Y 容差'), ('tolerance_z', 'Z 容差'),
+    )
+    rows = []
+    for rack in racks[:200]:
+        recipe = rack.current_recipe
+        record = latest_by_rack.get(rack.rack_code)
+        mes_data = record.response_payload.get('recipe', {}) if record and record.success else {}
+        comparisons = []
+        mismatch_count = 0
+        for key, label in compare_fields:
+            local_value = getattr(recipe, key, None) if recipe else None
+            mes_value = mes_data.get(key)
+            matches = None
+            if local_value is not None and mes_value is not None:
+                try:
+                    matches = Decimal(str(local_value)) == Decimal(str(mes_value))
+                except InvalidOperation:
+                    matches = str(local_value) == str(mes_value)
+                mismatch_count += 0 if matches else 1
+            comparisons.append({
+                'key': key, 'label': label, 'local': local_value,
+                'mes': mes_value, 'matches': matches,
+            })
+        rows.append({
+            'rack': rack, 'recipe': recipe, 'record': record,
+            'mes_data': mes_data, 'comparisons': comparisons,
+            'mismatch_count': mismatch_count,
+        })
+    return rows
+
+
+def _build_consistency_issues(pending_records, recipe_rows):
+    issues = []
+    for product in Product.objects.filter(rack__isnull=True).order_by('-updated_at')[:100]:
+        issues.append({
+            'level': 'warn', 'type': '产品未绑定料框', 'rack_code': '—',
+            'product_code': product.product_code,
+            'message': '产品已在本地创建，但尚未建立料框绑定。',
+            'updated_at': product.updated_at,
+        })
+    for record in pending_records[:100]:
+        issues.append({
+            'level': 'fail', 'type': 'MES 请求待补传',
+            'rack_code': record.rack.rack_code if record.rack_id else record.request_payload.get('rack_code', '—'),
+            'product_code': record.product.product_code if record.product_id else record.request_payload.get('product_code', '—'),
+            'message': record.error_message or f'{record.get_action_display()}尚未成功',
+            'updated_at': record.created_at, 'record_id': record.pk,
+        })
+    for row in recipe_rows:
+        if row['mismatch_count']:
+            issues.append({
+                'level': 'fail', 'type': '配方参数不一致',
+                'rack_code': row['rack'].rack_code, 'product_code': '—',
+                'message': f"本地缓存与最近 MES 返回有 {row['mismatch_count']} 个参数不一致。",
+                'updated_at': row['record'].created_at if row['record'] else row['rack'].updated_at,
+            })
+    return sorted(issues, key=lambda item: item['updated_at'], reverse=True)
 
 
 def recipe_check(request):
@@ -216,6 +453,47 @@ def stats_api(request):
     hours = int(request.GET.get('hours', 24))
     data = MesService.get_stats(hours=hours)
     return JsonResponse(data)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def refresh_recipe_api(request, rack_id: int):
+    """Read the latest recipe from MES and refresh the local rack cache."""
+    rack = get_object_or_404(Rack, pk=rack_id)
+    response = MesService().get_rack_recipe(rack.rack_code, rack=rack)
+    if not response.get('success'):
+        return JsonResponse(response, status=502)
+    data = response.get('recipe') or {}
+    required = {
+        'recipe_code', 'name', 'rack_type', 'layer_count',
+        'quantity_per_layer', 'total_quantity', 'layer_height', 'layer_spacing',
+    }
+    missing = sorted(required - data.keys())
+    if missing:
+        return JsonResponse({
+            'success': False,
+            'error': f'MES 配方缺少字段: {", ".join(missing)}',
+        }, status=422)
+
+    production = ProductionService()
+    with transaction.atomic():
+        recipe = production.upsert_recipe(
+            data['recipe_code'],
+            name=data['name'], rack_type=data['rack_type'],
+            layer_count=data['layer_count'],
+            quantity_per_layer=data['quantity_per_layer'],
+            total_quantity=data['total_quantity'],
+            layer_height=data['layer_height'],
+            layer_spacing=data['layer_spacing'],
+            tolerance_x=data.get('tolerance_x', 0),
+            tolerance_y=data.get('tolerance_y', 0),
+            tolerance_z=data.get('tolerance_z', 0),
+        )
+        production.assign_recipe_to_rack(rack, recipe)
+    return JsonResponse({
+        'success': True, 'rack_code': rack.rack_code,
+        'recipe_code': recipe.recipe_code, 'message': 'MES 配方已刷新并保存到本地',
+    })
 
 
 def recipe_verification_api(request):

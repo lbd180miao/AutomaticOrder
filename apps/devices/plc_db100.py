@@ -23,7 +23,7 @@ class DB100Point:
 
 
 DB_NUMBER = 100
-DB_SIZE = 130
+DB_SIZE = 71
 
 
 def _point(name, offset, data_type, direction, description, size, bit=0):
@@ -33,33 +33,29 @@ def _point(name, offset, data_type, direction, description, size, bit=0):
 DB100_POINTS = (
     _point('heartbeat', 0, 'INT', 'OUT', '心跳计数', 2),
     _point('product_barcode', 2, 'STRING[20]', 'IN', '产品条码', 22),
-    _point('mark_trigger', 24, 'BOOL', 'IN', '打标完成触发', 1),
-    _point('mark_read_done', 25, 'BOOL', 'OUT', '打标读取完成确认', 1),
-    _point('rack_barcode', 26, 'STRING[20]', 'IN', '料框码', 22),
-    _point('rack_trigger', 48, 'BOOL', 'IN', '料框到位触发', 1),
-    _point('rack_done', 49, 'BOOL', 'OUT', '料框处理完成确认', 1),
-    _point('recipe_verify_trigger', 50, 'BOOL', 'IN', '配方校验触发', 1),
-    _point('boxing_allowed', 51, 'BOOL', 'OUT', '可装箱信号', 1),
-    _point('recipe_verify_done', 52, 'BOOL', 'OUT', '配方校验完成确认', 1),
-    _point('reserved_53', 53, 'BYTE', '-', '对齐填充', 1),
-    *tuple(
-        _point(
-            f'matrix_{row}_{col}', 54 + (row * 4 + col) * 4,
-            'REAL', 'OUT', f'定位矩阵[{row}][{col}]', 4,
-        )
-        for row in range(4) for col in range(4)
-    ),
-    _point('position_trigger', 118, 'BOOL', 'IN', '定位触发', 1),
-    _point('position_done', 119, 'BOOL', 'OUT', '定位完成确认', 1),
-    _point('foam_trigger', 120, 'BOOL', 'IN', '泡棉检测触发', 1),
-    _point('foam_passed', 121, 'BOOL', 'OUT', '泡棉检测结果', 1),
-    _point('foam_done', 122, 'BOOL', 'OUT', '泡棉检测完成确认', 1),
-    _point('boxing_trigger', 123, 'BOOL', 'IN', '装箱完成触发', 1),
-    _point('mes_upload_success', 124, 'BOOL', 'OUT', 'MES上传结果', 1),
-    _point('mes_upload_done', 125, 'BOOL', 'OUT', 'MES上传完成确认', 1),
-    _point('workstation_locked', 126, 'BOOL', 'OUT', '工位锁定', 1),
-    _point('reserved_127', 127, 'BYTE', '-', '对齐填充', 1),
-    _point('loaded_quantity', 128, 'INT', 'IN', '当前已装数量', 2),
+    _point('mark_trigger', 24, 'BOOL', 'IN', '产品条码就绪触发', 1),
+    _point('mark_read_done', 25, 'BOOL', 'OUT', '产品条码处理完成确认', 1),
+    _point('product_barcode_valid', 26, 'BOOL', 'OUT', '产品条码校验结果（1=OK，0=NG）', 1),
+    _point('reserved_27', 27, 'BYTE', '-', '对齐填充', 1),
+    _point('rack_barcode', 28, 'STRING[20]', 'IN', '料框码', 22),
+    _point('rack_trigger', 50, 'BOOL', 'IN', '料框到位触发', 1),
+    _point('rack_done', 51, 'BOOL', 'OUT', '料框处理完成确认', 1),
+    _point('rack_result', 52, 'BOOL', 'OUT', '料框处理结果（1=OK，0=NG）', 1),
+    _point('recipe_verify_trigger', 53, 'BOOL', 'IN', '配方校验触发', 1),
+    _point('recipe_verify_done', 54, 'BOOL', 'OUT', '配方校验完成确认', 1),
+    _point('boxing_allowed', 55, 'BOOL', 'OUT', '可装箱结果（1=OK，0=NG）', 1),
+    _point('position_trigger', 56, 'BOOL', 'IN', '3D定位触发', 1),
+    _point('position_done', 57, 'BOOL', 'OUT', '3D定位完成确认', 1),
+    _point('position_success', 58, 'BOOL', 'OUT', '3D定位结果（1=OK，0=NG）', 1),
+    _point('reserved_59', 59, 'BYTE', '-', '对齐填充', 1),
+    _point('layer_delta_z', 60, 'REAL', 'OUT', '当前层视觉补偿值 ΔZ（mm）', 4),
+    _point('foam_trigger', 64, 'BOOL', 'IN', '泡棉检测结果记录触发', 1),
+    _point('foam_passed', 65, 'BOOL', 'IN', '泡棉检测结果（1=OK，0=NG）', 1),
+    _point('foam_done', 66, 'BOOL', 'OUT', '泡棉检测记录完成确认', 1),
+    _point('boxing_trigger', 67, 'BOOL', 'IN', '装箱完成 / MES上传触发', 1),
+    _point('mes_upload_done', 68, 'BOOL', 'OUT', 'MES上传完成确认', 1),
+    _point('mes_upload_success', 69, 'BOOL', 'OUT', 'MES上传结果（1=OK，0=NG）', 1),
+    _point('workstation_locked', 70, 'BOOL', 'OUT', '工位锁定（1=锁定，0=正常）', 1),
 )
 
 POINTS_BY_NAME = {point.name: point for point in DB100_POINTS}
