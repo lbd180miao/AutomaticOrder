@@ -211,7 +211,8 @@
   async function requestJson(url,options={}) {
     const opts={...options,headers:{...(options.headers||{})}};
     if((opts.method||'GET').toUpperCase()!=='GET')opts.headers['X-CSRFToken']=csrf();
-    const response=await fetch(url,opts);let body;try{body=await response.json();}catch(_){throw new Error(`服务响应无法解析（HTTP ${response.status}）`);}
+    const response=await fetch(url,opts);const raw=await response.text();let body;
+    try{body=raw?JSON.parse(raw):{};}catch(_){throw new Error(response.ok?`服务返回格式错误（HTTP ${response.status}）`:`服务内部错误（HTTP ${response.status}）`);}
     if(!response.ok||!body.success)throw new Error(body.error||`请求失败（HTTP ${response.status}）`);
     return body.data||body;
   }

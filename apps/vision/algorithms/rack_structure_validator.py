@@ -90,8 +90,9 @@ class RackStructureValidator:
         angle_tolerance_deg: float = 3.0,
         z_diff_tolerance_mm: float = 5.0,
         orthogonal_tolerance_deg: float = 5.0,
-        min_inlier_ratio: float = 0.20,
+        min_inlier_ratio: float = 0.60,
         min_point_count: int = 50,
+        reference_angle_tolerance_deg: float = 5.0,
     ):
         """
         Args:
@@ -100,12 +101,14 @@ class RackStructureValidator:
             orthogonal_tolerance_deg: 竖直面与水平面正交误差容差 (°)
             min_inlier_ratio: 最低可接受内点率 (0~1)
             min_point_count: 最低可接受点数
+            reference_angle_tolerance_deg: 当前各平面相对标准法向的最大夹角
         """
         self.angle_tolerance_deg = angle_tolerance_deg
         self.z_diff_tolerance_mm = z_diff_tolerance_mm
         self.orthogonal_tolerance_deg = orthogonal_tolerance_deg
         self.min_inlier_ratio = min_inlier_ratio
         self.min_point_count = min_point_count
+        self.reference_angle_tolerance_deg = reference_angle_tolerance_deg
 
     def validate(
         self,
@@ -143,7 +146,14 @@ class RackStructureValidator:
         if not orth_check.passed and failed_code == ValidationErrorCode.NORMAL:
             failed_code = ValidationErrorCode.SIDE_WALL_ERROR
 
-        # --- 校验4：上下水平面 ΔZ 差异（需要标准模板对比）---
+        # --- 校验4：当前三个平面必须分别匹配标准模板法向 ---
+        if frame_std is not None:
+            reference_checks = self._check_reference_normals(frame_std, frame_cur)
+            checks.extend(reference_checks)
+            if any(not c.passed for c in reference_checks) and failed_code == ValidationErrorCode.NORMAL:
+                failed_code = ValidationErrorCode.TILT
+
+        # --- 校验5：上下水平面 ΔZ 差异（需要标准模板对比）---
         if frame_std is not None:
             deform_check = self._check_z_diff(frame_std, frame_cur)
             checks.append(deform_check)
@@ -151,17 +161,16 @@ class RackStructureValidator:
                 failed_code = ValidationErrorCode.DEFORM
 
         # --- 汇总 ---
-        # 注意：几何校验结果仅作诊断日志，不阻断计算流程，is_valid 始终为 True。
         geom_passed = all(c.passed for c in checks)
         if geom_passed:
             message = "所有基准面校验通过，料架结构正常"
         else:
             failed_items = [c.name for c in checks if not c.passed]
             message = f"校验失败（{failed_code.value}）：{', '.join(failed_items)}"
-            logger.warning("料架结构校验失败（仅诊断，不阻断计算）| %s", message)
+            logger.warning("料架结构校验失败，结果将被拦截 | %s", message)
 
         return ValidationResult(
-            is_valid=True,  # 始终允许计算继续，几何校验仅供参考
+            is_valid=geom_passed,
             error_code=failed_code,
             message=message,
             checks=checks,
@@ -224,6 +233,34 @@ class RackStructureValidator:
             unit="°",
             message="通过" if passed else f"区域2法向量偏离水平面 {angle_from_ortho:.2f}°，超过阈值 {self.orthogonal_tolerance_deg}°，竖直面拟合可能异常",
         )
+
+    def _check_reference_normals(
+        self,
+        frame_std: LocalFrameResult,
+        frame_cur: LocalFrameResult,
+    ) -> list[SingleCheckResult]:
+        """Ensure each current ROI still represents its taught physical plane."""
+        results = []
+        for label, standard, current in (
+            ("区域1标准法向一致性", frame_std.plane1, frame_cur.plane1),
+            ("区域2标准法向一致性", frame_std.plane2, frame_cur.plane2),
+            ("区域3标准法向一致性", frame_std.plane3, frame_cur.plane3),
+        ):
+            cosine = float(np.clip(abs(np.dot(standard.normal, current.normal)), 0.0, 1.0))
+            angle_deg = float(np.degrees(np.arccos(cosine)))
+            passed = angle_deg <= self.reference_angle_tolerance_deg
+            results.append(SingleCheckResult(
+                name=label,
+                passed=passed,
+                value=angle_deg,
+                threshold=self.reference_angle_tolerance_deg,
+                unit="°",
+                message="通过" if passed else (
+                    f"当前平面与标准法向夹角 {angle_deg:.2f}° 超过阈值 "
+                    f"{self.reference_angle_tolerance_deg:.2f}°，ROI 可能拟合到了错误表面"
+                ),
+            ))
+        return results
 
     def _check_z_diff(
         self,

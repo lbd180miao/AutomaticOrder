@@ -218,9 +218,23 @@
     font-weight: 800;
   }
 
+  .rl-roi-editor-btn.invalid:not(.active) {
+    color: #92400e;
+    border-color: #f59e0b;
+    background: #fffbeb;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, .12);
+  }
+
+  .rl-roi-editor-btn.invalid:not(.active)::after {
+    content: ' · 提示';
+    color: #d97706;
+    font-weight: 800;
+  }
+
   #btn-roi-plane1 { border-left: 4px solid #38bdf8; }
   #btn-roi-plane2 { border-left: 4px solid #f59e0b; }
   #btn-roi-plane3 { border-left: 4px solid #ec4899; }
+  #btn-layer-spacing-line { border-left: 4px solid #16a34a; }
 
   .rl-workbench-status {
     padding: 9px 18px;
@@ -256,12 +270,53 @@
     color: #b91c1c;
     font-weight: 600;
     line-height: 1.5;
+    white-space: pre-line;
   }
 
   .rl-template-validation-message.ok {
     border-color: #bbf7d0;
     background: #f0fdf4;
     color: #15803d;
+  }
+
+  .rl-template-validation-message.warning {
+    border-color: #fde68a;
+    background: #fffbeb;
+    color: #92400e;
+  }
+
+  .rl-ransac-setting {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 16px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  .rl-ransac-setting input {
+    width: 76px;
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+  }
+
+  .rl-inlier-comparison {
+    display: none;
+    margin: 0 0 10px;
+    padding: 9px 11px;
+    border: 1px solid #bae6fd;
+    border-radius: 6px;
+    background: #f0f9ff;
+    color: #075985;
+  }
+
+  .rl-inlier-comparison table {
+    width: 100%;
+    margin-top: 6px;
+    text-align: center;
+    border-collapse: collapse;
   }
 
   .rl-no-recipe-bar {
@@ -649,6 +704,17 @@
     color: #0284c7;
   }
 
+  .rl-layer-spacing-method {
+    margin-left: auto;
+    color: #0369a1;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .rl-layer-spacing-method.warning {
+    color: #b45309;
+  }
+
   .rl-pose-grid {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -908,6 +974,17 @@
         <option value="">暂无配方</option>
         {% endfor %}
       </select>
+      <label class="rl-ransac-setting" for="ransac-distance-threshold">
+        RANSAC距离阈值
+        <input id="ransac-distance-threshold" type="number" min="0.5" max="20" step="0.5" value="2.0"
+          list="ransac-threshold-presets" title="小于该垂直距离的点计为平面内点；保存到当前配方">
+        <span>mm</span>
+      </label>
+      <datalist id="ransac-threshold-presets">
+        <option value="2"></option>
+        <option value="3"></option>
+        <option value="5"></option>
+      </datalist>
     </div>
 
     {% if not recipes %}
@@ -928,7 +1005,7 @@
     <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
     <button id="btn-redraw" class="btn btn-secondary" disabled title="清除当前选中的区域后重新框选">🔄 重画当前区域</button>
     <button id="btn-polygon" class="btn btn-secondary" disabled title="切换为多边形画笔模式，逐点点击绘制不规则ROI，双击闭合">✏️ 画笔</button>
-    <button id="btn-save-recipe" class="btn btn-secondary" disabled title="将当前画布上的ROI框保存到配方中">💾 保存配方</button>
+    <button id="btn-save-recipe" class="btn btn-secondary" disabled title="将外框、三平面与层距测量线保存到当前配方">💾 保存配方</button>
     <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" disabled>🎯 开始计算</button>
     <div style="flex:1;"></div>
     <button id="btn-export-package" class="btn" style="background:#0ea5e9;" disabled>💾 保存数据包</button>
@@ -940,8 +1017,10 @@
     <button id="btn-roi-plane1" class="btn rl-roi-editor-btn" disabled>Π1 顶部横梁</button>
     <button id="btn-roi-plane2" class="btn rl-roi-editor-btn" disabled>Π2 左侧立柱</button>
     <button id="btn-roi-plane3" class="btn rl-roi-editor-btn" disabled>Π3 底部横梁</button>
+    <button id="btn-layer-spacing-line" class="btn rl-roi-editor-btn" disabled>📏 层距测量线</button>
     <span id="roi-teach-progress" class="badge badge-muted">三平面已框选 0/3</span>
-    <span class="rl-roi-help">依次选择 Π1、Π2、Π3 后，在点云中拖拽真实钢架表面。系统不再按固定比例猜测区域；三块区域齐全后才允许计算。</span>
+    <span id="roi-config-progress" class="badge badge-muted">五项位置 0/5</span>
+    <span class="rl-roi-help">层距请用“层距测量线”从上层对应点拖到下层对应点；两个端点的小圆用于3D深度簇采样。三块 ROI 继续用于坐标补偿。</span>
   </div>
 
   <div class="rl-workbench-status" id="rl-status">请选择配方并采集或加载点云。</div>
@@ -988,8 +1067,20 @@
             <div class="rl-layer-spacing-result" aria-live="polite">
               <strong>检测层距：</strong>
               <span class="rl-layer-spacing-value" id="measured-layer-spacing">—</span>
+              <span class="rl-layer-spacing-method" id="layer-spacing-method">三平面估算</span>
             </div>
             <div class="rl-template-validation-message" id="template-validation-message" role="alert"></div>
+            <div class="rl-inlier-comparison" id="ransac-inlier-comparison" aria-live="polite">
+              <strong id="ransac-comparison-title">同一拟合平面的内点率对比</strong>
+              <table>
+                <thead><tr><th>区域</th><th>2 mm</th><th>3 mm</th><th>5 mm</th></tr></thead>
+                <tbody>
+                  <tr><td>Π1</td><td id="ransac-p1-2">—</td><td id="ransac-p1-3">—</td><td id="ransac-p1-5">—</td></tr>
+                  <tr><td>Π2</td><td id="ransac-p2-2">—</td><td id="ransac-p2-3">—</td><td id="ransac-p2-5">—</td></tr>
+                  <tr><td>Π3</td><td id="ransac-p3-2">—</td><td id="ransac-p3-3">—</td><td id="ransac-p3-5">—</td></tr>
+                </tbody>
+              </table>
+            </div>
             <table style="width:100%; text-align:left; border-collapse: collapse;">
               <thead>
                 <tr style="border-bottom: 1px solid #cbd5e1;">
@@ -1242,6 +1333,7 @@
         if (recipe) {
           const targetRoi = (recipe.roi_config || {}).target_roi;
           const localTemplateRois = (recipe.roi_config || {}).local_template_rois;
+          const layerSpacingLine = (recipe.roi_config || {}).layer_spacing_line;
           const validTargetRoi = targetRoi && targetRoi.x != null && targetRoi.y != null &&
             targetRoi.w != null && targetRoi.h != null
             ? targetRoi
@@ -1251,10 +1343,11 @@
           }
           // 无 ROI 的配方也必须调用统一接口，显式清除上一配方的框选状态。
           if (typeof window.rackLocatorSetRoi === 'function') {
-            window.rackLocatorSetRoi(validTargetRoi, localTemplateRois);
+            window.rackLocatorSetRoi(validTargetRoi, localTemplateRois, layerSpacingLine);
           } else {
             window.tempPendingRoi = validTargetRoi;
             window.tempPendingLocalTemplateRois = localTemplateRois || null;
+            window.tempPendingLayerSpacingLine = layerSpacingLine || null;
           }
         }
       }
@@ -1406,6 +1499,6 @@
     offlinePackagesUrl: '{% url "vision:offline_packages" %}',
   };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=26" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=38" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
 <script src="{% static 'vision/js/offline_package_manager.js' %}?v=21"></script>
 {% endblock %}

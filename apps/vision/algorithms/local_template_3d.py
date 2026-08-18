@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
@@ -156,8 +157,11 @@ class LocalTemplate3D:
         w1: float = 0.5,
         w3: float = 0.5,
         ransac_distance_threshold: float = 2.0,
-        ransac_num_iterations: int = 1000,
+        ransac_num_iterations: int = 300,
         ransac_min_inliers: int = 50,
+        reference_normal_tolerance_deg: float = 10.0,
+        deterministic: bool = True,
+        ransac_max_search_points: int = 20000,
     ):
         """
         Args:
@@ -166,12 +170,44 @@ class LocalTemplate3D:
             ransac_distance_threshold: RANSAC 平面拟合距离阈值 (mm)
             ransac_num_iterations: RANSAC 迭代次数
             ransac_min_inliers: 最小内点数，低于此值拟合失败
+            reference_normal_tolerance_deg: 生产阶段候选平面相对标准法向的最大优选角度
+            deterministic: 使用可复现的 NumPy RANSAC；生产定位必须保持为 True
+            ransac_max_search_points: RANSAC 假设搜索最多使用的确定性采样点数；最终精拟合仍使用全部点
         """
         self.w1 = w1
         self.w3 = w3
         self.ransac_distance_threshold = ransac_distance_threshold
         self.ransac_num_iterations = ransac_num_iterations
         self.ransac_min_inliers = ransac_min_inliers
+        self.reference_normal_tolerance_deg = reference_normal_tolerance_deg
+        self.deterministic = deterministic
+        self.ransac_max_search_points = max(int(ransac_max_search_points), self.ransac_min_inliers)
+
+    FIT_ALGORITHM_VERSION = "deterministic_numpy_ransac_v1"
+
+    def input_signature(self, *clouds: np.ndarray) -> str:
+        """Return a stable signature for point-cloud/parameter traceability.
+
+        The signature records whether two calculations used byte-identical
+        ROI clouds and fit parameters.  It is diagnostic metadata only; every
+        production calculation still runs the deterministic fitter again.
+        """
+        digest = hashlib.sha256()
+        digest.update(self.FIT_ALGORITHM_VERSION.encode("ascii"))
+        digest.update(np.asarray([
+            self.w1,
+            self.w3,
+            self.ransac_distance_threshold,
+            float(self.ransac_num_iterations),
+            float(self.ransac_min_inliers),
+            self.reference_normal_tolerance_deg,
+            float(self.ransac_max_search_points),
+        ], dtype="<f8").tobytes())
+        for cloud in clouds:
+            array = np.ascontiguousarray(np.asarray(cloud, dtype="<f8"))
+            digest.update(np.asarray(array.shape, dtype="<i8").tobytes())
+            digest.update(array.tobytes())
+        return digest.hexdigest()
 
     # ------------------------------------------------------------------
     # 公开接口
@@ -182,6 +218,7 @@ class LocalTemplate3D:
         roi1_cloud: np.ndarray,
         roi2_cloud: np.ndarray,
         roi3_cloud: np.ndarray,
+        reference_frame: Optional[LocalFrameResult] = None,
     ) -> LocalFrameResult:
         """
         从三个区域点云建立局部坐标系。
@@ -195,22 +232,34 @@ class LocalTemplate3D:
             LocalFrameResult：包含 T(4x4)、三平面参数、局部坐标轴
         """
         # 1. 拟合三个平面
-        plane1 = self._fit_plane(roi1_cloud, label="区域1(上水平面)")
-        plane2 = self._fit_plane(roi2_cloud, label="区域2(左竖直面)")
-        plane3 = self._fit_plane(roi3_cloud, label="区域3(下水平面)")
+        plane1 = self._fit_plane(
+            roi1_cloud,
+            label="区域1(上水平面)",
+            expected_normal=reference_frame.plane1.normal if reference_frame else None,
+        )
+        plane2 = self._fit_plane(
+            roi2_cloud,
+            label="区域2(左竖直面)",
+            expected_normal=reference_frame.plane2.normal if reference_frame else None,
+        )
+        plane3 = self._fit_plane(
+            roi3_cloud,
+            label="区域3(下水平面)",
+            expected_normal=reference_frame.plane3.normal if reference_frame else None,
+        )
 
         # 2. 统一法向量方向（约定）
         #    - 区域1、3 法向量指向上方（Z+ 方向，即法向量 Z 分量 > 0）
         #    - 区域2 法向量指向料架内侧（X+ 方向，即法向量 X 分量 > 0）
-        plane1.normal = self._ensure_direction(plane1.normal, reference=np.array([0, 0, 1.0]))
-        plane3.normal = self._ensure_direction(plane3.normal, reference=np.array([0, 0, 1.0]))
-        plane2.normal = self._ensure_direction(plane2.normal, reference=np.array([1, 0, 0.0]))
+        self._orient_plane(plane1, reference=np.array([0, 0, 1.0]))
+        self._orient_plane(plane3, reference=np.array([0, 0, 1.0]))
+        self._orient_plane(plane2, reference=np.array([1, 0, 0.0]))
 
         # 3. 计算局部坐标轴
         z_local, x_local, y_local = self._compute_axes(plane1, plane2, plane3)
 
         # 4. 计算局部原点（三ROI点云合并质心，投影到区域2×区域3的交线上）
-        origin = self._compute_origin(roi1_cloud, roi2_cloud, roi3_cloud, plane2, plane3)
+        origin = self._compute_origin(plane1, plane2, plane3)
 
         # 5. 构造 4x4 齐次变换矩阵
         #    局部坐标系相对于相机坐标系的变换：T = [R | t]
@@ -299,7 +348,12 @@ class LocalTemplate3D:
     # 私有方法
     # ------------------------------------------------------------------
 
-    def _fit_plane(self, cloud: np.ndarray, label: str = "") -> PlaneResult:
+    def _fit_plane(
+        self,
+        cloud: np.ndarray,
+        label: str = "",
+        expected_normal: Optional[np.ndarray] = None,
+    ) -> PlaneResult:
         """
         RANSAC 平面拟合。
 
@@ -316,14 +370,22 @@ class LocalTemplate3D:
             )
 
         cloud = np.asarray(cloud, dtype=np.float64)
-        centroid = cloud.mean(axis=0)
-
-        # 尝试使用 open3d（更快更准）
-        try:
+        # Open3D segment_plane 的随机状态在当前运行环境中不能保证同一输入
+        # 逐次得到同一模型。生产路径默认使用本地固定 RNG 的 NumPy 实现；
+        # Open3D 仅保留为显式选择的兼容路径。
+        if self.deterministic:
+            normal, offset, inlier_ratio = self._ransac_numpy(
+                cloud, expected_normal=expected_normal,
+            )
+        else:
             normal, offset, inlier_ratio = self._ransac_open3d(cloud)
-        except Exception:
-            # 降级到纯 numpy RANSAC
-            normal, offset, inlier_ratio = self._ransac_numpy(cloud)
+
+        distances = np.abs(cloud @ normal + offset)
+        inlier_mask = distances < self.ransac_distance_threshold
+        if int(inlier_mask.sum()) < self.ransac_min_inliers:
+            raise RuntimeError(f"{label} RANSAC 精拟合后的内点数量不足")
+        centroid = cloud[inlier_mask].mean(axis=0)
+        inlier_ratio = float(inlier_mask.mean())
 
         logger.debug("%s 平面拟合 | normal=%s | offset=%.2f | inlier=%.1f%%",
                      label, np.round(normal, 3), offset, inlier_ratio * 100)
@@ -359,17 +421,42 @@ class LocalTemplate3D:
         inlier_ratio = len(inliers) / len(cloud)
         return normal, offset, inlier_ratio
 
-    def _ransac_numpy(self, cloud: np.ndarray) -> Tuple[np.ndarray, float, float]:
+    def _ransac_numpy(
+        self,
+        cloud: np.ndarray,
+        expected_normal: Optional[np.ndarray] = None,
+    ) -> Tuple[np.ndarray, float, float]:
         """纯 numpy RANSAC 平面拟合（open3d 不可用时的备选方案）"""
+        # 固定输入顺序 + 固定本地 RNG，保证相同点集、参数和版本逐次一致。
+        sort_index = np.lexsort((cloud[:, 2], cloud[:, 1], cloud[:, 0]))
+        cloud = cloud[sort_index]
         best_normal = None
         best_d = 0.0
-        best_inliers = 0
+        best_score = None
+        best_unconstrained = None
         n = len(cloud)
+        if n > self.ransac_max_search_points:
+            # Evenly sample the sorted cloud so search cost is bounded and
+            # repeatable.  The winning model is refined and scored again on
+            # every original point below, so this does not reduce output
+            # precision.
+            search_indices = np.linspace(
+                0, n - 1, self.ransac_max_search_points, dtype=np.int64,
+            )
+            search_cloud = cloud[search_indices]
+        else:
+            search_cloud = cloud
+        search_count = len(search_cloud)
         rng = np.random.default_rng(42)
 
+        reference = None
+        if expected_normal is not None:
+            reference = np.asarray(expected_normal, dtype=np.float64)
+            reference /= np.linalg.norm(reference)
+
         for _ in range(self.ransac_num_iterations):
-            idx = rng.choice(n, 3, replace=False)
-            p0, p1, p2 = cloud[idx]
+            idx = rng.choice(search_count, 3, replace=False)
+            p0, p1, p2 = search_cloud[idx]
             v1 = p1 - p0
             v2 = p2 - p0
             normal = np.cross(v1, v2)
@@ -378,12 +465,35 @@ class LocalTemplate3D:
                 continue
             normal = normal / norm
             d = -np.dot(normal, p0)
-            distances = np.abs(cloud @ normal + d)
-            inlier_count = int((distances < self.ransac_distance_threshold).sum())
-            if inlier_count > best_inliers:
-                best_inliers = inlier_count
+            distances = np.abs(search_cloud @ normal + d)
+            inlier_mask = distances < self.ransac_distance_threshold
+            inlier_count = int(inlier_mask.sum())
+            if inlier_count < 3:
+                continue
+            rmse = float(np.sqrt(np.mean(np.square(distances[inlier_mask]))))
+            angle = 0.0
+            if reference is not None:
+                cosine = float(np.clip(abs(np.dot(normal, reference)), 0.0, 1.0))
+                angle = float(np.degrees(np.arccos(cosine)))
+            score = (inlier_count, -rmse, -angle)
+            if best_unconstrained is None or score > best_unconstrained[0]:
+                best_unconstrained = (score, normal, d)
+            if reference is not None and angle > self.reference_normal_tolerance_deg:
+                continue
+            if best_score is None or score > best_score:
+                best_score = score
                 best_normal = normal
                 best_d = d
+
+        if best_unconstrained is not None and (
+            best_score is None
+            or best_score[0] < 0.8 * best_unconstrained[0][0]
+        ):
+            # Do not let a very weak plane win merely because its normal is
+            # close to a stale/invalid standard.  The validator will report
+            # the reference mismatch and allow a good current frame to be
+            # used for re-teaching.
+            _, best_normal, best_d = best_unconstrained
 
         if best_normal is None:
             raise RuntimeError("RANSAC 平面拟合失败，无法找到有效平面")
@@ -398,7 +508,8 @@ class LocalTemplate3D:
         refined_normal = Vt[-1]
         refined_d = -np.dot(refined_normal, centroid)
 
-        inlier_ratio = best_inliers / n
+        final_distances = np.abs(cloud @ refined_normal + refined_d)
+        inlier_ratio = float((final_distances < self.ransac_distance_threshold).mean())
         return refined_normal, refined_d, inlier_ratio
 
     def _compute_axes(
@@ -437,9 +548,7 @@ class LocalTemplate3D:
 
     def _compute_origin(
         self,
-        roi1_cloud: np.ndarray,
-        roi2_cloud: np.ndarray,
-        roi3_cloud: np.ndarray,
+        plane1: PlaneResult,
         plane2: PlaneResult,
         plane3: PlaneResult,
     ) -> np.ndarray:
@@ -451,9 +560,10 @@ class LocalTemplate3D:
           2. 将质心投影到区域2（竖直面）和区域3（下水平面）的交线上，
              得到稳定的局部原点（消除切向滑动的影响）
         """
-        # 合并三个区域点云
-        all_points = np.vstack([roi1_cloud, roi2_cloud, roi3_cloud])
-        centroid = all_points.mean(axis=0)
+        # 每个平面等权，避免大 ROI 或大量离群点把原点沿交线方向拖偏。
+        centroid = np.mean(
+            np.vstack([plane1.centroid, plane2.centroid, plane3.centroid]), axis=0,
+        )
 
         # 将质心投影到区域2和区域3的交线上
         # 交线方向 = n2 × n3
@@ -495,6 +605,17 @@ class LocalTemplate3D:
         if np.dot(normal, reference) < 0:
             return -normal
         return normal
+
+    @staticmethod
+    def _orient_plane(plane: PlaneResult, reference: np.ndarray) -> None:
+        """Orient a plane without changing its geometric equation.
+
+        A plane is represented by ``n·p + d = 0``.  Reversing only ``n``
+        changes the plane; both the normal and offset must change sign.
+        """
+        if np.dot(plane.normal, reference) < 0:
+            plane.normal = -plane.normal
+            plane.offset = -plane.offset
 
     @staticmethod
     def _decompose_4x4(T: np.ndarray) -> Tuple[float, float, float, float, float, float]:

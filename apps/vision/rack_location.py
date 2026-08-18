@@ -59,7 +59,12 @@ def _decimal(value: Any, places: str = '0.001') -> Decimal:
 
 
 def _local_template_layer_spacing_mm(local_template: dict) -> float:
-    """Return the perpendicular spacing between the fitted Π1 and Π3 planes."""
+    """Return direct Π1/Π3 layer separation along camera Z.
+
+    The workbench ROIs may describe three independent reference faces rather
+    than two parallel planes.  Layer spacing is therefore the Z separation of
+    the two fitted ROI centroids, not a perpendicular plane-to-plane distance.
+    """
     plane1 = (local_template or {}).get('plane1') or {}
     plane3 = (local_template or {}).get('plane3') or {}
     normal1 = np.asarray(plane1.get('normal'), dtype=float)
@@ -71,20 +76,82 @@ def _local_template_layer_spacing_mm(local_template: dict) -> float:
     if not all(np.all(np.isfinite(value)) for value in (normal1, normal3, centroid1, centroid3)):
         raise ValueError('Π1/Π3 平面数据无效，无法计算层距')
 
-    normal1_norm = float(np.linalg.norm(normal1))
-    normal3_norm = float(np.linalg.norm(normal3))
-    if normal1_norm < 1e-9 or normal3_norm < 1e-9:
-        raise ValueError('Π1/Π3 平面法向量无效，无法计算层距')
-    normal1 = normal1 / normal1_norm
-    normal3 = normal3 / normal3_norm
-    if float(np.dot(normal1, normal3)) < 0:
-        normal3 = -normal3
-    common_normal = normal1 + normal3
-    common_normal_norm = float(np.linalg.norm(common_normal))
-    if common_normal_norm < 1e-9:
-        raise ValueError('Π1/Π3 平面法向量不一致，无法计算层距')
-    common_normal = common_normal / common_normal_norm
-    return float(abs(np.dot(centroid3 - centroid1, common_normal)))
+    return float(abs(centroid3[2] - centroid1[2]))
+
+
+def _measure_layer_spacing_line(pointcloud: np.ndarray, line: dict) -> tuple[float, dict]:
+    """Measure the 3D distance between two user-selected image endpoints.
+
+    Each endpoint is represented by a small circular sampling patch.  The
+    nearest valid pixel supplies the reference depth, points from other depth
+    surfaces are rejected, and the component-wise median supplies a robust 3D
+    endpoint.
+    """
+    if not isinstance(line, dict):
+        raise ValueError('层距测量线数据无效')
+    height, width = pointcloud.shape[:2]
+    try:
+        endpoints = [
+            (float(line['x1']), float(line['y1'])),
+            (float(line['x2']), float(line['y2'])),
+        ]
+        radius = max(4, min(30, int(round(float(line.get('sample_radius', 10))))))
+        depth_window = max(5.0, min(80.0, float(line.get('depth_window_mm', 25.0))))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError('层距测量线缺少有效端点') from exc
+
+    robust_points = []
+    endpoint_details = []
+    for index, (x_value, y_value) in enumerate(endpoints, start=1):
+        if not np.isfinite([x_value, y_value]).all():
+            raise ValueError(f'层距测量线端点{index}坐标无效')
+        cx = int(round(x_value))
+        cy = int(round(y_value))
+        if not (0 <= cx < width and 0 <= cy < height):
+            raise ValueError(f'层距测量线端点{index}超出图像范围')
+        x0, x1 = max(0, cx - radius), min(width, cx + radius + 1)
+        y0, y1 = max(0, cy - radius), min(height, cy + radius + 1)
+        patch = np.asarray(pointcloud[y0:y1, x0:x1], dtype=np.float64)
+        yy, xx = np.ogrid[y0:y1, x0:x1]
+        circle_mask = (xx - cx) ** 2 + (yy - cy) ** 2 <= radius ** 2
+        valid_mask = circle_mask & np.all(np.isfinite(patch), axis=2)
+        valid_mask &= np.linalg.norm(patch, axis=2) > 1e-6
+        coords = np.argwhere(valid_mask)
+        if len(coords) < 8:
+            raise ValueError(f'层距测量线端点{index}附近有效点不足，请移动端点')
+
+        # Use the spatially nearest valid pixel as the surface-depth seed.
+        local_cx, local_cy = cx - x0, cy - y0
+        nearest_index = np.argmin(
+            (coords[:, 1] - local_cx) ** 2 + (coords[:, 0] - local_cy) ** 2,
+        )
+        seed_z = float(patch[tuple(coords[nearest_index])][2])
+        depth_mask = valid_mask & (np.abs(patch[:, :, 2] - seed_z) <= depth_window)
+        samples = patch[depth_mask]
+        if len(samples) < 8:
+            raise ValueError(f'层距测量线端点{index}深度簇点数不足，请避开边缘')
+
+        point = np.median(samples, axis=0)
+        residuals = np.linalg.norm(samples - point, axis=1)
+        spread = float(np.median(residuals))
+        robust_points.append(point)
+        endpoint_details.append({
+            'pixel': {'x': cx, 'y': cy},
+            'point_mm': point.round(6).tolist(),
+            'sample_count': int(len(samples)),
+            'median_spread_mm': round(spread, 4),
+        })
+
+    spacing = float(np.linalg.norm(robust_points[1] - robust_points[0]))
+    if spacing < 1e-6:
+        raise ValueError('层距测量线两个端点对应同一位置')
+    return spacing, {
+        'method': 'endpoint_depth_cluster_3d_distance',
+        'sample_radius_px': radius,
+        'depth_window_mm': depth_window,
+        'endpoints': endpoint_details,
+        'distance_mm': round(spacing, 6),
+    }
 
 
 LOCATE_TYPE_GLOBAL = 'GLOBAL'
@@ -2719,9 +2786,18 @@ class RackLocationService:
 
         from .rack_positioning_algorithm import RigidBodyCompensationAlgorithm
         weights = recipe.roi_weights or {}
+        try:
+            ransac_distance_threshold_mm = float(
+                (roi_config or {}).get('ransac_distance_threshold_mm', 2.0)
+            )
+        except (TypeError, ValueError):
+            raise ValueError('RANSAC距离阈值必须是数字（mm）')
+        if not np.isfinite(ransac_distance_threshold_mm) or not 0.5 <= ransac_distance_threshold_mm <= 20.0:
+            raise ValueError('RANSAC距离阈值必须在 0.5～20.0 mm 之间')
         algorithm = RigidBodyCompensationAlgorithm(
             w1=float(weights.get('w1', 0.5)),
             w3=float(weights.get('w3', 0.5)),
+            ransac_distance_threshold=ransac_distance_threshold_mm,
         )
         has_standard = bool(recipe.local_template_std)
         if has_standard:
@@ -2740,28 +2816,69 @@ class RackLocationService:
             }
             compensation_source = 'local_template_current_baseline'
 
-        measured_layer_spacing = _local_template_layer_spacing_mm(
+        current_template = local_result['local_template_cur']
+        inlier_ratio_comparison = {}
+        for name, cloud in zip(('plane1', 'plane2', 'plane3'), (roi1, roi2, roi3)):
+            plane = current_template[name]
+            normal = np.asarray(plane['normal'], dtype=np.float64)
+            offset = float(plane.get('offset', plane.get('d', 0.0)))
+            distances = np.abs(np.asarray(cloud, dtype=np.float64) @ normal + offset)
+            inlier_ratio_comparison[name] = {
+                str(int(threshold)): round(float((distances < threshold).mean()), 4)
+                for threshold in (2.0, 3.0, 5.0)
+            }
+
+        diagnostic_layer_spacing = _local_template_layer_spacing_mm(
             local_result['local_template_cur'],
         )
+        layer_spacing_line = (roi_config or {}).get('layer_spacing_line') or None
+        layer_spacing_measurement = None
+        layer_spacing_warning = ''
+        if layer_spacing_line:
+            try:
+                measured_layer_spacing, layer_spacing_measurement = _measure_layer_spacing_line(
+                    pointcloud, layer_spacing_line,
+                )
+                layer_spacing_method = layer_spacing_measurement['method']
+            except ValueError as exc:
+                measured_layer_spacing = None
+                layer_spacing_method = 'endpoint_depth_cluster_3d_distance'
+                layer_spacing_warning = str(exc)
+        else:
+            measured_layer_spacing = diagnostic_layer_spacing
+            layer_spacing_method = 'camera_z_centroid_delta'
 
         values = local_result['compensation']
         validation = local_result.get('validation') or {}
+        current_template_validation = local_result.get('current_validation') or validation
+        standard_template_validation = local_result.get('standard_validation') or {}
+        template_match_validation = local_result.get('match_validation') or validation
+        # Direct-detection mode: quality checks remain diagnostic only and do
+        # not suppress rigid compensation. A configured measurement line owns
+        # the spacing result; the plane-centroid estimate is only a fallback.
+        # 工作台采用无门槛直检：结构指标保留为诊断数据，但不再触发
+        # QUALITY_LOW、黄色警告或保存限制。
+        quality_gate_enabled = False
+        quality_warning = False
         within_limits = all((
             abs(values['dX']) <= float(recipe.max_offset_x),
             abs(values['dY']) <= float(recipe.max_offset_y),
             abs(values['dZ']) <= float(recipe.max_offset_z),
             abs(values['dRz']) <= float(recipe.max_offset_rz),
         ))
-        locate_ok = bool(local_result.get('is_valid')) and within_limits
-        if locate_ok:
-            error_code = ''
-            error_message = ''
-        elif not local_result.get('is_valid'):
-            error_code = validation.get('error_code') or 'LOCAL_TEMPLATE_INVALID'
-            error_message = validation.get('message') or '三平面结构校验未通过，请调整 ROI'
-        else:
-            error_code = 'OFFSET_OUT_OF_RANGE'
-            error_message = '三平面刚体补偿超出配方允许范围'
+        # Detection itself is unconditional. Offset limits are retained only
+        # as a PLC execution safeguard and never suppress visual results.
+        locate_ok = True
+        error_code = ''
+        error_message = ''
+        warning_parts = []
+        if quality_warning:
+            warning_parts.append('三平面质量提示')
+        if not within_limits:
+            warning_parts.append('补偿超出配方范围，仅禁止PLC写入')
+        if layer_spacing_warning:
+            warning_parts.append(layer_spacing_warning)
+        warning_message = '；'.join(warning_parts)
 
         rack_compensation = self._local_compensation_payload(local_result, source=compensation_source)
         transform_context = self._recipe_transform_context(recipe)
@@ -2786,6 +2903,13 @@ class RackLocationService:
                 (roi['x'], roi['y'], roi['x'] + roi['w'], roi['y'] + roi['h']),
                 color=colors[name], label=labels[name],
             )
+        if layer_spacing_line:
+            line_label = (
+                f"spacing {measured_layer_spacing:.1f} mm"
+                if measured_layer_spacing is not None
+                else 'spacing line invalid'
+            )
+            image_io.draw_measurement_line(preview, layer_spacing_line, label=line_label)
         result_rel, _, _ = image_io.save_image(
             preview, 'rack_local_template_result', rel_dir='vision/rack_workbench',
         )
@@ -2794,11 +2918,28 @@ class RackLocationService:
             'algorithm_version': 'LOCAL_TEMPLATE_3D_V2',
             'source': 'workbench_three_explicit_rois',
             'measured_layer_spacing': measured_layer_spacing,
+            'diagnostic_layer_spacing': diagnostic_layer_spacing,
+            'layer_spacing_method': layer_spacing_method,
+            'layer_spacing_line': layer_spacing_line,
+            'layer_spacing_measurement': layer_spacing_measurement,
+            'layer_spacing_warning': layer_spacing_warning,
+            'quality_warning': quality_warning,
+            'quality_gate_enabled': quality_gate_enabled,
+            'quality_gate_mode': 'disabled',
+            'ransac_distance_threshold_mm': ransac_distance_threshold_mm,
+            'ransac_inlier_ratio_comparison': inlier_ratio_comparison,
+            'offset_within_limits': within_limits,
+            'warning_message': warning_message,
+            'direct_detection_mode': True,
             'local_template_cur': local_result['local_template_cur'],
             'local_template_std': recipe.local_template_std,
             'local_template_std_available': has_standard,
             'local_template_rois': regions,
-            'local_template_validation': validation,
+            # Saving/re-teaching depends on the quality of the newly fitted
+            # frame, not on whether an older stored standard is already bad.
+            'local_template_validation': current_template_validation,
+            'local_template_match_validation': template_match_validation,
+            'local_template_standard_validation': standard_template_validation,
             'local_template_compensation': local_result,
             'compensation_coordinate_system': 'camera',
             'camera_rack_compensation': rack_compensation,
@@ -2806,7 +2947,12 @@ class RackLocationService:
             'transform_context': transform_context,
             'rack_compensation': rack_compensation,
             'compensation_transform': rack_compensation,
-            'roi': {'target_roi': target_roi or {}, 'local_template_rois': regions},
+            'roi': {
+                'target_roi': target_roi or {},
+                'local_template_rois': regions,
+                'layer_spacing_line': layer_spacing_line,
+                'ransac_distance_threshold_mm': ransac_distance_threshold_mm,
+            },
         }
         output_compensation = robot_rack_compensation or rack_compensation
         output_pose = output_compensation['pose6d']
@@ -2821,7 +2967,7 @@ class RackLocationService:
             'offset_x': output_pose['x'], 'offset_y': output_pose['y'], 'offset_z': output_pose['z'],
             'offset_rx': output_pose['rx'], 'offset_ry': output_pose['ry'], 'offset_rz': output_pose['rz'],
             'confidence': local_result['confidence'],
-            'compensation_valid': locate_ok and has_standard,
+            'compensation_valid': within_limits and has_standard,
             'compensation_coordinate_system': output_compensation['coordinate_system'],
             'robot_conversion_applied': bool(robot_rack_compensation),
             'camera_rack_compensation': rack_compensation,
@@ -2851,10 +2997,15 @@ class RackLocationService:
                 actual_z=_decimal(float(recipe.standard_z) + values['dZ']),
                 confidence=_decimal(local_result['confidence'], '0.0001'),
                 measured_layer_spacing=_decimal(measured_layer_spacing),
-                is_recipe_matched=locate_ok, is_success=locate_ok,
+                is_recipe_matched=within_limits, is_success=True,
                 error_code=error_code, error_message=error_message,
                 raw_data_path=token or '', result_image_path=result_rel,
-                roi_data={'target_roi': target_roi or {}, 'local_template_rois': regions},
+                roi_data={
+                    'target_roi': target_roi or {},
+                    'local_template_rois': regions,
+                    'layer_spacing_line': layer_spacing_line,
+                    'ransac_distance_threshold_mm': ransac_distance_threshold_mm,
+                },
                 result_data=result_data, plc_write_status='SKIPPED',
             )
             VisionImage.objects.create(
@@ -2882,12 +3033,26 @@ class RackLocationService:
             'offset_rx': values['dRx'], 'offset_ry': values['dRy'], 'offset_rz': values['dRz'],
             'confidence': local_result['confidence'],
             'measured_layer_spacing': measured_layer_spacing,
+            'layer_spacing_method': layer_spacing_method,
+            'layer_spacing_line': layer_spacing_line,
+            'layer_spacing_measurement': layer_spacing_measurement,
+            'layer_spacing_warning': layer_spacing_warning,
+            'quality_warning': quality_warning,
+            'quality_gate_enabled': quality_gate_enabled,
+            'quality_gate_mode': 'disabled',
+            'ransac_distance_threshold_mm': ransac_distance_threshold_mm,
+            'ransac_inlier_ratio_comparison': inlier_ratio_comparison,
+            'offset_within_limits': within_limits,
+            'warning_message': warning_message,
+            'direct_detection_mode': True,
             'error_code': error_code, 'error_message': error_message,
             'local_template_cur': local_result['local_template_cur'],
             'local_template_std': recipe.local_template_std,
             'local_template_std_available': has_standard,
             'local_template_rois': regions,
-            'local_template_validation': validation,
+            'local_template_validation': current_template_validation,
+            'local_template_match_validation': template_match_validation,
+            'local_template_standard_validation': standard_template_validation,
             'compensation_coordinate_system': 'camera',
             'camera_rack_compensation': rack_compensation,
             'robot_rack_compensation': robot_rack_compensation,
@@ -3369,6 +3534,14 @@ def result_payload(result: RackLocationResult) -> dict:
     }:
         camera_rack_compensation = rack_compensation
     robot_rack_compensation = data.get('robot_rack_compensation')
+    measured_layer_spacing = data.get('measured_layer_spacing')
+    if measured_layer_spacing is None:
+        # Older workbench records stored an explicit JSON null before the
+        # layer-spacing measurement became mandatory.  ``dict.get`` does not
+        # use its default for an existing null value, so fall back explicitly.
+        measured_layer_spacing = result.measured_layer_spacing
+    if measured_layer_spacing is None:
+        measured_layer_spacing = 0
     robot_delta = {'x': None, 'y': None, 'z': None}
     if robot_rack_compensation:
         robot_pose = robot_rack_compensation.get('pose6d') or {}
@@ -3414,9 +3587,7 @@ def result_payload(result: RackLocationResult) -> dict:
         'final_offset_y': float(final.get('y', result.offset_y)),
         'final_offset_z': float(final.get('z', result.offset_z)),
         'final_offset_rz': float(final.get('rz', result.offset_rz)),
-        'measured_layer_spacing': float(
-            data.get('measured_layer_spacing', result.measured_layer_spacing)
-        ),
+        'measured_layer_spacing': float(measured_layer_spacing),
         'confidence': float(result.confidence),
         'error_code': result.error_code,
         'error_message': result.error_message,

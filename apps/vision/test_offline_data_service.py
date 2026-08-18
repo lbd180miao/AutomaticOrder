@@ -8,7 +8,7 @@ from PIL import Image
 from django.test import RequestFactory, SimpleTestCase
 
 from .offline_data_service import OfflineDataPackageError, OfflineDataPackageService
-from .offline_data_views import packages
+from .offline_data_views import _merge_package_roi_config, packages
 from .rack_3d.providers import (
     OfflineDepthCameraProvider,
     OfflineHandEyeProvider,
@@ -115,6 +115,26 @@ class OfflineProviderTests(SimpleTestCase):
 
 
 class OfflineDataPackageViewTests(SimpleTestCase):
+    def test_snapshot_merge_preserves_unsent_plane_rois(self):
+        saved = {
+            "camera_roi": {"x_min": 1},
+            "local_template_rois": {
+                "plane1": {"x": 10},
+                "plane2": {"x": 20},
+                "plane3": {"x": 30},
+            },
+        }
+
+        merged = _merge_package_roi_config(
+            saved,
+            {"local_template_rois": {"plane1": {"x": 11}}},
+        )
+
+        self.assertEqual(merged["local_template_rois"]["plane1"], {"x": 11})
+        self.assertEqual(merged["local_template_rois"]["plane2"], {"x": 20})
+        self.assertEqual(merged["local_template_rois"]["plane3"], {"x": 30})
+        self.assertEqual(merged["camera_roi"], {"x_min": 1})
+
     def test_create_requires_explicit_manual_save_marker(self):
         request = RequestFactory().post(
             "/vision/offline/packages/",

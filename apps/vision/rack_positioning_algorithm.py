@@ -648,12 +648,12 @@ class RigidBodyCompensationAlgorithm:
         w1: float = 0.5,
         w3: float = 0.5,
         ransac_distance_threshold: float = 2.0,
-        ransac_num_iterations: int = 1000,
+        ransac_num_iterations: int = 300,
         ransac_min_inliers: int = 50,
         angle_tolerance_deg: float = 3.0,
         z_diff_tolerance_mm: float = 5.0,
         orthogonal_tolerance_deg: float = 5.0,
-        min_inlier_ratio: float = 0.20,
+        min_inlier_ratio: float = 0.60,
     ):
         from apps.vision.algorithms.local_template_3d import LocalTemplate3D
         from apps.vision.algorithms.rack_structure_validator import RackStructureValidator
@@ -695,6 +695,11 @@ class RigidBodyCompensationAlgorithm:
             )
 
         result = frame.to_dict()
+        result["fit_input_signature"] = self._template_algo.input_signature(
+            roi1_cloud, roi2_cloud, roi3_cloud,
+        )
+        result["fit_algorithm_version"] = self._template_algo.FIT_ALGORITHM_VERSION
+        result["ransac_distance_threshold_mm"] = self._template_algo.ransac_distance_threshold
         result["build_timestamp"] = datetime.datetime.now().isoformat()
         result["algorithm_version"] = "v2_rigid_body"
         result["template_summary"] = {
@@ -733,10 +738,19 @@ class RigidBodyCompensationAlgorithm:
         confidence = float(
             (frame.plane1.inlier_ratio + frame.plane2.inlier_ratio + frame.plane3.inlier_ratio) / 3.0
         )
+        current_template = frame.to_dict()
+        current_template["fit_input_signature"] = self._template_algo.input_signature(
+            roi1_cloud, roi2_cloud, roi3_cloud,
+        )
+        current_template["fit_algorithm_version"] = self._template_algo.FIT_ALGORITHM_VERSION
+        current_template["ransac_distance_threshold_mm"] = self._template_algo.ransac_distance_threshold
         return {
-            "local_template_cur": frame.to_dict(),
+            "local_template_cur": current_template,
             "validation": validation.to_dict(),
-            "is_valid": validation.is_valid,
+            # Direct-detection workbench mode always returns the fitted frame;
+            # quality validity remains available separately as a warning.
+            "is_valid": True,
+            "quality_valid": validation.is_valid,
             "confidence": round(confidence, 4),
             "compute_timestamp": datetime.datetime.now().isoformat(),
         }
@@ -767,9 +781,24 @@ class RigidBodyCompensationAlgorithm:
         from apps.vision.algorithms.local_template_3d import LocalFrameResult
 
         frame_std = LocalFrameResult.from_dict(template_std_dict)
-        frame_cur = self._template_algo.build_local_frame(roi1_cloud, roi2_cloud, roi3_cloud)
+        input_signature = self._template_algo.input_signature(
+            roi1_cloud, roi2_cloud, roi3_cloud,
+        )
+        # Always refit the current point cloud.  The signature above is kept
+        # only for traceability; it must never bypass a production fit.
+        frame_cur = self._template_algo.build_local_frame(
+            roi1_cloud, roi2_cloud, roi3_cloud, reference_frame=frame_std,
+        )
 
-        validation = self._validator.validate(frame_cur=frame_cur, frame_std=frame_std)
+        standard_validation = self._validator.validate(frame_cur=frame_std, frame_std=None)
+        current_validation = self._validator.validate(frame_cur=frame_cur, frame_std=None)
+        match_validation = self._validator.validate(frame_cur=frame_cur, frame_std=frame_std)
+        if not standard_validation.is_valid:
+            validation = standard_validation
+        elif not current_validation.is_valid:
+            validation = current_validation
+        else:
+            validation = match_validation
 
         if not validation.is_valid and raise_on_invalid:
             raise RackStructureError(
@@ -793,15 +822,24 @@ class RigidBodyCompensationAlgorithm:
             confidence * 100,
         )
 
+        current_template = frame_cur.to_dict()
+        current_template["fit_input_signature"] = input_signature
+        current_template["fit_algorithm_version"] = self._template_algo.FIT_ALGORITHM_VERSION
+        current_template["ransac_distance_threshold_mm"] = self._template_algo.ransac_distance_threshold
+
         return {
-            "is_valid": validation.is_valid,
+            "is_valid": validation.is_valid or not raise_on_invalid,
+            "quality_valid": validation.is_valid,
             "compensation": {
                 "dX": delta.dX, "dY": delta.dY, "dZ": delta.dZ,
                 "dRx": delta.dRx, "dRy": delta.dRy, "dRz": delta.dRz,
             },
             "delta_T": delta.delta_T.tolist(),
-            "local_template_cur": frame_cur.to_dict(),
+            "local_template_cur": current_template,
             "validation": validation.to_dict(),
+            "standard_validation": standard_validation.to_dict(),
+            "current_validation": current_validation.to_dict(),
+            "match_validation": match_validation.to_dict(),
             "confidence": round(confidence, 4),
             "compute_timestamp": datetime.datetime.now().isoformat(),
             "translation_magnitude_mm": round(delta.translation_magnitude, 3),

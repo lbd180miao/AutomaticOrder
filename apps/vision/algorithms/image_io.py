@@ -131,6 +131,27 @@ def draw_polygon_roi(img, points, color=COLOR_ROI, label=None, thickness=2):
     return img
 
 
+def draw_measurement_line(img, line, color=(80, 230, 80), label='layer spacing', thickness=3):
+    """Draw a two-endpoint measurement line and its sampling circles."""
+    if not isinstance(line, dict):
+        return img
+    try:
+        p1 = (int(round(float(line['x1']))), int(round(float(line['y1']))))
+        p2 = (int(round(float(line['x2']))), int(round(float(line['y2']))))
+        radius = max(3, int(round(float(line.get('sample_radius', 10)))))
+    except (KeyError, TypeError, ValueError):
+        return img
+    cv2.line(img, p1, p2, color, thickness, cv2.LINE_AA)
+    cv2.circle(img, p1, radius, color, 2, cv2.LINE_AA)
+    cv2.circle(img, p2, radius, color, 2, cv2.LINE_AA)
+    cv2.circle(img, p1, 3, color, -1, cv2.LINE_AA)
+    cv2.circle(img, p2, 3, color, -1, cv2.LINE_AA)
+    if label:
+        midpoint = ((p1[0] + p2[0]) // 2, max(16, (p1[1] + p2[1]) // 2 - 8))
+        _put_label(img, label, midpoint, COLOR_TEXT)
+    return img
+
+
 # ---------------- 2D 检测相机：泡棉场景 ----------------
 
 # 每个检测位置的背景色偏移，使不同位置在模拟图中有视觉差异（BGR 偏移量）

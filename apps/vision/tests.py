@@ -57,20 +57,165 @@ class RackStructureValidatorThresholdTests(SimpleTestCase):
             point_count=100,
         )
 
-    def test_default_inlier_threshold_is_twenty_percent_inclusive(self):
+    def test_default_inlier_threshold_is_sixty_percent_inclusive(self):
         from apps.vision.algorithms.rack_structure_validator import RackStructureValidator
 
         frame = SimpleNamespace(
-            plane1=self._plane(0.20),
-            plane2=self._plane(0.199),
-            plane3=self._plane(0.25),
+            plane1=self._plane(0.60),
+            plane2=self._plane(0.599),
+            plane3=self._plane(0.75),
         )
 
         checks = RackStructureValidator()._check_inlier_ratios(frame)
 
-        self.assertEqual([check.threshold for check in checks], [20.0, 20.0, 20.0])
+        self.assertEqual([check.threshold for check in checks], [60.0, 60.0, 60.0])
         self.assertEqual([check.passed for check in checks], [True, False, True])
-        self.assertIn('低于阈值 20%', checks[1].message)
+        self.assertIn('低于阈值 60%', checks[1].message)
+
+    def test_failed_geometry_is_invalid_instead_of_diagnostic_only(self):
+        from apps.vision.algorithms.local_template_3d import PlaneResult
+        from apps.vision.algorithms.rack_structure_validator import RackStructureValidator
+
+        def plane(normal):
+            return PlaneResult(
+                normal=np.asarray(normal, dtype=float),
+                offset=0.0,
+                centroid=np.zeros(3),
+                inlier_ratio=0.9,
+                point_count=100,
+            )
+
+        frame = SimpleNamespace(
+            plane1=plane([0, 0, 1]),
+            plane2=plane([0, 1, 0]),
+            plane3=plane([1, 0, 0]),
+            z_local=np.array([1, 0, 1], dtype=float) / np.sqrt(2),
+        )
+
+        validation = RackStructureValidator().validate(frame_cur=frame)
+
+        self.assertFalse(validation.is_valid)
+        self.assertEqual(validation.error_code.value, 'TILT')
+
+
+class LocalTemplateDeterminismTests(SimpleTestCase):
+    @staticmethod
+    def _clouds():
+        rng = np.random.default_rng(20260817)
+
+        def horizontal(z):
+            xy = rng.uniform(-200, 200, size=(800, 2))
+            plane = np.column_stack([xy, rng.normal(z, 0.15, size=800)])
+            outliers = rng.uniform([-200, -200, z - 80], [200, 200, z + 80], size=(120, 3))
+            return np.vstack([plane, outliers])
+
+        yz = rng.uniform([-200, 750], [200, 1050], size=(800, 2))
+        vertical = np.column_stack([
+            rng.normal(100, 0.15, size=800), yz[:, 0], yz[:, 1],
+        ])
+        vertical_outliers = rng.uniform([-20, -200, 750], [220, 200, 1050], size=(120, 3))
+        return horizontal(1000), np.vstack([vertical, vertical_outliers]), horizontal(800)
+
+    def test_repeated_fit_of_identical_cloud_is_deterministic(self):
+        from apps.vision.algorithms.local_template_3d import LocalTemplate3D
+
+        clouds = self._clouds()
+        algorithm = LocalTemplate3D(ransac_num_iterations=300)
+
+        first = algorithm.build_local_frame(*clouds)
+        second = algorithm.build_local_frame(*clouds)
+
+        np.testing.assert_allclose(first.T, second.T, atol=1e-12)
+        for name in ('plane1', 'plane2', 'plane3'):
+            first_plane = getattr(first, name)
+            second_plane = getattr(second, name)
+            np.testing.assert_allclose(first_plane.normal, second_plane.normal, atol=1e-12)
+            self.assertAlmostEqual(first_plane.offset, second_plane.offset, places=12)
+
+    def test_exact_teaching_input_is_refitted_and_returns_identity(self):
+        from apps.vision.rack_positioning_algorithm import RigidBodyCompensationAlgorithm
+
+        clouds = self._clouds()
+        algorithm = RigidBodyCompensationAlgorithm(ransac_num_iterations=300)
+        baseline = algorithm.build_current_template(*clouds)
+
+        result = algorithm.production_mode_compute(
+            baseline['local_template_cur'], *clouds, raise_on_invalid=False,
+        )
+
+        self.assertTrue(result['is_valid'])
+        np.testing.assert_allclose(result['delta_T'], np.eye(4), atol=1e-12)
+        for value in result['compensation'].values():
+            self.assertAlmostEqual(value, 0.0, places=12)
+
+    def test_orient_plane_flips_normal_and_offset_together(self):
+        from apps.vision.algorithms.local_template_3d import LocalTemplate3D, PlaneResult
+
+        plane = PlaneResult(
+            normal=np.array([0.0, 0.0, -1.0]),
+            offset=25.0,
+            centroid=np.array([0.0, 0.0, 25.0]),
+            inlier_ratio=1.0,
+            point_count=100,
+        )
+
+        LocalTemplate3D._orient_plane(plane, np.array([0.0, 0.0, 1.0]))
+
+        np.testing.assert_array_equal(plane.normal, np.array([0.0, 0.0, 1.0]))
+        self.assertEqual(plane.offset, -25.0)
+
+    def test_valid_current_frame_can_replace_an_invalid_legacy_standard(self):
+        from apps.vision.rack_positioning_algorithm import RigidBodyCompensationAlgorithm
+
+        clouds = self._clouds()
+        algorithm = RigidBodyCompensationAlgorithm(ransac_num_iterations=300)
+        baseline = algorithm.build_current_template(*clouds)
+        invalid_standard = json.loads(json.dumps(baseline['local_template_cur']))
+        invalid_standard.pop('fit_input_signature', None)
+        invalid_standard.pop('fit_algorithm_version', None)
+        invalid_standard['plane3']['normal'] = [1.0, 0.0, 0.0]
+
+        result = algorithm.production_mode_compute(
+            invalid_standard, *clouds, raise_on_invalid=False,
+        )
+
+        self.assertFalse(result['standard_validation']['is_valid'])
+        self.assertTrue(result['current_validation']['is_valid'])
+        self.assertTrue(result['is_valid'])
+        self.assertFalse(result['quality_valid'])
+
+
+class LayerSpacingLineMeasurementTests(SimpleTestCase):
+    def test_endpoint_depth_clusters_return_robust_3d_distance(self):
+        from apps.vision.rack_location import _measure_layer_spacing_line
+
+        cloud = np.full((80, 100, 3), np.nan, dtype=np.float64)
+        cloud[14:27, 14:27] = [10.0, 20.0, 1000.0]
+        cloud[49:62, 64:77] = [40.0, 60.0, 1100.0]
+        # A background point inside the first sample circle must be rejected by
+        # the endpoint depth cluster instead of pulling the robust endpoint.
+        cloud[16, 16] = [900.0, 900.0, 1500.0]
+
+        spacing, detail = _measure_layer_spacing_line(cloud, {
+            'x1': 20, 'y1': 20,
+            'x2': 70, 'y2': 55,
+            'sample_radius': 6,
+            'depth_window_mm': 25,
+        })
+
+        self.assertAlmostEqual(spacing, np.sqrt(30 ** 2 + 40 ** 2 + 100 ** 2), places=6)
+        self.assertEqual(detail['method'], 'endpoint_depth_cluster_3d_distance')
+        self.assertGreater(detail['endpoints'][0]['sample_count'], 100)
+        np.testing.assert_allclose(detail['endpoints'][0]['point_mm'], [10, 20, 1000])
+
+    def test_endpoint_outside_pointcloud_is_rejected(self):
+        from apps.vision.rack_location import _measure_layer_spacing_line
+
+        cloud = np.ones((20, 30, 3), dtype=np.float64)
+        with self.assertRaisesRegex(ValueError, '超出图像范围'):
+            _measure_layer_spacing_line(cloud, {
+                'x1': -1, 'y1': 5, 'x2': 10, 'y2': 10,
+            })
 
 
 class FoamPixelSegmentationTests(SimpleTestCase):
@@ -590,6 +735,55 @@ class Rack3DSerializationSemanticsTests(TestCase):
         self.assertAlmostEqual(payload['robot_delta_y'], -11.105309, places=6)
         self.assertAlmostEqual(payload['robot_delta_z'], 61.350851, places=6)
 
+    def test_result_payload_falls_back_when_legacy_spacing_is_null(self):
+        from apps.vision.rack_location import result_payload as rack_location_result_payload
+
+        result = RackLocationResult.objects.create(
+            vision_task=self.task,
+            recipe=self.recipe,
+            side='BOTH',
+            position_no=1,
+            layer_no=1,
+            measured_layer_spacing=123.456,
+            is_success=True,
+            result_data={'measured_layer_spacing': None},
+        )
+
+        payload = rack_location_result_payload(result)
+
+        self.assertAlmostEqual(payload['measured_layer_spacing'], 123.456, places=3)
+
+    def test_results_api_returns_legacy_record_with_null_spacing(self):
+        result = RackLocationResult.objects.create(
+            vision_task=self.task,
+            recipe=self.recipe,
+            side='BOTH',
+            position_no=1,
+            layer_no=1,
+            measured_layer_spacing=0,
+            is_success=True,
+            result_data={'measured_layer_spacing': None},
+        )
+
+        response = self.client.get(reverse('vision:api_rack_location_results'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        returned = next(item for item in payload['results'] if item['id'] == result.id)
+        self.assertEqual(returned['measured_layer_spacing'], 0.0)
+
+    def test_results_api_returns_json_for_invalid_filters(self):
+        response = self.client.get(
+            reverse('vision:api_rack_location_results'),
+            {'position_no': 'not-a-number'},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertFalse(response.json()['success'])
+
 
 @override_settings(MEDIA_ROOT=mkdtemp())
 class Rack3DCurrentRecipeAndRoiApiTests(TestCase):
@@ -991,6 +1185,15 @@ class Rack3DWorkbenchStateSourceTests(SimpleTestCase):
         ):
             self.assertIn(marker, script)
 
+    def test_each_pointcloud_is_consumed_after_one_calculation(self):
+        script_path = Path(settings.BASE_DIR) / 'static' / 'vision' / 'js' / 'rack_locator_workbench.js'
+        script = script_path.read_text(encoding='utf-8')
+
+        self.assertIn('pointcloudConsumed: false', script)
+        self.assertIn('if (!state.token || state.pointcloudConsumed)', script)
+        self.assertIn('state.pointcloudConsumed = true', script)
+        self.assertIn('再次计算将重新采集点云', script)
+
     def test_template_exposes_formal_3d_workbench_urls(self):
         template_path = Path(settings.BASE_DIR) / 'templates' / 'vision' / 'rack_locator_panel.html'
         template = template_path.read_text(encoding='utf-8')
@@ -1012,25 +1215,119 @@ class Rack3DWorkbenchStateSourceTests(SimpleTestCase):
         self.assertNotIn('function localTemplateRegions(targetRoi)', script)
         self.assertIn('function hasAllLocalTemplateRois()', script)
         self.assertIn('function cleanLocalTemplateRois()', script)
-        self.assertIn('local_template_rois: localRegions', script)
+        self.assertIn("const measurementConfig = measurementConfigPatch('all')", script)
+        self.assertIn('roi_config: measurementConfig', script)
         self.assertIn('btn-roi-plane1', template)
         self.assertIn('btn-roi-plane2', template)
         self.assertIn('btn-roi-plane3', template)
+        self.assertIn('btn-layer-spacing-line', template)
         self.assertIn('id="measured-layer-spacing"', template)
+        self.assertIn('function cleanLayerSpacingLine()', script)
+        self.assertIn("return line ? { layer_spacing_line: line } : {}", script)
+        self.assertIn('endpoint_depth_cluster_3d_distance', script)
+        self.assertIn("canvas.style.inset = 'auto'", script)
+        self.assertIn('(e.clientY - rect.top) * canvas.height / rect.height', script)
+        self.assertIn('let roiSaveChain = Promise.resolve()', script)
+        self.assertIn("autoSaveRoiToRecipe({ changedKey: key })", script)
+        self.assertIn("autoSaveRoiToRecipe({ changedKey: 'layerSpacingLine' })", script)
+        self.assertIn("autoSaveRoiToRecipe({ changedKey: 'ransacThreshold' })", script)
+        self.assertIn('ransac_inlier_ratio_comparison', script)
+        self.assertIn('id="roi-config-progress"', template)
+        self.assertIn('id="ransac-distance-threshold"', template)
+        self.assertIn('id="ransac-inlier-comparison"', template)
         self.assertIn('function renderLayerSpacing(result)', script)
         self.assertNotIn('selectNextRecipe();', script)
 
-    def test_invalid_local_template_has_visible_save_block_reason(self):
+    def test_direct_detection_hides_quality_gate_warnings(self):
         script_path = Path(settings.BASE_DIR) / 'static' / 'vision' / 'js' / 'rack_locator_workbench.js'
         script = script_path.read_text(encoding='utf-8')
         template_path = Path(settings.BASE_DIR) / 'templates' / 'vision' / 'rack_locator_panel.html'
         template = template_path.read_text(encoding='utf-8')
 
-        self.assertIn("btnSaveStd.textContent = invalidTemplate", script)
-        self.assertIn("'结构NG，禁止保存'", script)
-        self.assertIn('localTemplateValidationMessage(templateValidation)', script)
+        self.assertIn('const qualityGateEnabled = Boolean(', script)
+        self.assertIn("status.textContent = '已计算 · 直检'", script)
+        self.assertIn("validationMessage.style.display = 'none'", script)
+        self.assertIn('qualityGateEnabled ? invalidRoiKeysFromValidation', script)
         self.assertIn('template-validation-message', template)
-        self.assertIn('#btn-save-as-std:disabled', template)
+        self.assertIn('ransac-inlier-comparison', template)
+
+class RackMeasurementConfigPersistenceTests(TestCase):
+    def setUp(self):
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        self.recipe = Recipe.objects.create(
+            recipe_name='ROI-FIVE-ITEMS',
+            rack_side='BOTH',
+            position_no=1,
+            layer_no=1,
+            roi_config={
+                'coordinate_system': 'robot',
+                'camera_roi': {'x_min': -10, 'x_max': 10},
+                'target_roi': {'x': 10, 'y': 20, 'w': 300, 'h': 200},
+                'local_template_rois': {
+                    'plane2': {'x': 30, 'y': 40, 'w': 50, 'h': 60},
+                    'plane3': {'x': 70, 'y': 80, 'w': 90, 'h': 100},
+                },
+            },
+        )
+
+    def _patch_recipe(self, roi_config):
+        return self.client.patch(
+            reverse('vision:api_vision_3d_recipes'),
+            data=json.dumps({'id': self.recipe.id, 'roi_config': roi_config}),
+            content_type='application/json',
+        )
+
+    def test_incremental_plane_and_line_patches_complete_five_item_config(self):
+        plane1 = {'x': 110, 'y': 120, 'w': 130, 'h': 40}
+        line = {
+            'x1': 120, 'y1': 140, 'x2': 125, 'y2': 330,
+            'sample_radius': 10, 'depth_window_mm': 25,
+        }
+
+        first = self._patch_recipe({'local_template_rois': {'plane1': plane1}})
+        second = self._patch_recipe({'layer_spacing_line': line})
+        third = self._patch_recipe({'ransac_distance_threshold_mm': 3.0})
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(third.status_code, 200)
+        self.recipe.refresh_from_db()
+        config = self.recipe.roi_config
+        self.assertEqual(config['local_template_rois']['plane1'], plane1)
+        self.assertIn('plane2', config['local_template_rois'])
+        self.assertIn('plane3', config['local_template_rois'])
+        self.assertEqual(config['layer_spacing_line'], line)
+        self.assertEqual(config['ransac_distance_threshold_mm'], 3.0)
+        self.assertIn('camera_roi', config)
+        self.assertTrue(config['roi_teaching_updated_at'])
+
+        detail = self.client.get(
+            reverse('vision:api_rack_location_recipe_detail', args=[self.recipe.id]),
+        )
+        self.assertEqual(detail.status_code, 200)
+        roi_info = detail.json()['recipe']['roi_info']
+        self.assertEqual(roi_info['configured_count'], 5)
+        self.assertTrue(roi_info['is_complete'])
+        self.assertEqual(roi_info['layer_spacing_line'], line)
+
+    def test_other_recipe_update_endpoint_preserves_taught_measurements(self):
+        original = json.loads(json.dumps(self.recipe.roi_config))
+
+        response = self.client.post(
+            reverse('vision:api_rack_location_recipe_update', args=[self.recipe.id]),
+            data=json.dumps({'roi_config': {'x_min': -500, 'x_max': 500}}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.recipe.refresh_from_db()
+        self.assertEqual(self.recipe.roi_config['target_roi'], original['target_roi'])
+        self.assertEqual(
+            self.recipe.roi_config['local_template_rois'],
+            original['local_template_rois'],
+        )
+        self.assertEqual(self.recipe.roi_config['x_min'], -500)
+
 
 class FoamInspectorTemplateBehaviorTests(SimpleTestCase):
     def _template_source(self):
@@ -3228,7 +3525,11 @@ class RackLocationWorkbenchTests(TestCase):
 
         result = service.calculate_workbench(
             token=captured['pointcloud_token'],
-            roi_config={'target_roi': full_roi, 'local_template_rois': local_rois},
+            roi_config={
+                'target_roi': full_roi,
+                'local_template_rois': local_rois,
+                'ransac_distance_threshold_mm': 3.0,
+            },
             recipe_id=self.recipe.id,
             save_record=True,
         )
@@ -3246,6 +3547,14 @@ class RackLocationWorkbenchTests(TestCase):
         self.assertFalse(result['local_template_std_available'])
         self.assertEqual(set(result['local_template_rois']), {'plane1', 'plane2', 'plane3'})
         self.assertTrue(result['local_template_validation']['is_valid'])
+        self.assertEqual(result['ransac_distance_threshold_mm'], 3.0)
+        self.assertEqual(result['result_data']['ransac_distance_threshold_mm'], 3.0)
+        comparison = result['ransac_inlier_ratio_comparison']
+        self.assertEqual(set(comparison), {'plane1', 'plane2', 'plane3'})
+        for plane in comparison.values():
+            self.assertEqual(set(plane), {'2', '3', '5'})
+            self.assertLessEqual(plane['2'], plane['3'])
+            self.assertLessEqual(plane['3'], plane['5'])
         self.assertAlmostEqual(result['measured_layer_spacing'], 190.0, places=1)
         self.assertAlmostEqual(
             result['result_data']['measured_layer_spacing'], 190.0, places=1,
@@ -3268,6 +3577,91 @@ class RackLocationWorkbenchTests(TestCase):
         self.assertAlmostEqual(
             result_payload(saved)['measured_layer_spacing'], 190.0, places=1,
         )
+
+    def test_direct_detection_disables_quality_gate_and_reports_layer_spacing(self):
+        from apps.vision.algorithms.rack_structure_validator import (
+            ValidationErrorCode,
+            ValidationResult,
+        )
+
+        service = self._service()
+        captured = service.capture_workbench(recipe_id=self.recipe.id)
+        local_rois = {
+            'plane1': {'x': 190, 'y': 105, 'w': 250, 'h': 45},
+            'plane2': {'x': 135, 'y': 105, 'w': 45, 'h': 270},
+            'plane3': {'x': 190, 'y': 330, 'w': 250, 'h': 45},
+        }
+        invalid = ValidationResult(
+            is_valid=False,
+            error_code=ValidationErrorCode.QUALITY_LOW,
+            message='测试结构NG',
+            checks=[],
+        )
+
+        # Force invalid diagnostics and prove direct-detection mode neither
+        # raises a warning nor suppresses the measured result.
+        with patch(
+            'apps.vision.algorithms.rack_structure_validator.RackStructureValidator.validate',
+            return_value=invalid,
+        ):
+            result = service.calculate_workbench(
+                token=captured['pointcloud_token'],
+                roi_config={
+                    'target_roi': {'x': 0, 'y': 0, 'w': 640, 'h': 480},
+                    'local_template_rois': local_rois,
+                },
+                recipe_id=self.recipe.id,
+                save_record=False,
+            )
+
+        self.assertFalse(result['local_template_validation']['is_valid'])
+        self.assertAlmostEqual(result['measured_layer_spacing'], 190.0, places=1)
+        self.assertAlmostEqual(
+            result['result_data']['measured_layer_spacing'], 190.0, places=1,
+        )
+        self.assertFalse(result['quality_warning'])
+        self.assertFalse(result['quality_gate_enabled'])
+        self.assertEqual(result['quality_gate_mode'], 'disabled')
+        self.assertFalse(result['result_data']['quality_gate_enabled'])
+        self.assertEqual(
+            result['result_data']['layer_spacing_method'],
+            'camera_z_centroid_delta',
+        )
+        self.assertAlmostEqual(
+            result['result_data']['diagnostic_layer_spacing'], 190.0, places=1,
+        )
+
+    def test_measurement_line_owns_layer_spacing_result(self):
+        service = self._service()
+        captured = service.capture_workbench(recipe_id=self.recipe.id)
+        roi_config = {
+            'target_roi': {'x': 0, 'y': 0, 'w': 640, 'h': 480},
+            'local_template_rois': {
+                'plane1': {'x': 190, 'y': 105, 'w': 250, 'h': 45},
+                'plane2': {'x': 135, 'y': 105, 'w': 45, 'h': 270},
+                'plane3': {'x': 190, 'y': 330, 'w': 250, 'h': 45},
+            },
+            'layer_spacing_line': {
+                'x1': 300, 'y1': 142,
+                'x2': 300, 'y2': 336,
+                'sample_radius': 6,
+                'depth_window_mm': 25,
+            },
+        }
+
+        result = service.calculate_workbench(
+            token=captured['pointcloud_token'],
+            roi_config=roi_config,
+            recipe_id=self.recipe.id,
+            save_record=False,
+        )
+
+        self.assertEqual(result['layer_spacing_method'], 'endpoint_depth_cluster_3d_distance')
+        self.assertEqual(result['result_data']['layer_spacing_line'], roi_config['layer_spacing_line'])
+        self.assertAlmostEqual(result['result_data']['diagnostic_layer_spacing'], 190.0, places=1)
+        self.assertGreater(result['measured_layer_spacing'], 285.0)
+        self.assertLess(result['measured_layer_spacing'], 310.0)
+        self.assertEqual(len(result['layer_spacing_measurement']['endpoints']), 2)
 
     def test_calibrate_standard_persists_valid_local_template_result(self):
         service = self._service()

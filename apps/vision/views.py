@@ -1591,6 +1591,40 @@ def _json_config(value, default=None):
     return json.loads(value)
 
 
+_RACK_MEASUREMENT_CONFIG_KEYS = (
+    'target_roi',
+    'local_template_rois',
+    'layer_spacing_line',
+    'ransac_distance_threshold_mm',
+)
+
+
+def _merge_rack_roi_config(existing, incoming, *, stamp_measurement=False):
+    """Merge rack ROI config without losing independently taught 2D regions.
+
+    ``local_template_rois`` is itself patched by plane so saving Π1 cannot
+    accidentally erase a previously saved Π2/Π3. Other top-level 3D ROI and
+    hand-eye snapshot fields are preserved as well.
+    """
+    merged = dict(existing or {})
+    patch = dict(incoming or {})
+    for key, value in patch.items():
+        if key == 'local_template_rois' and isinstance(value, dict):
+            current_local = merged.get(key)
+            current_local = dict(current_local) if isinstance(current_local, dict) else {}
+            merged[key] = {**current_local, **value}
+        else:
+            merged[key] = value
+
+    changed_measurements = [key for key in _RACK_MEASUREMENT_CONFIG_KEYS if key in patch]
+    if stamp_measurement and changed_measurements:
+        updated_at = timezone.now().isoformat()
+        merged['roi_teaching_updated_at'] = updated_at
+        for key in changed_measurements:
+            merged[f'{key}_updated_at'] = updated_at
+    return merged
+
+
 def _serialize_rack_location_recipe(recipe):
     return {
         'id': recipe.id,
@@ -1808,7 +1842,7 @@ def _save_rack_location_recipe_from_request(request, recipe=None):
         roi_config['camera_roi'] = {
             key: _as_float(value) for key, value in camera_roi_fields.items()
         }
-    recipe.roi_config = roi_config
+    recipe.roi_config = _merge_rack_roi_config(recipe.roi_config, roi_config)
     
     recipe.reference_feature_config = normalize_reference_feature_config(
         _json_config(data.get('reference_feature_config'), {}),
@@ -1963,11 +1997,11 @@ def api_vision_3d_recipes(request):
             if 'standard_rz' in data:
                 recipe.standard_rz = _as_float(data['standard_rz'], recipe.standard_rz)
             if 'roi_config' in data:
-                # 合并而非覆盖：只更新传入的字段，保留现有的其他配置（如3D坐标、camera_roi等）
-                existing_roi_config = recipe.roi_config or {}
-                new_roi_config = data['roi_config'] or {}
-                merged = {**existing_roi_config, **new_roi_config}
-                recipe.roi_config = merged
+                recipe.roi_config = _merge_rack_roi_config(
+                    recipe.roi_config,
+                    data['roi_config'],
+                    stamp_measurement=True,
+                )
             if 'reference_feature_config' in data:
                 recipe.reference_feature_config = normalize_reference_feature_config(
                     data['reference_feature_config'] or {},
@@ -2054,7 +2088,14 @@ def api_vision_3d_recipe_detail(request, recipe_id):
             'capture_pose', 'enabled',
         ):
             if field in data:
-                setattr(recipe, field, _as_bool(data[field]) if field == 'enabled' else data[field])
+                if field == 'roi_config':
+                    recipe.roi_config = _merge_rack_roi_config(
+                        recipe.roi_config,
+                        data[field],
+                        stamp_measurement=True,
+                    )
+                else:
+                    setattr(recipe, field, _as_bool(data[field]) if field == 'enabled' else data[field])
         recipe.reference_feature_config = normalize_reference_feature_config(
             recipe.reference_feature_config or {},
         )
@@ -2323,14 +2364,17 @@ def api_rack_location_workbench_calculate(request):
         recipe_id = data.get('recipe_id') or None
         roi_config = data.get('roi_config') or {}
         
-        # 优化：如果前端没有传入ROI配置，尝试从配方中加载已保存的ROI
-        if recipe_id and not roi_config.get('target_roi'):
+        # 前端可以只重画其中一项；其余2D测量配置继续从配方补齐。
+        if recipe_id and any(
+            not roi_config.get(key)
+            for key in ('target_roi', 'local_template_rois', 'layer_spacing_line')
+        ):
             recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first()
             if recipe and recipe.roi_config:
-                saved_target_roi = recipe.roi_config.get('target_roi')
-                if saved_target_roi:
-                    roi_config['target_roi'] = saved_target_roi
-                    logger.info(f"自动加载配方 {recipe_id} 的已保存ROI坐标")
+                for key in ('target_roi', 'local_template_rois', 'layer_spacing_line'):
+                    if not roi_config.get(key) and recipe.roi_config.get(key):
+                        roi_config[key] = recipe.roi_config[key]
+                logger.info(f"自动补齐配方 {recipe_id} 的已保存2D测量配置")
         
         # 「计算偏差」即正式采集动作，默认保存本次深度图、结果图和 ROI 快照。
         save_record = _as_bool(data.get('save_record'), True)
@@ -2353,6 +2397,8 @@ def api_rack_location_workbench_calculate(request):
         # 确保下次采集点云时可以通过兜底回退逻辑自动显示 ROI 框。
         target_roi = roi_config.get('target_roi')
         local_template_rois = roi_config.get('local_template_rois')
+        layer_spacing_line = roi_config.get('layer_spacing_line')
+        ransac_distance_threshold_mm = roi_config.get('ransac_distance_threshold_mm')
         has_target_roi = bool(target_roi) and all(
             target_roi.get(k) is not None for k in ('x', 'y', 'w', 'h')
         )
@@ -2360,20 +2406,33 @@ def api_rack_location_workbench_calculate(request):
             isinstance(local_template_rois.get(key), dict)
             for key in ('plane1', 'plane2', 'plane3')
         )
-        if recipe_id and (has_target_roi or has_local_template_rois):
+        has_layer_spacing_line = bool(layer_spacing_line) and all(
+            layer_spacing_line.get(key) is not None
+            for key in ('x1', 'y1', 'x2', 'y2')
+        )
+        if recipe_id and (
+            has_target_roi or has_local_template_rois or has_layer_spacing_line
+            or ransac_distance_threshold_mm is not None
+        ):
             try:
                 recipe_obj = RackLocationRecipe.objects.filter(pk=recipe_id).first()
                 if recipe_obj:
-                    current_config = recipe_obj.roi_config or {}
+                    measurement_patch = {}
                     if has_target_roi:
-                        current_config['target_roi'] = target_roi
+                        measurement_patch['target_roi'] = target_roi
                     if has_local_template_rois:
-                        current_config['local_template_rois'] = local_template_rois
-                    from django.utils import timezone
-                    current_config['target_roi_updated_at'] = timezone.now().isoformat()
-                    recipe_obj.roi_config = current_config
+                        measurement_patch['local_template_rois'] = local_template_rois
+                    if has_layer_spacing_line:
+                        measurement_patch['layer_spacing_line'] = layer_spacing_line
+                    if ransac_distance_threshold_mm is not None:
+                        measurement_patch['ransac_distance_threshold_mm'] = ransac_distance_threshold_mm
+                    recipe_obj.roi_config = _merge_rack_roi_config(
+                        recipe_obj.roi_config,
+                        measurement_patch,
+                        stamp_measurement=True,
+                    )
                     recipe_obj.save(update_fields=['roi_config'])
-                    logger.info(f"[计算偏差] 已自动保存配方 {recipe_id} 的 target_roi: {target_roi}")
+                    logger.info(f"[计算偏差] 已自动保存配方 {recipe_id} 的五项测量配置")
             except Exception as _roi_save_exc:  # noqa: BLE001
                 logger.warning(f"[计算偏差] 自动保存 target_roi 失败（不影响计算结果）: {_roi_save_exc}")
         
@@ -2403,20 +2462,18 @@ def api_rack_location_workbench_save(request):
         # 这样下次调用配方时，可以自动加载已保存的ROI，无需重新绘制
         if recipe_id and roi_config:
             recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first()
-            if recipe and 'target_roi' in roi_config:
-                current_config = recipe.roi_config or {}
-                target_roi = roi_config['target_roi']
-                
-                # 保存ROI坐标（这些坐标已经是机器人基坐标系）
-                current_config['target_roi'] = target_roi
-                
-                # 同时保存一个时间戳，方便追踪最后更新时间
-                from django.utils import timezone
-                current_config['target_roi_updated_at'] = timezone.now().isoformat()
-                
-                recipe.roi_config = current_config
+            if recipe:
+                recipe.roi_config = _merge_rack_roi_config(
+                    recipe.roi_config,
+                    {
+                        key: roi_config[key]
+                        for key in _RACK_MEASUREMENT_CONFIG_KEYS
+                        if key in roi_config
+                    },
+                    stamp_measurement=True,
+                )
                 recipe.save(update_fields=['roi_config'])
-                logger.info(f"已保存配方 {recipe_id} 的ROI坐标: {target_roi}")
+                logger.info(f"已保存配方 {recipe_id} 的五项测量配置")
         
         result = RackLocationService().save_workbench_result(
             token=data.get('pointcloud_token'),
@@ -2550,7 +2607,14 @@ def api_rack_location_recipe_update(request, recipe_id):
         ]
         for field in updatable:
             if field in data:
-                setattr(recipe, field, _as_bool(data[field]) if field == 'enabled' else data[field])
+                if field == 'roi_config':
+                    recipe.roi_config = _merge_rack_roi_config(
+                        recipe.roi_config,
+                        data[field],
+                        stamp_measurement=True,
+                    )
+                else:
+                    setattr(recipe, field, _as_bool(data[field]) if field == 'enabled' else data[field])
         recipe.reference_feature_config = normalize_reference_feature_config(
             recipe.reference_feature_config or {},
         )
@@ -2587,12 +2651,10 @@ def api_rack_location_calibrate_standard(request, recipe_id):
             result_data = result.result_data or {}
             current_template = result_data.get('local_template_cur')
             if current_template:
-                # 只接受后端计算记录中的三平面结果，并在保存前重新执行结构校验，
-                # 避免前端伪造或把质量不合格的拟合固化成生产基准。
+                # 只接受后端计算记录中的三平面结果。结构校验保留为质量
+                # 元数据，但直检模式下不再作为保存门槛。
                 frame = LocalFrameResult.from_dict(current_template)
                 validation = RackStructureValidator().validate(frame_cur=frame, frame_std=None)
-                if not validation.is_valid:
-                    raise ValueError('当前三平面结构校验未通过，不能保存为标准模板：' + validation.message)
 
                 saved_template = {
                     **current_template,
@@ -2600,6 +2662,8 @@ def api_rack_location_calibrate_standard(request, recipe_id):
                     'algorithm_version': 'v2_rigid_body',
                     'coordinate_system': 'camera',
                     'source_result_id': result.id,
+                    'quality_validation': validation.to_dict(),
+                    'quality_gate_mode': 'disabled',
                 }
                 recipe.local_template_std = saved_template
                 recipe.save(update_fields=['local_template_std', 'updated_at'])
@@ -2639,6 +2703,10 @@ def api_rack_location_recipe_detail(request, recipe_id):
         roi_info = {
             'has_saved_roi': False,
             'target_roi': None,
+            'local_template_rois': {},
+            'layer_spacing_line': None,
+            'configured_count': 0,
+            'is_complete': False,
             'roi_updated_at': None,
         }
         
@@ -2647,7 +2715,22 @@ def api_rack_location_recipe_detail(request, recipe_id):
             if target_roi:
                 roi_info['has_saved_roi'] = True
                 roi_info['target_roi'] = target_roi
-                roi_info['roi_updated_at'] = recipe.roi_config.get('target_roi_updated_at')
+            local_rois = recipe.roi_config.get('local_template_rois') or {}
+            layer_spacing_line = recipe.roi_config.get('layer_spacing_line')
+            roi_info['local_template_rois'] = local_rois
+            roi_info['layer_spacing_line'] = layer_spacing_line
+            roi_info['configured_count'] = sum((
+                bool(target_roi),
+                bool(local_rois.get('plane1')),
+                bool(local_rois.get('plane2')),
+                bool(local_rois.get('plane3')),
+                bool(layer_spacing_line),
+            ))
+            roi_info['is_complete'] = roi_info['configured_count'] == 5
+            roi_info['roi_updated_at'] = (
+                recipe.roi_config.get('roi_teaching_updated_at')
+                or recipe.roi_config.get('target_roi_updated_at')
+            )
         
         serialized['roi_info'] = roi_info
         
@@ -2658,24 +2741,36 @@ def api_rack_location_recipe_detail(request, recipe_id):
 
 @require_http_methods(['GET'])
 def api_rack_location_results(request):
-    qs = (
-        RackLocationResult.objects
-        .select_related('recipe', 'recipe__hand_eye_calibration', 'vision_task')
-        .order_by('-created_at')
-    )
-    position_no = request.GET.get('position_no')
-    layer_no = request.GET.get('layer_no')
-    locate_ok = request.GET.get('locate_ok')
-    if position_no not in (None, ''):
-        qs = qs.filter(position_no=int(position_no))
-    if layer_no not in (None, ''):
-        qs = qs.filter(layer_no=int(layer_no))
-    if locate_ok not in (None, ''):
-        qs = qs.filter(is_success=_as_bool(locate_ok))
-    return JsonResponse({
-        'success': True,
-        'results': [rack_location_result_payload(result) for result in qs[:100]],
-    })
+    try:
+        qs = (
+            RackLocationResult.objects
+            .select_related('recipe', 'recipe__hand_eye_calibration', 'vision_task')
+            .order_by('-created_at')
+        )
+        position_no = request.GET.get('position_no')
+        layer_no = request.GET.get('layer_no')
+        locate_ok = request.GET.get('locate_ok')
+        if position_no not in (None, ''):
+            qs = qs.filter(position_no=int(position_no))
+        if layer_no not in (None, ''):
+            qs = qs.filter(layer_no=int(layer_no))
+        if locate_ok not in (None, ''):
+            qs = qs.filter(is_success=_as_bool(locate_ok))
+        return JsonResponse({
+            'success': True,
+            'results': [rack_location_result_payload(result) for result in qs[:100]],
+        })
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({
+            'success': False,
+            'error': f'筛选参数格式无效：{exc}',
+        }, status=400)
+    except Exception:  # noqa: BLE001
+        logger.exception('加载3D相机记录失败')
+        return JsonResponse({
+            'success': False,
+            'error': '加载3D相机记录失败，请查看服务日志',
+        }, status=500)
 
 
 @require_POST

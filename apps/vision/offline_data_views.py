@@ -18,6 +18,21 @@ def _error(exc, status=400):
     return JsonResponse({"success": False, "error": str(exc)}, status=status)
 
 
+def _merge_package_roi_config(saved_config, request_config):
+    """Merge a workbench snapshot without dropping untouched plane ROIs."""
+    saved = dict(saved_config or {})
+    incoming = dict(request_config or {})
+    merged = {**saved, **incoming}
+    incoming_planes = incoming.get("local_template_rois")
+    if isinstance(incoming_planes, dict):
+        saved_planes = saved.get("local_template_rois")
+        merged["local_template_rois"] = {
+            **(saved_planes if isinstance(saved_planes, dict) else {}),
+            **incoming_planes,
+        }
+    return merged
+
+
 @require_http_methods(["GET", "POST"])
 def packages(request):
     service = OfflineDataPackageService()
@@ -39,10 +54,10 @@ def packages(request):
             pointcloud=cloud,
             hand_eye_matrix=hand_eye,
             robot_pose_matrix=robot_pose,
-            roi_config={
-                **(recipe.roi_config or {}),
-                **(data.get("roi_config") or {}),
-            },
+            roi_config=_merge_package_roi_config(
+                recipe.roi_config,
+                data.get("roi_config"),
+            ),
             recipe=recipe,
             layer_no=int(data.get("layer_no") or recipe.layer_no),
             camera_info={
