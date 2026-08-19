@@ -12,10 +12,12 @@
     <div class="section-title">基本信息</div>
     <ul class="kv">
       <li><span>报警编号</span><span>{{ alarm.alarm_code }}</span></li>
+      <li><span>报警码</span><span>{{ alarm.error_code|default:"-" }}</span></li>
       <li><span>等级</span><span class="badge {% if alarm.level == 'CRITICAL' or alarm.level == 'ERROR' %}badge-fail{% elif alarm.level == 'WARNING' %}badge-warn{% else %}badge-info{% endif %}">{{ alarm.get_level_display }}</span></li>
       <li><span>来源</span><span>{{ alarm.get_source_display }}</span></li>
       <li><span>状态</span><span class="badge {% if alarm.status == 'CLOSED' %}badge-muted{% elif alarm.status == 'ACKNOWLEDGED' %}badge-info{% else %}badge-warn{% endif %}">{{ alarm.get_status_display }}</span></li>
       <li><span>工位锁定</span><span>{% if alarm.locked_workstation %}<span class="badge badge-fail">已锁定</span>{% else %}否{% endif %}</span></li>
+      <li><span>累计发生</span><span>{{ alarm.occurrence_count }} 次</span></li>
       <li><span>发生时间</span><span>{{ alarm.created_at|date:"Y-m-d H:i:s" }}</span></li>
       <li><span>确认时间</span><span>{{ alarm.acknowledged_at|date:"Y-m-d H:i:s"|default:"-" }}</span></li>
       <li><span>关闭时间</span><span>{{ alarm.closed_at|date:"Y-m-d H:i:s"|default:"-" }}</span></li>
@@ -27,6 +29,8 @@
     <ul class="kv">
       <li><span>产品条码</span><span>{{ alarm.product.product_code|default:"-" }}</span></li>
       <li><span>料框码</span><span>{{ alarm.rack.rack_code|default:"-" }}</span></li>
+      <li><span>生产场景</span><span>{{ alarm.scene_label }}</span></li>
+      <li><span>流程阶段</span><span>{{ alarm.phase_label }}</span></li>
       <li><span>流程实例</span><span>{% if alarm.workflow_id %}#{{ alarm.workflow_id }} · {{ alarm.workflow.get_current_state_display }}{% else %}-{% endif %}</span></li>
       <li><span>创建时间</span><span>{{ alarm.created_at|date:"Y-m-d H:i:s" }}</span></li>
       <li><span>最后更新</span><span>{{ alarm.updated_at|date:"Y-m-d H:i:s" }}</span></li>
@@ -50,17 +54,27 @@
     {% csrf_token %}
     <input type="hidden" name="return_to" value="detail">
     <label for="operator_note" class="field-label">本次处理备注</label>
-    <textarea id="operator_note" name="operator_note" rows="4" placeholder="填写检查结果、处理措施或关闭原因"></textarea>
+    <textarea id="operator_note" name="operator_note" rows="4" placeholder="填写检查结果、处理措施或关闭原因" {% if alarm.status != 'OPEN' %}required{% endif %}></textarea>
     <div class="alarm-buttons">
       {% if alarm.status == 'OPEN' %}
-      <button class="btn btn-secondary" type="submit" formaction="{% url 'alarms:acknowledge' alarm.pk %}">确认报警</button>
+      <button class="btn btn-secondary" type="submit" formaction="{% url 'alarms:acknowledge' alarm.pk %}">确认报警并开始处置</button>
+      {% else %}
+      <button class="btn btn-danger" type="submit" formaction="{% url 'alarms:close' alarm.pk %}" data-confirm="系统将检查其他锁定报警，再尝试解除工位锁定。确认故障已经排除？">关闭故障并执行安全解锁</button>
       {% endif %}
-      <button class="btn btn-danger" type="submit" formaction="{% url 'alarms:close' alarm.pk %}" data-confirm="确认关闭该报警并解除工位锁定？">关闭报警并解锁</button>
     </div>
   </form>
   {% else %}
   <p class="empty">该报警已关闭，无需继续操作。</p>
   {% endif %}
+</section>
+
+<section class="panel alarm-action-panel">
+  <div class="section-title">处置流水</div>
+  <div class="alarm-action-log">
+    {% for action in alarm.actions.all %}
+    <div><time>{{ action.created_at|date:"Y-m-d H:i:s" }}</time><strong>{{ action.get_action_display }}</strong><span>{{ action.operator|default:"系统" }}{% if action.note %} · {{ action.note }}{% endif %}</span></div>
+    {% empty %}<p class="empty">暂无人工处置记录。</p>{% endfor %}
+  </div>
 </section>
 
 <style>
@@ -72,6 +86,10 @@
   .alarm-action-form textarea { width: 100%; margin: 6px 0 12px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: inherit; resize: vertical; }
   .alarm-action-form textarea:focus { border-color: var(--primary); outline: 0; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
   .alarm-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+  .alarm-action-log { display: grid; gap: 8px; }
+  .alarm-action-log > div { display: grid; grid-template-columns: 150px 110px 1fr; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-2); }
+  .alarm-action-log time { color: var(--text-faint); font-family: ui-monospace,SFMono-Regular,Consolas,monospace; }
+  .alarm-action-log span { color: var(--text-muted); }
   @media (max-width: 760px) { .alarm-detail-grid { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}

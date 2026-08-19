@@ -1640,6 +1640,86 @@ class VisionRecipeServiceTests(TestCase):
 
 
 class VisionRecipeApiTests(TestCase):
+    def test_camera_preview_uses_rack_camera_in_empty_rack_mode(self):
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            image_path = Path(media_root) / 'rack-preview.png'
+            cv2.imwrite(str(image_path), np.full((60, 100, 3), 128, dtype=np.uint8))
+            with patch('apps.devices.adapters.camera.CameraAdapter.capture') as capture:
+                capture.return_value = {
+                    'image_path': str(image_path),
+                    'timestamp': '2026-08-18T12:00:00',
+                }
+                response = self.client.post(
+                    reverse('vision:api_camera_preview'),
+                    data={'camera_code': 'CAM-INSPECT-RACK-01'},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['success'])
+        self.assertEqual(response.json()['image_width'], 100)
+        self.assertEqual(response.json()['image_height'], 60)
+        capture.assert_called_once_with(
+            camera_code='CAM-INSPECT-RACK-01',
+            task_type='EMPTY_RACK_RECIPE_PREVIEW',
+        )
+
+    def test_empty_rack_recipe_api_saves_and_reloads_multiple_rois(self):
+        image = np.full((120, 200, 3), 180, dtype=np.uint8)
+        encoded_ok, encoded = cv2.imencode('.png', image)
+        self.assertTrue(encoded_ok)
+        regions = [
+            {'id': 'layer-1', 'name': '第1层', 'x': 10, 'y': 12, 'width': 80, 'height': 30, 'enabled': True},
+            {'id': 'layer-2', 'name': '第2层', 'x': 20, 'y': 60, 'width': 120, 'height': 35, 'enabled': True},
+        ]
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post(
+                reverse('vision:api_empty_rack_recipe_save'),
+                data={
+                    'name': 'A型料架空箱配方',
+                    'reference_image': SimpleUploadedFile('empty.png', encoded.tobytes(), content_type='image/png'),
+                    'image_width': 1,
+                    'image_height': 1,
+                    'regions': json.dumps(regions),
+                    'difference_threshold': '0.2',
+                    'min_changed_area_ratio': '0.08',
+                    'remark': '现场空料架基准',
+                },
+            )
+
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()['recipe']
+            self.assertEqual(payload['recipe_type'], 'EMPTY_RACK_2D')
+            self.assertEqual(payload['image_width'], 200)
+            self.assertEqual(payload['image_height'], 120)
+            self.assertEqual(payload['roi_config']['regions'], regions)
+            self.assertTrue(payload['reference_image_url'])
+
+            get_response = self.client.get(reverse('vision:api_empty_rack_recipe'))
+            self.assertEqual(get_response.status_code, 200)
+            loaded = get_response.json()['recipe']
+            self.assertEqual(loaded['name'], 'A型料架空箱配方')
+            self.assertEqual(len(loaded['roi_config']['regions']), 2)
+            self.assertEqual(loaded['threshold_config']['difference_threshold'], 0.2)
+
+    def test_empty_rack_recipe_api_rejects_roi_outside_image(self):
+        image = np.zeros((50, 100, 3), dtype=np.uint8)
+        encoded_ok, encoded = cv2.imencode('.png', image)
+        self.assertTrue(encoded_ok)
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post(
+                reverse('vision:api_empty_rack_recipe_save'),
+                data={
+                    'reference_image': SimpleUploadedFile('empty.png', encoded.tobytes(), content_type='image/png'),
+                    'regions': json.dumps([
+                        {'name': '越界区域', 'x': 90, 'y': 10, 'width': 20, 'height': 20},
+                    ]),
+                },
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('超出基准图边界', response.json()['error'])
+
     def test_recipe_list_api_initializes_and_returns_default_foam_recipes(self):
         response = self.client.get(reverse('vision:api_vision_recipes'), {'recipe_type': 'FOAM_2D'})
 
@@ -2578,6 +2658,27 @@ class FoamRoiCaptureViewTests(TestCase):
 
 
 class VisionRecipeWorkbenchTemplateTests(TestCase):
+    def test_recipe_page_exposes_empty_rack_multi_roi_editor(self):
+        response = self.client.get(reverse('vision:recipe_management'))
+
+        self.assertContains(response, '空箱检测配方（2D）')
+        self.assertContains(response, 'empty-rack-recipe-summary')
+        self.assertContains(response, '进入 2D 空箱工作台')
+        self.assertNotContains(response, 'empty-rack-canvas')
+
+    def test_shared_2d_workbench_exposes_empty_rack_mode(self):
+        response = self.client.get(
+            reverse('vision:foam_inspector_interactive'),
+            {'mode': 'empty_rack'},
+        )
+
+        self.assertContains(response, '2D 空箱检测工作台')
+        self.assertContains(response, 'SHARED 2D VISION WORKBENCH')
+        self.assertContains(response, 'empty-rack-canvas')
+        self.assertContains(response, '料架相机拍照')
+        self.assertContains(response, '保存空箱检测配方')
+        self.assertContains(response, 'CAM-INSPECT-RACK-01')
+
     def test_legacy_rack_recipe_page_redirects_to_unified_3d_tab(self):
         response = self.client.get(reverse('vision:rack_location_recipes'))
 

@@ -2,6 +2,7 @@ import json
 import logging
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
 import cv2
@@ -9,6 +10,8 @@ import numpy as np
 from django.conf import settings
 from django.contrib import messages
 from django.core import signing
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -216,8 +219,12 @@ def foam_results(request):
 
 
 def foam_inspector_interactive(request):
-    """交互式泡棉检测页面"""
-    return render(request, 'vision/foam_inspector_interactive.html')
+    """Shared 2D workbench for foam inspection and empty-rack recipe teaching."""
+    empty_rack_mode = request.GET.get('mode') == 'empty_rack'
+    return render(request, 'vision/foam_inspector_interactive.html', {
+        'empty_rack_mode': empty_rack_mode,
+        'workbench_title': '2D 空箱检测工作台' if empty_rack_mode else '泡棉检测工作台',
+    })
 
 
 def recipe_management(request):
@@ -824,6 +831,167 @@ def api_foam_recipe_create(request):
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
+def _empty_rack_recipe_payload(recipe):
+    """Serialize the single 2D empty-rack recipe with its reference image URL."""
+    if recipe is None:
+        return None
+    payload = serialize_recipe(recipe)
+    reference_path = (recipe.algorithm_config or {}).get('reference_image_path', '')
+    payload['reference_image_url'] = (
+        default_storage.url(reference_path) if reference_path else ''
+    )
+    return payload
+
+
+def _normalize_empty_rack_rois(raw_regions, image_width, image_height):
+    if not isinstance(raw_regions, list):
+        raise ValueError('ROI 数据必须是数组')
+    if not raw_regions:
+        raise ValueError('请至少绘制一个空箱检测 ROI')
+    if len(raw_regions) > 50:
+        raise ValueError('单个空箱配方最多支持 50 个 ROI')
+
+    normalized = []
+    used_ids = set()
+    for index, raw in enumerate(raw_regions, start=1):
+        if not isinstance(raw, dict):
+            raise ValueError(f'第 {index} 个 ROI 数据格式错误')
+        try:
+            x = int(round(float(raw.get('x', 0))))
+            y = int(round(float(raw.get('y', 0))))
+            width = int(round(float(raw.get('width', 0))))
+            height = int(round(float(raw.get('height', 0))))
+        except (TypeError, ValueError):
+            raise ValueError(f'第 {index} 个 ROI 坐标必须是数字')
+        if x < 0 or y < 0 or width < 8 or height < 8:
+            raise ValueError(f'第 {index} 个 ROI 无效，宽高至少为 8 像素')
+        if x + width > image_width or y + height > image_height:
+            raise ValueError(f'第 {index} 个 ROI 超出基准图边界')
+
+        roi_id = str(raw.get('id') or f'roi-{index}')[:64]
+        if roi_id in used_ids:
+            roi_id = f'{roi_id}-{index}'
+        used_ids.add(roi_id)
+        normalized.append({
+            'id': roi_id,
+            'name': str(raw.get('name') or f'检测区 {index}').strip()[:64],
+            'x': x,
+            'y': y,
+            'width': width,
+            'height': height,
+            'enabled': _as_bool(raw.get('enabled'), True),
+        })
+    return normalized
+
+
+@require_http_methods(['GET'])
+def api_empty_rack_recipe(request):
+    queryset = VisionRecipe.objects.filter(recipe_type='EMPTY_RACK_2D', is_active=True)
+    recipe_id = request.GET.get('id')
+    if recipe_id:
+        queryset = queryset.filter(id=int(recipe_id))
+    recipe = queryset.order_by('-updated_at', '-id').first()
+    return JsonResponse({'success': True, 'recipe': _empty_rack_recipe_payload(recipe)})
+
+
+@require_POST
+def api_empty_rack_recipe_save(request):
+    """Create/update the empty-rack recipe and persist its multi-ROI definition."""
+    try:
+        recipe_id = int(request.POST.get('id') or 0)
+        recipe = None
+        if recipe_id:
+            recipe = get_object_or_404(
+                VisionRecipe,
+                id=recipe_id,
+                recipe_type='EMPTY_RACK_2D',
+            )
+        if recipe is None:
+            recipe = (
+                VisionRecipe.objects
+                .filter(recipe_type='EMPTY_RACK_2D', is_active=True)
+                .order_by('-updated_at', '-id')
+                .first()
+            )
+
+        uploaded = request.FILES.get('reference_image')
+        preview_capture_token = request.POST.get('preview_capture_token') or ''
+        image_width = int(request.POST.get('image_width') or 0)
+        image_height = int(request.POST.get('image_height') or 0)
+        reference_path = (
+            (recipe.algorithm_config or {}).get('reference_image_path', '')
+            if recipe else ''
+        )
+
+        if uploaded:
+            image = _decode_uploaded_image(uploaded)
+        elif preview_capture_token:
+            image = _camera_image_from_preview_token(preview_capture_token)
+        else:
+            image = None
+
+        if image is not None:
+            image_height, image_width = image.shape[:2]
+            ok, encoded = cv2.imencode('.jpg', image, [cv2.IMWRITE_JPEG_QUALITY, 92])
+            if not ok:
+                raise ValueError('空箱基准图编码失败')
+            reference_path = default_storage.save(
+                f'vision/empty_rack_recipes/{uuid.uuid4().hex}.jpg',
+                ContentFile(encoded.tobytes()),
+            )
+        elif recipe is not None:
+            # Existing reference images define the coordinate system. Do not
+            # allow a metadata-only edit to silently move ROI boundaries.
+            image_width = recipe.image_width
+            image_height = recipe.image_height
+
+        if not reference_path:
+            raise ValueError('请先上传一张空料架基准图')
+        if image_width <= 0 or image_height <= 0:
+            raise ValueError('基准图分辨率无效，请重新上传图片')
+
+        try:
+            raw_regions = json.loads(request.POST.get('regions') or '[]')
+        except json.JSONDecodeError:
+            raise ValueError('ROI 数据不是有效 JSON')
+        regions = _normalize_empty_rack_rois(raw_regions, image_width, image_height)
+
+        difference_threshold = float(request.POST.get('difference_threshold') or 0.18)
+        min_changed_area_ratio = float(request.POST.get('min_changed_area_ratio') or 0.06)
+        if not 0 <= difference_threshold <= 1:
+            raise ValueError('差异阈值必须在 0～1 之间')
+        if not 0 <= min_changed_area_ratio <= 1:
+            raise ValueError('变化面积比例必须在 0～1 之间')
+
+        if recipe is None:
+            recipe = VisionRecipe(recipe_type='EMPTY_RACK_2D', pos=0)
+        algorithm_config = dict(recipe.algorithm_config or {})
+        algorithm_config.update({
+            'method': 'reference_difference',
+            'reference_image_path': reference_path,
+            'version': 1,
+        })
+        recipe.name = (request.POST.get('name') or '2D 空箱检测配方').strip()[:100]
+        recipe.camera_side = 'front'
+        recipe.image_width = image_width
+        recipe.image_height = image_height
+        recipe.roi_config = {
+            'coordinate_type': 'pixel',
+            'regions': regions,
+        }
+        recipe.threshold_config = {
+            'difference_threshold': difference_threshold,
+            'min_changed_area_ratio': min_changed_area_ratio,
+        }
+        recipe.algorithm_config = algorithm_config
+        recipe.is_active = True
+        recipe.remark = (request.POST.get('remark') or '').strip()
+        recipe.save()
+        return JsonResponse({'success': True, 'recipe': _empty_rack_recipe_payload(recipe)})
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
 def _normalize_roi_ratio(values):
     if isinstance(values, dict) and values.get('type') == 'polygon':
         points = values.get('points')
@@ -913,10 +1081,20 @@ def api_camera_preview(request):
     try:
         from apps.devices.adapters.camera import CameraAdapter
         
+        camera_code = request.POST.get('camera_code') or 'CAM-INSPECT-FOAM-01'
+        allowed_camera_codes = {'CAM-INSPECT-FOAM-01', 'CAM-INSPECT-RACK-01'}
+        if camera_code not in allowed_camera_codes:
+            return JsonResponse({'success': False, 'error': '不支持的相机编号'}, status=400)
+        task_type = (
+            'EMPTY_RACK_RECIPE_PREVIEW'
+            if camera_code == 'CAM-INSPECT-RACK-01'
+            else 'PREVIEW'
+        )
+
         adapter = CameraAdapter()
         result = adapter.capture(
-            camera_code='CAM-INSPECT-FOAM-01',
-            task_type='PREVIEW',
+            camera_code=camera_code,
+            task_type=task_type,
         )
         
         image_path = result.get('image_path')
@@ -935,6 +1113,8 @@ def api_camera_preview(request):
         )
         image_path_obj = Path(image_path)
         media_root = Path(settings.MEDIA_ROOT)
+        source_image_width = 0
+        source_image_height = 0
 
         # The industrial camera produces a 4096x2460 BMP (~30 MB). Sending that
         # file for every preview frame makes the browser appear frozen and turns
@@ -945,6 +1125,8 @@ def api_camera_preview(request):
             if preview_image is None:
                 raise RuntimeError(f'OpenCV could not decode {image_path_obj}')
             height, width = preview_image.shape[:2]
+            source_image_width = width
+            source_image_height = height
             max_width = 1280
             if width > max_width:
                 scale = max_width / width
@@ -955,7 +1137,12 @@ def api_camera_preview(request):
                 )
             temp_dir = media_root / 'temp_previews'
             temp_dir.mkdir(parents=True, exist_ok=True)
-            preview_path = temp_dir / 'camera_live_preview.jpg'
+            preview_name = (
+                'empty_rack_camera_preview.jpg'
+                if camera_code == 'CAM-INSPECT-RACK-01'
+                else 'camera_live_preview.jpg'
+            )
+            preview_path = temp_dir / preview_name
             with tempfile.NamedTemporaryFile(dir=temp_dir, suffix='.jpg', delete=False) as tmp:
                 temp_preview_path = Path(tmp.name)
             try:
@@ -992,6 +1179,8 @@ def api_camera_preview(request):
             'success': True,
             'image_url': image_url,
             'capture_token': capture_token,
+            'image_width': source_image_width,
+            'image_height': source_image_height,
             'timestamp': result.get('timestamp', ''),
         })
         

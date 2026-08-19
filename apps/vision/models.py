@@ -324,6 +324,7 @@ class CalibrationProfile(TimeStampedModel):
 class VisionRecipe(TimeStampedModel):
     RECIPE_TYPE_CHOICES = (
         ('FOAM_2D', '泡棉检测配方'),
+        ('EMPTY_RACK_2D', '空箱检测配方'),
         ('RACK_3D', '料架定位配方'),
     )
 

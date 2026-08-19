@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}泡棉检测工作台 - AutomaticBoxing{% endblock %}
+{% load static %}
+{% block title %}{{ workbench_title|default:"泡棉检测工作台" }} - AutomaticBoxing{% endblock %}
 {% block content %}
 
 <style>
@@ -9,6 +10,8 @@
   flex-direction: column;
   gap: 0;
 }
+.empty-rack-workbench-mode > #recipe-info-card,
+.empty-rack-workbench-mode > .foam-main { display:none !important; }
 
 /* --- 页面标题 --- */
 .foam-title-bar {
@@ -654,17 +657,93 @@
 
 </style>
 
-<div class="foam-workbench">
+<div class="foam-workbench {% if empty_rack_mode %}empty-rack-workbench-mode{% endif %}">
 
   <!-- 标题栏 -->
   <div class="foam-title-bar">
-    <h1>泡棉检测工作台 - AutomaticBoxing</h1>
+    <h1>{{ workbench_title|default:"泡棉检测工作台" }}</h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <a href="{% url 'vision:recipe_management' %}" class="btn btn-secondary btn-sm">🧩 配方管理</a>
+      <a href="{% url 'vision:recipe_management' %}{% if empty_rack_mode %}?tab=empty2d{% endif %}" class="btn btn-secondary btn-sm">🧩 配方管理</a>
+      {% if not empty_rack_mode %}
       <a href="{% url 'vision:foam_results' %}" class="btn btn-secondary btn-sm">历史记录</a>
+      {% endif %}
       <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
     </div>
   </div>
+
+  {% if empty_rack_mode %}
+  <section id="empty-rack-workbench" class="empty-rack-workbench-section">
+    <div class="empty-rack-heading">
+      <div>
+        <span class="empty-rack-kicker">SHARED 2D VISION WORKBENCH</span>
+        <h2>空料架基准图与多 ROI 示教</h2>
+        <p>使用料架 2D 相机拍照或导入图片，在同一工作台完成空箱检测区域标定并保存到配方。</p>
+      </div>
+      <span id="empty-rack-save-state" class="empty-rack-state">尚未保存</span>
+    </div>
+
+    <div class="empty-rack-editor">
+      <div class="empty-rack-stage-card">
+        <div class="empty-rack-toolbar">
+          <div>
+            <strong>空料架基准图</strong>
+            <span id="empty-rack-image-meta">请使用料架相机拍照或导入现场图片</span>
+          </div>
+          <div class="empty-rack-toolbar-actions">
+            <input id="empty-rack-image-input" type="file" accept="image/png,image/jpeg,image/bmp" hidden>
+            <button id="empty-rack-camera-btn" type="button" class="btn btn-secondary btn-sm">料架相机拍照</button>
+            <button id="empty-rack-upload-btn" type="button" class="btn btn-secondary btn-sm">导入图片</button>
+            <button id="empty-rack-clear-btn" type="button" class="btn btn-secondary btn-sm">清空 ROI</button>
+          </div>
+        </div>
+        <div id="empty-rack-canvas-shell" class="empty-rack-canvas-shell">
+          <canvas id="empty-rack-canvas" aria-label="空箱检测 ROI 绘制画布"></canvas>
+          <div id="empty-rack-canvas-empty" class="empty-rack-canvas-empty">
+            <strong>等待空料架图像</strong>
+            <span>获取图像后按住鼠标拖拽，即可连续绘制多个 ROI</span>
+          </div>
+        </div>
+        <div class="empty-rack-legend">
+          <span><i class="is-normal"></i>检测 ROI</span>
+          <span><i class="is-selected"></i>当前选中</span>
+          <span>坐标按原图像素保存，页面缩放不会改变数据</span>
+        </div>
+      </div>
+
+      <aside class="empty-rack-config-card">
+        <div class="form-group">
+          <label for="empty-rack-name">配方名称</label>
+          <input id="empty-rack-name" type="text" value="2D 空箱检测配方" maxlength="100">
+        </div>
+        <div class="empty-rack-threshold-grid">
+          <div class="form-group">
+            <label for="empty-rack-difference-threshold">像素差异阈值</label>
+            <input id="empty-rack-difference-threshold" type="number" min="0" max="1" step="0.01" value="0.18">
+            <small>与空箱基准图的差异强度</small>
+          </div>
+          <div class="form-group">
+            <label for="empty-rack-area-threshold">变化面积比例</label>
+            <input id="empty-rack-area-threshold" type="number" min="0" max="1" step="0.01" value="0.06">
+            <small>ROI 内变化面积达到此值判异常</small>
+          </div>
+        </div>
+        <div class="empty-rack-roi-head">
+          <div><strong>检测区域</strong><span id="empty-rack-roi-count">0 个 ROI</span></div>
+          <small>拖拽画框后可在下方命名</small>
+        </div>
+        <div id="empty-rack-roi-list" class="empty-rack-roi-list">
+          <div class="empty-rack-roi-empty">尚未绘制检测区域</div>
+        </div>
+        <div class="form-group empty-rack-remark">
+          <label for="empty-rack-remark">备注</label>
+          <textarea id="empty-rack-remark" rows="2" placeholder="例如：适用于三层 A 型料架"></textarea>
+        </div>
+        <button id="empty-rack-save-btn" type="button" class="btn empty-rack-save-btn">保存空箱检测配方</button>
+        <div id="empty-rack-message" class="empty-rack-message">基准图、全部 ROI 和判定阈值将保存到当前空箱配方。</div>
+      </aside>
+    </div>
+  </section>
+  {% endif %}
 
   <!-- 配方信息卡片 -->
   <div id="recipe-info-card" class="recipe-info-card" style="display:none;">
@@ -2964,5 +3043,19 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeRecordsModal();
 });
 </script>
+
+{% if empty_rack_mode %}
+<link rel="stylesheet" href="{% static 'vision/css/empty_rack_recipe_editor.css' %}">
+<script>
+window.emptyRackRecipeConfig = {
+  detailUrl: '{% url "vision:api_empty_rack_recipe" %}',
+  saveUrl: '{% url "vision:api_empty_rack_recipe_save" %}',
+  cameraPreviewUrl: '{% url "vision:api_camera_preview" %}',
+  cameraCode: 'CAM-INSPECT-RACK-01',
+  autoLoad: true,
+};
+</script>
+<script src="{% static 'vision/js/empty_rack_recipe_editor.js' %}"></script>
+{% endif %}
 
 {% endblock %}

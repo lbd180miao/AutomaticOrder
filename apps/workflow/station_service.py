@@ -516,10 +516,53 @@ class StationWorkflowService:
         workflow = cycle.workflow if cycle.workflow_id else None
         product = cycle.product
         rack = cycle.rack or (product.rack if product else None)
+        scene_by_phase = {
+            StationPhase.WAIT_RACK: '场景一：料框到位',
+            StationPhase.WAIT_RACK_RESET: '场景一：料框到位',
+            StationPhase.WAIT_POSITION: '场景二：料架定位补偿',
+            StationPhase.WAIT_POSITION_RESET: '场景二：料架定位补偿',
+            StationPhase.WAIT_PRODUCT: '产品条码暂存',
+            StationPhase.WAIT_MARK_RESET: '产品条码暂存',
+            StationPhase.WAIT_RECIPE_VERIFY: '产品条码暂存',
+            StationPhase.WAIT_RECIPE_RESET: '产品条码暂存',
+            StationPhase.WAIT_FOAM: '场景三：泡棉检测',
+            StationPhase.WAIT_FOAM_RESET: '场景三：泡棉检测',
+            StationPhase.WAIT_BOXING: '场景四：装箱完成与上传',
+            StationPhase.WAIT_BOXING_RESET: '场景四：装箱完成与上传',
+        }
+        recipe = rack.current_recipe if rack and rack.current_recipe_id else None
         self.alarms.create(
             source=source, message=message, level=AlarmLevel.ERROR,
             product=product, rack=rack, workflow=workflow,
             lock_workstation=True,
+            scene=scene_by_phase.get(cycle.phase, '工位流程'),
+            phase=cycle.phase,
+            context={
+                'station_cycle_id': cycle.pk,
+                'loaded_quantity': cycle.loaded_quantity,
+                'planned_quantity': cycle.planned_quantity,
+                'position_delta_z': (
+                    float(cycle.position_delta_z)
+                    if cycle.position_delta_z is not None else None
+                ),
+                'measured_layer_height': (
+                    float(cycle.measured_layer_height)
+                    if cycle.measured_layer_height is not None else None
+                ),
+                'measured_layer_spacing': (
+                    float(cycle.measured_layer_spacing)
+                    if cycle.measured_layer_spacing is not None else None
+                ),
+                'recipe_layer_height': (
+                    float(recipe.layer_height) if recipe else None
+                ),
+                'recipe_layer_spacing': (
+                    float(recipe.layer_spacing) if recipe else None
+                ),
+                'recipe_tolerance_z': (
+                    float(recipe.tolerance_z) if recipe else None
+                ),
+            },
         )
         cycle.resume_phase = cycle.phase
         cycle.is_locked = True
