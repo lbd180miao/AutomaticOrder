@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}视觉配方系统 - AutomaticBoxing{% endblock %}
 {% block content %}
 
@@ -628,7 +629,7 @@
     <div class="recipe-title-copy">
       <span class="eyebrow">VISION RECIPE SYSTEM</span>
       <h1>视觉配方管理</h1>
-      <p>按料架规格和产品分类组织配方；2D 泡棉配方落实到每一个实际装箱位置。</p>
+      <p>统一维护泡棉检测、空箱检查和 3D 料架定位配方；所有 ROI 与算法参数均保存到数据库。</p>
     </div>
     <div class="recipe-title-actions">
       <button id="btn-create-recipe" class="btn btn-sm" style="background:var(--success);" type="button">
@@ -644,6 +645,9 @@
   <div class="recipe-tabs">
     <button class="recipe-tab active" data-recipe-tab="foam2d" type="button">
       泡棉检测配方（2D）
+    </button>
+    <button class="recipe-tab" data-recipe-tab="empty2d" type="button">
+      空箱检测配方（2D）
     </button>
     <button class="recipe-tab" data-recipe-tab="rack3d" type="button">
       料架定位配方（3D）
@@ -756,6 +760,21 @@
       </div>
 
       <div id="foam-recipe-list"></div>
+    </section>
+
+    <!-- 空箱检测配方标签页（2D） -->
+    <section id="recipe-tab-empty2d" class="recipe-tab-section" style="display:none;">
+      <div class="empty-summary-heading">
+        <div>
+          <span>EMPTY RACK INSPECTION</span>
+          <h2>2D 空箱检测配方</h2>
+          <p>配方页面只管理数据摘要；拍照、导入图片和多 ROI 示教统一在 2D 工作台完成。</p>
+        </div>
+        <a id="empty-rack-workbench-link" href="{% url 'vision:foam_inspector_interactive' %}?mode=empty_rack" class="btn btn-sm">进入 2D 空箱工作台</a>
+      </div>
+      <div id="empty-rack-recipe-summary" class="empty-summary-card">
+        <div class="empty-summary-loading">正在读取空箱检测配方…</div>
+      </div>
     </section>
 
     <!-- 料架定位配方标签页（3D） -->
@@ -1017,6 +1036,8 @@ const API = {
   createRecipe: '{% url "vision:api_foam_recipe_create" %}',
   deleteRecipe: (id) => `/vision/api/recipes/foam-2d/${id}/delete/`,
   defaultRecipes: '{% url "vision:api_foam_recipe_defaults" %}',
+  emptyRackRecipe: '{% url "vision:api_empty_rack_recipe" %}',
+  saveEmptyRackRecipe: '{% url "vision:api_empty_rack_recipe_save" %}',
   // 3D料架定位配方API
   rack3dRecipes: '{% url "vision:api_rack_location_recipes" %}',
   rack3dRecipeUpdate: (id) => `/vision/api/rack-location/recipes/${id}/update/`,
@@ -1607,15 +1628,22 @@ document.querySelectorAll('.recipe-tab[data-recipe-tab]').forEach(tab => {
 function updateWorkbenchButtons(tabName) {
   const foamBtn = document.getElementById('btn-foam-workbench');
   const rackBtn = document.getElementById('btn-rack-workbench');
+  const createBtn = document.getElementById('btn-create-recipe');
   
   if (tabName === 'foam2d') {
     // 2D配方标签页：显示泡棉检测工作台
     if(foamBtn) foamBtn.style.display = '';
     if(rackBtn) rackBtn.style.display = 'none';
+    if(createBtn) createBtn.style.display = '';
   } else if (tabName === 'rack3d') {
     // 3D配方标签页：显示料架定位工作台
     if(foamBtn) foamBtn.style.display = 'none';
     if(rackBtn) rackBtn.style.display = '';
+    if(createBtn) createBtn.style.display = '';
+  } else {
+    if(foamBtn) foamBtn.style.display = 'none';
+    if(rackBtn) rackBtn.style.display = 'none';
+    if(createBtn) createBtn.style.display = 'none';
   }
 }
 
@@ -2003,10 +2031,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   loadRecipes();
   const requestedTab = new URLSearchParams(window.location.search).get('tab');
-  if (requestedTab === 'rack3d') {
-    document.querySelector('.recipe-tab[data-recipe-tab="rack3d"]')?.click();
+  if (requestedTab === 'rack3d' || requestedTab === 'empty2d') {
+    document.querySelector(`.recipe-tab[data-recipe-tab="${requestedTab}"]`)?.click();
   }
 });
 </script>
+<link rel="stylesheet" href="{% static 'vision/css/empty_rack_recipe_summary.css' %}">
+<script>
+window.emptyRackRecipeSummaryConfig = {
+  detailUrl: API.emptyRackRecipe,
+  workbenchUrl: '{% url "vision:foam_inspector_interactive" %}?mode=empty_rack',
+};
+</script>
+<script src="{% static 'vision/js/empty_rack_recipe_summary.js' %}"></script>
 
 {% endblock %}
