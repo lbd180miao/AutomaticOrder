@@ -334,7 +334,7 @@ class VisionService:
                 if recipe_id:
                     recipe = (
                         VisionRecipe.objects
-                        .filter(id=recipe_id, recipe_type='FOAM_2D', is_active=True)
+                        .filter(id=recipe_id, recipe_type='FOAM_2D')
                         .first()
                     )
                 else:

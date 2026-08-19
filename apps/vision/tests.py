@@ -11,8 +11,10 @@ from django.conf import settings
 from django.apps import apps
 from django.core import signing
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
 from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.files.storage import default_storage
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from django.urls import NoReverseMatch, reverse
@@ -409,6 +411,7 @@ class FoamStandardMaskApiTests(TestCase):
             recipe_type='FOAM_2D',
             name='左右同图示教',
             pos=0,
+            is_active=False,
             camera_side='both',
             image_width=200,
             image_height=100,
@@ -441,6 +444,12 @@ class FoamStandardMaskApiTests(TestCase):
             for side in ('left', 'right'):
                 path = payload['template']['sides'][side]['path']
                 self.assertTrue((Path(media_root) / path).is_file())
+
+            status_response = self.client.get(
+                reverse('vision:api_foam_standard_mask_status', args=[recipe.id])
+            )
+            self.assertEqual(status_response.status_code, 200)
+            self.assertTrue(status_response.json()['ready'])
 
         recipe.refresh_from_db()
         self.assertTrue(recipe.standard_template_version.startswith('v'))
@@ -1677,12 +1686,12 @@ class VisionRecipeApiTests(TestCase):
                 reverse('vision:api_empty_rack_recipe_save'),
                 data={
                     'name': 'A型料架空箱配方',
-                    'reference_image': SimpleUploadedFile('empty.png', encoded.tobytes(), content_type='image/png'),
+                    'teaching_image': SimpleUploadedFile('empty.png', encoded.tobytes(), content_type='image/png'),
                     'image_width': 1,
                     'image_height': 1,
                     'regions': json.dumps(regions),
-                    'difference_threshold': '0.2',
-                    'min_changed_area_ratio': '0.08',
+                    'foam_brightness_threshold': '0.6',
+                    'min_foam_area_ratio': '0.08',
                     'remark': '现场空料架基准',
                 },
             )
@@ -1693,14 +1702,14 @@ class VisionRecipeApiTests(TestCase):
             self.assertEqual(payload['image_width'], 200)
             self.assertEqual(payload['image_height'], 120)
             self.assertEqual(payload['roi_config']['regions'], regions)
-            self.assertTrue(payload['reference_image_url'])
+            self.assertTrue(payload['teaching_image_url'])
 
             get_response = self.client.get(reverse('vision:api_empty_rack_recipe'))
             self.assertEqual(get_response.status_code, 200)
             loaded = get_response.json()['recipe']
             self.assertEqual(loaded['name'], 'A型料架空箱配方')
             self.assertEqual(len(loaded['roi_config']['regions']), 2)
-            self.assertEqual(loaded['threshold_config']['difference_threshold'], 0.2)
+            self.assertEqual(loaded['threshold_config']['foam_brightness_threshold'], 0.6)
 
     def test_empty_rack_recipe_api_rejects_roi_outside_image(self):
         image = np.zeros((50, 100, 3), dtype=np.uint8)
@@ -1710,7 +1719,7 @@ class VisionRecipeApiTests(TestCase):
             response = self.client.post(
                 reverse('vision:api_empty_rack_recipe_save'),
                 data={
-                    'reference_image': SimpleUploadedFile('empty.png', encoded.tobytes(), content_type='image/png'),
+                    'teaching_image': SimpleUploadedFile('empty.png', encoded.tobytes(), content_type='image/png'),
                     'regions': json.dumps([
                         {'name': '越界区域', 'x': 90, 'y': 10, 'width': 20, 'height': 20},
                     ]),
@@ -1718,7 +1727,74 @@ class VisionRecipeApiTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn('超出基准图边界', response.json()['error'])
+        self.assertIn('超出示教图边界', response.json()['error'])
+
+    def test_empty_rack_inspection_detects_empty_and_occupied_regions(self):
+        reference = np.full((100, 120, 3), 40, dtype=np.uint8)
+        occupied = reference.copy()
+        occupied[20:60, 20:70] = 230
+        ok_reference, encoded_reference = cv2.imencode('.png', reference)
+        ok_occupied, encoded_occupied = cv2.imencode('.png', occupied)
+        self.assertTrue(ok_reference and ok_occupied)
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            reference_path = default_storage.save(
+                'vision/empty_rack_recipes/test-reference.png',
+                ContentFile(encoded_reference.tobytes()),
+            )
+            recipe = VisionRecipe.objects.create(
+                recipe_type='EMPTY_RACK_2D', name='运行空箱配方', is_active=True,
+                image_width=120, image_height=100,
+                roi_config={'regions': [
+                    {'id': 'layer-1', 'name': '第1层', 'x': 10, 'y': 10, 'width': 70, 'height': 60},
+                ]},
+                threshold_config={'difference_threshold': 0.1, 'min_changed_area_ratio': 0.05},
+                algorithm_config={'reference_image_path': reference_path},
+            )
+            empty_response = self.client.post(
+                reverse('vision:api_empty_rack_inspect'),
+                data={'recipe_id': recipe.id, 'image': SimpleUploadedFile(
+                    'empty.png', encoded_reference.tobytes(), content_type='image/png'
+                )},
+            )
+            occupied_response = self.client.post(
+                reverse('vision:api_empty_rack_inspect'),
+                data={'recipe_id': recipe.id, 'image': SimpleUploadedFile(
+                    'occupied.png', encoded_occupied.tobytes(), content_type='image/png'
+                )},
+            )
+            reference_response = self.client.post(
+                reverse('vision:api_empty_rack_inspect'),
+                data={'recipe_id': recipe.id, 'use_teaching_image': '1'},
+            )
+            inline_response = self.client.post(
+                reverse('vision:api_empty_rack_inspect'),
+                data={
+                    'image': SimpleUploadedFile(
+                        'inline-reference.png', encoded_reference.tobytes(),
+                        content_type='image/png',
+                    ),
+                    'regions': json.dumps([
+                        {'id': 'live-roi', 'name': '当前ROI', 'x': 5, 'y': 5,
+                         'width': 50, 'height': 40},
+                    ]),
+                    'foam_brightness_threshold': '0.6',
+                    'min_foam_area_ratio': '0.08',
+                },
+            )
+
+        self.assertEqual(empty_response.status_code, 200, empty_response.content)
+        self.assertTrue(empty_response.json()['result']['is_empty'])
+        self.assertEqual(occupied_response.status_code, 200, occupied_response.content)
+        self.assertEqual(reference_response.status_code, 200, reference_response.content)
+        self.assertTrue(reference_response.json()['result']['is_empty'])
+        self.assertEqual(inline_response.status_code, 200, inline_response.content)
+        self.assertTrue(inline_response.json()['result']['is_empty'])
+        self.assertEqual(inline_response.json()['result']['regions'][0]['name'], '当前ROI')
+        occupied_result = occupied_response.json()['result']
+        self.assertFalse(occupied_result['is_empty'])
+        self.assertEqual(occupied_result['occupied_count'], 1)
+        self.assertGreater(occupied_result['regions'][0]['foam_area_ratio'], 0.05)
 
     def test_recipe_list_api_initializes_and_returns_default_foam_recipes(self):
         response = self.client.get(reverse('vision:api_vision_recipes'), {'recipe_type': 'FOAM_2D'})
@@ -2658,6 +2734,162 @@ class FoamRoiCaptureViewTests(TestCase):
 
 
 class VisionRecipeWorkbenchTemplateTests(TestCase):
+    def test_empty_rack_editor_supports_resize_move_and_dynamic_progress(self):
+        source = (
+            Path(settings.BASE_DIR) / 'static' / 'vision' / 'js' / 'empty_rack_recipe_editor.js'
+        ).read_text(encoding='utf-8')
+
+        self.assertIn('function handleAt(point, roi)', source)
+        self.assertIn("type: 'resize'", source)
+        self.assertIn("type: 'move'", source)
+        self.assertIn('data-roi-field="width"', source)
+        self.assertIn('function updateProgress()', source)
+
+    def test_recipe_teaching_can_select_existing_recipes_and_trial_empty_rack(self):
+        template = (
+            Path(settings.BASE_DIR) / 'templates' / 'vision' / 'foam_inspector_interactive.html'
+        ).read_text(encoding='utf-8')
+        empty_script = (
+            Path(settings.BASE_DIR) / 'static' / 'vision' / 'js' / 'empty_rack_recipe_editor.js'
+        ).read_text(encoding='utf-8')
+
+        self.assertIn('id="foam-recipe-select"', template)
+        self.assertIn('id="empty-rack-recipe-select"', template)
+        self.assertIn('id="empty-rack-calculate-btn"', template)
+        self.assertIn('id="empty-rack-save-btn"', template)
+        self.assertNotIn('id="empty-rack-trial-upload-btn"', template)
+        self.assertNotIn('id="empty-rack-trial-record-btn"', template)
+        self.assertIn('function selectFoamRecipeForEdit(recipeId)', template)
+        self.assertIn('function renderFoamRecipeSelect()', template)
+        self.assertIn('function renderRecipeSelect()', empty_script)
+        self.assertIn('async function applyRecipe(recipe)', empty_script)
+        self.assertIn('async function runTrial(', empty_script)
+        self.assertIn("form.append('recipe_id', state.recipe.id)", empty_script)
+        self.assertIn("form.append('use_teaching_image', '1')", empty_script)
+        self.assertIn('await runTrial()', empty_script)
+        self.assertNotIn("saveRecipe('draft'", empty_script)
+        self.assertIn("saveRecipe('publish')", empty_script)
+        self.assertIn('state.trialCompleted = false', empty_script)
+
+    def test_shared_2d_workbench_exposes_run_and_recipe_authoring_modes(self):
+        run_response = self.client.get(reverse('vision:foam_inspector_interactive'))
+        empty_run_response = self.client.get(
+            reverse('vision:foam_inspector_interactive'), {'inspection': 'empty_rack'}
+        )
+        foam_response = self.client.get(
+            reverse('vision:foam_inspector_interactive'),
+            {'mode': 'foam_recipe', 'new': '1'},
+        )
+
+        self.assertContains(run_response, '运行检测')
+        self.assertContains(run_response, '＋ 新建泡棉配方')
+        self.assertContains(run_response, '＋ 新建空箱配方')
+        self.assertContains(empty_run_response, '空箱运行检测')
+        self.assertContains(empty_run_response, '开始空箱检测')
+        self.assertContains(empty_run_response, 'api/empty-rack/inspect')
+        self.assertContains(foam_response, '配方示教')
+        self.assertContains(foam_response, '新建泡棉检测配方')
+        self.assertContains(foam_response, 'foam-recipe-guide')
+        self.assertContains(foam_response, '保存草稿')
+        self.assertContains(foam_response, '验证并发布')
+
+    def test_new_foam_draft_does_not_replace_published_recipe_until_publish(self):
+        published = VisionRecipe.objects.create(
+            recipe_type='FOAM_2D', name='生产配方', pos=0, is_active=True,
+            roi_config={
+                'leftFoamROI': {'x': 10, 'y': 10, 'width': 20, 'height': 20},
+                'rightFoamROI': {'x': 50, 'y': 10, 'width': 20, 'height': 20},
+            },
+        )
+        payload = {
+            'create_new': True,
+            'save_mode': 'draft',
+            'pos': 0,
+            'name': '换型草稿',
+            'roi_config': {
+                'leftFoamROI': {'x': 15, 'y': 12, 'width': 22, 'height': 22},
+                'rightFoamROI': {'x': 55, 'y': 12, 'width': 22, 'height': 22},
+            },
+            'threshold_config': {'coverage_threshold': 0.7},
+        }
+
+        draft_response = self.client.post(
+            reverse('vision:api_foam_recipe_save'),
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+        self.assertEqual(draft_response.status_code, 200)
+        draft = VisionRecipe.objects.get(pk=draft_response.json()['recipe']['id'])
+        published.refresh_from_db()
+        self.assertFalse(draft.is_active)
+        self.assertTrue(published.is_active)
+
+        payload.update({'id': draft.id, 'create_new': False, 'save_mode': 'publish'})
+        publish_response = self.client.post(
+            reverse('vision:api_foam_recipe_save'),
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+        self.assertEqual(publish_response.status_code, 200)
+        draft.refresh_from_db()
+        published.refresh_from_db()
+        self.assertTrue(draft.is_active)
+        self.assertFalse(published.is_active)
+
+    def test_new_empty_rack_draft_does_not_replace_published_recipe_until_publish(self):
+        published = VisionRecipe.objects.create(
+            recipe_type='EMPTY_RACK_2D', name='生产空箱配方', pos=0,
+            image_width=100, image_height=100, is_active=True,
+            roi_config={'regions': [{'id': 'old', 'x': 5, 'y': 5, 'width': 20, 'height': 20}]},
+            algorithm_config={'reference_image_path': 'vision/empty_rack_recipes/old.jpg'},
+        )
+        image = np.full((100, 100, 3), 30, dtype=np.uint8)
+        ok, encoded = cv2.imencode('.png', image)
+        self.assertTrue(ok)
+        regions = json.dumps([
+            {'id': 'layer-1', 'name': '第1层', 'x': 10, 'y': 10, 'width': 40, 'height': 30},
+        ])
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            draft_response = self.client.post(
+                reverse('vision:api_empty_rack_recipe_save'),
+                data={
+                    'create_new': '1', 'save_mode': 'draft', 'name': '换型空箱草稿',
+                    'regions': regions, 'foam_brightness_threshold': '0.55',
+                    'min_foam_area_ratio': '0.03',
+                    'teaching_source': json.dumps({
+                        'type': 'foam_inspection_record', 'record_id': '88',
+                        'captured_at': '2026-08-19 10:20:30', 'position_index': 2,
+                    }),
+                    'teaching_image': SimpleUploadedFile(
+                        'empty-rack.png', encoded.tobytes(), content_type='image/png'
+                    ),
+                },
+            )
+            self.assertEqual(draft_response.status_code, 200, draft_response.content)
+            draft = VisionRecipe.objects.get(pk=draft_response.json()['recipe']['id'])
+            published.refresh_from_db()
+            self.assertFalse(draft.is_active)
+            self.assertTrue(published.is_active)
+            self.assertEqual(
+                draft.algorithm_config['teaching_source']['record_id'], '88'
+            )
+
+            publish_response = self.client.post(
+                reverse('vision:api_empty_rack_recipe_save'),
+                data={
+                    'id': draft.id, 'save_mode': 'publish', 'name': draft.name,
+                    'regions': regions, 'foam_brightness_threshold': '0.55',
+                    'min_foam_area_ratio': '0.03',
+                },
+            )
+            self.assertEqual(publish_response.status_code, 200, publish_response.content)
+
+        draft.refresh_from_db()
+        published.refresh_from_db()
+        self.assertTrue(draft.is_active)
+        self.assertFalse(published.is_active)
+
     def test_recipe_page_exposes_empty_rack_multi_roi_editor(self):
         response = self.client.get(reverse('vision:recipe_management'))
 
@@ -2672,11 +2904,22 @@ class VisionRecipeWorkbenchTemplateTests(TestCase):
             {'mode': 'empty_rack'},
         )
 
-        self.assertContains(response, '2D 空箱检测工作台')
+        self.assertContains(response, '2D 视觉工作台')
         self.assertContains(response, 'SHARED 2D VISION WORKBENCH')
+        self.assertContains(response, '空箱检查配方')
         self.assertContains(response, 'empty-rack-canvas')
+        self.assertContains(response, 'empty-rack-progress')
+        self.assertContains(response, 'empty-rack-recipe-select')
+        self.assertContains(response, '配方计算与保存')
+        self.assertContains(response, '开始计算')
+        self.assertContains(response, '保存配方')
+        self.assertContains(response, 'api/empty-rack/inspect')
+        self.assertContains(response, 'empty_rack_recipe_editor.js')
         self.assertContains(response, '料架相机拍照')
-        self.assertContains(response, '保存空箱检测配方')
+        self.assertContains(response, '从泡棉记录导入')
+        self.assertContains(response, 'importRecordImage')
+        self.assertContains(response, '开始计算')
+        self.assertContains(response, '保存配方')
         self.assertContains(response, 'CAM-INSPECT-RACK-01')
 
     def test_legacy_rack_recipe_page_redirects_to_unified_3d_tab(self):

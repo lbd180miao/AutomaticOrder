@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}{{ workbench_title|default:"泡棉检测工作台" }} - AutomaticBoxing{% endblock %}
+{% block page_class %}page-operation{% endblock %}
 {% block content %}
 
 <style>
@@ -11,7 +12,9 @@
   gap: 0;
 }
 .empty-rack-workbench-mode > #recipe-info-card,
-.empty-rack-workbench-mode > .foam-main { display:none !important; }
+.empty-rack-workbench-mode > .foam-main,
+.empty-rack-run-workbench-mode > #recipe-info-card,
+.empty-rack-run-workbench-mode > .foam-main { display:none !important; }
 
 /* --- 页面标题 --- */
 .foam-title-bar {
@@ -657,49 +660,117 @@
 
 </style>
 
-<div class="foam-workbench {% if empty_rack_mode %}empty-rack-workbench-mode{% endif %}">
+<link rel="stylesheet" href="{% static 'vision/css/foam_recipe_workbench.css' %}?v=20260819-v2">
+
+<div class="foam-workbench {% if empty_rack_mode %}empty-rack-workbench-mode{% elif empty_rack_run_mode %}empty-rack-run-workbench-mode{% elif foam_recipe_mode %}foam-recipe-workbench-mode{% else %}foam-run-workbench-mode{% endif %}">
 
   <!-- 标题栏 -->
   <div class="foam-title-bar">
-    <h1>{{ workbench_title|default:"泡棉检测工作台" }}</h1>
+    <div>
+      <span class="foam-workbench-kicker">SHARED 2D VISION WORKBENCH</span>
+      <h1>2D 视觉工作台</h1>
+      <p>在同一画布完成取图、ROI 示教、模板建立、试跑验证与生产检测。</p>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <a href="{% url 'vision:recipe_management' %}{% if empty_rack_mode %}?tab=empty2d{% endif %}" class="btn btn-secondary btn-sm">🧩 配方管理</a>
-      {% if not empty_rack_mode %}
+      <a href="{% url 'vision:recipe_management' %}{% if empty_rack_mode or empty_rack_run_mode %}?tab=empty2d{% else %}?tab=foam2d{% endif %}" class="btn btn-secondary btn-sm">配方管理</a>
       <a href="{% url 'vision:foam_results' %}" class="btn btn-secondary btn-sm">历史记录</a>
-      {% endif %}
       <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
     </div>
   </div>
+
+  <section class="vision-workbench-modebar" aria-label="工作模式">
+    <div class="vision-mode-primary">
+      <a href="{% url 'vision:foam_inspector_interactive' %}" class="vision-mode-option {% if not recipe_teaching_mode %}active{% endif %}">
+        <span>01</span><strong>运行检测</strong><small>使用已发布配方</small>
+      </a>
+      <a href="{% url 'vision:foam_inspector_interactive' %}?mode=foam_recipe" class="vision-mode-option {% if recipe_teaching_mode %}active{% endif %}">
+        <span>02</span><strong>配方示教</strong><small>画 ROI、建模板、验证发布</small>
+      </a>
+    </div>
+    {% if recipe_teaching_mode %}
+    <div class="vision-recipe-type-switch" aria-label="配方类型">
+      <a href="{% url 'vision:foam_inspector_interactive' %}?mode=foam_recipe" class="{% if foam_recipe_mode %}active{% endif %}">泡棉检测配方</a>
+      <a href="{% url 'vision:foam_inspector_interactive' %}?mode=empty_rack" class="{% if empty_rack_mode %}active{% endif %}">空箱检查配方</a>
+      <a href="{% url 'vision:foam_inspector_interactive' %}?mode={% if empty_rack_mode %}empty_rack{% else %}foam_recipe{% endif %}&new=1" class="vision-new-recipe">＋ 新建{% if empty_rack_mode %}空箱{% else %}泡棉{% endif %}配方</a>
+    </div>
+    {% else %}
+    <div class="vision-run-actions vision-run-type-switch" aria-label="检测类型">
+      <a href="{% url 'vision:foam_inspector_interactive' %}" class="{% if not empty_rack_run_mode %}active{% endif %}">泡棉检测</a>
+      <a href="{% url 'vision:foam_inspector_interactive' %}?inspection=empty_rack" class="{% if empty_rack_run_mode %}active{% endif %}">空箱检测</a>
+      <a href="{% url 'vision:foam_inspector_interactive' %}?mode=foam_recipe&new=1">＋ 新建泡棉配方</a>
+      <a href="{% url 'vision:foam_inspector_interactive' %}?mode=empty_rack&new=1">＋ 新建空箱配方</a>
+    </div>
+    {% endif %}
+  </section>
+
+  {% if empty_rack_run_mode %}
+  <section id="empty-rack-inspector" class="empty-rack-inspector-section">
+    <div class="empty-run-heading">
+      <div><span>EMPTY RACK INSPECTION</span><h2>空箱运行检测</h2><p>使用已发布的空箱配方，对料架各层 ROI 逐一判定是否为空。</p></div>
+      <span id="empty-run-recipe-state" class="empty-rack-state">正在加载配方</span>
+    </div>
+    <div class="empty-run-grid">
+      <div class="empty-run-camera foam-panel">
+        <div class="foam-panel-head"><h2>料架相机画面</h2><span id="empty-run-image-meta">等待图像</span></div>
+        <div class="empty-run-viewport">
+          <img id="empty-run-preview" alt="空箱检测图像" hidden>
+          <div id="empty-run-placeholder"><strong>等待空料架检测图像</strong><span>可调用料架相机、导入图片或复用泡棉检测记录</span></div>
+        </div>
+        <div class="empty-run-controls">
+          <input id="empty-run-file" type="file" accept="image/*" hidden>
+          <button id="empty-run-camera-btn" type="button" class="btn btn-secondary">料架相机拍照</button>
+          <button id="empty-run-upload-btn" type="button" class="btn btn-secondary">导入图片</button>
+          <button id="empty-run-records-btn" type="button" class="btn btn-secondary">从泡棉记录导入</button>
+          <button id="empty-run-inspect-btn" type="button" class="btn">开始空箱检测</button>
+        </div>
+      </div>
+      <aside class="empty-run-result foam-panel">
+        <div class="foam-panel-head"><h2>空箱判定结果</h2><span id="empty-run-result-time">—</span></div>
+        <div id="empty-run-verdict" class="empty-run-verdict idle"><strong>等待检测</strong><span>检测后显示总体判定和每个 ROI 的泡棉占用比例</span></div>
+        <div id="empty-run-region-results" class="empty-run-region-results"><div class="empty-run-empty">暂无检测数据</div></div>
+      </aside>
+    </div>
+  </section>
+  {% endif %}
 
   {% if empty_rack_mode %}
   <section id="empty-rack-workbench" class="empty-rack-workbench-section">
     <div class="empty-rack-heading">
       <div>
-        <span class="empty-rack-kicker">SHARED 2D VISION WORKBENCH</span>
-        <h2>空料架基准图与多 ROI 示教</h2>
-        <p>使用料架 2D 相机拍照或导入图片，在同一工作台完成空箱检测区域标定并保存到配方。</p>
+        <span class="empty-rack-kicker">EMPTY RACK RECIPE AUTHORING</span>
+        <h2>{% if new_recipe_mode %}新建空箱检查配方{% else %}空箱检测 ROI 与单图识别示教{% endif %}</h2>
+        <p>载入一张现场图绘制各层检测区域，算法直接识别 ROI 内泡棉占用，不依赖空箱基准图。</p>
       </div>
-      <span id="empty-rack-save-state" class="empty-rack-state">尚未保存</span>
+      <span id="empty-rack-save-state" class="empty-rack-state">{% if new_recipe_mode %}新草稿{% else %}尚未保存{% endif %}</span>
+    </div>
+
+    <div id="empty-rack-progress" class="recipe-authoring-progress" aria-label="空箱配方创建步骤">
+      <div data-step="1"><span>1</span><strong>基本信息</strong><small>名称与适用料架</small></div>
+      <div data-step="2"><span>2</span><strong>示教图</strong><small>用于绘制 ROI</small></div>
+      <div data-step="3"><span>3</span><strong>检测区域</strong><small>多 ROI 与层号</small></div>
+      <div data-step="4"><span>4</span><strong>判定阈值</strong><small>亮度与泡棉面积</small></div>
+      <div data-step="5"><span>5</span><strong>试跑发布</strong><small>计算确认后生效</small></div>
     </div>
 
     <div class="empty-rack-editor">
       <div class="empty-rack-stage-card">
         <div class="empty-rack-toolbar">
           <div>
-            <strong>空料架基准图</strong>
+            <strong>ROI 示教与试算图</strong>
             <span id="empty-rack-image-meta">请使用料架相机拍照或导入现场图片</span>
           </div>
           <div class="empty-rack-toolbar-actions">
             <input id="empty-rack-image-input" type="file" accept="image/png,image/jpeg,image/bmp" hidden>
             <button id="empty-rack-camera-btn" type="button" class="btn btn-secondary btn-sm">料架相机拍照</button>
             <button id="empty-rack-upload-btn" type="button" class="btn btn-secondary btn-sm">导入图片</button>
+            <button id="empty-rack-records-btn" type="button" class="btn btn-secondary btn-sm">从泡棉记录导入</button>
             <button id="empty-rack-clear-btn" type="button" class="btn btn-secondary btn-sm">清空 ROI</button>
           </div>
         </div>
         <div id="empty-rack-canvas-shell" class="empty-rack-canvas-shell">
           <canvas id="empty-rack-canvas" aria-label="空箱检测 ROI 绘制画布"></canvas>
           <div id="empty-rack-canvas-empty" class="empty-rack-canvas-empty">
-            <strong>等待空料架图像</strong>
+            <strong>等待 ROI 示教图像</strong>
             <span>获取图像后按住鼠标拖拽，即可连续绘制多个 ROI</span>
           </div>
         </div>
@@ -711,20 +782,26 @@
       </div>
 
       <aside class="empty-rack-config-card">
+        <div class="recipe-guide-heading"><span>RECIPE GUIDE</span><strong>空箱配方参数</strong><small>配方只使用 ROI 与单图识别阈值，左图不参与生产比对。</small></div>
+        <div class="form-group">
+          <label for="empty-rack-recipe-select">选择已有配方</label>
+          <select id="empty-rack-recipe-select"><option value="">正在加载配方列表…</option></select>
+          <small>选择后可直接修改；“新建配方”请使用页面右上方入口。</small>
+        </div>
         <div class="form-group">
           <label for="empty-rack-name">配方名称</label>
           <input id="empty-rack-name" type="text" value="2D 空箱检测配方" maxlength="100">
         </div>
         <div class="empty-rack-threshold-grid">
           <div class="form-group">
-            <label for="empty-rack-difference-threshold">像素差异阈值</label>
-            <input id="empty-rack-difference-threshold" type="number" min="0" max="1" step="0.01" value="0.18">
-            <small>与空箱基准图的差异强度</small>
+            <label for="empty-rack-brightness-threshold">泡棉亮度阈值</label>
+            <input id="empty-rack-brightness-threshold" type="number" min="0" max="1" step="0.01" value="0.55">
+            <small>越低越容易识别浅色泡棉</small>
           </div>
           <div class="form-group">
-            <label for="empty-rack-area-threshold">变化面积比例</label>
-            <input id="empty-rack-area-threshold" type="number" min="0" max="1" step="0.01" value="0.06">
-            <small>ROI 内变化面积达到此值判异常</small>
+            <label for="empty-rack-foam-area-threshold">最小泡棉面积</label>
+            <input id="empty-rack-foam-area-threshold" type="number" min="0" max="1" step="0.01" value="0.03">
+            <small>ROI 内泡棉达到此比例判为占用</small>
           </div>
         </div>
         <div class="empty-rack-roi-head">
@@ -738,8 +815,15 @@
           <label for="empty-rack-remark">备注</label>
           <textarea id="empty-rack-remark" rows="2" placeholder="例如：适用于三层 A 型料架"></textarea>
         </div>
-        <button id="empty-rack-save-btn" type="button" class="btn empty-rack-save-btn">保存空箱检测配方</button>
-        <div id="empty-rack-message" class="empty-rack-message">基准图、全部 ROI 和判定阈值将保存到当前空箱配方。</div>
+        <div class="empty-rack-trial-panel">
+          <div><strong>配方计算与保存</strong><small>“开始计算”只预览当前图片与参数的结果；“保存配方”直接保存并发布，两者互不依赖。</small></div>
+          <div class="empty-rack-primary-actions">
+            <button id="empty-rack-calculate-btn" type="button" class="btn btn-secondary">开始计算</button>
+            <button id="empty-rack-save-btn" type="button" class="btn empty-rack-save-btn">保存配方</button>
+          </div>
+          <div id="empty-rack-trial-result" class="empty-rack-trial-result idle">尚未计算</div>
+        </div>
+        <div id="empty-rack-message" class="empty-rack-message">配方保存 ROI 与单图泡棉识别阈值；示教图仅用于画框和试算。</div>
       </aside>
     </div>
   </section>
@@ -830,8 +914,9 @@
             </select>
             <button id="btn-start-roi" class="btn btn-secondary btn-sm" title="框选矩形 ROI">框选 ROI</button>
             <button id="btn-start-roi-polygon" class="btn btn-secondary btn-sm" title="自由绘制不规则 ROI">✏️ 画笔</button>
-            <button id="btn-save-roi" class="btn btn-sm" style="background:var(--success);">保存标定</button>
-            <button id="btn-save-recipe" class="btn btn-sm" style="background:var(--primary);">💾 保存到配方</button>
+            <button id="btn-save-roi" class="btn btn-sm" style="background:var(--success);">保存当前 ROI 标定</button>
+            <button id="btn-save-recipe" class="btn btn-secondary btn-sm">保存草稿</button>
+            <button id="btn-publish-recipe" class="btn btn-sm" style="background:var(--primary);">验证并发布</button>
             <span id="calibration-status"></span>
           </div>
           <div class="threshold-grid">
@@ -878,8 +963,36 @@
       </div>
     </div>
 
+    {% if foam_recipe_mode %}
+    <aside id="foam-recipe-guide" class="foam-panel foam-recipe-guide">
+      <div class="foam-panel-head">
+        <div><span class="recipe-guide-kicker">FOAM RECIPE AUTHORING</span><h2>{% if new_recipe_mode %}新建泡棉检测配方{% else %}泡棉配方示教{% endif %}</h2></div>
+        <span id="foam-recipe-save-state" class="foam-recipe-state">{% if new_recipe_mode %}新草稿{% else %}已加载{% endif %}</span>
+      </div>
+      <div class="foam-recipe-guide-body">
+        <div class="recipe-authoring-progress compact" aria-label="泡棉配方创建步骤">
+          <div class="done"><span>1</span><strong>基本信息</strong><small>配方与 POS</small></div>
+          <div class="current"><span>2</span><strong>基准图</strong><small>相机或导入</small></div>
+          <div><span>3</span><strong>左右 ROI</strong><small>固定搜索区</small></div>
+          <div><span>4</span><strong>标准模板</strong><small>合格样件</small></div>
+          <div><span>5</span><strong>验证发布</strong><small>试跑后生效</small></div>
+        </div>
+        <div class="foam-recipe-basic-fields">
+          <label>选择已有配方<select id="foam-recipe-select"><option value="">正在加载配方列表…</option></select></label>
+          <label>配方名称<input id="foam-recipe-draft-name" type="text" maxlength="100" value="{% if new_recipe_mode %}新建泡棉检测配方{% endif %}" placeholder="例如：A型保险杆-第3层"></label>
+          <label>备注<textarea id="foam-recipe-draft-remark" rows="2" placeholder="适用料框、产品或换型说明"></textarea></label>
+        </div>
+        <div id="foam-recipe-tools-host"></div>
+        <div class="foam-recipe-validation-note">
+          <strong>发布条件</strong>
+          <span>左右 ROI 已完成、标准模板可用，并至少完成一次拍照检测。</span>
+        </div>
+      </div>
+    </aside>
+    {% endif %}
+
     <!-- 右栏：检测结果 -->
-    <div class="foam-panel">
+    <div class="foam-panel foam-result-panel">
       <div class="foam-panel-head">
         <h2>检测结果</h2>
         <div class="upload-zone">
@@ -1023,6 +1136,9 @@ const API = {
   standardMaskDelete: (id, side) => `/vision/api/recipes/foam-2d/${id}/standard-mask/${side}/delete/`,
   defaultRecipes:   '{% url "vision:api_foam_recipe_defaults" %}',
 };
+const FOAM_RECIPE_TEACHING = {{ foam_recipe_mode|yesno:"true,false" }};
+const CREATE_NEW_RECIPE = {{ new_recipe_mode|yesno:"true,false" }};
+let recipeValidationCompleted = false;
 
 // ── CSRF ─────────────────────────────────────────────────
 function getCsrf() {
@@ -1239,7 +1355,9 @@ function activeFoam2DRecipe() {
   return foam2DRecipes.find(item => Number(item.pos) === currentPOS()) || null;
 }
 function currentDetectionRecipe() {
-  return manualSelectedRecipe || activeFoam2DRecipe();
+  if (manualSelectedRecipe) return manualSelectedRecipe;
+  if (FOAM_RECIPE_TEACHING) return selectedRecipeForEdit;
+  return activeFoam2DRecipe();
 }
 function currentDetectionPos() {
   const recipe = currentDetectionRecipe();
@@ -1816,6 +1934,14 @@ document.getElementById('file-upload').addEventListener('change', async (e) => {
 function renderResult(r) {
   console.log('渲染检测结果:', r);
   lastDetectionResult = r;
+  if (FOAM_RECIPE_TEACHING) {
+    recipeValidationCompleted = Boolean(r.is_passed);
+    const recipeState = document.getElementById('foam-recipe-save-state');
+    if (recipeState) {
+      recipeState.textContent = r.is_passed ? '试跑通过' : '试跑待复核';
+      recipeState.classList.toggle('saved', Boolean(r.is_passed));
+    }
+  }
   const saveTemplateButton = document.getElementById('btn-save-result-standard');
   if (saveTemplateButton) {
     const canPromote = Boolean(
@@ -2073,17 +2199,75 @@ function formatDefect(dt) {
 // ── 配方加载（简化版，仅用于 ROI 显示） ───────────────────
 async function loadRecipes() {
   try {
-    const res = await fetch(API.recipes + '?recipe_type=FOAM_2D&is_active=true');
+    const query = FOAM_RECIPE_TEACHING
+      ? '?recipe_type=FOAM_2D'
+      : '?recipe_type=FOAM_2D&is_active=true';
+    const res = await fetch(API.recipes + query);
     const data = await res.json();
     if (data.success) {
       foam2DRecipes = data.recipes || [];
-      selectedRecipeForEdit = activeFoam2DRecipe() || foam2DRecipes[0] || null;
+      selectedRecipeForEdit = CREATE_NEW_RECIPE
+        ? null
+        : (activeFoam2DRecipe() || foam2DRecipes[0] || null);
+      if (FOAM_RECIPE_TEACHING) {
+        const nameInput = document.getElementById('foam-recipe-draft-name');
+        const remarkInput = document.getElementById('foam-recipe-draft-remark');
+        renderFoamRecipeSelect();
+        if (nameInput && selectedRecipeForEdit) nameInput.value = selectedRecipeForEdit.name || '';
+        if (remarkInput && selectedRecipeForEdit) remarkInput.value = selectedRecipeForEdit.remark || '';
+      }
       renderRecipeCard();  // 新增：渲染配方卡片
       refreshPreviewRecipeRoi();
     }
   } catch (_) {
     foam2DRecipes = [];
   }
+}
+
+function renderFoamRecipeSelect() {
+  const recipeSelect = document.getElementById('foam-recipe-select');
+  if (!recipeSelect) return;
+  recipeSelect.replaceChildren(new Option('＋ 新建泡棉配方', ''));
+  foam2DRecipes.forEach(recipe => {
+    recipeSelect.add(new Option(
+      `${recipe.is_active ? '●' : '○'} ${recipe.name} · POS ${recipe.pos}${recipe.is_active ? '（已发布）' : '（草稿）'}`,
+      String(recipe.id),
+    ));
+  });
+  recipeSelect.value = selectedRecipeForEdit ? String(selectedRecipeForEdit.id) : '';
+}
+
+function selectFoamRecipeForEdit(recipeId) {
+  const recipe = foam2DRecipes.find(item => String(item.id) === String(recipeId)) || null;
+  selectedRecipeForEdit = recipe;
+  manualSelectedRecipe = null;
+  cal.dirty = false;
+  cal.rois = {};
+  const nameInput = document.getElementById('foam-recipe-draft-name');
+  const remarkInput = document.getElementById('foam-recipe-draft-remark');
+  const stateBadge = document.getElementById('foam-recipe-save-state');
+  if (recipe) {
+    document.getElementById('pos-index').value = recipe.pos ?? 0;
+    if (nameInput) nameInput.value = recipe.name || '';
+    if (remarkInput) remarkInput.value = recipe.remark || '';
+    if (stateBadge) {
+      stateBadge.textContent = recipe.is_active ? '已发布 · 可修改' : '草稿 · 可修改';
+      stateBadge.classList.toggle('saved', Boolean(recipe.is_active));
+    }
+    applyRecipeRoiToOverlay(recipe);
+    loadMaskStatus(recipe.id);
+  } else {
+    if (nameInput) nameInput.value = '新建泡棉检测配方';
+    if (remarkInput) remarkInput.value = '';
+    if (stateBadge) {
+      stateBadge.textContent = '新草稿';
+      stateBadge.classList.remove('saved');
+    }
+    renderRoiBoxes();
+    updateMaskPanelFromStatus({ready:false, reason:'请先保存配方', sides:{}});
+  }
+  recipeValidationCompleted = false;
+  renderRecipeCard();
 }
 
 // ── 渲染配方信息卡片 ─────────────────────────────────────────
@@ -2165,16 +2349,21 @@ function upsertSavedRecipe(savedRecipe) {
     ...savedRecipe,
     pos: Number(savedRecipe.pos ?? currentPOS()),
   };
-  const index = foam2DRecipes.findIndex(recipe =>
-    Number(recipe.id) === Number(normalizedRecipe.id) ||
-    Number(recipe.pos) === Number(normalizedRecipe.pos)
-  );
+  if (normalizedRecipe.is_active) {
+    foam2DRecipes.forEach(recipe => {
+      if (Number(recipe.pos) === Number(normalizedRecipe.pos) && Number(recipe.id) !== Number(normalizedRecipe.id)) {
+        recipe.is_active = false;
+      }
+    });
+  }
+  const index = foam2DRecipes.findIndex(recipe => Number(recipe.id) === Number(normalizedRecipe.id));
   if (index >= 0) {
     foam2DRecipes.splice(index, 1, normalizedRecipe);
   } else {
     foam2DRecipes.push(normalizedRecipe);
   }
   selectedRecipeForEdit = normalizedRecipe;
+  renderFoamRecipeSelect();
   if (Number(normalizedRecipe.pos) === currentPOS()) {
     manualSelectedRecipe = null;
   }
@@ -2196,9 +2385,11 @@ function showRecipeSaveSuccess(recipe, leftFoamROI, rightFoamROI) {
 }
 
 // ── 保存配方到指定 POS ───────────────────────────────────────
-async function saveRoiToRecipe(targetPos) {
+async function saveRoiToRecipe(targetPos, saveMode = 'publish') {
   // 查找已有配方
-  const existingRecipe = foam2DRecipes.find(r => Number(r.pos) === Number(targetPos));
+  const existingRecipe = FOAM_RECIPE_TEACHING
+    ? selectedRecipeForEdit
+    : foam2DRecipes.find(r => Number(r.pos) === Number(targetPos));
   
   let leftFoamROI = null;
   let rightFoamROI = null;
@@ -2261,7 +2452,7 @@ async function saveRoiToRecipe(targetPos) {
   const payload = {
     id: existingRecipe?.id,
     pos: targetPos,
-    name: `第${targetPos + 1}层泡棉检测配方`,
+    name: document.getElementById('foam-recipe-draft-name')?.value.trim() || `第${targetPos + 1}层泡棉检测配方`,
     camera_side: 'both',
     image_width: imageWidth,    // 保存时图片的实际尺寸（供旧格式解析参考）
     image_height: imageHeight,
@@ -2270,8 +2461,10 @@ async function saveRoiToRecipe(targetPos) {
       rightFoamROI
     },
     threshold_config: thresholdConfig,
-    is_active: true,
-    remark: existingRecipe?.remark || ''
+    is_active: saveMode === 'publish',
+    save_mode: saveMode,
+    create_new: Boolean(FOAM_RECIPE_TEACHING && !existingRecipe?.id),
+    remark: document.getElementById('foam-recipe-draft-remark')?.value.trim() || existingRecipe?.remark || ''
   };
   
   console.log('发送保存请求:', payload);
@@ -2299,7 +2492,10 @@ async function saveRoiToRecipe(targetPos) {
     if (data.success) {
       const savedRecipe = data.recipe || payload;
       upsertSavedRecipe(savedRecipe);
-      document.getElementById('pos-selector-modal').style.display = 'none';
+      selectedRecipeForEdit = foam2DRecipes.find(recipe => Number(recipe.id) === Number(savedRecipe.id)) || savedRecipe;
+      renderFoamRecipeSelect();
+      const positionModal = document.getElementById('pos-selector-modal');
+      if (positionModal) positionModal.style.display = 'none';
       // 保存成功后清除 dirty，同步 cal.rois 为刚保存的 ROI
       cal.dirty = false;
       if (savedRecipe?.roi_config) {
@@ -2311,6 +2507,11 @@ async function saveRoiToRecipe(targetPos) {
       renderRecipeCard();
       renderRoiBoxes();  // 直接重绘，不覆盖 cal.rois
       showRecipeSaveSuccess(savedRecipe, leftFoamROI, rightFoamROI);
+      const recipeState = document.getElementById('foam-recipe-save-state');
+      if (recipeState) {
+        recipeState.textContent = saveMode === 'publish' ? '已发布' : '草稿已保存';
+        recipeState.classList.toggle('saved', saveMode === 'publish');
+      }
     } else {
       const errorMsg = data.error || '未知错误';
       console.error('保存失败:', errorMsg);
@@ -2608,11 +2809,30 @@ document.addEventListener('DOMContentLoaded', () => {
     inp.type = 'hidden'; inp.name = 'csrfmiddlewaretoken'; inp.value = '{{ csrf_token }}';
     document.body.appendChild(inp);
   }
+  if (FOAM_RECIPE_TEACHING) {
+    const toolsHost = document.getElementById('foam-recipe-tools-host');
+    const calibrationPanel = document.querySelector('.roi-calibration-panel');
+    if (toolsHost && calibrationPanel) toolsHost.appendChild(calibrationPanel);
+    const captureButton = document.getElementById('btn-capture-inspect');
+    if (captureButton) captureButton.textContent = '📸 拍照试跑验证';
+    ['foam-recipe-draft-name', 'foam-recipe-draft-remark'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', () => {
+        const state = document.getElementById('foam-recipe-save-state');
+        if (state) {
+          state.textContent = '有未保存修改';
+          state.classList.remove('saved');
+        }
+      });
+    });
+    document.getElementById('foam-recipe-select')?.addEventListener('change', event => {
+      selectFoamRecipeForEdit(event.target.value);
+    });
+  }
   
   // POS 切换时更新配方
   document.getElementById('pos-index')?.addEventListener('change', () => {
     manualSelectedRecipe = null;
-    selectedRecipeForEdit = activeFoam2DRecipe();
+    if (!FOAM_RECIPE_TEACHING) selectedRecipeForEdit = activeFoam2DRecipe();
     // POS 切换时重置 ROI 状态，显示新 POS 的配方 ROI
     cal.dirty = false;
     cal.rois = {};
@@ -2629,8 +2849,7 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshPreviewRecipeRoi();
   });
   
-  // 保存配方按钮
-  document.getElementById('btn-save-recipe')?.addEventListener('click', () => {
+  function ensureRecipeRois() {
     // 允许只重画一侧：缺失的一侧自动从当前配方补全
     const recipe = currentDetectionRecipe();
     if (!cal.rois.left && recipe?.roi_config?.leftFoamROI) {
@@ -2643,9 +2862,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (!cal.rois.left || !cal.rois.right) {
       alert('请先框选左侧和右侧泡棉 ROI\n\n提示：点击"框选 ROI"后在预览图上拖拽绘制');
+      return false;
+    }
+    return true;
+  }
+
+  // 保存配方按钮
+  document.getElementById('btn-save-recipe')?.addEventListener('click', () => {
+    if (!ensureRecipeRois()) return;
+    if (FOAM_RECIPE_TEACHING) {
+      saveRoiToRecipe(currentPOS(), 'draft');
+    } else {
+      document.getElementById('pos-selector-modal').style.display = 'flex';
+    }
+  });
+
+  document.getElementById('btn-publish-recipe')?.addEventListener('click', () => {
+    if (!ensureRecipeRois()) return;
+    if (!currentTemplateReady) {
+      alert('发布前请先用当前合格样件建立左右标准模板。');
       return;
     }
-    document.getElementById('pos-selector-modal').style.display = 'flex';
+    if (!recipeValidationCompleted) {
+      alert('发布前请先点击“拍照试跑验证”，确认当前配方检测结果。');
+      return;
+    }
+    saveRoiToRecipe(currentPOS(), 'publish');
   });
 
   document.getElementById('btn-teach-standard')?.addEventListener('click', teachStandardTemplate);
@@ -2657,7 +2899,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.btn-pos').forEach(btn => {
     btn.addEventListener('click', () => {
       const pos = parseInt(btn.dataset.pos);
-      saveRoiToRecipe(pos);
+      saveRoiToRecipe(pos, 'publish');
     });
   });
   
@@ -2865,7 +3107,10 @@ document.addEventListener('DOMContentLoaded', () => {
 <div id="records-modal-overlay">
   <div id="records-modal">
     <div id="records-modal-header">
-      <h3>🗂️ 从2D泡棉检测记录导入图片</h3>
+      <div>
+        <h3 id="records-modal-title">🗂️ 从2D泡棉检测记录导入图片</h3>
+        <small id="records-modal-guidance">选择一条记录，将原图加载到当前工作台。</small>
+      </div>
       <button id="records-modal-close">✕</button>
     </div>
     <div id="records-modal-toolbar">
@@ -2889,9 +3134,23 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── 历史记录选择弹窗逻辑 ──
 let _allRecords = [];  // 已加载的全部记录
 let _recordsLoaded = false;
+let _recordImportTarget = 'foam';
 
 // 开启弹窗
-async function openRecordsModal() {
+async function openRecordsModal(target = 'foam') {
+  _recordImportTarget = target;
+  const forEmptyRack = target === 'empty-rack' || target === 'empty-rack-run' || target === 'empty-rack-trial';
+  const forEmptyRackTrial = target === 'empty-rack-trial';
+  document.getElementById('records-modal-title').textContent = forEmptyRackTrial
+    ? '🧮 选择一张记录图进行空箱计算'
+    : forEmptyRack
+      ? '🗂️ 从泡棉检测记录选择 ROI 示教图'
+    : '🗂️ 从2D泡棉检测记录导入图片';
+  document.getElementById('records-modal-guidance').textContent = forEmptyRackTrial
+    ? '所选原图仅用于绘制 ROI 和单图试算，不作为生产检测基准。'
+    : forEmptyRack
+      ? '选择一张清晰现场图，导入后绘制空箱检测 ROI 并直接试算。'
+    : '选择一条记录，将原图加载到泡棉工作台。';
   document.getElementById('records-modal-overlay').classList.add('active');
   if (!_recordsLoaded) {
     await loadRecords();
@@ -3005,6 +3264,32 @@ async function selectRecordImage(card) {
     const filename = `记录_POS${pos}_${time.replace(/[: ]/g, '-')}.jpg`;
     const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
 
+    if (_recordImportTarget === 'empty-rack') {
+      const imported = await window.EmptyRackRecipeEditor?.importRecordImage(file, {
+        id: card.dataset.recordId,
+        time,
+        pos,
+      });
+      if (imported === false) return;
+      closeRecordsModal();
+      return;
+    }
+    if (_recordImportTarget === 'empty-rack-run') {
+      const imported = await window.EmptyRackInspector?.importRecordImage(file, {
+        id: card.dataset.recordId,
+        time,
+        pos,
+      });
+      if (imported === false) return;
+      closeRecordsModal();
+      return;
+    }
+    if (_recordImportTarget === 'empty-rack-trial') {
+      closeRecordsModal();
+      await window.EmptyRackRecipeEditor?.runTrial({file});
+      return;
+    }
+
     // 显示在左侧预览区（与「导入图片」按钮相同效果）
     const dataUrl = URL.createObjectURL(blob);
     const img = document.getElementById('preview-image');
@@ -3021,6 +3306,7 @@ async function selectRecordImage(card) {
 
     closeRecordsModal();
   } catch(e) {
+    console.error('历史记录图片导入失败:', e);
     alert('图片加载失败：' + e.message);
   } finally {
     hideLoading();
@@ -3028,7 +3314,9 @@ async function selectRecordImage(card) {
 }
 
 // 弹窗按钮监听
-document.getElementById('btn-import-from-records').addEventListener('click', openRecordsModal);
+document.getElementById('btn-import-from-records').addEventListener('click', () => openRecordsModal('foam'));
+document.getElementById('empty-rack-records-btn')?.addEventListener('click', () => openRecordsModal('empty-rack'));
+document.getElementById('empty-run-records-btn')?.addEventListener('click', () => openRecordsModal('empty-rack-run'));
 document.getElementById('records-modal-close').addEventListener('click', closeRecordsModal);
 document.getElementById('records-modal-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('records-modal-overlay')) closeRecordsModal();
@@ -3044,18 +3332,35 @@ document.addEventListener('keydown', e => {
 });
 </script>
 
+{% if empty_rack_mode or empty_rack_run_mode %}
+<link rel="stylesheet" href="{% static 'vision/css/empty_rack_recipe_editor.css' %}?v=20260819-v8">
+{% endif %}
 {% if empty_rack_mode %}
-<link rel="stylesheet" href="{% static 'vision/css/empty_rack_recipe_editor.css' %}">
 <script>
 window.emptyRackRecipeConfig = {
   detailUrl: '{% url "vision:api_empty_rack_recipe" %}',
+  listUrl: '{% url "vision:api_vision_recipes" %}',
   saveUrl: '{% url "vision:api_empty_rack_recipe_save" %}',
+  inspectUrl: '{% url "vision:api_empty_rack_inspect" %}',
   cameraPreviewUrl: '{% url "vision:api_camera_preview" %}',
   cameraCode: 'CAM-INSPECT-RACK-01',
+  newRecipe: {{ new_recipe_mode|yesno:"true,false" }},
   autoLoad: true,
 };
 </script>
-<script src="{% static 'vision/js/empty_rack_recipe_editor.js' %}"></script>
+<script src="{% static 'vision/js/empty_rack_recipe_editor.js' %}?v=20260819-v8"></script>
+{% endif %}
+{% if empty_rack_run_mode %}
+<link rel="stylesheet" href="{% static 'vision/css/empty_rack_inspector.css' %}?v=20260819-v1">
+<script>
+window.emptyRackInspectorConfig = {
+  recipeUrl: '{% url "vision:api_empty_rack_recipe" %}',
+  cameraPreviewUrl: '{% url "vision:api_camera_preview" %}',
+  inspectUrl: '{% url "vision:api_empty_rack_inspect" %}',
+  cameraCode: 'CAM-INSPECT-RACK-01',
+};
+</script>
+<script src="{% static 'vision/js/empty_rack_inspector.js' %}?v=20260819-v2"></script>
 {% endif %}
 
 {% endblock %}
