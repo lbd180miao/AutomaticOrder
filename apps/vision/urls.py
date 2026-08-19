@@ -84,6 +84,7 @@ urlpatterns = [
     path('api/recipes/foam-2d/<int:recipe_id>/delete/', views.api_foam_recipe_delete, name='api_foam_recipe_delete'),
     path('api/recipes/empty-rack-2d/', views.api_empty_rack_recipe, name='api_empty_rack_recipe'),
     path('api/recipes/empty-rack-2d/save/', views.api_empty_rack_recipe_save, name='api_empty_rack_recipe_save'),
+    path('api/empty-rack/inspect/', views.api_empty_rack_inspect, name='api_empty_rack_inspect'),
     path('api/foam/capture-inspect/', views.api_foam_capture_inspect, name='api_foam_capture_inspect'),
     path('api/foam/upload-inspect/', views.api_foam_upload_inspect, name='api_foam_upload_inspect'),
     path('api/foam/inspection-records/', views.api_foam_inspection_records, name='api_foam_inspection_records'),

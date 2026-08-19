@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST, require_http_methods
 from apps.core.constants import RackSide
 from apps.devices.models import Device
 from apps.production.models import Rack, RackRecipe
+from .algorithms.foam_inspector import generate_foam_mask
 from .algorithms.standard_mask_manager import StandardMaskManager
 from .algorithms.rack_opening_rectangle import (
     calculate_tcp_verification,
@@ -220,10 +221,20 @@ def foam_results(request):
 
 def foam_inspector_interactive(request):
     """Shared 2D workbench for foam inspection and empty-rack recipe teaching."""
-    empty_rack_mode = request.GET.get('mode') == 'empty_rack'
+    mode = request.GET.get('mode') or 'run'
+    inspection = request.GET.get('inspection') or 'foam'
+    empty_rack_mode = mode == 'empty_rack'
+    foam_recipe_mode = mode == 'foam_recipe'
+    empty_rack_run_mode = mode == 'run' and inspection == 'empty_rack'
+    recipe_teaching_mode = empty_rack_mode or foam_recipe_mode
     return render(request, 'vision/foam_inspector_interactive.html', {
         'empty_rack_mode': empty_rack_mode,
-        'workbench_title': '2D 空箱检测工作台' if empty_rack_mode else '泡棉检测工作台',
+        'empty_rack_run_mode': empty_rack_run_mode,
+        'foam_recipe_mode': foam_recipe_mode,
+        'recipe_teaching_mode': recipe_teaching_mode,
+        'new_recipe_mode': request.GET.get('new') == '1',
+        'workbench_mode': mode,
+        'workbench_title': '2D 视觉工作台',
     })
 
 
@@ -369,10 +380,14 @@ def api_foam_recipe_save(request):
             raise ValueError('threshold_config must be an object')
 
         recipe_id = body.get('id')
+        create_new = _as_bool(body.get('create_new'), False)
+        save_mode = str(body.get('save_mode') or '').lower()
         if recipe_id:
             recipe = get_object_or_404(
                 VisionRecipe, id=recipe_id, recipe_type='FOAM_2D'
             )
+        elif create_new:
+            recipe = None
         else:
             recipe = get_active_foam_2d_recipe_by_pos(pos)
         if recipe is None:
@@ -388,9 +403,16 @@ def api_foam_recipe_save(request):
         recipe.image_height = int(body.get('image_height') or recipe.image_height or 720)
         recipe.roi_config = roi_config
         recipe.threshold_config = threshold_config
-        recipe.is_active = _as_bool(body.get('is_active'), True)
+        if save_mode in {'draft', 'publish'}:
+            recipe.is_active = save_mode == 'publish'
+        else:
+            recipe.is_active = _as_bool(body.get('is_active'), True)
         recipe.remark = body.get('remark') or ''
         recipe.save()
+        if recipe.is_active:
+            VisionRecipe.objects.filter(
+                recipe_type='FOAM_2D', pos=pos, is_active=True,
+            ).exclude(pk=recipe.pk).update(is_active=False)
         return JsonResponse({'success': True, 'recipe': serialize_recipe(recipe)})
     except (TypeError, ValueError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
@@ -424,7 +446,6 @@ def api_foam_standard_template_teach(request, recipe_id):
         recipe = VisionRecipe.objects.filter(
             id=recipe_id,
             recipe_type='FOAM_2D',
-            is_active=True,
         ).first()
         if recipe is None:
             return JsonResponse({'success': False, 'error': '未找到启用的泡棉配方'}, status=404)
@@ -478,10 +499,9 @@ def api_foam_standard_template_from_result(request, recipe_id, result_id):
         recipe = VisionRecipe.objects.filter(
             id=recipe_id,
             recipe_type='FOAM_2D',
-            is_active=True,
         ).first()
         if recipe is None:
-            return JsonResponse({'success': False, 'error': '未找到启用的泡棉配方'}, status=404)
+            return JsonResponse({'success': False, 'error': '未找到泡棉配方'}, status=404)
 
         inspection = (
             FoamInspectionResult.objects
@@ -549,11 +569,11 @@ def api_foam_standard_mask_upload(request):
         if side not in ('left', 'right'):
             return JsonResponse({'success': False, 'error': 'side 必须是 left 或 right'}, status=400)
         recipe = VisionRecipe.objects.filter(
-            id=recipe_id, recipe_type='FOAM_2D', is_active=True
+            id=recipe_id, recipe_type='FOAM_2D'
         ).first()
         if recipe is None:
             return JsonResponse(
-                {'success': False, 'error': f'未找到 ID={recipe_id} 的启用泡棉检测配方'},
+                {'success': False, 'error': f'未找到 ID={recipe_id} 的泡棉检测配方'},
                 status=404,
             )
         uploaded = request.FILES.get('image')
@@ -601,7 +621,7 @@ def api_foam_standard_mask_status(request, recipe_id):
     返回每侧是否已配置，以及覆盖率、质心等摘要信息。
     """
     recipe = VisionRecipe.objects.filter(
-        id=recipe_id, recipe_type='FOAM_2D', is_active=True
+        id=recipe_id, recipe_type='FOAM_2D'
     ).first()
     if recipe is None:
         return JsonResponse({'success': False, 'error': '未找到配方'}, status=404)
@@ -659,7 +679,7 @@ def api_foam_standard_mask_capture(request, recipe_id):
             return JsonResponse({'success': False, 'error': 'side 必须是 left 或 right'}, status=400)
 
         recipe = VisionRecipe.objects.filter(
-            id=recipe_id, recipe_type='FOAM_2D', is_active=True
+            id=recipe_id, recipe_type='FOAM_2D'
         ).first()
         if recipe is None:
             return JsonResponse({'success': False, 'error': '未找到配方'}, status=404)
@@ -726,7 +746,7 @@ def api_foam_standard_mask_delete(request, recipe_id, side):
             return JsonResponse({'success': False, 'error': 'side 必须是 left 或 right'}, status=400)
 
         recipe = VisionRecipe.objects.filter(
-            id=recipe_id, recipe_type='FOAM_2D', is_active=True
+            id=recipe_id, recipe_type='FOAM_2D'
         ).first()
         if recipe is None:
             return JsonResponse({'success': False, 'error': '未找到配方'}, status=404)
@@ -832,14 +852,18 @@ def api_foam_recipe_create(request):
 
 
 def _empty_rack_recipe_payload(recipe):
-    """Serialize the single 2D empty-rack recipe with its reference image URL."""
+    """Serialize an empty-rack recipe with its optional ROI-teaching image."""
     if recipe is None:
         return None
     payload = serialize_recipe(recipe)
-    reference_path = (recipe.algorithm_config or {}).get('reference_image_path', '')
-    payload['reference_image_url'] = (
-        default_storage.url(reference_path) if reference_path else ''
+    algorithm_config = recipe.algorithm_config or {}
+    teaching_path = (
+        algorithm_config.get('teaching_image_path')
+        or algorithm_config.get('reference_image_path', '')
     )
+    teaching_url = default_storage.url(teaching_path) if teaching_path else ''
+    payload['teaching_image_url'] = teaching_url
+    payload['reference_image_url'] = teaching_url  # compatibility for older clients
     return payload
 
 
@@ -866,7 +890,7 @@ def _normalize_empty_rack_rois(raw_regions, image_width, image_height):
         if x < 0 or y < 0 or width < 8 or height < 8:
             raise ValueError(f'第 {index} 个 ROI 无效，宽高至少为 8 像素')
         if x + width > image_width or y + height > image_height:
-            raise ValueError(f'第 {index} 个 ROI 超出基准图边界')
+            raise ValueError(f'第 {index} 个 ROI 超出示教图边界')
 
         roi_id = str(raw.get('id') or f'roi-{index}')[:64]
         if roi_id in used_ids:
@@ -886,10 +910,15 @@ def _normalize_empty_rack_rois(raw_regions, image_width, image_height):
 
 @require_http_methods(['GET'])
 def api_empty_rack_recipe(request):
-    queryset = VisionRecipe.objects.filter(recipe_type='EMPTY_RACK_2D', is_active=True)
     recipe_id = request.GET.get('id')
     if recipe_id:
-        queryset = queryset.filter(id=int(recipe_id))
+        queryset = VisionRecipe.objects.filter(
+            recipe_type='EMPTY_RACK_2D', id=int(recipe_id),
+        )
+    else:
+        queryset = VisionRecipe.objects.filter(
+            recipe_type='EMPTY_RACK_2D', is_active=True,
+        )
     recipe = queryset.order_by('-updated_at', '-id').first()
     return JsonResponse({'success': True, 'recipe': _empty_rack_recipe_payload(recipe)})
 
@@ -906,7 +935,9 @@ def api_empty_rack_recipe_save(request):
                 id=recipe_id,
                 recipe_type='EMPTY_RACK_2D',
             )
-        if recipe is None:
+        create_new = _as_bool(request.POST.get('create_new'), False)
+        save_mode = str(request.POST.get('save_mode') or 'publish').lower()
+        if recipe is None and not create_new:
             recipe = (
                 VisionRecipe.objects
                 .filter(recipe_type='EMPTY_RACK_2D', is_active=True)
@@ -914,12 +945,13 @@ def api_empty_rack_recipe_save(request):
                 .first()
             )
 
-        uploaded = request.FILES.get('reference_image')
+        uploaded = request.FILES.get('teaching_image') or request.FILES.get('reference_image')
         preview_capture_token = request.POST.get('preview_capture_token') or ''
         image_width = int(request.POST.get('image_width') or 0)
         image_height = int(request.POST.get('image_height') or 0)
-        reference_path = (
-            (recipe.algorithm_config or {}).get('reference_image_path', '')
+        teaching_path = (
+            (recipe.algorithm_config or {}).get('teaching_image_path')
+            or (recipe.algorithm_config or {}).get('reference_image_path', '')
             if recipe else ''
         )
 
@@ -934,9 +966,9 @@ def api_empty_rack_recipe_save(request):
             image_height, image_width = image.shape[:2]
             ok, encoded = cv2.imencode('.jpg', image, [cv2.IMWRITE_JPEG_QUALITY, 92])
             if not ok:
-                raise ValueError('空箱基准图编码失败')
-            reference_path = default_storage.save(
-                f'vision/empty_rack_recipes/{uuid.uuid4().hex}.jpg',
+                raise ValueError('ROI 示教图编码失败')
+            teaching_path = default_storage.save(
+                f'vision/empty_rack_teaching/{uuid.uuid4().hex}.jpg',
                 ContentFile(encoded.tobytes()),
             )
         elif recipe is not None:
@@ -945,10 +977,10 @@ def api_empty_rack_recipe_save(request):
             image_width = recipe.image_width
             image_height = recipe.image_height
 
-        if not reference_path:
-            raise ValueError('请先上传一张空料架基准图')
+        if not teaching_path:
+            raise ValueError('请先载入一张 ROI 示教图')
         if image_width <= 0 or image_height <= 0:
-            raise ValueError('基准图分辨率无效，请重新上传图片')
+            raise ValueError('示教图分辨率无效，请重新载入图片')
 
         try:
             raw_regions = json.loads(request.POST.get('regions') or '[]')
@@ -956,21 +988,43 @@ def api_empty_rack_recipe_save(request):
             raise ValueError('ROI 数据不是有效 JSON')
         regions = _normalize_empty_rack_rois(raw_regions, image_width, image_height)
 
-        difference_threshold = float(request.POST.get('difference_threshold') or 0.18)
-        min_changed_area_ratio = float(request.POST.get('min_changed_area_ratio') or 0.06)
-        if not 0 <= difference_threshold <= 1:
-            raise ValueError('差异阈值必须在 0～1 之间')
-        if not 0 <= min_changed_area_ratio <= 1:
-            raise ValueError('变化面积比例必须在 0～1 之间')
+        foam_brightness_threshold = float(
+            request.POST.get('foam_brightness_threshold') or 0.55
+        )
+        min_foam_area_ratio = float(request.POST.get('min_foam_area_ratio') or 0.03)
+        if not 0 <= foam_brightness_threshold <= 1:
+            raise ValueError('泡棉亮度阈值必须在 0～1 之间')
+        if not 0 <= min_foam_area_ratio <= 1:
+            raise ValueError('最小泡棉面积比例必须在 0～1 之间')
 
         if recipe is None:
             recipe = VisionRecipe(recipe_type='EMPTY_RACK_2D', pos=0)
         algorithm_config = dict(recipe.algorithm_config or {})
         algorithm_config.update({
-            'method': 'reference_difference',
-            'reference_image_path': reference_path,
-            'version': 1,
+            'method': 'direct_foam_presence',
+            'teaching_image_path': teaching_path,
+            'version': 2,
         })
+        algorithm_config.pop('reference_image_path', None)
+        reference_source_raw = (
+            request.POST.get('teaching_source') or request.POST.get('reference_source')
+        )
+        if reference_source_raw:
+            try:
+                reference_source = json.loads(reference_source_raw)
+            except json.JSONDecodeError:
+                raise ValueError('示教图来源数据不是有效 JSON')
+            if not isinstance(reference_source, dict):
+                raise ValueError('示教图来源数据格式错误')
+            algorithm_config['teaching_source'] = {
+                'type': str(reference_source.get('type') or '')[:40],
+                'record_id': str(reference_source.get('record_id') or '')[:40],
+                'captured_at': str(reference_source.get('captured_at') or '')[:40],
+                'position_index': int(reference_source.get('position_index') or 0),
+            }
+        elif image is not None:
+            algorithm_config.pop('teaching_source', None)
+            algorithm_config.pop('reference_source', None)
         recipe.name = (request.POST.get('name') or '2D 空箱检测配方').strip()[:100]
         recipe.camera_side = 'front'
         recipe.image_width = image_width
@@ -980,16 +1034,205 @@ def api_empty_rack_recipe_save(request):
             'regions': regions,
         }
         recipe.threshold_config = {
-            'difference_threshold': difference_threshold,
-            'min_changed_area_ratio': min_changed_area_ratio,
+            'foam_brightness_threshold': foam_brightness_threshold,
+            'min_foam_area_ratio': min_foam_area_ratio,
+            'foam_max_saturation': 0.32,
         }
         recipe.algorithm_config = algorithm_config
-        recipe.is_active = True
+        recipe.is_active = save_mode != 'draft'
         recipe.remark = (request.POST.get('remark') or '').strip()
         recipe.save()
+        if recipe.is_active:
+            VisionRecipe.objects.filter(
+                recipe_type='EMPTY_RACK_2D', is_active=True,
+            ).exclude(pk=recipe.pk).update(is_active=False)
         return JsonResponse({'success': True, 'recipe': _empty_rack_recipe_payload(recipe)})
     except (TypeError, ValueError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@require_POST
+def api_empty_rack_inspect(request):
+    """Detect foam/material directly in each configured ROI of one image."""
+    try:
+        recipe_id = int(request.POST.get('recipe_id') or 0)
+        queryset = VisionRecipe.objects.filter(recipe_type='EMPTY_RACK_2D')
+        recipe = (
+            queryset.filter(id=recipe_id).first()
+            if recipe_id
+            else queryset.filter(is_active=True).order_by('-updated_at', '-id').first()
+        )
+
+        uploaded = request.FILES.get('image')
+        preview_capture_token = request.POST.get('preview_capture_token') or ''
+        use_teaching_image = _as_bool(
+            request.POST.get('use_teaching_image')
+            or request.POST.get('use_reference_image'),
+            False,
+        )
+        if uploaded:
+            current = _decode_uploaded_image(uploaded)
+        elif preview_capture_token:
+            current = _camera_image_from_preview_token(preview_capture_token)
+        elif use_teaching_image and recipe is not None:
+            algorithm_config = recipe.algorithm_config or {}
+            teaching_path = (
+                algorithm_config.get('teaching_image_path')
+                or algorithm_config.get('reference_image_path', '')
+            )
+            if not teaching_path or not default_storage.exists(teaching_path):
+                raise ValueError('配方没有可用于试算的 ROI 示教图')
+            with default_storage.open(teaching_path, 'rb') as teaching_file:
+                current = cv2.imdecode(
+                    np.frombuffer(teaching_file.read(), dtype=np.uint8),
+                    cv2.IMREAD_COLOR,
+                )
+            if current is None:
+                raise ValueError('ROI 示教图无法解码')
+        else:
+            from apps.devices.adapters.camera import CameraAdapter
+
+            capture = CameraAdapter().capture(
+                camera_code='CAM-INSPECT-RACK-01',
+                task_type='EMPTY_RACK_INSPECTION',
+            )
+            current = cv2.imread(str(capture.get('image_path') or ''), cv2.IMREAD_COLOR)
+            if current is None:
+                raise ValueError('料架相机未返回可用图像')
+
+        image_height, image_width = current.shape[:2]
+
+        recipe_thresholds = recipe.threshold_config or {} if recipe else {}
+        foam_brightness_threshold = float(
+            request.POST.get('foam_brightness_threshold')
+            if request.POST.get('foam_brightness_threshold') not in (None, '')
+            else recipe_thresholds.get('foam_brightness_threshold', 0.55)
+        )
+        min_foam_area_ratio = float(
+            request.POST.get('min_foam_area_ratio')
+            if request.POST.get('min_foam_area_ratio') not in (None, '')
+            else recipe_thresholds.get(
+                'min_foam_area_ratio',
+                recipe_thresholds.get('min_changed_area_ratio', 0.03),
+            )
+        )
+        foam_max_saturation = float(recipe_thresholds.get('foam_max_saturation', 0.32))
+        if not 0 <= foam_brightness_threshold <= 1:
+            raise ValueError('泡棉亮度阈值必须在 0～1 之间')
+        if not 0 <= min_foam_area_ratio <= 1:
+            raise ValueError('最小泡棉面积比例必须在 0～1 之间')
+        raw_regions = request.POST.get('regions')
+        if raw_regions not in (None, ''):
+            try:
+                regions = json.loads(raw_regions)
+            except json.JSONDecodeError:
+                raise ValueError('ROI 数据不是有效 JSON')
+            regions = _normalize_empty_rack_rois(
+                regions, image_width, image_height
+            )
+        else:
+            regions = (recipe.roi_config or {}).get('regions') if recipe else []
+        if not regions:
+            raise ValueError('空箱配方没有检测 ROI')
+
+        annotated = current.copy()
+        region_results = []
+        mask_config = {
+            'foam_min_v': int(round(foam_brightness_threshold * 255)),
+            'foam_seed_min_v': max(50, int(round(foam_brightness_threshold * 255)) - 30),
+            'foam_max_s': int(round(max(0, min(1, foam_max_saturation)) * 255)),
+            'foam_seed_max_s': int(round(max(0, min(1, foam_max_saturation)) * 255)),
+            'foam_anchor_min_area_ratio': max(0.002, min_foam_area_ratio / 3),
+            'foam_anchor_min_width_ratio': 0.08,
+        }
+        for index, region in enumerate(regions, start=1):
+            x = int(region.get('x', 0))
+            y = int(region.get('y', 0))
+            width = int(region.get('width', 0))
+            height = int(region.get('height', 0))
+            if width <= 0 or height <= 0 or x < 0 or y < 0:
+                raise ValueError(f'第 {index} 个 ROI 坐标无效')
+            x2 = min(image_width, x + width)
+            y2 = min(image_height, y + height)
+            if x >= x2 or y >= y2:
+                raise ValueError(f'第 {index} 个 ROI 超出检测图范围')
+            roi_image = current[y:y2, x:x2]
+            foam_mask = generate_foam_mask(roi_image, mask_config)
+            foam_pixel_count = int(np.count_nonzero(foam_mask))
+            foam_area_ratio = foam_pixel_count / max(foam_mask.size, 1)
+            mean_brightness = float(
+                np.mean(cv2.cvtColor(roi_image, cv2.COLOR_BGR2HSV)[:, :, 2])
+            ) / 255
+            is_empty = foam_area_ratio < min_foam_area_ratio
+            name = str(region.get('name') or f'检测区 {index}')
+            region_results.append({
+                'id': str(region.get('id') or f'roi-{index}'),
+                'name': name,
+                'is_empty': is_empty,
+                'foam_area_ratio': round(foam_area_ratio, 4),
+                'foam_pixel_count': foam_pixel_count,
+                'mean_brightness': round(mean_brightness, 4),
+                'changed_area_ratio': round(foam_area_ratio, 4),  # compatibility
+                'mean_difference': round(mean_brightness, 4),  # compatibility
+                'bounds': {'x': x, 'y': y, 'width': x2 - x, 'height': y2 - y},
+            })
+            color = (34, 197, 94) if is_empty else (32, 32, 239)
+            contours, _ = cv2.findContours(
+                foam_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            if contours:
+                shifted_contours = [
+                    contour + np.array([[[x, y]]], dtype=contour.dtype)
+                    for contour in contours
+                ]
+                cv2.drawContours(annotated, shifted_contours, -1, (0, 165, 255), 3)
+            cv2.rectangle(annotated, (x, y), (x2, y2), color, max(2, image_width // 900))
+            cv2.putText(
+                annotated,
+                f'ROI {index} {"EMPTY" if is_empty else "OCCUPIED"}',
+                (x, max(24, y - 8)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                max(0.55, image_width / 5000),
+                color,
+                max(1, image_width // 1300),
+                cv2.LINE_AA,
+            )
+
+        is_empty = all(item['is_empty'] for item in region_results)
+        encoded_ok, encoded = cv2.imencode(
+            '.jpg', annotated, [cv2.IMWRITE_JPEG_QUALITY, 88]
+        )
+        result_image_url = ''
+        if encoded_ok:
+            result_path = default_storage.save(
+                f'vision/empty_rack_results/{uuid.uuid4().hex}.jpg',
+                ContentFile(encoded.tobytes()),
+            )
+            result_image_url = default_storage.url(result_path)
+
+        return JsonResponse({
+            'success': True,
+            'result': {
+                'is_empty': is_empty,
+                'occupied_count': sum(not item['is_empty'] for item in region_results),
+                'region_count': len(region_results),
+                'regions': region_results,
+                'recipe': _empty_rack_recipe_payload(recipe),
+                'result_image_url': result_image_url,
+                'source_resized': False,
+                'source_size': {'width': image_width, 'height': image_height},
+                'algorithm': 'direct_foam_presence',
+                'thresholds': {
+                    'foam_brightness_threshold': foam_brightness_threshold,
+                    'min_foam_area_ratio': min_foam_area_ratio,
+                },
+            },
+        })
+    except (TypeError, ValueError, signing.BadSignature, signing.SignatureExpired) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception('Empty-rack inspection failed')
+        return JsonResponse({'success': False, 'error': f'空箱检测失败: {exc}'}, status=500)
 
 
 def _normalize_roi_ratio(values):
@@ -1288,7 +1531,7 @@ def api_foam_upload_inspect(request):
             if recipe_id:
                 recipe = (
                     VisionRecipe.objects
-                    .filter(id=recipe_id, recipe_type='FOAM_2D', is_active=True)
+                    .filter(id=recipe_id, recipe_type='FOAM_2D')
                     .first()
                 )
             else:
