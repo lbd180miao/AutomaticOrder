@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    AutomaticOrder 涓婁綅鏈虹晫闈㈡牱寮?   鐜颁唬宸ヤ笟鐩戞帶鍙伴鏍?路 鍘熺敓 CSS 路 鏃犳鏋朵緷璧?   ============================================================ */
 
 :root {
@@ -1351,9 +1351,11 @@ input[type="text"] {
 .input-prod-code:focus { outline: none; }
 .product-item-row.is-new-row td { background: #f6faff; }
 
-/* 新增料框 Modal */
+/* 新增/补全料框 Modal */
 .binding-modal { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); backdrop-filter: blur(2px); }
 .binding-modal-box { width: 460px; max-width: 95vw; padding: 22px 24px; border-radius: 10px; background: var(--surface); box-shadow: 0 12px 40px rgba(0,0,0,.22); }
+.binding-modal-box.modal-large { width: 680px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+.binding-modal-body-scroll { overflow-y: auto; max-height: calc(88vh - 140px); padding-right: 4px; }
 .binding-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .binding-modal-head h3 { margin: 0; font-size: 16px; color: var(--text); }
 .modal-close-btn { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-muted); padding: 4px 8px; border-radius: 4px; }
@@ -1363,7 +1365,30 @@ input[type="text"] {
 .modal-form-input, .modal-form-textarea { padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 6px; font: inherit; font-size: 13px; width: 100%; box-sizing: border-box; }
 .modal-form-textarea { resize: vertical; line-height: 1.45; }
 .modal-form-input:focus, .modal-form-textarea:focus { outline: none; border-color: var(--primary, #1a73e8); box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1); }
-.binding-modal-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.binding-modal-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; border-top: 1px solid var(--border); padding-top: 14px; }
+
+/* 弹窗内条码列表编辑表格 */
+.modal-prod-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+.modal-prod-table th, .modal-prod-table td { padding: 6px 10px; border: 1px solid var(--border); text-align: left; }
+.modal-prod-table th { background: var(--surface-2); font-weight: 700; font-size: 11px; }
+.modal-prod-input { width: 100%; padding: 4px 6px; border: 1px solid var(--border-strong); border-radius: 4px; font-size: 12px; box-sizing: border-box; }
+.modal-prod-input:focus { border-color: var(--primary); outline: none; }
+
+/* 残次品专用槽位与表格行样式 */
+.slot-tile.is-defective {
+  background: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+}
+.slot-tile.is-defective .slot-prod-code {
+  color: #991b1b !important;
+  text-decoration: line-through;
+}
+.row-defective {
+  background-color: rgba(254, 242, 242, 0.6) !important;
+}
+.row-defective td {
+  border-bottom-color: #fee2e2 !important;
+}
 
 @media (max-width: 1280px) {
   .alarm-workbench-grid { grid-template-columns: minmax(0,1.35fr) minmax(310px,.7fr); }

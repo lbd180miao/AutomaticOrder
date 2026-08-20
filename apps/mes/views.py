@@ -16,7 +16,7 @@ from django.utils.dateparse import parse_date
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from apps.core.constants import MesAction
+from apps.core.constants import MesAction, MesUploadStatus
 from apps.production.models import Product, Rack, RackRecipe
 from apps.production.services import ProductionService
 from apps.workflow.models import StationCycle, StationPhase
@@ -45,6 +45,7 @@ def record_list(request):
     product_code = request.GET.get('product_code', '').strip()
     recipe_code = request.GET.get('recipe_code', '').strip()
     sync_status = request.GET.get('sync_status', '').strip()
+    product_status = request.GET.get('product_status', '').strip()
     action_filter = request.GET.get('action', '')
     result_filter = request.GET.get('result', '')
     start_date = request.GET.get('start_date', '')
@@ -71,8 +72,9 @@ def record_list(request):
     _decorate_mes_records(records)
 
     binding_qs = Product.objects.select_related(
-        'rack', 'rack__current_recipe', 'batch',
-    ).filter(rack__isnull=False).order_by('-updated_at')
+        'rack', 'rack__current_recipe', 'batch', 'replaced_by',
+    ).order_by('-updated_at')
+
     latest_upload = MesRecord.objects.filter(
         action=MesAction.UPLOAD_PRODUCT_BARCODE,
         product_id=OuterRef('pk'),
@@ -106,6 +108,11 @@ def record_list(request):
         binding_qs = binding_qs.filter(
             latest_mes_success__isnull=True, mes_upload_status='PENDING',
         )
+    if product_status == 'DEFECTIVE':
+        binding_qs = binding_qs.filter(is_defective=True)
+    elif product_status == 'NORMAL':
+        binding_qs = binding_qs.filter(is_defective=False)
+
     if start_value:
         binding_qs = binding_qs.filter(updated_at__gte=timezone.make_aware(datetime.combine(start_value, time.min)))
     if end_value:
@@ -118,7 +125,6 @@ def record_list(request):
     _decorate_mes_records(pending_records)
     consistency_issues = _build_consistency_issues(pending_records, recipe_rows)
 
-    # 统计数据
     stats = MesService.get_stats(hours=24)
     latest_record = MesRecord.objects.order_by('-created_at').first()
     recent_cutoff = timezone.now() - timedelta(minutes=10)
@@ -146,9 +152,10 @@ def record_list(request):
         'product_code': product_code,
         'recipe_code': recipe_code,
         'sync_status': sync_status,
+        'product_status': product_status,
         'binding_rows': binding_rows,
         'binding_page': binding_page,
-        'binding_total': Product.objects.filter(rack__isnull=False).count(),
+        'binding_total': Product.objects.count(),
         'recipe_rows': recipe_rows,
         'recipe_total': RackRecipe.objects.count(),
         'pending_records': pending_records,
@@ -181,9 +188,7 @@ def _decorate_mes_records(records):
 
 
 def _build_binding_rows(products):
-    """Combine local binding, foam result and latest MES acknowledgement.
-    Returns rack-grouped structure: each group has rack info + list of product rows + visual layer matrix.
-    """
+    """Combine local binding, foam result and latest MES acknowledgement."""
     products = list(products)
     if not products:
         return []
@@ -204,7 +209,6 @@ def _build_binding_rows(products):
         if code:
             upload_by_code.setdefault(str(code), record)
 
-    # Group products by rack
     from collections import OrderedDict
     rack_groups = OrderedDict()
     for product in products:
@@ -242,7 +246,6 @@ def _build_binding_rows(products):
             'mes_id': upload.response_payload.get('mes_id', '') if upload and upload.success else '',
         })
 
-    # Build visual rack layers for each group
     result = []
     for g in rack_groups.values():
         layer_count = g['layer_count'] or 1
@@ -268,7 +271,7 @@ def _build_binding_rows(products):
             slot_cursor += 1
 
         layers = []
-        for l_idx in range(layer_count, 0, -1):  # Top layer to bottom layer (physical rack)
+        for l_idx in range(layer_count, 0, -1):
             slots = []
             for s_idx in range(1, qty_per_layer + 1):
                 pos_idx = (l_idx - 1) * qty_per_layer + s_idx
@@ -427,7 +430,7 @@ def _build_recipe_verification(cycle):
         state = ('等待前序流程', 'muted', '料框配方和定位完成后自动进入配置核对')
         camera_state = '等待前序流程'
 
-    tolerance = recipe.tolerance_z if recipe else None
+    tolerance = recipe.tolerance_z if recipe else 3.0
 
     def item(label, expected, measured):
         difference = None
@@ -680,10 +683,7 @@ def retry_api(request, record_id: int):
 @csrf_exempt
 @require_http_methods(['POST'])
 def test_upload_api(request):
-    """
-    POST /mes/api/test/ - 开发调试：手动触发一次 MES 上传测试。
-    Body (JSON): { "action": "UPLOAD_BOXING_RESULT", "payload": {...} }
-    """
+    """POST /mes/api/test/ - 开发调试：手动触发一次 MES 上传测试。"""
     try:
         body = json.loads(request.body)
     except (json.JSONDecodeError, ValueError):
@@ -716,13 +716,7 @@ def test_upload_api(request):
 @csrf_exempt
 @require_http_methods(['POST'])
 def binding_update_api(request):
-    """
-    POST /mes/api/binding/update/
-    手动修改料框码或产品条码绑定。
-    Body (JSON):
-      { "type": "rack_code", "product_id": 1, "new_value": "RACK-NEW-001" }
-      { "type": "product_code", "product_id": 1, "new_value": "P-NEW-0001" }
-    """
+    """POST /mes/api/binding/update/"""
     try:
         body = json.loads(request.body or b'{}')
     except (json.JSONDecodeError, ValueError):
@@ -737,7 +731,6 @@ def binding_update_api(request):
     if not new_value:
         return JsonResponse({'success': False, 'error': '新值不能为空'}, status=400)
 
-    from apps.production.models import Product, Rack
     product = get_object_or_404(Product, pk=product_id)
 
     try:
@@ -774,11 +767,7 @@ def binding_update_api(request):
 @csrf_exempt
 @require_http_methods(['POST'])
 def binding_add_api(request):
-    """
-    POST /mes/api/binding/add/
-    手动新增一个产品条码并绑定到指定料框。
-    Body (JSON): { "rack_code": "RACK-001", "product_code": "P-NEW-0001" }
-    """
+    """POST /mes/api/binding/add/"""
     try:
         body = json.loads(request.body or b'{}')
     except (json.JSONDecodeError, ValueError):
@@ -792,7 +781,6 @@ def binding_add_api(request):
     if not product_code:
         return JsonResponse({'success': False, 'error': '产品条码不能为空'}, status=400)
 
-    from apps.production.models import Product, Rack
     try:
         with transaction.atomic():
             rack, _ = Rack.objects.get_or_create(rack_code=rack_code)
@@ -811,23 +799,12 @@ def binding_add_api(request):
         return JsonResponse({'success': False, 'error': str(exc)}, status=500)
 
 
-
 @csrf_exempt
 @require_http_methods(['POST'])
 def rack_binding_save_api(request):
     """
     POST /mes/api/rack-binding/save/
     批量保存料框与多个产品条码的绑定关系。
-    Body (JSON):
-      {
-        "rack_id": 1,
-        "rack_code": "RACK-001",
-        "products": [
-          { "id": 10, "product_code": "P-001" },
-          { "id": null, "product_code": "P-002" }
-        ],
-        "deleted_product_ids": [12]
-      }
     """
     try:
         body = json.loads(request.body or b'{}')
@@ -841,8 +818,6 @@ def rack_binding_save_api(request):
 
     if not rack_code:
         return JsonResponse({'success': False, 'error': '料框码不能为空'}, status=400)
-
-    from apps.production.models import Product, Rack
 
     try:
         with transaction.atomic():
@@ -897,6 +872,190 @@ def rack_binding_save_api(request):
                 'rack_id': rack.pk,
                 'rack_code': rack.rack_code,
                 'product_count': len(saved_products),
+            })
+    except Exception as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['GET'])
+def rack_products_api(request, rack_code: str):
+    """
+    GET /mes/api/rack-products/<rack_code>/
+    查询指定料框当前绑定的全部产品条码数据，供人工修改/补全弹窗拉取。
+    """
+    rack = Rack.objects.filter(rack_code=rack_code).select_related('current_recipe').first()
+    if not rack:
+        return JsonResponse({'success': True, 'rack_code': rack_code, 'products': [], 'recipe': None})
+
+    products = list(
+        Product.objects.filter(rack=rack)
+        .order_by('created_at', 'pk')
+        .values('id', 'product_code', 'current_state', 'mes_upload_status')
+    )
+    recipe_info = None
+    if rack.current_recipe:
+        r = rack.current_recipe
+        recipe_info = {
+            'recipe_code': r.recipe_code,
+            'name': r.name,
+            'layer_count': r.layer_count,
+            'quantity_per_layer': r.quantity_per_layer,
+            'total_quantity': r.total_quantity,
+            'layer_height': float(r.layer_height) if r.layer_height else None,
+            'layer_spacing': float(r.layer_spacing) if r.layer_spacing else None,
+            'tolerance_z': float(r.tolerance_z) if r.tolerance_z else 3.0,
+        }
+
+    return JsonResponse({
+        'success': True,
+        'rack_id': rack.pk,
+        'rack_code': rack.rack_code,
+        'products': products,
+        'product_count': len(products),
+        'recipe': recipe_info,
+    })
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def recipe_tolerance_save_api(request):
+    """
+    POST /mes/api/recipe-tolerance/save/
+    【新功能 1】：动态设置和保存配方核验允许容差阈值。
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'success': False, 'error': '请求体不是有效的 JSON'}, status=400)
+
+    recipe_id = body.get('recipe_id')
+    recipe_code = str(body.get('recipe_code', '')).strip()
+    rack_code = str(body.get('rack_code', '')).strip()
+    tolerance_val = body.get('tolerance_z') or body.get('tolerance_height') or body.get('tolerance')
+
+    if tolerance_val is None:
+        return JsonResponse({'success': False, 'error': '容差阈值不能为空'}, status=400)
+
+    try:
+        tolerance_dec = Decimal(str(tolerance_val))
+        if tolerance_dec < 0 or tolerance_dec > 100:
+            raise ValueError('容差阈值需在 0 ~ 100 mm 之间')
+    except (InvalidOperation, ValueError) as e:
+        return JsonResponse({'success': False, 'error': f'无效的容差数值: {e}'}, status=400)
+
+    recipe = None
+    if recipe_id:
+        recipe = RackRecipe.objects.filter(pk=recipe_id).first()
+    elif recipe_code:
+        recipe = RackRecipe.objects.filter(recipe_code=recipe_code).first()
+    elif rack_code:
+        rack = Rack.objects.filter(rack_code=rack_code).first()
+        if rack and rack.current_recipe:
+            recipe = rack.current_recipe
+
+    if not recipe:
+        recipe = RackRecipe.objects.first()
+
+    if not recipe:
+        return JsonResponse({'success': False, 'error': '未找到对应配方'}, status=404)
+
+    recipe.tolerance_z = tolerance_dec
+    recipe.save(update_fields=['tolerance_z', 'updated_at'])
+
+    return JsonResponse({
+        'success': True,
+        'message': f'配方 {recipe.recipe_code} 容差阈值已成功更新为 ±{tolerance_dec} mm',
+        'recipe_code': recipe.recipe_code,
+        'tolerance_z': float(tolerance_dec),
+    })
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def manual_reupload_binding_api(request):
+    """
+    POST /mes/api/manual-reupload/
+    【新功能 2】：人工修改/新增/补全料框与产品条码绑定数据，并立即重新上传 MES。
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'success': False, 'error': '请求体不是有效的 JSON'}, status=400)
+
+    rack_code = str(body.get('rack_code', '')).strip()
+    products_data = body.get('products', [])
+    deleted_ids = body.get('deleted_product_ids', [])
+
+    if not rack_code:
+        return JsonResponse({'success': False, 'error': '料框码不能为空'}, status=400)
+
+    try:
+        with transaction.atomic():
+            rack, _ = Rack.objects.get_or_create(rack_code=rack_code)
+
+            if deleted_ids:
+                Product.objects.filter(pk__in=deleted_ids, rack=rack).update(rack=None)
+
+            saved_products = []
+            seen_codes = set()
+            for item in products_data:
+                p_code = str(item.get('product_code', '')).strip()
+                if not p_code:
+                    continue
+                if p_code in seen_codes:
+                    return JsonResponse({'success': False, 'error': f'列表中包含重复产品条码: {p_code}'}, status=400)
+                seen_codes.add(p_code)
+
+                p_id = item.get('id')
+                if p_id:
+                    prod = get_object_or_404(Product, pk=p_id)
+                    conflict = Product.objects.filter(product_code=p_code).exclude(pk=p_id).first()
+                    if conflict:
+                        return JsonResponse({'success': False, 'error': f'条码 {p_code} 已被占用'}, status=409)
+                    prod.product_code = p_code
+                    prod.rack = rack
+                    prod.save(update_fields=['product_code', 'rack', 'updated_at'])
+                    saved_products.append(prod)
+                else:
+                    existing_prod = Product.objects.filter(product_code=p_code).first()
+                    if existing_prod:
+                        existing_prod.rack = rack
+                        existing_prod.save(update_fields=['rack', 'updated_at'])
+                        saved_products.append(existing_prod)
+                    else:
+                        new_prod = Product.objects.create(product_code=p_code, rack=rack)
+                        saved_products.append(new_prod)
+
+            payload = {
+                'rack_code': rack.rack_code,
+                'recipe_code': rack.current_recipe.recipe_code if rack.current_recipe else 'DEFAULT-RECIPE',
+                'total_quantity': len(saved_products),
+                'products': [p.product_code for p in saved_products],
+                'is_manual_reupload': True,
+            }
+
+            mes_svc = MesService()
+            mes_res = mes_svc.upload_boxing_result(payload, rack=rack)
+            is_success = bool(mes_res.get('success'))
+
+            new_status = MesUploadStatus.UPLOADED if is_success else MesUploadStatus.FAILED
+            for p in saved_products:
+                p.mes_upload_status = new_status
+                p.save(update_fields=['mes_upload_status', 'updated_at'])
+
+            msg = (
+                f'已补全并成功重新上传 MES！料框 {rack.rack_code} 包含 {len(saved_products)} 件产品。'
+                if is_success else
+                f'本地绑定已保存，但 MES 上传失败：{mes_res.get("error", "接口异常")}'
+            )
+
+            return JsonResponse({
+                'success': is_success,
+                'message': msg,
+                'rack_code': rack.rack_code,
+                'product_count': len(saved_products),
+                'mes_response': mes_res,
             })
     except Exception as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=500)

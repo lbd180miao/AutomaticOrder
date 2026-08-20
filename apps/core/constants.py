@@ -23,6 +23,7 @@ class WorkflowState(models.TextChoices):
     FOAM_ATTACHING = 'FOAM_ATTACHING', '泡棉贴附中'
     FOAM_INSPECTING = 'FOAM_INSPECTING', '泡棉检测中'
     COMPLETED = 'COMPLETED', '工序完成'
+    DEFECTIVE = 'DEFECTIVE', '残次品/报废'
     LOCKED = 'LOCKED', '异常锁定'
     FAILED = 'FAILED', '流程失败'
 

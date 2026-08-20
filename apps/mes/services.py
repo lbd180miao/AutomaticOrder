@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 def get_mes_client():
     """按配置返回 MES 客户端实例。"""
     conf = getattr(settings, 'AUTOMATIC_ORDER', {})
-    if conf.get('USE_SIMULATED_DEVICES', True):
+    base_url = conf.get('MES_BASE_URL') or ''
+    if conf.get('USE_SIMULATED_DEVICES', False) or not base_url.strip() or not base_url.startswith(('http://', 'https://')):
         return SimulatedMesClient()
-    base_url = conf.get('MES_BASE_URL', 'http://127.0.0.1:8082/')
     timeout = conf.get('MES_TIMEOUT', conf.get('DEVICE_TIMEOUT_SECONDS', 8))
     token = conf.get('MES_TOKEN') or None
     return HttpMesClient(base_url=base_url, timeout=timeout, token=token)

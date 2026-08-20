@@ -20,4 +20,7 @@ urlpatterns = [
     path('api/binding/update/', views.binding_update_api, name='binding_update_api'),
     path('api/binding/add/', views.binding_add_api, name='binding_add_api'),
     path('api/rack-binding/save/', views.rack_binding_save_api, name='rack_binding_save_api'),
+    path('api/manual-reupload/', views.manual_reupload_binding_api, name='manual_reupload_binding_api'),
+    path('api/recipe-tolerance/save/', views.recipe_tolerance_save_api, name='recipe_tolerance_save_api'),
+    path('api/rack-products/<str:rack_code>/', views.rack_products_api, name='rack_products_api'),
 ]

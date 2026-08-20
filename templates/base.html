@@ -13,8 +13,7 @@
     <div class="brand">AutomaticBoxing</div>
     <nav class="main-nav" aria-label="主导航">
       {% with path=request.path %}
-      <a href="{% url 'core:dashboard' %}" class="{% if path == '/' %}active{% endif %}">总览</a>
-      <a href="{% url 'devices:status' %}" class="{% if '/devices/' in path or '/workflow/' in path %}active{% endif %}">设备</a>
+      <a href="{% url 'devices:status' %}" class="{% if '/devices/' in path or '/workflow/' in path or path == '/' %}active{% endif %}">设备</a>
       <a href="{% url 'mes:record_list' %}" class="{% if '/mes/' in path %}active{% endif %}">MES</a>
       <a href="{% url 'vision:task_list' %}" class="{% if '/vision/' in path and '/vision/recipes/' not in path %}active{% endif %}">视觉</a>
       <a href="{% url 'vision:recipe_management' %}" class="{% if '/vision/recipes/' in path %}active{% endif %}">配方</a>

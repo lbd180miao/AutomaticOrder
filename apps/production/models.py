@@ -125,5 +125,14 @@ class Product(TimeStampedModel):
     mark_status = models.CharField(max_length=32, choices=MarkStatus.choices, default=MarkStatus.PENDING)
     mes_upload_status = models.CharField(max_length=32, choices=MesUploadStatus.choices, default=MesUploadStatus.PENDING)
 
+    # 残次品 / 缺陷品追溯与替换字段
+    is_defective = models.BooleanField(default=False, verbose_name='是否残次品')
+    defect_reason = models.CharField(max_length=128, blank=True, verbose_name='残次原因')
+    defect_at = models.DateTimeField(null=True, blank=True, verbose_name='标记残次时间')
+    replaced_by = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='replaced_from', verbose_name='替换的新合格品'
+    )
+
     def __str__(self):
         return self.product_code
