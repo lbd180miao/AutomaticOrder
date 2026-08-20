@@ -1,0 +1,191 @@
+{# _alarm_card.html — 单条报警卡片，被三个模块循环复用 #}
+<article class="alarm-card level-{{ alarm.level|lower }} {% if alarm.locked_workstation %}is-locked{% endif %} {% if alarm.status == 'ACKNOWLEDGED' %}is-acknowledged{% endif %}">
+
+  {# ── 卡片头 ── #}
+  <div class="alarm-card-head">
+    <div class="alarm-card-badges">
+      {% if alarm.locked_workstation %}
+        <span class="alarm-priority-tag tag-p1">P1 停线锁定</span>
+      {% else %}
+        <span class="alarm-priority-tag tag-p2">P2 异常</span>
+      {% endif %}
+      <span class="badge {% if alarm.level == 'CRITICAL' or alarm.level == 'ERROR' %}badge-fail{% elif alarm.level == 'WARNING' %}badge-warn{% else %}badge-info{% endif %}">
+        {{ alarm.get_level_display }}
+      </span>
+      <span class="badge badge-muted">{{ alarm.get_source_display }}</span>
+      <span class="badge {% if alarm.status == 'ACKNOWLEDGED' %}badge-info{% else %}badge-warn{% endif %}">
+        {{ alarm.get_status_display }}
+      </span>
+      {% if alarm.occurrence_count > 1 %}
+        <span class="alarm-repeat-chip">重复 {{ alarm.occurrence_count }} 次</span>
+      {% endif %}
+    </div>
+    <div class="alarm-card-meta-right">
+      <span class="alarm-time">{{ alarm.last_occurred_at|date:"m-d H:i:s"|default:alarm.created_at|date:"m-d H:i:s" }}</span>
+      <a class="quiet-link" href="{% url 'alarms:alarm_detail' alarm.pk %}">处置记录 →</a>
+    </div>
+  </div>
+
+  {# ── 报警主体 ── #}
+  <div class="alarm-card-body">
+    <div class="alarm-card-title-row">
+      <span class="alarm-scene-tag">{{ alarm.scene_label }}</span>
+      <span class="alarm-phase-tag">{{ alarm.phase_label }}</span>
+    </div>
+    <h3 class="alarm-card-message">{{ alarm.message }}</h3>
+
+    {# 关联业务对象 #}
+    <div class="alarm-card-objects">
+      {% if alarm.rack %}
+        <span class="alarm-obj-tag">
+          <i>料框</i>
+          <strong class="mono-code">{{ alarm.rack.rack_code }}</strong>
+        </span>
+      {% endif %}
+      {% if alarm.product %}
+        <span class="alarm-obj-tag">
+          <i>产品</i>
+          <strong class="mono-code">{{ alarm.product.product_code }}</strong>
+        </span>
+      {% endif %}
+      {% if alarm.error_code %}
+        <span class="alarm-obj-tag">
+          <i>错误码</i>
+          <strong class="mono-code">{{ alarm.error_code }}</strong>
+        </span>
+      {% endif %}
+    </div>
+
+    {# ── 差异化证据区 ── #}
+
+    {# RECIPE — 配方 vs 实测对比表 #}
+    {% if alarm.source == 'RECIPE' and alarm.context %}
+      {% with ctx=alarm.context %}
+      {% if ctx.measured_layer_height != None or ctx.measured_layer_spacing != None %}
+      <div class="alarm-evidence-block">
+        <span class="alarm-evidence-label">配方实测对比</span>
+        <table class="alarm-measure-table">
+          <thead>
+            <tr><th>参数</th><th>MES 配方值</th><th>3D 实测值</th><th>偏差</th><th>容差</th><th>判定</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>层高</td>
+              <td>{{ ctx.recipe_layer_height|default:"—" }} mm</td>
+              <td>{{ ctx.measured_layer_height|default:"—" }} mm</td>
+              <td>
+                {% if ctx.recipe_layer_height and ctx.measured_layer_height %}
+                  {{ ctx.measured_layer_height|floatformat:1 }} - {{ ctx.recipe_layer_height|floatformat:1 }}
+                {% else %}—{% endif %}
+              </td>
+              <td>± {{ ctx.recipe_tolerance_z|default:"—" }} mm</td>
+              <td><span class="badge badge-fail">超差 ❌</span></td>
+            </tr>
+            <tr>
+              <td>层距</td>
+              <td>{{ ctx.recipe_layer_spacing|default:"—" }} mm</td>
+              <td>{{ ctx.measured_layer_spacing|default:"—" }} mm</td>
+              <td>—</td>
+              <td>± {{ ctx.recipe_tolerance_z|default:"—" }} mm</td>
+              <td><span class="badge badge-ok">正常 ✓</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      {% endwith %}
+    {% endif %}
+
+    {# VISION — 泡棉检测 NG 关键数值 #}
+    {% if alarm.source == 'VISION' and alarm.context %}
+      {% with ctx=alarm.context %}
+      {% if ctx.score != None or ctx.coverage_ratio != None or ctx.defect_type %}
+      <div class="alarm-evidence-block">
+        <span class="alarm-evidence-label">视觉检测证据</span>
+        <div class="alarm-vision-facts">
+          {% if ctx.position_index %}<div><i>位置序号</i><strong>#{{ ctx.position_index }}</strong></div>{% endif %}
+          {% if ctx.score != None %}<div><i>算法评分</i><strong>{{ ctx.score }}</strong></div>{% endif %}
+          {% if ctx.coverage_ratio != None %}<div><i>覆盖率</i><strong>{{ ctx.coverage_ratio }}%</strong></div>{% endif %}
+          {% if ctx.defect_type and ctx.defect_type != 'NONE' %}<div><i>缺陷类型</i><strong>{{ ctx.defect_type }}</strong></div>{% endif %}
+          {% if ctx.offset_x_mm != None %}<div><i>X 偏移</i><strong>{{ ctx.offset_x_mm }} mm</strong></div>{% endif %}
+          {% if ctx.offset_y_mm != None %}<div><i>Y 偏移</i><strong>{{ ctx.offset_y_mm }} mm</strong></div>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% endwith %}
+    {% endif %}
+
+    {# MES — 接口失败信息 #}
+    {% if alarm.source == 'MES' and alarm.context %}
+      {% with ctx=alarm.context %}
+      {% if ctx.action or ctx.error or ctx.status_code %}
+      <div class="alarm-evidence-block">
+        <span class="alarm-evidence-label">MES 接口信息</span>
+        <div class="alarm-vision-facts">
+          {% if ctx.action %}<div><i>接口动作</i><strong>{{ ctx.action }}</strong></div>{% endif %}
+          {% if ctx.status_code %}<div><i>HTTP 状态</i><strong>{{ ctx.status_code }}</strong></div>{% endif %}
+          {% if ctx.error %}<div style="grid-column:1/-1;"><i>错误详情</i><strong style="color:var(--danger);">{{ ctx.error|truncatechars:120 }}</strong></div>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% endwith %}
+    {% endif %}
+
+    {# SCANNER — 条码冲突信息 #}
+    {% if alarm.source == 'SCANNER' and alarm.context %}
+      {% with ctx=alarm.context %}
+      {% if ctx.scanned_code or ctx.reason %}
+      <div class="alarm-evidence-block">
+        <span class="alarm-evidence-label">扫码异常信息</span>
+        <div class="alarm-vision-facts">
+          {% if ctx.scanned_code %}<div><i>读到的条码</i><strong class="mono-code">{{ ctx.scanned_code }}</strong></div>{% endif %}
+          {% if ctx.reason %}<div style="grid-column:1/-1;"><i>原因</i><strong>{{ ctx.reason }}</strong></div>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% endwith %}
+    {% endif %}
+
+    {# SOP 步骤（可折叠） #}
+    <details class="alarm-sop-details">
+      <summary>查看处置 SOP 步骤</summary>
+      <div class="alarm-sop-body">
+        <div class="alarm-sop-cause"><strong>可能原因：</strong>{{ alarm.cause_hint }}</div>
+        <ol class="alarm-sop-steps">
+          {% for step in alarm.sop_steps %}<li>{{ step }}</li>{% endfor %}
+        </ol>
+        <div class="alarm-sop-recovery"><strong>恢复判定：</strong>{{ alarm.recovery_hint }}</div>
+      </div>
+    </details>
+  </div>
+
+  {# ── 操作区 ── #}
+  <div class="alarm-card-actions">
+    {% if alarm.status == 'OPEN' %}
+      <form method="post" action="{% url 'alarms:acknowledge' alarm.pk %}" class="alarm-inline-form">
+        {% csrf_token %}
+        <input type="text" name="operator_note" placeholder="确认说明（可选）" class="alarm-note-input">
+        <button type="submit" class="btn btn-secondary btn-sm">确认报警</button>
+      </form>
+      <button type="button" class="btn btn-sm" disabled title="请先确认报警再关闭">关闭解锁</button>
+    {% elif alarm.status == 'ACKNOWLEDGED' %}
+      <form method="post" action="{% url 'alarms:close' alarm.pk %}" class="alarm-inline-form alarm-close-form">
+        {% csrf_token %}
+        <input type="text" name="operator_note" placeholder="必填：处置措施与复检结果" class="alarm-note-input" required>
+        <button type="submit" class="btn btn-danger btn-sm"
+                data-confirm="系统将检查其他锁定报警，再尝试解除 PLC 工位锁定。确认故障已经排除？">
+          关闭并解锁
+        </button>
+      </form>
+      <a class="btn btn-secondary btn-sm" href="{% url 'alarms:alarm_detail' alarm.pk %}">查看详情</a>
+    {% endif %}
+
+    {% if alarm.product %}
+      <a class="btn btn-secondary btn-sm"
+         href="{% url 'traceability:product_detail' alarm.product.product_code %}">
+        产品追溯 →
+      </a>
+    {% endif %}
+  </div>
+
+</article>

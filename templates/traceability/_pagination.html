@@ -1,0 +1,45 @@
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="trace-pagination-bar">
+  <span>
+    第 {{ page_obj.number }} / {{ page_obj.paginator.num_pages }} 页，
+    共 <strong>{{ page_obj.paginator.count }}</strong> 条记录
+  </span>
+
+  <div class="trace-pagination-links">
+    {# 上一页 #}
+    {% if page_obj.has_previous %}
+      <a class="btn btn-secondary btn-sm"
+         href="?{% for key, val in request.GET.items %}{% if key != 'page' %}{{ key }}={{ val|urlencode }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">
+        &laquo; 上一页
+      </a>
+    {% else %}
+      <span class="btn btn-secondary btn-sm disabled">&laquo; 上一页</span>
+    {% endif %}
+
+    {# 页码列表（最多显示7页，当前页居中） #}
+    {% with num=page_obj.paginator.num_pages cur=page_obj.number %}
+      {% for i in page_obj.paginator.page_range %}
+        {% if i == 1 or i == num or i >= cur|add:"-2" and i <= cur|add:"2" %}
+          {% if i == cur %}
+            <span class="current">{{ i }}</span>
+          {% else %}
+            <a href="?{% for key, val in request.GET.items %}{% if key != 'page' %}{{ key }}={{ val|urlencode }}&{% endif %}{% endfor %}page={{ i }}">{{ i }}</a>
+          {% endif %}
+        {% elif i == cur|add:"-3" or i == cur|add:"3" %}
+          <span style="border:none;background:transparent;color:var(--text-faint)">…</span>
+        {% endif %}
+      {% endfor %}
+    {% endwith %}
+
+    {# 下一页 #}
+    {% if page_obj.has_next %}
+      <a class="btn btn-secondary btn-sm"
+         href="?{% for key, val in request.GET.items %}{% if key != 'page' %}{{ key }}={{ val|urlencode }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">
+        下一页 &raquo;
+      </a>
+    {% else %}
+      <span class="btn btn-secondary btn-sm disabled">下一页 &raquo;</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

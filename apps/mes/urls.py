@@ -17,4 +17,7 @@ urlpatterns = [
     path('api/rack-measurement/profile/', views.rack_measurement_profile_api, name='rack_measurement_profile_api'),
     path('api/retry/<int:record_id>/', views.retry_api, name='retry_api'),
     path('api/test/', views.test_upload_api, name='test_upload_api'),
+    path('api/binding/update/', views.binding_update_api, name='binding_update_api'),
+    path('api/binding/add/', views.binding_add_api, name='binding_add_api'),
+    path('api/rack-binding/save/', views.rack_binding_save_api, name='rack_binding_save_api'),
 ]

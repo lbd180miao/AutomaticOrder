@@ -181,7 +181,9 @@ def _decorate_mes_records(records):
 
 
 def _build_binding_rows(products):
-    """Combine local binding, foam result and latest MES acknowledgement."""
+    """Combine local binding, foam result and latest MES acknowledgement.
+    Returns rack-grouped structure: each group has rack info + list of product rows + visual layer matrix.
+    """
     products = list(products)
     if not products:
         return []
@@ -202,11 +204,24 @@ def _build_binding_rows(products):
         if code:
             upload_by_code.setdefault(str(code), record)
 
-    rows = []
+    # Group products by rack
+    from collections import OrderedDict
+    rack_groups = OrderedDict()
     for product in products:
+        rack_id = product.rack_id or 0
+        if rack_id not in rack_groups:
+            recipe = product.rack.current_recipe if product.rack_id else None
+            rack_groups[rack_id] = {
+                'rack': product.rack,
+                'recipe': recipe,
+                'capacity': recipe.total_quantity if recipe and recipe.total_quantity else None,
+                'layer_count': recipe.layer_count if recipe and recipe.layer_count else None,
+                'quantity_per_layer': recipe.quantity_per_layer if recipe and recipe.quantity_per_layer else None,
+                'products': [],
+            }
         foam = foam_by_product.get(product.pk)
         upload = upload_by_code.get(product.product_code)
-        recipe = product.rack.current_recipe if product.rack_id else None
+        recipe = rack_groups[rack_id]['recipe']
         position = foam.position_index if foam and foam.position_index else None
         layer_no = slot_no = None
         if position and recipe and recipe.quantity_per_layer:
@@ -219,14 +234,62 @@ def _build_binding_rows(products):
             sync_labels = {'UPLOADED': '已上传', 'FAILED': '上传失败', 'PENDING': '待上传'}
             sync_label = sync_labels.get(product.mes_upload_status, '待上传')
             sync_tone = {'UPLOADED': 'ok', 'FAILED': 'fail'}.get(product.mes_upload_status, 'warn')
-        rows.append({
+        rack_groups[rack_id]['products'].append({
             'product': product, 'rack': product.rack, 'recipe': recipe,
             'foam': foam, 'upload': upload, 'position': position,
             'layer_no': layer_no, 'slot_no': slot_no,
             'sync_label': sync_label, 'sync_tone': sync_tone,
             'mes_id': upload.response_payload.get('mes_id', '') if upload and upload.success else '',
         })
-    return rows
+
+    # Build visual rack layers for each group
+    result = []
+    for g in rack_groups.values():
+        layer_count = g['layer_count'] or 1
+        qty_per_layer = g['quantity_per_layer'] or max(len(g['products']), 1)
+        total_slots = g['capacity'] or (layer_count * qty_per_layer)
+
+        slot_map = {}
+        unpositioned = []
+        for p_row in g['products']:
+            if p_row.get('position'):
+                slot_map[p_row['position']] = p_row
+            else:
+                unpositioned.append(p_row)
+
+        slot_cursor = 1
+        for p_row in unpositioned:
+            while slot_cursor in slot_map and slot_cursor <= total_slots:
+                slot_cursor += 1
+            slot_map[slot_cursor] = p_row
+            p_row['slot_no'] = ((slot_cursor - 1) % qty_per_layer) + 1
+            p_row['layer_no'] = ((slot_cursor - 1) // qty_per_layer) + 1
+            p_row['slot_label'] = f"L{p_row['layer_no']}-{p_row['slot_no']}"
+            slot_cursor += 1
+
+        layers = []
+        for l_idx in range(layer_count, 0, -1):  # Top layer to bottom layer (physical rack)
+            slots = []
+            for s_idx in range(1, qty_per_layer + 1):
+                pos_idx = (l_idx - 1) * qty_per_layer + s_idx
+                p_data = slot_map.get(pos_idx)
+                slots.append({
+                    'slot_no': s_idx,
+                    'layer_no': l_idx,
+                    'position_index': pos_idx,
+                    'slot_label': f'L{l_idx}-{s_idx}',
+                    'data': p_data,
+                    'is_occupied': bool(p_data),
+                })
+            layers.append({'layer_no': l_idx, 'slots': slots})
+
+        g['layers'] = layers
+        g['occupied_count'] = len(g['products'])
+        g['total_slots'] = total_slots
+        g['occupancy_percent'] = int((len(g['products']) / total_slots * 100)) if total_slots else 0
+        result.append(g)
+
+    return result
 
 
 def _build_recipe_rows(*, keyword='', rack_code='', recipe_code=''):
@@ -648,3 +711,192 @@ def test_upload_api(request):
         result = svc.upload_boxing_result(payload)
 
     return JsonResponse(result)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def binding_update_api(request):
+    """
+    POST /mes/api/binding/update/
+    手动修改料框码或产品条码绑定。
+    Body (JSON):
+      { "type": "rack_code", "product_id": 1, "new_value": "RACK-NEW-001" }
+      { "type": "product_code", "product_id": 1, "new_value": "P-NEW-0001" }
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'success': False, 'error': '请求体不是有效的 JSON'}, status=400)
+
+    update_type = body.get('type', '')
+    product_id = body.get('product_id')
+    new_value = str(body.get('new_value', '')).strip()
+
+    if not product_id:
+        return JsonResponse({'success': False, 'error': '缺少 product_id'}, status=400)
+    if not new_value:
+        return JsonResponse({'success': False, 'error': '新值不能为空'}, status=400)
+
+    from apps.production.models import Product, Rack
+    product = get_object_or_404(Product, pk=product_id)
+
+    try:
+        with transaction.atomic():
+            if update_type == 'rack_code':
+                rack, _ = Rack.objects.get_or_create(rack_code=new_value)
+                old_rack_code = product.rack.rack_code if product.rack_id else '—'
+                product.rack = rack
+                product.save(update_fields=['rack', 'updated_at'])
+                return JsonResponse({
+                    'success': True,
+                    'message': f'料框码已更新: {old_rack_code} → {new_value}',
+                    'rack_code': rack.rack_code,
+                    'rack_id': rack.pk,
+                })
+            elif update_type == 'product_code':
+                if Product.objects.filter(product_code=new_value).exclude(pk=product_id).exists():
+                    return JsonResponse({'success': False, 'error': f'产品条码 {new_value} 已存在'}, status=409)
+                old_code = product.product_code
+                product.product_code = new_value
+                product.save(update_fields=['product_code', 'updated_at'])
+                return JsonResponse({
+                    'success': True,
+                    'message': f'产品条码已更新: {old_code} → {new_value}',
+                    'product_code': new_value,
+                    'product_id': product.pk,
+                })
+            else:
+                return JsonResponse({'success': False, 'error': f'不支持的修改类型: {update_type}'}, status=400)
+    except Exception as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def binding_add_api(request):
+    """
+    POST /mes/api/binding/add/
+    手动新增一个产品条码并绑定到指定料框。
+    Body (JSON): { "rack_code": "RACK-001", "product_code": "P-NEW-0001" }
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'success': False, 'error': '请求体不是有效的 JSON'}, status=400)
+
+    rack_code = str(body.get('rack_code', '')).strip()
+    product_code = str(body.get('product_code', '')).strip()
+
+    if not rack_code:
+        return JsonResponse({'success': False, 'error': '料框码不能为空'}, status=400)
+    if not product_code:
+        return JsonResponse({'success': False, 'error': '产品条码不能为空'}, status=400)
+
+    from apps.production.models import Product, Rack
+    try:
+        with transaction.atomic():
+            rack, _ = Rack.objects.get_or_create(rack_code=rack_code)
+            if Product.objects.filter(product_code=product_code).exists():
+                return JsonResponse({'success': False, 'error': f'产品条码 {product_code} 已存在'}, status=409)
+            product = Product.objects.create(product_code=product_code, rack=rack)
+            return JsonResponse({
+                'success': True,
+                'message': f'已新增绑定: 料框 {rack_code} ← 产品 {product_code}',
+                'rack_code': rack.rack_code,
+                'rack_id': rack.pk,
+                'product_code': product.product_code,
+                'product_id': product.pk,
+            })
+    except Exception as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=500)
+
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def rack_binding_save_api(request):
+    """
+    POST /mes/api/rack-binding/save/
+    批量保存料框与多个产品条码的绑定关系。
+    Body (JSON):
+      {
+        "rack_id": 1,
+        "rack_code": "RACK-001",
+        "products": [
+          { "id": 10, "product_code": "P-001" },
+          { "id": null, "product_code": "P-002" }
+        ],
+        "deleted_product_ids": [12]
+      }
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'success': False, 'error': '请求体不是有效的 JSON'}, status=400)
+
+    rack_id = body.get('rack_id')
+    rack_code = str(body.get('rack_code', '')).strip()
+    products_data = body.get('products', [])
+    deleted_product_ids = body.get('deleted_product_ids', [])
+
+    if not rack_code:
+        return JsonResponse({'success': False, 'error': '料框码不能为空'}, status=400)
+
+    from apps.production.models import Product, Rack
+
+    try:
+        with transaction.atomic():
+            if rack_id:
+                rack = get_object_or_404(Rack, pk=rack_id)
+                if rack.rack_code != rack_code:
+                    existing_rack = Rack.objects.filter(rack_code=rack_code).exclude(pk=rack_id).first()
+                    if existing_rack:
+                        rack = existing_rack
+                    else:
+                        rack.rack_code = rack_code
+                        rack.save(update_fields=['rack_code', 'updated_at'])
+            else:
+                rack, _ = Rack.objects.get_or_create(rack_code=rack_code)
+
+            if deleted_product_ids:
+                Product.objects.filter(pk__in=deleted_product_ids, rack=rack).update(rack=None)
+
+            saved_products = []
+            seen_codes = set()
+            for item in products_data:
+                p_code = str(item.get('product_code', '')).strip()
+                if not p_code:
+                    continue
+                if p_code in seen_codes:
+                    return JsonResponse({'success': False, 'error': f'提交的产品列表中包含重复条码: {p_code}'}, status=400)
+                seen_codes.add(p_code)
+
+                p_id = item.get('id')
+                if p_id:
+                    prod = get_object_or_404(Product, pk=p_id)
+                    conflict = Product.objects.filter(product_code=p_code).exclude(pk=p_id).first()
+                    if conflict:
+                        return JsonResponse({'success': False, 'error': f'产品条码 {p_code} 已被其他记录占用'}, status=409)
+                    prod.product_code = p_code
+                    prod.rack = rack
+                    prod.save(update_fields=['product_code', 'rack', 'updated_at'])
+                    saved_products.append(prod)
+                else:
+                    existing_prod = Product.objects.filter(product_code=p_code).first()
+                    if existing_prod:
+                        existing_prod.rack = rack
+                        existing_prod.save(update_fields=['rack', 'updated_at'])
+                        saved_products.append(existing_prod)
+                    else:
+                        new_prod = Product.objects.create(product_code=p_code, rack=rack)
+                        saved_products.append(new_prod)
+
+            return JsonResponse({
+                'success': True,
+                'message': f'料框 {rack.rack_code} 绑定已保存（共 {len(saved_products)} 件产品）',
+                'rack_id': rack.pk,
+                'rack_code': rack.rack_code,
+                'product_count': len(saved_products),
+            })
+    except Exception as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=500)
