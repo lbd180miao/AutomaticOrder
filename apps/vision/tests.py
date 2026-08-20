@@ -46,6 +46,82 @@ from apps.vision.recipe_utils import (
 from apps.vision.services import VisionService
 
 
+class RackMasterRecipeApiTests(TestCase):
+    def setUp(self):
+        self.master = RackRecipe.objects.create(
+            recipe_code='MES-RACK-A',
+            name='A产品三层料架',
+            product_code='PRODUCT-A',
+            rack_type='RACK-A',
+            station_position_count=2,
+            layer_count=3,
+            quantity_per_layer=5,
+            total_quantity=15,
+            layer_height=120,
+            layer_spacing=150,
+        )
+        Recipe = apps.get_model('vision', 'RackLocationRecipe')
+        self.vision_recipe = Recipe.objects.create(
+            recipe_name='RACK-A-P1-L2',
+            rack_type='RACK-A',
+            position_no=1,
+            layer_no=2,
+            roi_config={
+                'target_roi': {'x': 1, 'y': 1, 'w': 10, 'h': 10},
+                'local_template_rois': {
+                    'plane1': {'x': 1}, 'plane2': {'x': 2}, 'plane3': {'x': 3},
+                },
+            },
+            local_template_std={'origin': [0, 0, 0]},
+            hand_eye_config={'matrix': 'identity'},
+        )
+
+    def test_mapping_save_and_progress_resolution(self):
+        mapping_response = self.client.post(
+            reverse('vision:api_rack_master_mapping_save'),
+            data=json.dumps({
+                'rack_recipe_id': self.master.id,
+                'station_position_no': 1,
+                'layer_no': 2,
+                'rack_location_recipe_id': self.vision_recipe.id,
+                'robot_target_code': 'ROBOT-P1-L2',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(mapping_response.status_code, 200, mapping_response.content)
+
+        response = self.client.get(
+            reverse('vision:api_rack_master_recipe_resolve', args=[self.master.id]),
+            {'completed_quantity': 5, 'station_position_no': 1},
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        resolution = response.json()['resolution']
+        self.assertEqual(resolution['current'], {
+            'position_index': 5, 'layer_no': 2, 'slot_no': 1,
+        })
+        self.assertEqual(resolution['rack_location_recipe_id'], self.vision_recipe.id)
+
+    def test_list_does_not_create_or_rebind_mappings(self):
+        response = self.client.get(reverse('vision:api_rack_master_recipes'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['recipes'][0]['validation']['mapping_total_count'], 6)
+        self.assertEqual(self.master.vision_mappings.count(), 0)
+
+    def test_recipe_page_exposes_master_mapping_and_resolver(self):
+        response = self.client.get(
+            reverse('vision:recipe_management') + '?tab=rack3d'
+        )
+
+        self.assertContains(response, '料架装箱配方管理')
+        self.assertContains(response, '分层定位配方')
+        self.assertContains(response, '基础 / MES 参数')
+        self.assertContains(response, '1号位配方')
+        self.assertContains(response, '2号位配方')
+        self.assertContains(response, '检测与装箱规则')
+        self.assertContains(response, '高级设置：3D 定位技术配方库')
+
+
 class RackStructureValidatorThresholdTests(SimpleTestCase):
     @staticmethod
     def _plane(inlier_ratio):

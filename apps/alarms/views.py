@@ -70,11 +70,74 @@ SCENE_BY_PHASE = {
     'WAIT_BOXING_RESET': '场景四：装箱完成与上传',
 }
 
+_RACK_PHASES = {
+    'WAIT_RACK', 'WAIT_RACK_RESET',
+    'WAIT_POSITION', 'WAIT_POSITION_RESET',
+    'WAIT_RECIPE_VERIFY', 'WAIT_RECIPE_RESET',
+}
+_BINDING_PHASES = {
+    'WAIT_PRODUCT', 'WAIT_MARK_RESET',
+    'WAIT_BOXING', 'WAIT_BOXING_RESET',
+}
+_FOAM_PHASES = {
+    'WAIT_FOAM', 'WAIT_FOAM_RESET',
+}
+
+
+def _classify_alarm(alarm):
+    source = alarm.source
+    phase = alarm.phase or ''
+    scene = alarm.scene or ''
+
+    if source == 'RECIPE':
+        return 'rack'
+    if phase in _RACK_PHASES:
+        return 'rack'
+    if phase in _BINDING_PHASES:
+        return 'binding'
+    if phase in _FOAM_PHASES:
+        return 'foam'
+
+    if source == 'SCANNER':
+        if '料框' in scene or 'RACK' in scene.upper():
+            return 'rack'
+        return 'binding'
+
+    if source == 'VISION':
+        if '泡棉' in scene or 'FOAM' in scene.upper():
+            return 'foam'
+        return 'rack'
+
+    if source == 'MES':
+        if '配方' in scene or 'RECIPE' in scene.upper() or '料框' in scene:
+            return 'rack'
+        return 'binding'
+
+    return 'other'
+
 
 def _operator_name(request):
     if getattr(request.user, 'is_authenticated', False):
         return request.user.get_username()
     return '现场操作员'
+
+
+def _decorate_alarm(alarm):
+    guide = GUIDANCE.get(alarm.source, GUIDANCE['WORKFLOW'])
+    alarm.cause_hint = guide['cause']
+    alarm.impact_hint = guide['impact']
+    alarm.sop_steps = guide['steps']
+    alarm.recovery_hint = guide['recovery']
+    alarm.scene_label = alarm.scene or SCENE_BY_PHASE.get(alarm.phase, alarm.get_source_display())
+    alarm.phase_label = alarm.phase or '—'
+    alarm.module_type = _classify_alarm(alarm)
+    if alarm.phase:
+        try:
+            from apps.workflow.models import StationPhase
+            alarm.phase_label = StationPhase(alarm.phase).label
+        except ValueError:
+            pass
+    return alarm
 
 
 def _matching_open_alarms(alarm):
@@ -88,59 +151,13 @@ def _matching_open_alarms(alarm):
     )
 
 
-def _decorate_alarm(alarm):
-    guide = GUIDANCE.get(alarm.source, GUIDANCE['WORKFLOW'])
-    alarm.cause_hint = guide['cause']
-    alarm.impact_hint = guide['impact']
-    alarm.sop_steps = guide['steps']
-    alarm.recovery_hint = guide['recovery']
-    alarm.scene_label = alarm.scene or SCENE_BY_PHASE.get(alarm.phase, alarm.get_source_display())
-    alarm.phase_label = alarm.phase or '—'
-    if alarm.phase:
-        try:
-            from apps.workflow.models import StationPhase
-            alarm.phase_label = StationPhase(alarm.phase).label
-        except ValueError:
-            pass
-    return alarm
-
-
-def _group_alarms(alarms):
-    groups = {}
-    for alarm in alarms:
-        key = (
-            alarm.source, alarm.error_code or alarm.message, alarm.message,
-            alarm.product_id, alarm.rack_id, alarm.workflow_id,
-        )
-        group = groups.get(key)
-        if group is None:
-            groups[key] = {
-                'alarm': _decorate_alarm(alarm),
-                'count': alarm.occurrence_count,
-                'record_count': 1,
-                'first_seen': alarm.created_at,
-                'last_seen': alarm.last_occurred_at or alarm.created_at,
-            }
-            continue
-        group['count'] += alarm.occurrence_count
-        group['record_count'] += 1
-        group['first_seen'] = min(group['first_seen'], alarm.created_at)
-        group['last_seen'] = max(group['last_seen'], alarm.last_occurred_at or alarm.created_at)
-
-    level_weight = {'CRITICAL': 4, 'ERROR': 3, 'WARNING': 2, 'INFO': 1}
-    return sorted(
-        groups.values(),
-        key=lambda item: (
-            bool(item['alarm'].locked_workstation),
-            level_weight.get(item['alarm'].level, 0),
-            item['last_seen'],
-        ),
-        reverse=True,
-    )
-
-
-def _station_context(primary_alarm):
+def _station_context(open_alarms):
     from apps.workflow.models import StationCycle, StationPhase
+
+    primary_alarm = next(
+        (a for a in open_alarms if a.locked_workstation),
+        open_alarms[0] if open_alarms else None,
+    )
 
     cycle = None
     if primary_alarm and primary_alarm.workflow_id:
@@ -167,7 +184,8 @@ def _station_context(primary_alarm):
             StationPhase(phase).label if phase in StationPhase.values else '等待新循环'
         ),
         'scene_label': (
-            primary_alarm.scene_label if primary_alarm else SCENE_BY_PHASE.get(phase, '工位待命')
+            primary_alarm.scene_label if primary_alarm and hasattr(primary_alarm, 'scene_label')
+            else SCENE_BY_PHASE.get(phase, '工位待命')
         ),
         'rack_code': rack.rack_code if rack else '—',
         'product_code': product.product_code if product else '—',
@@ -184,11 +202,11 @@ def _device_states():
     devices = list(Device.objects.filter(enabled=True).order_by('code'))
 
     def device_state(label, device_type):
-        matches = [device for device in devices if device.device_type == device_type]
+        matches = [d for d in devices if d.device_type == device_type]
         online = [
-            device for device in matches
-            if device.status == DeviceStatus.ONLINE and device.last_seen_at
-            and (now - device.last_seen_at).total_seconds() <= 15
+            d for d in matches
+            if d.status == DeviceStatus.ONLINE and d.last_seen_at
+            and (now - d.last_seen_at).total_seconds() <= 15
         ]
         if not matches:
             return {'label': label, 'value': '未配置', 'css': 'muted'}
@@ -211,27 +229,68 @@ def _device_states():
 
 
 def alarm_list(request):
+    """生产报警总览视图。"""
+    active_tab = request.GET.get('tab', 'all').strip()
+    selected_id = request.GET.get('selected')
+
     open_alarms = list(
         Alarm.objects.exclude(status=AlarmStatus.CLOSED)
-        .select_related('product', 'rack', 'workflow').order_by('-created_at')
+        .select_related('product', 'rack', 'workflow')
+        .order_by('-locked_workstation', '-created_at')
     )
-    groups = _group_alarms(open_alarms)
-    primary_group = groups[0] if groups else None
-    primary_alarm = primary_group['alarm'] if primary_group else None
-    station = _station_context(primary_alarm)
+
+    rack_alarms = []
+    binding_alarms = []
+    foam_alarms = []
+    other_alarms = []
+
+    for alarm in open_alarms:
+        _decorate_alarm(alarm)
+        if alarm.module_type == 'rack':
+            rack_alarms.append(alarm)
+        elif alarm.module_type == 'binding':
+            binding_alarms.append(alarm)
+        elif alarm.module_type == 'foam':
+            foam_alarms.append(alarm)
+        else:
+            other_alarms.append(alarm)
+
+    # 确定选中的主报警
+    selected_alarm = None
+    if selected_id:
+        try:
+            target_pk = int(selected_id)
+            selected_alarm = next((a for a in open_alarms if a.pk == target_pk), None)
+        except ValueError:
+            selected_alarm = None
+
+    if not selected_alarm and open_alarms:
+        # 默认优先选中锁定工位的报警，其次是第一条
+        selected_alarm = next((a for a in open_alarms if a.locked_workstation), open_alarms[0])
+
+    station = _station_context(open_alarms)
+
     closed_alarms = (
         Alarm.objects.filter(status=AlarmStatus.CLOSED)
-        .select_related('product', 'rack').order_by('-closed_at')[:50]
+        .select_related('product', 'rack')
+        .order_by('-closed_at')[:20]
     )
+
+    locked_count = sum(1 for a in open_alarms if a.locked_workstation)
+    acknowledged_count = sum(1 for a in open_alarms if a.status == AlarmStatus.ACKNOWLEDGED)
+
     return render(request, 'alarms/alarm_list.html', {
+        'tab': active_tab,
         'open_alarms': open_alarms,
-        'alarm_groups': groups,
-        'primary_group': primary_group,
-        'primary_alarm': primary_alarm,
+        'rack_alarms': rack_alarms,
+        'binding_alarms': binding_alarms,
+        'foam_alarms': foam_alarms,
+        'other_alarms': other_alarms,
+        'selected_alarm': selected_alarm,
         'station': station,
         'device_states': _device_states(),
-        'locked_count': sum(1 for alarm in open_alarms if alarm.locked_workstation),
-        'acknowledged_count': sum(1 for alarm in open_alarms if alarm.status == AlarmStatus.ACKNOWLEDGED),
+        'locked_count': locked_count,
+        'acknowledged_count': acknowledged_count,
         'closed_alarms': closed_alarms,
     })
 
@@ -283,7 +342,7 @@ def close(request, pk):
     if alarm.workflow_id:
         try:
             cycle = alarm.workflow.station_cycle
-        except Exception:  # no station cycle for legacy workflow alarms
+        except Exception:
             cycle = None
     elif alarm.locked_workstation:
         from apps.workflow.models import StationCycle, StationPhase

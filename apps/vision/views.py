@@ -12,6 +12,7 @@ from django.contrib import messages
 from django.core import signing
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -21,7 +22,12 @@ from django.views.decorators.http import require_POST, require_http_methods
 
 from apps.core.constants import RackSide
 from apps.devices.models import Device
-from apps.production.models import Rack, RackRecipe
+from apps.production.models import Rack, RackRecipe, RackRecipeVisionMapping
+from apps.production.rack_recipe_service import (
+    RackPositionResolver,
+    serialize_rack_recipe,
+    validate_rack_recipe,
+)
 from .algorithms.foam_inspector import generate_foam_mask
 from .algorithms.standard_mask_manager import StandardMaskManager
 from .algorithms.rack_opening_rectangle import (
@@ -2502,6 +2508,125 @@ def api_vision_3d_recipes(request):
             enabled=_as_bool(data.get('enabled'), True),
         )
         return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
+
+
+_RACK_MASTER_TEXT_FIELDS = (
+    'recipe_code', 'name', 'product_code', 'rack_type',
+    'loading_direction', 'full_condition',
+)
+_RACK_MASTER_INTEGER_FIELDS = (
+    'station_position_count', 'layer_count', 'quantity_per_layer',
+    'total_quantity', 'version',
+)
+_RACK_MASTER_DECIMAL_FIELDS = (
+    'layer_height', 'layer_spacing', 'tolerance_x', 'tolerance_y', 'tolerance_z',
+)
+
+
+def _assign_rack_master_fields(recipe, data):
+    for field in _RACK_MASTER_TEXT_FIELDS:
+        if field in data:
+            setattr(recipe, field, str(data[field] or '').strip())
+    for field in _RACK_MASTER_INTEGER_FIELDS:
+        if field in data:
+            setattr(recipe, field, _as_int(data[field], getattr(recipe, field)))
+    for field in _RACK_MASTER_DECIMAL_FIELDS:
+        if field in data:
+            setattr(recipe, field, _as_float(data[field], getattr(recipe, field)))
+    if 'is_active' in data:
+        recipe.is_active = _as_bool(data['is_active'])
+
+
+@require_http_methods(['GET', 'POST', 'PATCH'])
+def api_rack_master_recipes(request):
+    """Manage MES/master rack recipes without rewriting legacy vision recipes."""
+    if request.method == 'GET':
+        recipes = (
+            RackRecipe.objects
+            .prefetch_related('vision_mappings__rack_location_recipe')
+            .order_by('-is_active', 'recipe_code')
+        )
+        recipe_id = request.GET.get('id')
+        if recipe_id:
+            recipes = recipes.filter(pk=recipe_id)
+        return _api3d_success({
+            'recipes': [serialize_rack_recipe(recipe) for recipe in recipes],
+        })
+
+    try:
+        data = _request_data(request)
+        with transaction.atomic():
+            if request.method == 'PATCH':
+                recipe_id = data.get('id')
+                if not recipe_id:
+                    return _api3d_error('缺少料架主配方ID')
+                recipe = get_object_or_404(RackRecipe, pk=recipe_id)
+            else:
+                recipe = RackRecipe()
+            _assign_rack_master_fields(recipe, data)
+            recipe.full_clean()
+            recipe.save()
+        return _api3d_success({
+            'recipe': serialize_rack_recipe(recipe),
+            'message': '料架主配方已更新' if request.method == 'PATCH' else '料架主配方已创建',
+        })
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
+
+
+@require_POST
+def api_rack_master_mapping_save(request):
+    try:
+        data = _request_data(request)
+        recipe = get_object_or_404(RackRecipe, pk=data.get('rack_recipe_id'))
+        station_position_no = _as_int(data.get('station_position_no'), 0)
+        layer_no = _as_int(data.get('layer_no'), 0)
+        vision_recipe_id = data.get('rack_location_recipe_id') or None
+        vision_recipe = None
+        if vision_recipe_id:
+            vision_recipe = get_object_or_404(RackLocationRecipe, pk=vision_recipe_id)
+        with transaction.atomic():
+            mapping, _ = RackRecipeVisionMapping.objects.get_or_create(
+                rack_recipe=recipe,
+                station_position_no=station_position_no,
+                layer_no=layer_no,
+            )
+            mapping.rack_location_recipe = vision_recipe
+            mapping.robot_target_code = str(data.get('robot_target_code') or '').strip()
+            mapping.enabled = _as_bool(data.get('enabled'), True)
+            mapping.full_clean()
+            mapping.save()
+        recipe.refresh_from_db()
+        return _api3d_success({
+            'recipe': serialize_rack_recipe(recipe),
+            'message': f'{station_position_no}号位第{layer_no}层映射已保存',
+        })
+    except Exception as exc:  # noqa: BLE001
+        return _api3d_error(exc)
+
+
+@require_http_methods(['GET'])
+def api_rack_master_recipe_validate(request, recipe_id):
+    recipe = get_object_or_404(RackRecipe, pk=recipe_id)
+    return _api3d_success({'validation': validate_rack_recipe(recipe)})
+
+
+@require_http_methods(['GET'])
+def api_rack_master_recipe_resolve(request, recipe_id):
+    try:
+        recipe = get_object_or_404(RackRecipe, pk=recipe_id)
+        completed_quantity = _as_int(request.GET.get('completed_quantity'), 0)
+        station_position_no = _as_int(request.GET.get('station_position_no'), 1)
+        if not 1 <= station_position_no <= recipe.station_position_count:
+            return _api3d_error('工位位置超出当前配方范围')
+        return _api3d_success({
+            'resolution': RackPositionResolver(recipe).resolve(
+                completed_quantity,
+                station_position_no,
+            ),
+        })
     except Exception as exc:  # noqa: BLE001
         return _api3d_error(exc)
 

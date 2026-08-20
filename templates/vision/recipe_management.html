@@ -621,6 +621,178 @@
   color: #64748b;
   font-size: 12px;
 }
+.rack-master-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+.rack-master-heading h2 { margin: 4px 0 6px; color: #0f172a; }
+.rack-master-heading p { margin: 0; color: #64748b; }
+.rack-master-kicker { color: #2563eb; font-size: 12px; font-weight: 800; letter-spacing: .12em; }
+.rack-master-grid {
+  display: grid;
+  grid-template-columns: minmax(250px, 310px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.rack-master-panel {
+  border: 1px solid #dbe4f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .05);
+}
+.rack-master-list-head { padding: 15px 16px 10px; font-weight: 800; color: #334155; }
+.rack-master-list { padding: 0 8px 10px; max-height: 680px; overflow: auto; }
+.rack-master-list-item {
+  width: 100%;
+  margin: 3px 0;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+}
+.rack-master-list-item:hover { background: #f8fafc; }
+.rack-master-list-item.active { border-color: #93c5fd; background: #eff6ff; }
+.rack-master-list-item strong { display: block; color: #0f172a; }
+.rack-master-list-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; color: #64748b; font-size: 12px; }
+.rack-master-detail { min-height: 330px; padding: 18px; }
+.rack-master-detail-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.rack-master-detail-head h3 { margin: 3px 0 5px; color: #0f172a; font-size: 22px; }
+.rack-master-detail-head p { margin: 0; color: #64748b; }
+.rack-master-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rack-master-badges { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0; }
+.rack-master-badge { padding: 5px 9px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 700; }
+.rack-master-badge.ok { background: #dcfce7; color: #166534; }
+.rack-master-badge.warn { background: #fef3c7; color: #92400e; }
+.rack-master-badge.error { background: #fee2e2; color: #991b1b; }
+.rack-master-stats { display: grid; grid-template-columns: repeat(5, minmax(105px, 1fr)); gap: 9px; }
+.rack-master-stat { padding: 11px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; }
+.rack-master-stat small { display: block; color: #64748b; }
+.rack-master-stat strong { display: block; margin-top: 3px; color: #0f172a; font-size: 17px; }
+.rack-master-section { margin-top: 18px; }
+.rack-master-section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; color: #1e293b; font-weight: 800; }
+.rack-layout-preview { display: grid; gap: 7px; }
+.rack-layout-row { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; }
+.rack-layout-layer { color: #475569; font-size: 12px; font-weight: 700; }
+.rack-layout-slots { display: grid; grid-template-columns: repeat(var(--slot-count), minmax(30px, 1fr)); gap: 5px; }
+.rack-layout-slot { padding: 7px 3px; border: 1px solid #bfdbfe; border-radius: 6px; background: #eff6ff; color: #1d4ed8; font-size: 11px; text-align: center; }
+.rack-mapping-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.rack-mapping-table th, .rack-mapping-table td { padding: 9px 8px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: middle; }
+.rack-mapping-table th { background: #f8fafc; color: #475569; }
+.rack-mapping-table select, .rack-mapping-table input { min-width: 135px; padding: 7px 8px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
+.rack-mapping-scroll { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 9px; }
+.rack-resolver { display: grid; grid-template-columns: minmax(120px, .7fr) minmax(120px, .7fr) auto minmax(260px, 2fr); gap: 9px; align-items: end; padding: 13px; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; }
+.rack-resolver label { display: block; margin-bottom: 5px; color: #475569; font-size: 12px; font-weight: 700; }
+.rack-resolver input, .rack-resolver select { width: 100%; padding: 8px; border: 1px solid #93c5fd; border-radius: 7px; background: #fff; }
+.rack-resolver-result { min-height: 38px; padding: 9px 11px; border-radius: 7px; background: #fff; color: #1e3a8a; }
+.rack-validation-list { margin: 8px 0 0; padding-left: 20px; color: #92400e; font-size: 13px; }
+.rack-technical-library { margin-top: 18px; border: 1px solid #dbe4f0; border-radius: 12px; background: #fff; }
+.rack-technical-library > summary { padding: 15px 17px; cursor: pointer; color: #334155; font-weight: 800; }
+.rack-technical-body { padding: 0 16px 16px; }
+.rack-technical-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; color: #64748b; font-size: 13px; }
+.rack-master-empty { padding: 60px 24px; color: #64748b; text-align: center; }
+.rack-process-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.4fr) minmax(200px, .8fr) auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #dbe4f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.rack-process-select-wrap label { display: block; margin-bottom: 5px; color: #64748b; font-size: 11px; font-weight: 800; }
+.rack-process-select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; font-weight: 700; }
+.rack-process-status { color: #475569; font-size: 13px; }
+.rack-process-status strong { display: block; margin-bottom: 3px; color: #0f172a; }
+.rack-process-toolbar-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.rack-process-scenes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.rack-process-scene-tab {
+  position: relative;
+  min-height: 78px;
+  padding: 12px 13px 11px 47px;
+  border: 1px solid #dbe4f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #475569;
+  text-align: left;
+  cursor: pointer;
+}
+.rack-process-scene-tab::after { content: '→'; position: absolute; right: -8px; top: 29px; z-index: 2; color: #94a3b8; font-weight: 800; }
+.rack-process-scene-tab:last-child::after { display: none; }
+.rack-process-scene-tab.active { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 2px rgba(37,99,235,.1); }
+.rack-scene-number { position: absolute; left: 12px; top: 13px; display: grid; place-items: center; width: 27px; height: 27px; border-radius: 8px; background: #e2e8f0; color: #475569; font-size: 12px; font-weight: 900; }
+.rack-process-scene-tab.active .rack-scene-number { background: #2563eb; color: #fff; }
+.rack-process-scene-tab strong, .rack-process-scene-tab small { display: block; }
+.rack-process-scene-tab strong { color: #0f172a; font-size: 14px; }
+.rack-process-scene-tab small { margin-top: 4px; color: #64748b; line-height: 1.35; }
+.rack-process-detail { padding: 0; overflow: hidden; }
+.rack-scene-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 18px 20px; border-bottom: 1px solid #e2e8f0; background: linear-gradient(135deg,#f8fafc,#eff6ff); }
+.rack-scene-head h3 { margin: 4px 0 5px; color: #0f172a; font-size: 21px; }
+.rack-scene-head p { margin: 0; color: #64748b; }
+.rack-scene-tag { color: #2563eb; font-size: 11px; font-weight: 900; letter-spacing: .1em; }
+.rack-scene-body { padding: 18px 20px 20px; }
+.rack-flow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.rack-flow-card { position: relative; padding: 16px 16px 16px 58px; border: 1px solid #dbe4f0; border-radius: 11px; background: #fff; min-height: 125px; }
+.rack-flow-card.wide { grid-column: 1 / -1; }
+.rack-flow-step { position: absolute; left: 15px; top: 16px; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: #e0e7ff; color: #3730a3; font-weight: 900; }
+.rack-flow-card h4 { margin: 0 0 5px; color: #1e293b; font-size: 15px; }
+.rack-flow-card p { margin: 0; color: #64748b; font-size: 13px; line-height: 1.6; }
+.rack-flow-values { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.rack-flow-value { padding: 6px 9px; border-radius: 7px; background: #f1f5f9; color: #334155; font-size: 12px; }
+.rack-flow-value strong { color: #0f172a; }
+.rack-flow-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.rack-flow-arrow { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 8px; color: #64748b; font-size: 12px; font-weight: 800; }
+.rack-flow-arrow::before, .rack-flow-arrow::after { content: ''; height: 1px; flex: 1; background: #dbe4f0; }
+.rack-loop-banner { display: flex; justify-content: space-between; gap: 15px; align-items: center; margin-bottom: 12px; padding: 13px 16px; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #1e3a8a; }
+.rack-loop-banner strong { font-size: 16px; }
+.rack-loop-banner span { font-size: 12px; }
+.rack-flow-result { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; margin-top: 12px; }
+.rack-flow-result > div { padding: 9px; border-radius: 8px; text-align: center; font-size: 12px; font-weight: 800; }
+.rack-flow-ok { background: #dcfce7; color: #166534; }
+.rack-flow-ng { background: #fee2e2; color: #991b1b; }
+.rack-flow-or { color: #94a3b8; }
+.rack-mapping-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.rack-mapping-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; }
+.rack-mapping-card-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 8px; }
+.rack-mapping-card-head strong { color: #1e293b; }
+.rack-mapping-card select, .rack-mapping-card input { width: 100%; margin-top: 7px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
+.rack-mapping-card .btn { margin-top: 8px; width: 100%; }
+.rack-scene-note { margin-top: 12px; padding: 10px 12px; border-left: 4px solid #f59e0b; background: #fffbeb; color: #92400e; font-size: 12px; line-height: 1.55; }
+.rack-upload-timeline { display: grid; gap: 8px; }
+.rack-upload-step { display: grid; grid-template-columns: 42px minmax(0,1fr) auto; align-items: center; gap: 11px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 9px; }
+.rack-upload-step > span:first-child { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #e0e7ff; color: #3730a3; font-weight: 900; }
+.rack-upload-step strong, .rack-upload-step small { display: block; }
+.rack-upload-step small { margin-top: 3px; color: #64748b; }
+.rack-policy-badge { padding: 5px 8px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: 11px; font-weight: 800; }
+@media (max-width: 1000px) {
+  .rack-master-grid { grid-template-columns: 1fr; }
+  .rack-master-list { max-height: 260px; }
+  .rack-master-stats { grid-template-columns: repeat(2, 1fr); }
+  .rack-resolver { grid-template-columns: 1fr 1fr; }
+  .rack-resolver-result { grid-column: 1 / -1; }
+  .rack-process-scenes { grid-template-columns: repeat(2, 1fr); }
+  .rack-process-scene-tab:nth-child(2)::after { display: none; }
+  .rack-process-toolbar { grid-template-columns: 1fr; }
+  .rack-process-toolbar-actions { justify-content: flex-start; }
+}
+@media (max-width: 680px) {
+  .rack-process-scenes, .rack-flow-grid, .rack-mapping-cards { grid-template-columns: 1fr; }
+  .rack-process-scene-tab::after { display: none; }
+  .rack-upload-step { grid-template-columns: 38px 1fr; }
+  .rack-policy-badge { grid-column: 2; justify-self: start; }
+}
 </style>
 
 <div class="recipe-page">
@@ -779,7 +951,45 @@
 
     <!-- 料架定位配方标签页（3D） -->
     <section id="recipe-tab-rack3d" class="recipe-tab-section" style="display:none;">
-      <div id="rack3d-recipe-list"></div>
+      <div class="rack-master-heading">
+        <div>
+          <span class="rack-master-kicker">RACK PACKING PROCESS RECIPE</span>
+          <h2>料架装箱配方管理</h2>
+          <p>集中维护 MES 基础参数、1号位/2号位分层定位配方，以及空箱和泡棉检测配方入口。</p>
+        </div>
+      </div>
+      <div class="rack-process-toolbar">
+        <div class="rack-process-select-wrap">
+          <label for="rack-master-select">当前料架 / MES 主配方</label>
+          <select id="rack-master-select" class="rack-process-select" onchange="selectRackMasterRecipe(Number(this.value))">
+            <option>正在读取配方…</option>
+          </select>
+        </div>
+        <div id="rack-master-status" class="rack-process-status">读取配方状态…</div>
+        <div class="rack-process-toolbar-actions">
+          <button class="btn btn-secondary btn-sm" type="button" onclick="openRackMasterModal(selectedRackMasterId)">编辑当前配方</button>
+          <button class="btn btn-sm" type="button" onclick="openRackMasterModal()">新增配方</button>
+        </div>
+      </div>
+      <div class="rack-process-scenes" aria-label="配方配置分类">
+        <button class="rack-process-scene-tab active" type="button" data-rack-scene="basic" onclick="selectRackWorkflowScene('basic')"><span class="rack-scene-number">01</span><strong>基础 / MES 参数</strong><small>产品、料架、层数、层高、层距</small></button>
+        <button class="rack-process-scene-tab" type="button" data-rack-scene="position1" onclick="selectRackWorkflowScene('position1')"><span class="rack-scene-number">02</span><strong>1号位配方</strong><small>逐层选择 3D 定位与机器人目标位</small></button>
+        <button class="rack-process-scene-tab" type="button" data-rack-scene="position2" onclick="selectRackWorkflowScene('position2')"><span class="rack-scene-number">03</span><strong>2号位配方</strong><small>逐层选择 3D 定位与机器人目标位</small></button>
+        <button class="rack-process-scene-tab" type="button" data-rack-scene="inspection" onclick="selectRackWorkflowScene('inspection')"><span class="rack-scene-number">04</span><strong>检测与装箱规则</strong><small>空箱、泡棉、装箱顺序、满框条件</small></button>
+      </div>
+      <section id="rack-master-detail" class="rack-master-panel rack-process-detail" aria-label="当前场景配置">
+        <div class="rack-master-empty">正在读取当前工艺场景…</div>
+      </section>
+      <details class="rack-technical-library">
+        <summary>高级设置：3D 定位技术配方库</summary>
+        <div class="rack-technical-body">
+          <div class="rack-technical-head">
+            <span>这里维护相机 ROI、标准坐标和三平面模板；主配方仅引用，不复制或覆盖这些数据。</span>
+            <button class="btn btn-secondary btn-sm" type="button" onclick="create3DRecipe()">新增 3D 定位配方</button>
+          </div>
+          <div id="rack3d-recipe-list"></div>
+        </div>
+      </details>
     </section>
   </div>
 </div>
@@ -829,10 +1039,22 @@
         <small>建议格式：3D-L{层号}</small>
       </div>
       
+      <div class="form-row">
+        <div class="form-group">
+          <label>工位位置 <span style="color:red;">*</span></label>
+          <select id="modal-3d-position"><option value="1">1号位</option><option value="2">2号位</option></select>
+          <small>同一层可分别维护 1号位、2号位定位数据</small>
+        </div>
+        <div class="form-group">
+          <label>适用层号 <span style="color:red;">*</span></label>
+          <input type="number" id="modal-3d-layer" min="1" max="3" value="1" placeholder="1" required>
+          <small>当前定位算法支持第 1～3 层</small>
+        </div>
+      </div>
       <div class="form-group">
-        <label>适用层号 <span style="color:red;">*</span></label>
-        <input type="number" id="modal-3d-layer" min="1" max="3" value="1" placeholder="1" required>
-        <small>当前定位链路支持第 1～3 层</small>
+        <label>料架类型</label>
+        <input type="text" id="modal-3d-rack-type" placeholder="例如：RACK-A">
+        <small>用于在主配方映射时筛选和提示</small>
       </div>
 
       <div class="form-section">
@@ -907,6 +1129,52 @@
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" onclick="close3DModal()">取消</button>
       <button class="btn btn-sm" style="background:var(--success);" onclick="submit3DModal()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 料架主配方新增/编辑弹窗 -->
+<div id="rack-master-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:760px;">
+    <div class="modal-header">
+      <h3 id="rack-master-modal-title">新增料架主配方</h3>
+      <button class="modal-close" onclick="closeRackMasterModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="rack-master-id">
+      <div class="form-row">
+        <div class="form-group"><label>配方编码 *</label><input id="rack-master-code" type="text" placeholder="MES-RACK-A"></div>
+        <div class="form-group"><label>配方名称 *</label><input id="rack-master-name" type="text" placeholder="A产品三层料架"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>产品编码</label><input id="rack-master-product" type="text" placeholder="MES产品编码"></div>
+        <div class="form-group"><label>料架类型 *</label><input id="rack-master-type" type="text" placeholder="RACK-A"></div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group"><label>工位位置数</label><select id="rack-master-position-count"><option value="2">1号位 + 2号位</option><option value="1">仅1号位</option></select></div>
+        <div class="form-group"><label>层数</label><input id="rack-master-layers" type="number" min="1" value="3"></div>
+        <div class="form-group"><label>每层件数</label><input id="rack-master-per-layer" type="number" min="1" value="5"></div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group"><label>总装箱数量</label><input id="rack-master-total" type="number" min="1" value="15"></div>
+        <div class="form-group"><label>层高 mm</label><input id="rack-master-height" type="number" step="0.001" value="0"></div>
+        <div class="form-group"><label>层距 mm</label><input id="rack-master-spacing" type="number" step="0.001" value="0"></div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group"><label>X 容差 mm</label><input id="rack-master-tol-x" type="number" step="0.001" value="0"></div>
+        <div class="form-group"><label>Y 容差 mm</label><input id="rack-master-tol-y" type="number" step="0.001" value="0"></div>
+        <div class="form-group"><label>Z 容差 mm</label><input id="rack-master-tol-z" type="number" step="0.001" value="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>装箱顺序</label><select id="rack-master-direction"><option value="BOTTOM_UP_LEFT_RIGHT">从下到上、从左到右</option><option value="BOTTOM_UP_RIGHT_LEFT">从下到上、从右到左</option><option value="TOP_DOWN_LEFT_RIGHT">从上到下、从左到右</option><option value="TOP_DOWN_RIGHT_LEFT">从上到下、从右到左</option></select></div>
+        <div class="form-group"><label>满框条件</label><select id="rack-master-full"><option value="QUANTITY_REACHED">达到总装箱数量</option><option value="PLC_OR_QUANTITY">PLC满框信号或达到数量</option></select></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;"><input id="rack-master-active" type="checkbox" checked> 启用此主配方</label>
+      <div class="rack3d-readonly-note">保存主配方不会修改已有 3D 定位配方；层数或位置数增加后，新层位会显示为“待映射”。</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeRackMasterModal()">取消</button>
+      <button class="btn btn-sm" style="background:var(--success);" onclick="saveRackMasterRecipe()">保存主配方</button>
     </div>
   </div>
 </div>
@@ -1038,6 +1306,10 @@ const API = {
   defaultRecipes: '{% url "vision:api_foam_recipe_defaults" %}',
   emptyRackRecipe: '{% url "vision:api_empty_rack_recipe" %}',
   saveEmptyRackRecipe: '{% url "vision:api_empty_rack_recipe_save" %}',
+  rackMasterRecipes: '{% url "vision:api_rack_master_recipes" %}',
+  rackMasterMappingSave: '{% url "vision:api_rack_master_mapping_save" %}',
+  rackMasterValidate: (id) => `/vision/api/rack-master-recipes/${id}/validate/`,
+  rackMasterResolve: (id) => `/vision/api/rack-master-recipes/${id}/resolve/`,
   // 3D料架定位配方API
   rack3dRecipes: '{% url "vision:api_rack_location_recipes" %}',
   rack3dRecipeUpdate: (id) => `/vision/api/rack-location/recipes/${id}/update/`,
@@ -1466,7 +1738,7 @@ window.submitEditModal = async function() {
 window.openCreateModal = function() {
   // 如果当前在3D配方标签页，打开3D Modal
   if (currentTab === 'rack3d') {
-    create3DRecipe();
+    openRackMasterModal();
     return;
   }
   
@@ -1618,7 +1890,7 @@ document.querySelectorAll('.recipe-tab[data-recipe-tab]').forEach(tab => {
     updateWorkbenchButtons(tabName);
 
     if (tabName === 'rack3d') {
-      load3DRecipes();
+      Promise.all([load3DRecipes(), loadRackMasterRecipes()]);
     }
   });
 });
@@ -1635,11 +1907,12 @@ function updateWorkbenchButtons(tabName) {
     if(foamBtn) foamBtn.style.display = '';
     if(rackBtn) rackBtn.style.display = 'none';
     if(createBtn) createBtn.style.display = '';
+    if(createBtn) createBtn.textContent = '新增位置配方';
   } else if (tabName === 'rack3d') {
     // 3D配方标签页：显示料架定位工作台
     if(foamBtn) foamBtn.style.display = 'none';
     if(rackBtn) rackBtn.style.display = '';
-    if(createBtn) createBtn.style.display = '';
+    if(createBtn) createBtn.style.display = 'none';
   } else {
     if(foamBtn) foamBtn.style.display = 'none';
     if(rackBtn) rackBtn.style.display = 'none';
@@ -1651,6 +1924,9 @@ function updateWorkbenchButtons(tabName) {
 //  3D配方管理逻辑
 // ============================================================
 let rack3DRecipes = [];
+let rackMasterRecipes = [];
+let selectedRackMasterId = null;
+let currentRackScene = 'basic';
 
 function escape3DHtml(value) {
   return String(value ?? '')
@@ -1660,6 +1936,256 @@ function escape3DHtml(value) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 }
+
+function selectedRackMasterRecipe() {
+  return rackMasterRecipes.find(item => item.id === selectedRackMasterId) || null;
+}
+
+async function loadRackMasterRecipes() {
+  try {
+    const response = await fetch(API.rackMasterRecipes);
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || '读取失败');
+    rackMasterRecipes = data.recipes || [];
+    if (!rackMasterRecipes.some(item => item.id === selectedRackMasterId)) {
+      selectedRackMasterId = rackMasterRecipes[0]?.id || null;
+    }
+    renderRackMasterList();
+    renderRackMasterDetail();
+  } catch (error) {
+    const select = document.getElementById('rack-master-select');
+    if (select) select.innerHTML = `<option>读取失败：${escape3DHtml(error.message)}</option>`;
+    const target = document.getElementById('rack-master-detail');
+    if (target) target.innerHTML = `<div class="rack-master-empty">读取失败：${escape3DHtml(error.message)}</div>`;
+    showToast('料架主配方读取失败：' + error.message, 'error');
+  }
+}
+
+function renderRackMasterList() {
+  const target = document.getElementById('rack-master-select');
+  const status = document.getElementById('rack-master-status');
+  if (!target) return;
+  if (!rackMasterRecipes.length) {
+    target.innerHTML = '<option value="">暂无料架主配方</option>';
+    if (status) status.innerHTML = '<strong>尚未配置</strong>请先新增一份料架主配方';
+    return;
+  }
+  target.innerHTML = rackMasterRecipes.map(recipe => `<option value="${recipe.id}" ${recipe.id === selectedRackMasterId ? 'selected' : ''}>${escape3DHtml(recipe.recipe_code)} · ${escape3DHtml(recipe.name)} · ${escape3DHtml(recipe.product_code || '未关联产品')}</option>`).join('');
+  const recipe = selectedRackMasterRecipe();
+  const validation = recipe?.validation || {};
+  if (status && recipe) {
+    const state = validation.production_ready ? '生产就绪' : '需要完善配置';
+    status.innerHTML = `<strong>${state}</strong>${recipe.layer_count}层 × ${recipe.quantity_per_layer}件 · ${validation.mapping_ready_count || 0}/${validation.mapping_total_count || 0} 层位就绪`;
+  }
+}
+
+window.selectRackMasterRecipe = function(id) {
+  selectedRackMasterId = id;
+  renderRackMasterList();
+  renderRackMasterDetail();
+};
+
+window.selectRackWorkflowScene = function(scene) {
+  currentRackScene = scene;
+  document.querySelectorAll('[data-rack-scene]').forEach(button => {
+    button.classList.toggle('active', button.dataset.rackScene === scene);
+  });
+  renderRackMasterDetail();
+};
+
+function renderRackLayout(recipe) {
+  const layers = Math.max(0, Number(recipe.layer_count) || 0);
+  const slots = Math.max(0, Number(recipe.quantity_per_layer) || 0);
+  if (!layers || !slots) return '<div class="rack-master-empty">请先设置层数和每层件数</div>';
+  const topDown = String(recipe.loading_direction).startsWith('TOP_DOWN');
+  const rightLeft = String(recipe.loading_direction).endsWith('RIGHT_LEFT');
+  const layerNumbers = Array.from({length: layers}, (_, index) => layers - index);
+  return `<div class="rack-layout-preview">${layerNumbers.map(layerNo => {
+    const logicalLayer = topDown ? layers - layerNo + 1 : layerNo;
+    const positions = Array.from({length: slots}, (_, index) => {
+      const logicalSlot = rightLeft ? slots - index : index + 1;
+      const order = (logicalLayer - 1) * slots + logicalSlot;
+      return `<div class="rack-layout-slot" title="装箱顺序 ${order}">${order}</div>`;
+    });
+    return `<div class="rack-layout-row"><div class="rack-layout-layer">第 ${layerNo} 层</div><div class="rack-layout-slots" style="--slot-count:${slots}">${positions.join('')}</div></div>`;
+  }).join('')}</div>`;
+}
+
+function rackVisionOptions(mapping, rackType) {
+  const selectedId = Number(mapping.rack_location_recipe_id || 0);
+  const options = rack3DRecipes.map(recipe => {
+    const mismatch = (recipe.position_no !== mapping.station_position_no || recipe.layer_no !== mapping.layer_no);
+    const typeHint = recipe.rack_type && rackType && recipe.rack_type !== rackType ? ` · ${recipe.rack_type}` : '';
+    return `<option value="${recipe.id}" ${recipe.id === selectedId ? 'selected' : ''}>${escape3DHtml(recipe.recipe_name)} · P${recipe.position_no}/L${recipe.layer_no}${mismatch ? '（层位不同）' : ''}${escape3DHtml(typeHint)}</option>`;
+  });
+  return `<option value="">待选择</option>${options.join('')}`;
+}
+
+function rackSceneHeader(sectionCode, title, description, recipe, actionHtml = '') {
+  return `<div class="rack-scene-head"><div><span class="rack-scene-tag">${sectionCode} · ${escape3DHtml(recipe.recipe_code)} · V${recipe.version}</span><h3>${title}</h3><p>${description}</p></div><div class="rack-flow-actions">${actionHtml}</div></div>`;
+}
+
+function renderRackBasicScene(recipe) {
+  const validation = recipe.validation || {};
+  return `${rackSceneHeader('RECIPE 01', '基础与 MES 配方参数', '这里仅维护料框、产品和装箱工艺参数，不显示生产运行状态。', recipe, '<button class="btn btn-sm" onclick="openRackMasterModal(selectedRackMasterId)">编辑基础参数</button>')}
+    <div class="rack-scene-body">
+      <div class="rack-master-badges"><span class="rack-master-badge ${recipe.is_active ? 'ok' : 'error'}">${recipe.is_active ? '已启用' : '已停用'}</span><span class="rack-master-badge ${validation.valid ? 'ok' : 'error'}">${validation.valid ? '基础参数有效' : '基础参数待完善'}</span><span class="rack-master-badge">${escape3DHtml(recipe.loading_direction_label)}</span><span class="rack-master-badge">${escape3DHtml(recipe.full_condition_label)}</span></div>
+      <div class="rack-flow-grid">
+        <article class="rack-flow-card" style="padding-left:16px;"><h4>配方身份</h4><p>MES 与本地数据库用于识别这份料架装箱配方的关键字段。</p><div class="rack-flow-values"><span class="rack-flow-value"><strong>配方编码</strong> ${escape3DHtml(recipe.recipe_code)}</span><span class="rack-flow-value"><strong>名称</strong> ${escape3DHtml(recipe.name)}</span><span class="rack-flow-value"><strong>产品</strong> ${escape3DHtml(recipe.product_code || '未关联')}</span><span class="rack-flow-value"><strong>料架类型</strong> ${escape3DHtml(recipe.rack_type || '未配置')}</span></div></article>
+        <article class="rack-flow-card" style="padding-left:16px;"><h4>装箱结构</h4><p>定义层数、每层件数、工位数量和整框容量。</p><div class="rack-flow-values"><span class="rack-flow-value"><strong>工位</strong> ${recipe.station_position_count} 个</span><span class="rack-flow-value"><strong>层数</strong> ${recipe.layer_count} 层</span><span class="rack-flow-value"><strong>每层</strong> ${recipe.quantity_per_layer} 件</span><span class="rack-flow-value"><strong>总数量</strong> ${recipe.total_quantity} 件</span></div></article>
+        <article class="rack-flow-card" style="padding-left:16px;"><h4>MES 尺寸参数</h4><p>用于与 2D/3D 实测结果进行配方比对。</p><div class="rack-flow-values"><span class="rack-flow-value"><strong>层高</strong> ${format3DNumber(recipe.layer_height)} mm</span><span class="rack-flow-value"><strong>层距</strong> ${format3DNumber(recipe.layer_spacing)} mm</span></div></article>
+        <article class="rack-flow-card" style="padding-left:16px;"><h4>允许偏差</h4><p>视觉实测与 MES 理论值的放行范围。</p><div class="rack-flow-values"><span class="rack-flow-value"><strong>ΔX</strong> ±${format3DNumber(recipe.tolerance_x)} mm</span><span class="rack-flow-value"><strong>ΔY</strong> ±${format3DNumber(recipe.tolerance_y)} mm</span><span class="rack-flow-value"><strong>ΔZ</strong> ±${format3DNumber(recipe.tolerance_z)} mm</span></div></article>
+        <article class="rack-flow-card wide" style="padding-left:16px;min-height:0;"><details><summary style="cursor:pointer;font-weight:800;color:#334155;">装箱位置预览 · ${escape3DHtml(recipe.loading_direction_label)}</summary><div style="margin-top:12px;">${renderRackLayout(recipe)}</div></details></article>
+      </div>
+    </div>`;
+}
+
+function renderRackPositionRecipeScene(recipe, positionNo) {
+  if (positionNo > recipe.station_position_count) {
+    return `${rackSceneHeader(`RECIPE 0${positionNo + 1}`, `${positionNo}号位定位配方`, '当前主配方尚未启用该工位。', recipe, '<button class="btn btn-sm" onclick="openRackMasterModal(selectedRackMasterId)">启用2号位</button>')}<div class="rack-master-empty">请在基础参数中把“工位位置数”改为 2，然后再配置2号位各层定位配方。</div>`;
+  }
+  const mappings = (recipe.mappings || []).filter(mapping => mapping.station_position_no === positionNo);
+  const readyCount = mappings.filter(mapping => mapping.ready).length;
+  const cards = mappings.map(mapping => {
+    const stateClass = mapping.ready ? 'ok' : mapping.rack_location_recipe_id ? 'warn' : 'error';
+    const stateText = mapping.ready ? '已就绪' : mapping.rack_location_recipe_id ? '配方待完善' : '未选择';
+    const issues = (mapping.issues || []).join('、');
+    return `<div class="rack-mapping-card"><div class="rack-mapping-card-head"><strong>第 ${mapping.layer_no} 层</strong><span class="rack-master-badge ${stateClass}" title="${escape3DHtml(issues)}">${stateText}</span></div><label style="font-size:12px;color:#64748b;">3D 定位配方</label><select id="rack-map-recipe-${positionNo}-${mapping.layer_no}">${rackVisionOptions(mapping, recipe.rack_type)}</select><label style="display:block;margin-top:8px;font-size:12px;color:#64748b;">机器人目标位</label><input id="rack-map-target-${positionNo}-${mapping.layer_no}" value="${escape3DHtml(mapping.robot_target_code || '')}" placeholder="ROBOT_P${positionNo}_L${mapping.layer_no}"><button class="btn btn-secondary btn-sm" onclick="saveRackMapping(${positionNo}, ${mapping.layer_no})">保存第 ${mapping.layer_no} 层</button></div>`;
+  }).join('');
+  return `${rackSceneHeader(`RECIPE 0${positionNo + 1}`, `${positionNo}号位 · 分层定位配方`, `为${positionNo}号位的每一层选择独立 3D 定位配方和机器人目标位。`, recipe, '<a href="{% url "vision:rack_locator_panel" %}" class="btn btn-secondary btn-sm">3D 示教工作台</a><button class="btn btn-sm" onclick="create3DRecipe()">新增3D配方</button>')}
+    <div class="rack-scene-body"><div class="rack-loop-banner"><div><strong>${positionNo}号位：${readyCount}/${recipe.layer_count} 层已就绪</strong><br><span>配方映射只建立引用，不会修改原有 3D ROI、模板或标定数据。</span></div><span>${escape3DHtml(recipe.rack_type)}</span></div><div class="rack-mapping-cards">${cards || '<div class="rack-master-empty">暂无可配置层，请先设置层数。</div>'}</div>${recipe.layer_count > 3 ? '<div class="rack-scene-note">现有 3D 定位算法仅支持第1～3层；第4层及以上数据会保留，但不能标记为生产就绪。</div>' : ''}</div>`;
+}
+
+function renderRackInspectionScene(recipe) {
+  return `${rackSceneHeader('RECIPE 04', '检测配方与装箱规则', '集中查看这份料架配方关联的空箱、泡棉和装箱规则入口。', recipe)}
+    <div class="rack-scene-body"><div class="rack-flow-grid">
+      <article class="rack-flow-card" style="padding-left:16px;"><h4>2D 空箱检测配方</h4><p>管理空箱 ROI、判定参数和层数检查。主配方期望层数：${recipe.layer_count} 层。</p><div class="rack-flow-actions"><a href="{% url 'vision:foam_inspector_interactive' %}?mode=empty_rack" class="btn btn-sm">编辑空箱配方</a><a href="{% url 'vision:recipe_management' %}?tab=empty2d" class="btn btn-secondary btn-sm">查看配方摘要</a></div></article>
+      <article class="rack-flow-card" style="padding-left:16px;"><h4>2D 泡棉检测配方</h4><p>本料架共 ${recipe.total_quantity} 个装箱位置；泡棉工作台按产品位置维护检测 ROI 和阈值。</p><div class="rack-flow-actions"><a href="{% url 'vision:foam_inspector_interactive' %}?mode=foam_recipe" class="btn btn-sm">编辑泡棉配方</a><a href="{% url 'vision:recipe_management' %}?tab=foam2d" class="btn btn-secondary btn-sm">查看位置配方</a></div></article>
+      <article class="rack-flow-card" style="padding-left:16px;"><h4>装箱顺序</h4><p>根据已完成数量计算当前层、当前件和下一装箱位置。</p><div class="rack-flow-values"><span class="rack-flow-value"><strong>方向</strong> ${escape3DHtml(recipe.loading_direction_label)}</span><span class="rack-flow-value"><strong>每层</strong> ${recipe.quantity_per_layer} 件</span></div></article>
+      <article class="rack-flow-card" style="padding-left:16px;"><h4>满框条件</h4><p>定义装箱循环何时结束并进入整框上传。</p><div class="rack-flow-values"><span class="rack-flow-value"><strong>条件</strong> ${escape3DHtml(recipe.full_condition_label)}</span><span class="rack-flow-value"><strong>计划数量</strong> ${recipe.total_quantity} 件</span></div><div class="rack-flow-actions"><button class="btn btn-secondary btn-sm" onclick="openRackMasterModal(selectedRackMasterId)">编辑装箱规则</button></div></article>
+    </div><div class="rack-scene-note">该页只管理配方。PLC 握手、报警锁站、MES 上传和断电补传属于运行流程，不在这里操作。</div></div>`;
+}
+
+function renderRackMasterDetail() {
+  const target = document.getElementById('rack-master-detail');
+  if (!target) return;
+  const recipe = selectedRackMasterRecipe();
+  if (!recipe) {
+    target.innerHTML = '<div class="rack-master-empty">请先新增或选择一份料架主配方。</div>';
+    return;
+  }
+  const renderers = {
+    basic: renderRackBasicScene,
+    position1: recipeValue => renderRackPositionRecipeScene(recipeValue, 1),
+    position2: recipeValue => renderRackPositionRecipeScene(recipeValue, 2),
+    inspection: renderRackInspectionScene,
+  };
+  target.innerHTML = (renderers[currentRackScene] || renderRackBasicScene)(recipe);
+}
+
+window.openRackMasterModal = function(id = null) {
+  const recipe = rackMasterRecipes.find(item => item.id === Number(id)) || null;
+  document.getElementById('rack-master-modal-title').textContent = recipe ? '编辑料架主配方' : '新增料架主配方';
+  document.getElementById('rack-master-id').value = recipe?.id || '';
+  document.getElementById('rack-master-code').value = recipe?.recipe_code || '';
+  document.getElementById('rack-master-name').value = recipe?.name || '';
+  document.getElementById('rack-master-product').value = recipe?.product_code || '';
+  document.getElementById('rack-master-type').value = recipe?.rack_type || '';
+  document.getElementById('rack-master-position-count').value = recipe?.station_position_count || 2;
+  document.getElementById('rack-master-layers').value = recipe?.layer_count || 3;
+  document.getElementById('rack-master-per-layer').value = recipe?.quantity_per_layer || 5;
+  document.getElementById('rack-master-total').value = recipe?.total_quantity || 15;
+  document.getElementById('rack-master-height').value = recipe?.layer_height || 0;
+  document.getElementById('rack-master-spacing').value = recipe?.layer_spacing || 0;
+  document.getElementById('rack-master-tol-x').value = recipe?.tolerance_x || 0;
+  document.getElementById('rack-master-tol-y').value = recipe?.tolerance_y || 0;
+  document.getElementById('rack-master-tol-z').value = recipe?.tolerance_z || 0;
+  document.getElementById('rack-master-direction').value = recipe?.loading_direction || 'BOTTOM_UP_LEFT_RIGHT';
+  document.getElementById('rack-master-full').value = recipe?.full_condition || 'QUANTITY_REACHED';
+  document.getElementById('rack-master-active').checked = recipe?.is_active ?? true;
+  document.getElementById('rack-master-modal').style.display = 'flex';
+};
+
+window.closeRackMasterModal = function() {
+  document.getElementById('rack-master-modal').style.display = 'none';
+};
+
+window.saveRackMasterRecipe = async function() {
+  const id = document.getElementById('rack-master-id').value;
+  const payload = {
+    id: id || undefined,
+    recipe_code: document.getElementById('rack-master-code').value.trim(),
+    name: document.getElementById('rack-master-name').value.trim(),
+    product_code: document.getElementById('rack-master-product').value.trim(),
+    rack_type: document.getElementById('rack-master-type').value.trim(),
+    station_position_count: Number(document.getElementById('rack-master-position-count').value),
+    layer_count: Number(document.getElementById('rack-master-layers').value),
+    quantity_per_layer: Number(document.getElementById('rack-master-per-layer').value),
+    total_quantity: Number(document.getElementById('rack-master-total').value),
+    layer_height: Number(document.getElementById('rack-master-height').value),
+    layer_spacing: Number(document.getElementById('rack-master-spacing').value),
+    tolerance_x: Number(document.getElementById('rack-master-tol-x').value),
+    tolerance_y: Number(document.getElementById('rack-master-tol-y').value),
+    tolerance_z: Number(document.getElementById('rack-master-tol-z').value),
+    loading_direction: document.getElementById('rack-master-direction').value,
+    full_condition: document.getElementById('rack-master-full').value,
+    is_active: document.getElementById('rack-master-active').checked,
+  };
+  if (!payload.recipe_code || !payload.name || !payload.rack_type) return showToast('配方编码、名称和料架类型不能为空', 'error');
+  try {
+    const response = await fetch(API.rackMasterRecipes, {method: id ? 'PATCH' : 'POST', headers: {'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || '保存失败');
+    selectedRackMasterId = data.recipe.id;
+    closeRackMasterModal();
+    await loadRackMasterRecipes();
+    showToast(data.message || '料架主配方已保存', 'success');
+  } catch (error) { showToast('保存失败：' + error.message, 'error'); }
+};
+
+window.saveRackMapping = async function(positionNo, layerNo) {
+  const recipe = selectedRackMasterRecipe();
+  if (!recipe) return;
+  const payload = {rack_recipe_id: recipe.id, station_position_no: positionNo, layer_no: layerNo, rack_location_recipe_id: document.getElementById(`rack-map-recipe-${positionNo}-${layerNo}`).value || null, robot_target_code: document.getElementById(`rack-map-target-${positionNo}-${layerNo}`).value.trim(), enabled: true};
+  try {
+    const response = await fetch(API.rackMasterMappingSave, {method: 'POST', headers: {'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || '保存失败');
+    await loadRackMasterRecipes();
+    showToast(data.message || '映射已保存', 'success');
+  } catch (error) { showToast('映射保存失败：' + error.message, 'error'); }
+};
+
+window.validateRackMasterRecipe = async function() {
+  const recipe = selectedRackMasterRecipe();
+  if (!recipe) return;
+  const response = await fetch(API.rackMasterValidate(recipe.id));
+  const data = await response.json();
+  if (!data.success) return showToast(data.error || '检查失败', 'error');
+  const validation = data.validation;
+  showToast(validation.production_ready ? '主配方和视觉映射均已生产就绪' : `检查完成：${validation.errors.length} 个结构问题，${validation.warnings.length} 个视觉提醒`, validation.production_ready ? 'success' : 'info', 3500);
+};
+
+window.resolveRackPosition = async function() {
+  const recipe = selectedRackMasterRecipe();
+  if (!recipe) return;
+  const completed = Number(document.getElementById('rack-resolve-completed').value || 0);
+  const position = Number(document.getElementById('rack-resolve-position').value || 1);
+  const target = document.getElementById('rack-resolver-result');
+  try {
+    const response = await fetch(`${API.rackMasterResolve(recipe.id)}?completed_quantity=${completed}&station_position_no=${position}`);
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || '计算失败');
+    const result = data.resolution;
+    if (result.is_full) {
+      target.textContent = `已满框：${result.completed_quantity}/${result.planned_quantity}`;
+    } else {
+      const mapping = result.mapping;
+      const next = result.next ? `；下一位置：第${result.next.layer_no}层第${result.next.slot_no}件` : '；本件完成后满框';
+      target.textContent = `当前：第${result.current.layer_no}层第${result.current.slot_no}件${next}；3D配方：${mapping?.rack_location_recipe_name || '未映射'}`;
+    }
+  } catch (error) { target.textContent = '计算失败：' + error.message; }
+};
 
 function format3DNumber(value, digits = 3) {
   const number = Number(value);
@@ -1736,6 +2262,7 @@ async function load3DRecipes() {
     if (data.success) {
       rack3DRecipes = data.recipes || [];
       render3DRecipeCards();
+      renderRackMasterDetail();
     } else {
       showToast('加载3D配方失败', 'error');
     }
@@ -1769,7 +2296,7 @@ function render3DRecipeCards() {
     return `
       <div class="recipe-card ${isDisabled ? 'disabled' : ''}" id="recipe-3d-${recipe.id}">
         <h3>
-          <span class="layer-badge">第${recipe.layer_no}层</span>
+          <span class="layer-badge">${recipe.position_no}号位 · 第${recipe.layer_no}层</span>
           ${recipe.recipe_name}
           <span class="status-badge ${recipe.enabled ? 'enabled' : 'disabled'}">
             ${recipe.enabled ? '✔ 已启用' : '✕ 已禁用'}
@@ -1810,7 +2337,9 @@ window.create3DRecipe = function() {
   document.getElementById('modal-3d-title').textContent = '新增3D配方';
   document.getElementById('modal-3d-id').value = '';
   document.getElementById('modal-3d-name').value = '';
+  document.getElementById('modal-3d-position').value = '1';
   document.getElementById('modal-3d-layer').value = '1';
+  document.getElementById('modal-3d-rack-type').value = '';
   document.getElementById('modal-3d-roi-x-min').value = '';
   document.getElementById('modal-3d-roi-x-max').value = '';
   document.getElementById('modal-3d-roi-y-min').value = '';
@@ -1844,7 +2373,9 @@ window.edit3DRecipe = async function(id) {
     document.getElementById('modal-3d-title').textContent = '编辑3D配方';
     document.getElementById('modal-3d-id').value = recipe.id;
     document.getElementById('modal-3d-name').value = recipe.recipe_name || '';
+    document.getElementById('modal-3d-position').value = recipe.position_no || 1;
     document.getElementById('modal-3d-layer').value = recipe.layer_no || 1;
+    document.getElementById('modal-3d-rack-type').value = recipe.rack_type || '';
     
     // 点云范围使用 camera_roi；四个像素 ROI 由工作台维护，只读展示。
     const roi = recipe.roi_config?.camera_roi || {};
@@ -1921,6 +2452,7 @@ window.close3DModal = function() {
 window.submit3DModal = async function() {
   const id = document.getElementById('modal-3d-id').value;
   const name = document.getElementById('modal-3d-name').value.trim();
+  const position = document.getElementById('modal-3d-position').value;
   const layer = document.getElementById('modal-3d-layer').value.trim();
   
   // 表单验证
@@ -1948,7 +2480,9 @@ window.submit3DModal = async function() {
 
   const payload = {
     recipe_name: name,
+    position_no: Number(position),
     layer_no: Number(layer),
+    rack_type: document.getElementById('modal-3d-rack-type').value.trim(),
     standard_x: Number(document.getElementById('modal-3d-std-x').value) || 0,
     standard_y: Number(document.getElementById('modal-3d-std-y').value) || 0,
     standard_z: Number(document.getElementById('modal-3d-std-z').value) || 0,
@@ -2002,6 +2536,7 @@ window.submit3DModal = async function() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     close3DModal();
+    closeRackMasterModal();
     closeEditModal();
   }
 });
@@ -2009,6 +2544,10 @@ document.addEventListener('keydown', e => {
 // ── 3D Modal 点击背景关闭 ───────────────────────────
 document.getElementById('recipe-3d-modal')?.addEventListener('click', function(e) {
   if (e.target === this) close3DModal();
+});
+
+document.getElementById('rack-master-modal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeRackMasterModal();
 });
 
 // ── 编辑Modal 点击背景关闭 ──────────────────────────

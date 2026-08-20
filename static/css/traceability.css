@@ -1,0 +1,428 @@
+/* ============================================================
+   追溯页面专用样式 - traceability.css
+   基于系统全局设计变量与规范，对齐工业上位机设计语言
+   ============================================================ */
+
+/* 头部右侧时间与状态标签 */
+.trace-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.trace-scope-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.trace-scope-badge strong {
+  color: var(--text);
+}
+
+/* 模块 Tab 增强 */
+.trace-module-tabs {
+  margin-bottom: 18px;
+}
+
+/* 指标卡片网格 */
+.trace-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.metric-card.metric-ok::before {
+  background: var(--success);
+}
+
+.metric-card.metric-warning::before {
+  background: var(--warn);
+}
+
+.metric-card.metric-danger::before {
+  background: var(--danger);
+}
+
+.metric-card.metric-primary::before {
+  background: var(--primary);
+}
+
+/* 筛选表单面板 */
+.trace-filter-panel {
+  padding: 16px 20px;
+  margin-bottom: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.trace-filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.trace-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.trace-form-group label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.trace-form-group input,
+.trace-form-group select {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.trace-form-group input:focus,
+.trace-form-group select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.trace-input-keyword {
+  min-width: 260px;
+}
+
+.trace-input-date {
+  width: 145px;
+}
+
+.trace-select {
+  min-width: 130px;
+}
+
+/* 快捷日期切换按钮组 */
+.trace-date-shortcuts {
+  display: flex;
+  gap: 4px;
+  height: 38px;
+  align-items: center;
+}
+
+.trace-shortcut-btn {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.trace-shortcut-btn:hover {
+  color: var(--text);
+  background: #ffffff;
+  border-color: var(--border-strong);
+}
+
+.trace-shortcut-btn.selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.trace-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  align-self: flex-end;
+}
+
+/* ────────────────────────────────────────────────────────────
+   料框卡片（一框多件）专用样式
+   ──────────────────────────────────────────────────────────── */
+.trace-rack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.trace-rack-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.trace-rack-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+}
+
+.trace-rack-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.trace-rack-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.trace-rack-code {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f766e;
+}
+
+.trace-rack-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.trace-rack-meta strong {
+  color: var(--text);
+}
+
+.trace-rack-capacity-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.trace-capacity-track {
+  width: 140px;
+  height: 8px;
+  border-radius: 99px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.trace-capacity-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), #38bdf8);
+  transition: width 0.3s ease;
+}
+
+.trace-capacity-fill.is-full {
+  background: linear-gradient(90deg, #16a34a, #4ade80);
+}
+
+.trace-rack-details {
+  border: none;
+}
+
+.trace-rack-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.trace-rack-details summary:hover {
+  color: var(--primary);
+  background: #f1f5f9;
+}
+
+.trace-rack-details[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+
+/* 表格面板与通用表格 */
+.trace-table-panel {
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.trace-table-panel .panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.trace-table-panel .panel-heading h2 {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.trace-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.trace-table thead th {
+  padding: 11px 16px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.trace-table tbody td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  color: var(--text);
+}
+
+.trace-table tbody tr:hover td {
+  background: rgba(37, 99, 235, 0.02);
+}
+
+.trace-table .mono-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.trace-table .mono-cell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* 分页条样式 */
+.trace-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  box-shadow: var(--shadow-sm);
+  margin-top: 14px;
+}
+
+.trace-pagination-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.trace-pagination-links a,
+.trace-pagination-links span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.trace-pagination-links a:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.trace-pagination-links .current {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.trace-pagination-links .disabled {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+/* 响应式断点 */
+@media (max-width: 1200px) {
+  .trace-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .trace-metric-grid {
+    grid-template-columns: 1fr;
+  }
+  .trace-filter-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .trace-input-keyword,
+  .trace-input-date,
+  .trace-select {
+    min-width: 100%;
+    width: 100%;
+  }
+  .trace-form-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+  .trace-rack-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

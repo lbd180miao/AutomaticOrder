@@ -31,6 +31,7 @@
   <div><span>位置来源</span><strong>泡棉检测 position_index</strong><small>没有实测位置时不推测层号和槽位</small></div>
   <div><span>记录总数</span><strong>{{ binding_total }} 条</strong><small>当前筛选命中 {{ binding_page.paginator.count }} 条</small></div>
 </section>
+
 <section class="panel filter-panel mes-filter-panel">
   <form method="get" class="mes-filter-form mes-binding-filter">
     <input type="hidden" name="tab" value="bindings">
@@ -42,22 +43,230 @@
     <button class="btn btn-primary" type="submit">查询</button><a class="btn btn-secondary" href="?tab=bindings">重置</a>
   </form>
 </section>
-<section class="panel mes-record-panel">
-  <div class="panel-heading"><div><span class="eyebrow">RACK / PRODUCT BINDINGS</span><h2>绑定明细</h2></div><span class="table-scope">每页 50 条</span></div>
-  <div class="table-wrap"><table class="data-table mes-binding-table"><thead><tr><th>料框码</th><th>产品条码</th><th>配方</th><th>层 / 槽位</th><th>泡棉检测</th><th>本地记录</th><th>MES 同步</th><th>MES 回执</th></tr></thead><tbody>
-    {% for row in binding_rows %}<tr>
-      <td><strong>{{ row.rack.rack_code|default:"未绑定" }}</strong><small class="cell-sub">{{ row.rack.rack_type|default:"—" }}</small></td>
-      <td><strong class="mono-code">{{ row.product.product_code }}</strong><small class="cell-sub">{{ row.product.batch.batch_no|default:"无批次" }}</small></td>
-      <td>{{ row.recipe.recipe_code|default:"—" }}<small class="cell-sub">{{ row.recipe.name|default:"未关联配方" }}</small></td>
-      <td>{% if row.position %}<strong>L{{ row.layer_no }} / {{ row.slot_no }}</strong><small class="cell-sub">位置序号 {{ row.position }}</small>{% else %}<span class="text-faint">未记录</span>{% endif %}</td>
-      <td>{% if row.foam %}{% if row.foam.is_passed %}<span class="badge badge-ok">合格</span>{% else %}<span class="badge badge-fail">不合格</span>{% endif %}<small class="cell-sub">{{ row.foam.created_at|date:"m-d H:i:s" }}</small>{% else %}<span class="badge badge-muted">待检测</span>{% endif %}</td>
-      <td><span class="badge badge-ok">已保存</span><small class="cell-sub">{{ row.product.updated_at|date:"Y-m-d H:i:s" }}</small></td>
-      <td><span class="badge badge-{{ row.sync_tone }}">{{ row.sync_label }}</span>{% if row.upload %}<small class="cell-sub">{{ row.upload.created_at|date:"Y-m-d H:i:s" }}</small>{% endif %}</td>
-      <td>{% if row.mes_id %}<code>{{ row.mes_id }}</code>{% elif row.upload and not row.upload.success %}<span class="text-danger">{{ row.upload.error_message|truncatechars:32 }}</span>{% else %}<span class="text-faint">—</span>{% endif %}</td>
-    </tr>{% empty %}<tr><td colspan="8"><div class="empty"><strong>没有找到绑定数据</strong><span>调整料框码、产品码或日期条件后重新查询。</span></div></td></tr>{% endfor %}
-  </tbody></table></div>
-  {% if binding_page.has_other_pages %}<div class="mes-pagination"><span>第 {{ binding_page.number }} / {{ binding_page.paginator.num_pages }} 页</span><div>{% if binding_page.has_previous %}<a class="btn btn-secondary btn-sm" href="?tab=bindings&page={{ binding_page.previous_page_number }}&rack_code={{ rack_code|urlencode }}&product_code={{ product_code|urlencode }}&recipe_code={{ recipe_code|urlencode }}">上一页</a>{% endif %}{% if binding_page.has_next %}<a class="btn btn-secondary btn-sm" href="?tab=bindings&page={{ binding_page.next_page_number }}&rack_code={{ rack_code|urlencode }}&product_code={{ product_code|urlencode }}&recipe_code={{ recipe_code|urlencode }}">下一页</a>{% endif %}</div></div>{% endif %}
+
+<section class="mes-binding-container">
+  <div class="panel-heading mes-binding-toolbar">
+    <div><span class="eyebrow">RACK / PRODUCT BINDINGS</span><h2>料框与产品条码绑定</h2></div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button type="button" class="btn btn-primary btn-sm" id="btn-open-create-rack">＋ 新建料框绑定</button>
+      <span class="table-scope">每页 50 条产品</span>
+    </div>
+  </div>
+
+  <div class="mes-binding-list">
+    {% for group in binding_rows %}
+    <article class="panel mes-binding-card" data-rack-id="{{ group.rack.pk|default:'' }}" data-rack-code="{{ group.rack.rack_code|default:'' }}">
+      <!-- 料框卡片头部 -->
+      <div class="mes-binding-head">
+        <div class="binding-head-info">
+          <div class="binding-title-row">
+            <span class="eyebrow">料框</span>
+            <!-- 正常查看状态 -->
+            <div class="rack-view-block">
+              <h2 class="mono-code">{{ group.rack.rack_code|default:"未绑定料框" }}</h2>
+              {% if group.rack.rack_type %}
+                <span class="badge badge-muted">{{ group.rack.rack_type }}</span>
+              {% endif %}
+            </div>
+            <!-- 编辑状态下的料框码输入框 -->
+            <div class="rack-edit-block" style="display: none;">
+              <input type="text" class="input-rack-code mono-code" value="{{ group.rack.rack_code|default:'' }}" placeholder="输入料框码">
+            </div>
+          </div>
+          <div class="binding-meta-line">
+            {% if group.recipe %}
+              <span>配方：<strong>{{ group.recipe.recipe_code }}</strong> <small>{{ group.recipe.name }}</small></span>
+              {% if group.total_slots %}
+                <span class="meta-dot">•</span>
+                <span>规格：<strong>{{ group.layer_count }} 层 × {{ group.quantity_per_layer }} = {{ group.total_slots }} 槽位</strong></span>
+              {% endif %}
+            {% else %}
+              <span class="text-faint">未关联配方</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- 卡片右侧：容量统计与操作按钮 -->
+        <div class="binding-head-actions">
+          <div class="capacity-info-box">
+            <div class="capacity-bar-wrap">
+              <div class="capacity-bar-fill" style="width: {{ group.occupancy_percent }}%;"></div>
+            </div>
+            <span class="badge {% if group.total_slots and group.occupied_count >= group.total_slots %}badge-ok{% else %}badge-muted{% endif %} capacity-badge">
+              已绑定 <span class="prod-count-num">{{ group.occupied_count }}</span>{% if group.total_slots %} / {{ group.total_slots }}{% endif %} 槽位 ({{ group.occupancy_percent }}%)
+            </span>
+          </div>
+          <div class="btn-group-view">
+            <button type="button" class="btn btn-secondary btn-sm btn-edit-card">修改绑定</button>
+          </div>
+          <div class="btn-group-edit" style="display: none;">
+            <button type="button" class="btn btn-secondary btn-sm btn-toggle-batch-paste">📋 批量填入</button>
+            <button type="button" class="btn btn-secondary btn-sm btn-add-prod-row">＋ 加一行</button>
+            <button type="button" class="btn btn-primary btn-sm btn-save-card">保存修改</button>
+            <button type="button" class="btn btn-secondary btn-sm btn-cancel-card">取消</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 批量粘贴快捷输入面板（编辑模式下可展开） -->
+      <div class="batch-paste-panel" style="display: none;">
+        <div class="batch-paste-box">
+          <div class="batch-paste-title">
+            <strong>批量粘贴产品条码</strong>
+            <small>每行输入一个条码或以逗号/空格分隔，将按槽位顺序依次自动填入下方槽位中：</small>
+          </div>
+          <textarea class="batch-paste-textarea mono-code" rows="3" placeholder="例如：&#10;P-DEMO-0001&#10;P-DEMO-0002&#10;P-DEMO-0003"></textarea>
+          <div class="batch-paste-actions">
+            <button type="button" class="btn btn-primary btn-xs btn-apply-batch-paste">一键填入槽位</button>
+            <button type="button" class="btn btn-secondary btn-xs btn-close-batch-paste">收起</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1. 直观料架槽位看板（物理层级与槽位视图） -->
+      {% if group.layers %}
+      <div class="rack-matrix-container">
+        <div class="rack-matrix-head">
+          <div class="matrix-title">
+            <span class="matrix-icon">🗄️</span>
+            <strong>料架物理槽位看板</strong>
+            <small>（从顶层到底层排列，直观展示各层各槽位产品绑定状态）</small>
+          </div>
+          <div class="matrix-legend">
+            <span class="legend-item"><i class="legend-dot occupied"></i> 已放产品</span>
+            <span class="legend-item"><i class="legend-dot empty"></i> 空槽位</span>
+          </div>
+        </div>
+        <div class="rack-shelf-visual">
+          {% for layer in group.layers %}
+          <div class="rack-layer-shelf-row">
+            <div class="layer-shelf-tag">
+              <strong>第 {{ layer.layer_no }} 层</strong>
+              <small>L{{ layer.layer_no }}</small>
+            </div>
+            <div class="layer-slots-grid">
+              {% for slot in layer.slots %}
+              <div class="slot-tile {% if slot.is_occupied %}is-occupied{% else %}is-empty{% endif %}" data-slot-pos="{{ slot.position_index }}" data-slot-label="{{ slot.slot_label }}">
+                <div class="slot-tile-header">
+                  <span class="slot-badge">{{ slot.slot_label }}</span>
+                  <span class="slot-pos-index">#{{ slot.position_index }}</span>
+                </div>
+                <!-- 正常查看状态 -->
+                <div class="slot-tile-view">
+                  {% if slot.is_occupied %}
+                    <div class="slot-prod-code mono-code" title="{{ slot.data.product.product_code }}">
+                      <strong>{{ slot.data.product.product_code }}</strong>
+                    </div>
+                    <div class="slot-prod-status">
+                      <span class="badge badge-{{ slot.data.sync_tone }} badge-mini">{{ slot.data.sync_label }}</span>
+                      {% if slot.data.foam %}
+                        <span class="badge {% if slot.data.foam.is_passed %}badge-ok{% else %}badge-fail{% endif %} badge-mini">{% if slot.data.foam.is_passed %}合格{% else %}不合格{% endif %}</span>
+                      {% endif %}
+                    </div>
+                  {% else %}
+                    <div class="slot-empty-label"><span>空槽位</span></div>
+                  {% endif %}
+                </div>
+                <!-- 编辑状态 -->
+                <div class="slot-tile-edit" style="display: none;">
+                  <input type="text" class="slot-input-code mono-code" value="{% if slot.is_occupied %}{{ slot.data.product.product_code }}{% endif %}" data-product-id="{% if slot.is_occupied %}{{ slot.data.product.pk }}{% endif %}" placeholder="条码">
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 2. 明细表格（详细参数与状态） -->
+      <details class="binding-table-details" open>
+        <summary class="table-details-summary">
+          <span>📋 产品明细表格（共 <strong class="prod-count-inline">{{ group.occupied_count }}</strong> 件产品）</span>
+          <small>点击折叠 / 展开详细参数</small>
+        </summary>
+        <div class="table-wrap binding-table-wrap">
+          <table class="data-table mes-binding-product-table">
+            <thead>
+              <tr>
+                <th style="width: 70px;">槽位</th>
+                <th style="width: 240px;">产品条码</th>
+                <th>批次</th>
+                <th>层 / 槽位</th>
+                <th>泡棉检测</th>
+                <th>本地记录</th>
+                <th>MES 同步</th>
+                <th>MES 回执</th>
+                <th class="col-edit-op" style="display: none; width: 75px; text-align: center;">操作</th>
+              </tr>
+            </thead>
+            <tbody class="products-tbody">
+              {% for row in group.products %}
+              <tr class="product-item-row" data-product-id="{{ row.product.pk }}" data-original-code="{{ row.product.product_code }}">
+                <td class="cell-seq">{% if row.slot_label %}<span class="badge badge-muted badge-mini">{{ row.slot_label }}</span>{% else %}#{{ forloop.counter }}{% endif %}</td>
+                <td class="cell-prod-code">
+                  <span class="code-view-text mono-code"><strong>{{ row.product.product_code }}</strong></span>
+                  <span class="code-edit-wrap" style="display: none;">
+                    <input type="text" class="input-prod-code mono-code" value="{{ row.product.product_code }}" placeholder="输入产品条码">
+                  </span>
+                </td>
+                <td><small class="cell-sub">{{ row.product.batch.batch_no|default:"无批次" }}</small></td>
+                <td>{% if row.position %}<strong>L{{ row.layer_no }} / {{ row.slot_no }}</strong><small class="cell-sub">位置序号 {{ row.position }}</small>{% else %}<span class="text-faint">未记录</span>{% endif %}</td>
+                <td>{% if row.foam %}{% if row.foam.is_passed %}<span class="badge badge-ok">合格</span>{% else %}<span class="badge badge-fail">不合格</span>{% endif %}<small class="cell-sub">{{ row.foam.created_at|date:"m-d H:i:s" }}</small>{% else %}<span class="badge badge-muted">待检测</span>{% endif %}</td>
+                <td><span class="badge badge-ok">已保存</span><small class="cell-sub">{{ row.product.updated_at|date:"Y-m-d H:i:s" }}</small></td>
+                <td><span class="badge badge-{{ row.sync_tone }}">{{ row.sync_label }}</span>{% if row.upload %}<small class="cell-sub">{{ row.upload.created_at|date:"Y-m-d H:i:s" }}</small>{% endif %}</td>
+                <td>{% if row.mes_id %}<code>{{ row.mes_id }}</code>{% elif row.upload and not row.upload.success %}<span class="text-danger">{{ row.upload.error_message|truncatechars:32 }}</span>{% else %}<span class="text-faint">—</span>{% endif %}</td>
+                <td class="col-edit-op" style="display: none; text-align: center;">
+                  <button type="button" class="btn btn-secondary btn-xs btn-remove-row">移除</button>
+                </td>
+              </tr>
+              {% empty %}
+              <tr class="empty-row"><td colspan="9"><div class="empty"><strong>暂无绑定产品</strong><span>点击右上角「修改绑定」即可添加产品条码。</span></div></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </article>
+    {% empty %}
+    <section class="panel empty"><strong>没有找到料框与产品绑定数据</strong><span>调整料框码、产品码或日期条件后重新查询。</span></section>
+    {% endfor %}
+  </div>
+
+  {% if binding_page.has_other_pages %}
+  <div class="mes-pagination">
+    <span>第 {{ binding_page.number }} / {{ binding_page.paginator.num_pages }} 页</span>
+    <div>
+      {% if binding_page.has_previous %}<a class="btn btn-secondary btn-sm" href="?tab=bindings&page={{ binding_page.previous_page_number }}&rack_code={{ rack_code|urlencode }}&product_code={{ product_code|urlencode }}&recipe_code={{ recipe_code|urlencode }}">上一页</a>{% endif %}
+      {% if binding_page.has_next %}<a class="btn btn-secondary btn-sm" href="?tab=bindings&page={{ binding_page.next_page_number }}&rack_code={{ rack_code|urlencode }}&product_code={{ product_code|urlencode }}&recipe_code={{ recipe_code|urlencode }}">下一页</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
 </section>
+
+<!-- 新增料框绑定 Modal -->
+<div class="binding-modal" id="modal-create-rack-binding" style="display:none">
+  <div class="binding-modal-box">
+    <div class="binding-modal-head">
+      <h3>新增料框绑定</h3>
+      <button type="button" class="modal-close-btn" id="modal-create-close">✕</button>
+    </div>
+    <p class="binding-modal-desc">输入料框码及对应的产品条码（一个料框可绑定多个产品条码）。</p>
+    <div style="display:grid;gap:12px;">
+      <label class="modal-form-label">料框码
+        <input type="text" id="create-rack-code" class="mono-code modal-form-input" placeholder="例如：RACK-DEMO-001">
+      </label>
+      <label class="modal-form-label">产品条码列表 <small style="font-weight:normal;color:var(--text-faint);">（每行一个产品条码，可直接多行粘贴）</small>
+        <textarea id="create-product-codes" class="mono-code modal-form-textarea" rows="6" placeholder="P-DEMO-0001&#10;P-DEMO-0002&#10;P-DEMO-0003"></textarea>
+      </label>
+    </div>
+    <div class="binding-modal-foot">
+      <button type="button" class="btn btn-primary" id="btn-create-rack-confirm">确认创建</button>
+      <button type="button" class="btn btn-secondary" id="btn-create-rack-cancel">取消</button>
+    </div>
+  </div>
+</div>
 
 {% elif tab == 'recipes' %}
 <section class="panel mes-context-strip">
@@ -102,19 +311,387 @@
 <script>
 (function () {
   const toastRoot = document.getElementById('toast-container');
-  function toast(message, tone) { const item = document.createElement('div'); item.className = `toast toast-${tone || 'info'}`; item.textContent = message; toastRoot.appendChild(item); setTimeout(() => item.remove(), 3200); }
+  function toast(message, tone) {
+    const item = document.createElement('div');
+    item.className = `toast toast-${tone || 'info'}`;
+    item.textContent = message;
+    toastRoot.appendChild(item);
+    setTimeout(() => item.remove(), 3200);
+  }
+
+  async function apiPost(url, body) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || '请求失败');
+    }
+    return data;
+  }
+
+  // ── 原有：配方刷新与重传 ──────────────────────────────────────
   document.addEventListener('click', async (event) => {
     const refreshButton = event.target.closest('.refresh-recipe-btn');
     if (refreshButton) {
-      const original = refreshButton.textContent; refreshButton.disabled = true; refreshButton.textContent = '获取中…';
-      try { const response = await fetch(`/mes/api/racks/${refreshButton.dataset.rackId}/refresh-recipe/`, {method: 'POST'}); const data = await response.json(); if (!data.success) throw new Error(data.error || 'MES 返回失败'); toast(data.message || 'MES 配方刷新成功', 'ok'); setTimeout(() => location.reload(), 650); }
-      catch (error) { toast(`配方刷新失败：${error.message}`, 'fail'); refreshButton.disabled = false; refreshButton.textContent = original; }
+      const original = refreshButton.textContent;
+      refreshButton.disabled = true;
+      refreshButton.textContent = '获取中…';
+      try {
+        const response = await fetch(`/mes/api/racks/${refreshButton.dataset.rackId}/refresh-recipe/`, {method: 'POST'});
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error || 'MES 返回失败');
+        toast(data.message || 'MES 配方刷新成功', 'ok');
+        setTimeout(() => location.reload(), 650);
+      } catch (error) {
+        toast(`配方刷新失败：${error.message}`, 'fail');
+        refreshButton.disabled = false;
+        refreshButton.textContent = original;
+      }
       return;
     }
-    const button = event.target.closest('.retry-btn'); if (!button) return;
-    const original = button.textContent; button.disabled = true; button.textContent = '重传中…';
-    try { const response = await fetch(`/mes/api/retry/${button.dataset.id}/`, {method: 'POST'}); const data = await response.json(); if (!data.success) throw new Error(data.error || 'MES 返回失败'); toast(`记录 #${button.dataset.id} 重传成功`, 'ok'); setTimeout(() => location.reload(), 650); }
-    catch (error) { toast(`重传失败：${error.message}`, 'fail'); button.disabled = false; button.textContent = original; }
+    const button = event.target.closest('.retry-btn');
+    if (button) {
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = '重传中…';
+      try {
+        const response = await fetch(`/mes/api/retry/${button.dataset.id}/`, {method: 'POST'});
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error || 'MES 返回失败');
+        toast(`记录 #${button.dataset.id} 重传成功`, 'ok');
+        setTimeout(() => location.reload(), 650);
+      } catch (error) {
+        toast(`重传失败：${error.message}`, 'fail');
+        button.disabled = false;
+        button.textContent = original;
+      }
+      return;
+    }
+  });
+
+  // ── 新建料框绑定 Modal ────────────────────────────────────────
+  const createModal = document.getElementById('modal-create-rack-binding');
+  function openCreateModal() {
+    if (!createModal) return;
+    document.getElementById('create-rack-code').value = '';
+    document.getElementById('create-product-codes').value = '';
+    createModal.style.display = 'flex';
+    document.getElementById('create-rack-code').focus();
+  }
+  function closeCreateModal() {
+    if (createModal) createModal.style.display = 'none';
+  }
+  document.getElementById('btn-open-create-rack')?.addEventListener('click', openCreateModal);
+  document.getElementById('modal-create-close')?.addEventListener('click', closeCreateModal);
+  document.getElementById('btn-create-rack-cancel')?.addEventListener('click', closeCreateModal);
+  createModal?.addEventListener('click', (e) => { if (e.target === createModal) closeCreateModal(); });
+
+  document.getElementById('btn-create-rack-confirm')?.addEventListener('click', async () => {
+    const rackCode = document.getElementById('create-rack-code').value.trim();
+    const codesRaw = document.getElementById('create-product-codes').value.trim();
+    if (!rackCode) {
+      toast('请输入料框码', 'fail');
+      return;
+    }
+    const lines = codesRaw.split(/[\r\n,]+/).map(s => s.trim()).filter(Boolean);
+    const products = lines.map(code => ({ id: null, product_code: code }));
+
+    const btn = document.getElementById('btn-create-rack-confirm');
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '创建中…';
+    try {
+      const data = await apiPost('/mes/api/rack-binding/save/', {
+        rack_code: rackCode,
+        products: products,
+      });
+      toast(data.message || '料框绑定创建成功', 'ok');
+      closeCreateModal();
+      setTimeout(() => location.reload(), 700);
+    } catch (err) {
+      toast(`创建失败：${err.message}`, 'fail');
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  });
+
+  // ── 料框卡片「修改 / 保存 / 取消 / 添加产品 / 移除产品 / 批量粘贴」──────
+  document.addEventListener('click', async (e) => {
+    // 1. 点击「修改绑定」
+    const editBtn = e.target.closest('.btn-edit-card');
+    if (editBtn) {
+      const card = editBtn.closest('.mes-binding-card');
+      if (!card) return;
+      // 切换头部
+      card.querySelector('.rack-view-block').style.display = 'none';
+      card.querySelector('.rack-edit-block').style.display = 'block';
+      card.querySelector('.btn-group-view').style.display = 'none';
+      card.querySelector('.btn-group-edit').style.display = 'flex';
+
+      // 切换槽位矩阵输入框
+      card.querySelectorAll('.slot-tile-view').forEach(el => el.style.display = 'none');
+      card.querySelectorAll('.slot-tile-edit').forEach(el => el.style.display = 'block');
+
+      // 切换表格行
+      card.querySelectorAll('.col-edit-op').forEach(el => el.style.display = '');
+      card.querySelectorAll('.code-view-text').forEach(el => el.style.display = 'none');
+      card.querySelectorAll('.code-edit-wrap').forEach(el => el.style.display = 'block');
+      card.classList.add('is-card-editing');
+      card.querySelector('.input-rack-code')?.focus();
+      return;
+    }
+
+    // 2. 点击「取消」
+    const cancelBtn = e.target.closest('.btn-cancel-card');
+    if (cancelBtn) {
+      const card = cancelBtn.closest('.mes-binding-card');
+      if (!card) return;
+      // 还原头部
+      const rackInput = card.querySelector('.input-rack-code');
+      if (rackInput) rackInput.value = card.dataset.rackCode || '';
+      card.querySelector('.rack-view-block').style.display = '';
+      card.querySelector('.rack-edit-block').style.display = 'none';
+      card.querySelector('.btn-group-view').style.display = '';
+      card.querySelector('.btn-group-edit').style.display = 'none';
+      const batchPanel = card.querySelector('.batch-paste-panel');
+      if (batchPanel) batchPanel.style.display = 'none';
+
+      // 还原槽位矩阵
+      card.querySelectorAll('.slot-tile-view').forEach(el => el.style.display = '');
+      card.querySelectorAll('.slot-tile-edit').forEach(el => el.style.display = 'none');
+
+      // 还原表格行
+      card.querySelectorAll('.col-edit-op').forEach(el => el.style.display = 'none');
+      card.querySelectorAll('.code-view-text').forEach(el => el.style.display = '');
+      card.querySelectorAll('.code-edit-wrap').forEach(el => el.style.display = 'none');
+      // 移除新添加但未保存的行
+      card.querySelectorAll('.is-new-row').forEach(row => row.remove());
+      // 恢复被移除的已有行
+      card.querySelectorAll('.product-item-row').forEach(row => {
+        row.style.display = '';
+        row.classList.remove('is-deleted');
+        const inp = row.querySelector('.input-prod-code');
+        if (inp) inp.value = row.dataset.originalCode || '';
+      });
+      card.classList.remove('is-card-editing');
+      return;
+    }
+
+    // 3. 点击「📋 批量填入」切换面板
+    const toggleBatchBtn = e.target.closest('.btn-toggle-batch-paste');
+    if (toggleBatchBtn) {
+      const card = toggleBatchBtn.closest('.mes-binding-card');
+      if (!card) return;
+      const panel = card.querySelector('.batch-paste-panel');
+      if (panel) {
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        if (panel.style.display === 'block') {
+          panel.querySelector('.batch-paste-textarea')?.focus();
+        }
+      }
+      return;
+    }
+
+    const closeBatchBtn = e.target.closest('.btn-close-batch-paste');
+    if (closeBatchBtn) {
+      const panel = closeBatchBtn.closest('.batch-paste-panel');
+      if (panel) panel.style.display = 'none';
+      return;
+    }
+
+    // 4. 点击「一键填入槽位」
+    const applyBatchBtn = e.target.closest('.btn-apply-batch-paste');
+    if (applyBatchBtn) {
+      const card = applyBatchBtn.closest('.mes-binding-card');
+      if (!card) return;
+      const textarea = card.querySelector('.batch-paste-textarea');
+      const rawText = textarea ? textarea.value.trim() : '';
+      if (!rawText) {
+        toast('请先粘贴或输入条码列表', 'fail');
+        return;
+      }
+      const codes = rawText.split(/[\r\n,]+/).map(s => s.trim()).filter(Boolean);
+      if (!codes.length) return;
+
+      // 1. 填入槽位矩阵
+      const slotInputs = card.querySelectorAll('.slot-input-code');
+      slotInputs.forEach((inp, idx) => {
+        if (idx < codes.length) {
+          inp.value = codes[idx];
+        }
+      });
+
+      // 2. 填入表格
+      const tbody = card.querySelector('.products-tbody');
+      const emptyRow = tbody.querySelector('.empty-row');
+      if (emptyRow) emptyRow.remove();
+
+      const existingRows = Array.from(card.querySelectorAll('.product-item-row:not(.is-deleted)'));
+      codes.forEach((code, idx) => {
+        if (idx < existingRows.length) {
+          const inp = existingRows[idx].querySelector('.input-prod-code');
+          if (inp) inp.value = code;
+        } else {
+          // 创建新行
+          const newTr = document.createElement('tr');
+          newTr.className = 'product-item-row is-new-row';
+          newTr.dataset.productId = '';
+          newTr.innerHTML = `
+            <td class="cell-seq">#${idx + 1}</td>
+            <td class="cell-prod-code">
+              <span class="code-view-text mono-code" style="display:none;"><strong></strong></span>
+              <span class="code-edit-wrap" style="display:block;">
+                <input type="text" class="input-prod-code mono-code" value="${code}" placeholder="输入产品条码">
+              </span>
+            </td>
+            <td><small class="cell-sub">批量填入</small></td>
+            <td><span class="text-faint">待分配</span></td>
+            <td><span class="badge badge-muted">待检测</span></td>
+            <td><span class="badge badge-warn">未保存</span></td>
+            <td><span class="badge badge-warn">待上传</span></td>
+            <td><span class="text-faint">—</span></td>
+            <td class="col-edit-op" style="text-align: center;">
+              <button type="button" class="btn btn-secondary btn-xs btn-remove-row">移除</button>
+            </td>
+          `;
+          tbody.appendChild(newTr);
+        }
+      });
+
+      toast(`已填入 ${codes.length} 个条码`, 'ok');
+      const panel = card.querySelector('.batch-paste-panel');
+      if (panel) panel.style.display = 'none';
+      return;
+    }
+
+    // 5. 点击「＋ 加一行」
+    const addRowBtn = e.target.closest('.btn-add-prod-row');
+    if (addRowBtn) {
+      const card = addRowBtn.closest('.mes-binding-card');
+      if (!card) return;
+      const tbody = card.querySelector('.products-tbody');
+      const emptyRow = tbody.querySelector('.empty-row');
+      if (emptyRow) emptyRow.remove();
+
+      const newTr = document.createElement('tr');
+      newTr.className = 'product-item-row is-new-row';
+      newTr.dataset.productId = '';
+      newTr.innerHTML = `
+        <td class="cell-seq">#</td>
+        <td class="cell-prod-code">
+          <span class="code-view-text mono-code" style="display:none;"><strong></strong></span>
+          <span class="code-edit-wrap" style="display:block;">
+            <input type="text" class="input-prod-code mono-code" value="" placeholder="输入产品条码">
+          </span>
+        </td>
+        <td><small class="cell-sub">新添加</small></td>
+        <td><span class="text-faint">待分配</span></td>
+        <td><span class="badge badge-muted">待检测</span></td>
+        <td><span class="badge badge-warn">未保存</span></td>
+        <td><span class="badge badge-warn">待上传</span></td>
+        <td><span class="text-faint">—</span></td>
+        <td class="col-edit-op" style="text-align: center;">
+          <button type="button" class="btn btn-secondary btn-xs btn-remove-row">移除</button>
+        </td>
+      `;
+      tbody.appendChild(newTr);
+      newTr.querySelector('.input-prod-code')?.focus();
+      return;
+    }
+
+    // 6. 点击「移除」某行
+    const removeBtn = e.target.closest('.btn-remove-row');
+    if (removeBtn) {
+      const row = removeBtn.closest('.product-item-row');
+      const card = removeBtn.closest('.mes-binding-card');
+      if (!row || !card) return;
+      if (row.classList.contains('is-new-row')) {
+        row.remove();
+      } else {
+        row.style.display = 'none';
+        row.classList.add('is-deleted');
+      }
+      return;
+    }
+
+    // 7. 点击「保存修改」
+    const saveBtn = e.target.closest('.btn-save-card');
+    if (saveBtn) {
+      const card = saveBtn.closest('.mes-binding-card');
+      if (!card) return;
+      const rackId = card.dataset.rackId ? parseInt(card.dataset.rackId) : null;
+      const rackCodeInput = card.querySelector('.input-rack-code');
+      const newRackCode = rackCodeInput ? rackCodeInput.value.trim() : '';
+
+      if (!newRackCode) {
+        toast('料框码不能为空', 'fail');
+        return;
+      }
+
+      const products = [];
+      const deletedIds = [];
+      const seenCodes = new Set();
+
+      // 优先收集槽位矩阵中的输入（如果有槽位看板）
+      const slotInputs = card.querySelectorAll('.slot-input-code');
+      if (slotInputs.length > 0) {
+        slotInputs.forEach(inp => {
+          const val = inp.value.trim();
+          const pId = inp.dataset.productId ? parseInt(inp.dataset.productId) : null;
+          if (val) {
+            if (!seenCodes.has(val)) {
+              seenCodes.add(val);
+              products.push({ id: pId, product_code: val });
+            }
+          } else if (pId) {
+            deletedIds.push(pId);
+          }
+        });
+      }
+
+      // 同时补充表格中的行（可能新增的行）
+      card.querySelectorAll('.product-item-row').forEach(row => {
+        if (row.classList.contains('is-deleted')) {
+          if (row.dataset.productId) {
+            const pId = parseInt(row.dataset.productId);
+            if (!deletedIds.includes(pId)) deletedIds.push(pId);
+          }
+          return;
+        }
+        if (row.style.display === 'none') return;
+
+        const pId = row.dataset.productId ? parseInt(row.dataset.productId) : null;
+        const codeInput = row.querySelector('.input-prod-code');
+        const codeVal = codeInput ? codeInput.value.trim() : '';
+        if (codeVal && !seenCodes.has(codeVal)) {
+          seenCodes.add(codeVal);
+          products.push({ id: pId, product_code: codeVal });
+        }
+      });
+
+      const orig = saveBtn.textContent;
+      saveBtn.disabled = true;
+      saveBtn.textContent = '保存中…';
+
+      try {
+        const data = await apiPost('/mes/api/rack-binding/save/', {
+          rack_id: rackId,
+          rack_code: newRackCode,
+          products: products,
+          deleted_product_ids: deletedIds,
+        });
+        toast(data.message || '绑定修改已保存', 'ok');
+        setTimeout(() => location.reload(), 700);
+      } catch (err) {
+        toast(`保存失败：${err.message}`, 'fail');
+        saveBtn.disabled = false;
+        saveBtn.textContent = orig;
+      }
+      return;
+    }
   });
 })();
 </script>

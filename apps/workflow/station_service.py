@@ -43,6 +43,7 @@ class ExistingVisionGateway:
         if self.simulated:
             return 0.0
 
+        from apps.production.rack_recipe_service import RackPositionResolver
         from apps.vision.models import RackLocationRecipe
         from apps.vision.rack_3d.services import RackPositioningService
 
@@ -52,13 +53,47 @@ class ExistingVisionGateway:
         rack = cycle.rack or cycle.product.rack
         if recipe_id:
             recipe = qs.filter(pk=recipe_id).first()
+            target_layer_no = recipe.layer_no if recipe else None
+        elif (
+            rack.current_recipe_id
+            and rack.current_recipe.vision_mappings.filter(
+                enabled=True,
+                rack_location_recipe__isnull=False,
+            ).exists()
+        ):
+            position_text = str(rack.position_side or '1').strip().upper()
+            station_position_no = 2 if (
+                '2' in position_text or position_text in {'RIGHT', 'R'}
+            ) else 1
+            resolved = RackPositionResolver(rack.current_recipe).resolve(
+                cycle.loaded_quantity,
+                station_position_no,
+            )
+            mapping_state = resolved.get('mapping') or {}
+            if not mapping_state.get('ready'):
+                detail = '、'.join(mapping_state.get('issues') or ['未建立视觉映射'])
+                raise StationStepError(
+                    f'{station_position_no}号位当前层3D映射未就绪：{detail}',
+                    AlarmSource.RECIPE,
+                )
+            recipe = qs.filter(pk=resolved['rack_location_recipe_id']).first()
+            target_layer_no = (
+                resolved['current']['layer_no'] if resolved['current'] else None
+            )
+            if recipe is None:
+                layer_label = target_layer_no or '当前'
+                raise StationStepError(
+                    f'{station_position_no}号位第{layer_label}层未配置可用的3D定位配方',
+                    AlarmSource.RECIPE,
+                )
         else:
             recipe = qs.filter(rack_type=rack.rack_type).order_by('layer_no').first()
             recipe = recipe or qs.order_by('position_no', 'layer_no').first()
+            target_layer_no = recipe.layer_no if recipe else None
         if recipe is None:
             raise StationStepError('未找到可用的 3D 定位配方', AlarmSource.RECIPE)
         result = RackPositioningService().execute_positioning(
-            recipe.id, recipe.layer_no, save=True,
+            recipe.id, target_layer_no, save=True,
         )
         if not result.get('is_success'):
             raise StationStepError(

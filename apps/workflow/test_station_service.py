@@ -1,11 +1,15 @@
-from django.test import TestCase
+from unittest.mock import patch
+
+from django.test import TestCase, override_settings
 
 from apps.alarms.models import Alarm
 from apps.devices.adapters.plc import MemoryPLCTransport, PLCAdapter
 from apps.mes.client import SimulatedMesClient
 from apps.mes.services import MesService
-from apps.workflow.models import StationPhase, WorkflowEvent
-from apps.workflow.station_service import StationWorkflowService
+from apps.production.models import Rack, RackRecipe, RackRecipeVisionMapping
+from apps.vision.models import RackLocationRecipe
+from apps.workflow.models import StationCycle, StationPhase, WorkflowEvent
+from apps.workflow.station_service import ExistingVisionGateway, StationWorkflowService
 
 
 class FakeVisionGateway:
@@ -19,6 +23,50 @@ class FakeVisionGateway:
 
     def measure_recipe(self, cycle):
         return self.measured
+
+
+class ExistingVisionGatewayMappingTests(TestCase):
+    @override_settings(AUTOMATIC_ORDER={
+        'USE_SIMULATED_DEVICES': False,
+        'VISION_POSITION_RECIPE_ID': None,
+    })
+    @patch('apps.vision.rack_3d.services.RackPositioningService.execute_positioning')
+    def test_uses_current_layer_mapping_for_station_position(self, execute_positioning):
+        master = RackRecipe.objects.create(
+            recipe_code='MASTER-POSITION', name='主配方', rack_type='RACK-A',
+            station_position_count=2, layer_count=3, quantity_per_layer=5,
+            total_quantity=15,
+        )
+        rack = Rack.objects.create(
+            rack_code='RACK-POSITION', rack_type='RACK-A',
+            position_side='2', current_recipe=master,
+        )
+        vision_recipe = RackLocationRecipe.objects.create(
+            recipe_name='P2-L2', rack_type='RACK-A', position_no=2, layer_no=2,
+            roi_config={
+                'target_roi': {'x': 1},
+                'local_template_rois': {
+                    'plane1': {'x': 1}, 'plane2': {'x': 2}, 'plane3': {'x': 3},
+                },
+            },
+            local_template_std={'origin': [0, 0, 0]},
+            hand_eye_config={'matrix': 'identity'},
+        )
+        RackRecipeVisionMapping.objects.create(
+            rack_recipe=master, station_position_no=2, layer_no=2,
+            rack_location_recipe=vision_recipe,
+        )
+        cycle = StationCycle.objects.create(rack=rack, loaded_quantity=5)
+        execute_positioning.return_value = {
+            'is_success': True, 'compensation_z': 2.5,
+        }
+
+        delta_z = ExistingVisionGateway().calculate_position_delta_z(cycle)
+
+        self.assertEqual(delta_z, 2.5)
+        execute_positioning.assert_called_once_with(
+            vision_recipe.id, 2, save=True,
+        )
 
 class StationWorkflowIntegrationTests(TestCase):
     def setUp(self):

@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 
 from apps.core.constants import MarkStatus, MesUploadStatus, WorkflowState
 from apps.core.models import TimeStampedModel
@@ -17,9 +18,21 @@ class ProductionBatch(TimeStampedModel):
 
 
 class RackRecipe(TimeStampedModel):
+    class LoadingDirection(models.TextChoices):
+        BOTTOM_UP_LEFT_RIGHT = 'BOTTOM_UP_LEFT_RIGHT', '从下到上、从左到右'
+        BOTTOM_UP_RIGHT_LEFT = 'BOTTOM_UP_RIGHT_LEFT', '从下到上、从右到左'
+        TOP_DOWN_LEFT_RIGHT = 'TOP_DOWN_LEFT_RIGHT', '从上到下、从左到右'
+        TOP_DOWN_RIGHT_LEFT = 'TOP_DOWN_RIGHT_LEFT', '从上到下、从右到左'
+
+    class FullCondition(models.TextChoices):
+        QUANTITY_REACHED = 'QUANTITY_REACHED', '达到总装箱数量'
+        PLC_OR_QUANTITY = 'PLC_OR_QUANTITY', 'PLC满框信号或达到数量'
+
     recipe_code = models.CharField(max_length=64, unique=True)
     name = models.CharField(max_length=128)
+    product_code = models.CharField(max_length=128, blank=True, db_index=True)
     rack_type = models.CharField(max_length=64)
+    station_position_count = models.PositiveIntegerField(default=2)
     layer_count = models.PositiveIntegerField(default=0)
     quantity_per_layer = models.PositiveIntegerField(default=0)
     total_quantity = models.PositiveIntegerField(default=0)
@@ -28,10 +41,69 @@ class RackRecipe(TimeStampedModel):
     tolerance_x = models.DecimalField(max_digits=10, decimal_places=3, default=0)
     tolerance_y = models.DecimalField(max_digits=10, decimal_places=3, default=0)
     tolerance_z = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    loading_direction = models.CharField(
+        max_length=32,
+        choices=LoadingDirection.choices,
+        default=LoadingDirection.BOTTOM_UP_LEFT_RIGHT,
+    )
+    full_condition = models.CharField(
+        max_length=32,
+        choices=FullCondition.choices,
+        default=FullCondition.QUANTITY_REACHED,
+    )
+    version = models.PositiveIntegerField(default=1)
+    mes_updated_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return self.recipe_code
+
+
+class RackRecipeVisionMapping(TimeStampedModel):
+    """Connect a MES rack recipe position/layer to an existing 3D recipe.
+
+    This is deliberately additive: existing RackRecipe and RackLocationRecipe
+    rows are never rewritten when mappings are introduced.
+    """
+
+    rack_recipe = models.ForeignKey(
+        RackRecipe,
+        on_delete=models.CASCADE,
+        related_name='vision_mappings',
+    )
+    station_position_no = models.PositiveIntegerField(default=1)
+    layer_no = models.PositiveIntegerField(default=1)
+    rack_location_recipe = models.ForeignKey(
+        'vision.RackLocationRecipe',
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name='rack_recipe_mappings',
+    )
+    robot_target_code = models.CharField(max_length=64, blank=True)
+    enabled = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['rack_recipe_id', 'station_position_no', 'layer_no']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['rack_recipe', 'station_position_no', 'layer_no'],
+                name='unique_rack_recipe_position_layer_mapping',
+            ),
+        ]
+
+    def clean(self):
+        errors = {}
+        if self.rack_recipe_id:
+            if not 1 <= self.station_position_no <= self.rack_recipe.station_position_count:
+                errors['station_position_no'] = '工位位置必须在料架配方的位置数量范围内'
+            if not 1 <= self.layer_no <= self.rack_recipe.layer_count:
+                errors['layer_no'] = '层号必须在料架配方的层数范围内'
+        if errors:
+            raise ValidationError(errors)
+
+    def __str__(self):
+        return f'{self.rack_recipe.recipe_code}:P{self.station_position_no}-L{self.layer_no}'
 
 
 class Rack(TimeStampedModel):
