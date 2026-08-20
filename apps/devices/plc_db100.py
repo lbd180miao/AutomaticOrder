@@ -101,15 +101,10 @@ def decode_value(point: DB100Point, data: bytes) -> Any:
 
 
 def validate_barcode(value: str, label: str = '条码') -> str:
-    code = (value or '').strip()
-    if not code:
-        raise ValueError(f'{label}为空')
-    try:
-        encoded = code.encode('ascii')
-    except UnicodeEncodeError as exc:
-        raise ValueError(f'{label}必须为 ASCII 字符') from exc
-    if len(encoded) > 20:
-        raise ValueError(f'{label}超过 PLC STRING[20] 长度')
-    if any(ord(char) < 33 or ord(char) == 127 for char in code):
-        raise ValueError(f'{label}包含空格或控制字符')
-    return code
+    """使用统一三维校验引擎校验条码。"""
+    from apps.core.barcode_validator import validate_rack_barcode, validate_product_barcode
+    if '料框' in label:
+        res = validate_rack_barcode(value, check_db_duplicate=True)
+    else:
+        res = validate_product_barcode(value, check_db_duplicate=True)
+    return res.raise_if_invalid()

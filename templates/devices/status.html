@@ -7,6 +7,7 @@
     <p class="page-subtitle">只展示当前流程位置，以及每个场景与 PLC 的交互结果</p>
   </div>
   <div class="toolbar-actions">
+    <a href="{% url 'mes:record_list' %}?tab=bindings" class="btn btn-secondary">料框与条码管理</a>
     <a href="{% url 'workflow:history' %}" class="btn btn-secondary">流程历史</a>
     <a href="{% url 'devices:signals' %}" class="btn btn-secondary">原始通信日志</a>
     <a href="{% url 'devices:plc_config' %}" class="btn btn-primary">连接与点位配置</a>

@@ -3,27 +3,22 @@ from django.urls import reverse
 
 
 class PageAccessTests(TestCase):
-    """所有主要页面应可访问（返回 200）。"""
+    """所有主要页面应可访问。"""
 
-    def test_dashboard(self):
-        self.assertEqual(self.client.get(reverse('core:dashboard')).status_code, 200)
-
-    def test_dashboard_shows_db100_operator_overview(self):
-        response = self.client.get(reverse('core:dashboard'))
-
-        self.assertContains(response, '生产总览')
-        self.assertContains(response, 'DBX64.0')
-        self.assertContains(response, '料框装载图')
-        self.assertContains(response, reverse('devices:status'))
+    def test_dashboard_redirects_to_devices_status(self):
+        self.assertRedirects(
+            self.client.get(reverse('core:dashboard')),
+            reverse('devices:status'),
+        )
 
     def test_product_list(self):
-        self.assertEqual(self.client.get(reverse('production:product_list')).status_code, 200)
+        self.assertRedirects(self.client.get(reverse('production:product_list')), reverse('mes:record_list'))
 
     def test_rack_list(self):
-        self.assertEqual(self.client.get(reverse('production:rack_list')).status_code, 200)
+        self.assertRedirects(self.client.get(reverse('production:rack_list')), '/mes/records/?tab=bindings')
 
     def test_recipe_list(self):
-        self.assertEqual(self.client.get(reverse('production:recipe_list')).status_code, 200)
+        self.assertRedirects(self.client.get(reverse('production:recipe_list')), '/mes/records/?tab=recipes')
 
     def test_workflow_current(self):
         self.assertRedirects(
@@ -61,12 +56,10 @@ class PageAccessTests(TestCase):
 
 class WorkflowPageActionTests(TestCase):
     def test_start_and_advance_via_views(self):
-        # 新建流程。
         resp = self.client.post(reverse('workflow:start'), {'product_code': 'P-VIEW-1'})
         self.assertEqual(resp.status_code, 302)
         from apps.workflow.models import WorkflowInstance
         wf = WorkflowInstance.objects.get(product__product_code='P-VIEW-1')
-        # 推进一步。
         resp = self.client.post(reverse('workflow:advance', args=[wf.pk]))
         self.assertEqual(resp.status_code, 302)
         wf.refresh_from_db()

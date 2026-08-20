@@ -5,6 +5,8 @@ from . import views
 app_name = 'traceability'
 
 urlpatterns = [
+    # 默认首页：产品与料框绑定记录
+    path('', views.product_binding, name='index'),
     # 模块一：料框检测记录
     path('rack/', views.rack_detection, name='rack_detection'),
     # 模块二：产品与料框绑定记录

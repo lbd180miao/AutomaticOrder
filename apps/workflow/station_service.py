@@ -291,12 +291,22 @@ class StationWorkflowService:
     def _product_trigger(self, cycle, snapshot):
         if not snapshot.get('mark_trigger'):
             return False
-        from apps.devices.plc_db100 import validate_barcode
+        from apps.core.barcode_validator import validate_product_barcode
 
         self._record_input('mark_trigger', True, 24)
         if cycle.rack_id is None or cycle.rack.current_recipe_id is None:
             raise StationStepError('料框与配方尚未准备完成，不能接收产品条码', AlarmSource.RECIPE)
-        code = validate_barcode(snapshot.get('product_barcode'), '产品条码')
+
+        raw_code = snapshot.get('product_barcode')
+        val_res = validate_product_barcode(
+            raw_code,
+            rack_code=cycle.rack.rack_code,
+            check_db_duplicate=True,
+        )
+        if not val_res.is_valid:
+            raise StationStepError(val_res.error_message, AlarmSource.SCANNER)
+
+        code = val_res.cleaned_code
         product = self.production.create_product(code)
         workflow, created = WorkflowInstance.objects.get_or_create(
             product=product,
@@ -306,7 +316,7 @@ class StationWorkflowService:
                 'started_at': timezone.now(),
             },
         )
-        if not created and workflow.current_state != WorkflowState.CREATED:
+        if not created and workflow.current_state not in (WorkflowState.CREATED, WorkflowState.BARCODE_READ):
             raise StationStepError(f'产品条码 {code} 已存在进行中或已完成流程', AlarmSource.SCANNER)
         cycle.workflow = workflow
         cycle.save(update_fields=['workflow', 'updated_at'])
@@ -316,7 +326,7 @@ class StationWorkflowService:
         self._write('mark_read_done', True, 25)
         self._set_phase(
             cycle, StationPhase.WAIT_MARK_RESET, event_type='PRODUCT_BARCODE_READ',
-            source=EventSource.PLC, message=f'产品条码 {code} 校验并与料框绑定落库',
+            source=EventSource.PLC, message=f'产品条码 {code} 三维校验通过并与料框绑定落库',
             payload={'product_code': code, 'rack_code': cycle.rack.rack_code},
             workflow_state=WorkflowState.BARCODE_READ,
         )
@@ -333,10 +343,15 @@ class StationWorkflowService:
     def _rack_trigger(self, cycle, snapshot):
         if not snapshot.get('rack_trigger'):
             return False
-        from apps.devices.plc_db100 import validate_barcode
+        from apps.core.barcode_validator import validate_rack_barcode
 
         self._record_input('rack_trigger', True, 50)
-        rack_code = validate_barcode(snapshot.get('rack_barcode'), '料框码')
+        raw_code = snapshot.get('rack_barcode')
+        val_res = validate_rack_barcode(raw_code, check_db_duplicate=True)
+        if not val_res.is_valid:
+            raise StationStepError(val_res.error_message, AlarmSource.SCANNER)
+
+        rack_code = val_res.cleaned_code
         rack = self.production.get_or_create_rack(rack_code)
         recipe_response = self.mes.get_rack_recipe(rack_code, rack=rack)
         if not recipe_response.get('success'):

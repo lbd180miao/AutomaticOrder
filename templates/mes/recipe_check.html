@@ -16,17 +16,35 @@
 <section class="panel verification-card">
   <div class="panel-heading">
     <div><span class="eyebrow">RECIPE VERIFICATION</span><h2>当前自动核对结果</h2></div>
-    <span class="camera-state" id="verification-camera-state">2D 相机：{{ verification.camera_state }}</span>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span class="camera-state" id="verification-camera-state">2D 相机：{{ verification.camera_state }}</span>
+    </div>
   </div>
   <div class="verification-context">
-    <div><span>产品</span><strong>{{ verification.product.product_code|default:"等待任务" }}</strong></div>
-    <div><span>料框</span><strong>{{ verification.rack.rack_code|default:"—" }}</strong></div>
-    <div><span>MES 配方</span><strong>{{ verification.recipe.recipe_code|default:"—" }}</strong></div>
-    <div><span>允许容差</span><strong>{% if verification.recipe %}± {{ verification.recipe.tolerance_z }} mm{% else %}—{% endif %}</strong></div>
+    <div><span>当前产品</span><strong>{{ verification.product.product_code|default:"等待任务" }}</strong></div>
+    <div><span>当前料框</span><strong class="mono-code">{{ verification.rack.rack_code|default:"—" }}</strong></div>
+    <div><span>MES 配方</span><strong class="mono-code">{{ verification.recipe.recipe_code|default:"—" }}</strong></div>
+    <div>
+      <span>允许误差阈值</span>
+      <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+        <span style="font-weight:700;">±</span>
+        <input type="number" id="setting-tolerance-z" step="0.1" min="0" max="50"
+               value="{{ verification.recipe.tolerance_z|default:3.0 }}"
+               style="width: 65px; padding: 2px 6px; font-size: 13px; font-weight: 700; border: 1px solid var(--border-strong); border-radius: 4px; text-align: center;">
+        <span style="font-size:12px; color:var(--text-muted);">mm</span>
+        <button type="button" class="btn btn-primary btn-xs" id="btn-save-tolerance-threshold">保存阈值</button>
+      </div>
+    </div>
   </div>
-  <div class="table-wrap"><table class="data-table verification-table"><thead><tr><th>核对项</th><th>MES 配方值</th><th>2D 实测值</th><th>偏差</th><th>判定</th></tr></thead><tbody>
+  <div class="table-wrap"><table class="data-table verification-table"><thead><tr><th>核对项</th><th>MES 配方基准值</th><th>2D/3D 实测值</th><th>实测绝对偏差</th><th>判定结果</th></tr></thead><tbody>
     {% for item in verification.items %}
-    <tr data-measurement-key="{{ forloop.counter0 }}"><td><strong>{{ item.label }}</strong></td><td>{% if item.expected != None %}{{ item.expected }} mm{% else %}—{% endif %}</td><td class="js-measured">{% if item.measured != None %}{{ item.measured }} mm{% else %}<span class="text-faint">等待测量</span>{% endif %}</td><td class="js-difference">{% if item.difference != None %}{{ item.difference }} mm{% else %}—{% endif %}</td><td class="js-result">{% if item.passed == True %}<span class="badge badge-ok">合格</span>{% elif item.passed == False %}<span class="badge badge-fail">不合格</span>{% else %}<span class="badge badge-muted">待校验</span>{% endif %}</td></tr>
+    <tr data-measurement-key="{{ forloop.counter0 }}">
+      <td><strong>{{ item.label }}</strong></td>
+      <td>{% if item.expected != None %}{{ item.expected }} mm{% else %}—{% endif %}</td>
+      <td class="js-measured">{% if item.measured != None %}{{ item.measured }} mm{% else %}<span class="text-faint">等待测量</span>{% endif %}</td>
+      <td class="js-difference">{% if item.difference != None %}{{ item.difference }} mm{% else %}—{% endif %}</td>
+      <td class="js-result">{% if item.passed == True %}<span class="badge badge-ok">合格</span>{% elif item.passed == False %}<span class="badge badge-fail">不合格</span>{% else %}<span class="badge badge-muted">待校验</span>{% endif %}</td>
+    </tr>
     {% endfor %}
   </tbody></table></div>
   <div class="verification-result-bar verification-{{ verification.state_tone }}" id="verification-footer">
@@ -89,6 +107,40 @@
   }
   document.getElementById('btn-debug-calculate').addEventListener('click',()=>measure('upload')); document.getElementById('btn-camera-measure').addEventListener('click',()=>measure('camera'));
   document.getElementById('btn-save-profile').addEventListener('click',async function(){const original=this.textContent;this.disabled=true;this.textContent='保存中…';try{const response=await fetch('{% url "mes:rack_measurement_profile_api" %}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...parameters(),name:'料架层高层距自动测量'})});const data=await response.json();if(!data.success)throw new Error(data.error||'保存失败');document.getElementById('profile-status').textContent='自动参数已配置';document.getElementById('profile-status').className='badge badge-ok';setMessage('参数已保存，PLC DBX50.0 触发时会自动使用。','ok');toast('自动测量参数已保存','ok');}catch(error){setMessage(`保存失败：${error.message}`,'fail');}finally{this.disabled=false;this.textContent=original;}});
+
+  // 保存配方校验容差阈值
+  document.getElementById('btn-save-tolerance-threshold')?.addEventListener('click', async function () {
+    const val = parseFloat(document.getElementById('setting-tolerance-z').value);
+    if (isNaN(val) || val <= 0) {
+      toast('请输入大于 0 的有效容差数值', 'fail');
+      return;
+    }
+    const orig = this.textContent;
+    this.disabled = true;
+    this.textContent = '保存中…';
+    try {
+      const response = await fetch('{% url "mes:recipe_tolerance_save_api" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipe_code: '{{ verification.recipe.recipe_code|default:"" }}',
+          tolerance_z: val,
+        }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || '保存失败');
+      toast(data.message || `容差阈值已设为 ±${val} mm`, 'ok');
+      // 触发一次即时刷新
+      const checkResp = await fetch('{% url "mes:recipe_verification_api" %}');
+      const checkData = await checkResp.json();
+      renderVerification(checkData);
+    } catch (err) {
+      toast(`保存容差失败：${err.message}`, 'fail');
+    } finally {
+      this.disabled = false;
+      this.textContent = orig;
+    }
+  });
 
   function renderVerification(data){const state=document.getElementById('verification-state');state.textContent=data.state_label;state.className=`badge badge-${data.state_tone}`;document.getElementById('verification-camera-state').textContent=`2D 相机：${data.camera_state}`;document.getElementById('verification-footer-label').textContent=data.state_label;document.getElementById('verification-message').textContent=data.state_message;document.getElementById('verification-footer').className=`verification-result-bar verification-${data.state_tone}`;document.querySelectorAll('[data-measurement-key]').forEach((row,index)=>{const item=data.items[index];row.querySelector('.js-measured').textContent=item.measured==null?'等待测量':`${Number(item.measured).toFixed(3)} mm`;row.querySelector('.js-difference').textContent=item.difference==null?'—':`${Number(item.difference).toFixed(3)} mm`;row.querySelector('.js-result').innerHTML=item.passed===true?'<span class="badge badge-ok">合格</span>':item.passed===false?'<span class="badge badge-fail">不合格</span>':'<span class="badge badge-muted">待校验</span>';});const allowed=document.getElementById('plc-allowed');allowed.textContent=data.plc_allowed===true?'已写入 1':data.plc_allowed===false?'已写入 0':'等待';document.getElementById('plc-done').textContent=data.plc_done?'已发送':'等待';}
   let version='{{ verification.updated_at|date:"c" }}'; setInterval(async()=>{try{const response=await fetch('{% url "mes:recipe_verification_api" %}');const data=await response.json();if(data.updated_at!==version){version=data.updated_at;renderVerification(data);}}catch(error){}},2000);

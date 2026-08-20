@@ -1,15 +1,14 @@
 from django.conf import settings
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.urls import reverse
 
 from apps.core.constants import DeviceType
 from apps.devices.models import Device
 
-from .services import DashboardService
-
 
 def dashboard(request):
-    context = DashboardService().get_summary()
-    return render(request, 'dashboard.html', context)
+    """总览页面已移除，访问根路径直接跳转至设备工位主流程页面。"""
+    return redirect('devices:status')
 
 
 def system_settings(request):
