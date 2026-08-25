@@ -1177,6 +1177,22 @@
     this.disabled = true;
     this.innerHTML = '<span>🚀 正在上传 MES…</span>';
     try {
+      const saveData = await apiPost('/mes/api/rack-binding/save/', payload);
+      const uploadRes = await apiPost('/mes/api/manual-reupload/', {
+        rack_code: payload.rack_code,
+        products: payload.products,
+        record_id: payload.record_id,
+      });
+      toast(uploadRes.message || 'MES 上传成功！', 'ok');
+      closeReuploadModal();
+      setTimeout(() => location.reload(), 700);
+    } catch (err) {
+      toast(`上传失败：${err.message}`, 'fail');
+      this.disabled = false;
+      this.innerHTML = orig;
+    }
+  });
+
   // ── 【新功能 1】：手动输入 / 修改料框码 Modal 交互 ──────────────────────
   const rackModal = document.getElementById('modal-manual-rack-input');
   const rackIdInput = document.getElementById('manual-rack-id');
