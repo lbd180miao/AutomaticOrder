@@ -321,6 +321,55 @@ class CalibrationProfile(TimeStampedModel):
     is_active = models.BooleanField(default=True)
 
 
+class FoamRackSpec(TimeStampedModel):
+    """Level-1 classification for 2D foam recipes."""
+
+    name = models.CharField('规格名称', max_length=128)
+    rack_type = models.CharField(
+        '料架类型码',
+        max_length=64,
+        unique=True,
+        help_text='与 VisionRecipe.rack_type 保持一致',
+    )
+    layer_count = models.PositiveIntegerField('料架层数', default=3)
+    remark = models.TextField('备注', blank=True)
+    is_active = models.BooleanField('启用', default=True, db_index=True)
+
+    class Meta:
+        ordering = ['layer_count', 'name']
+        verbose_name = '2D泡棉料架规格'
+
+    def __str__(self):
+        return f'{self.name}（{self.layer_count} 层）'
+
+
+class FoamProductLayout(TimeStampedModel):
+    """Level-2 product capacity profile under one foam rack specification."""
+
+    rack_spec = models.ForeignKey(
+        FoamRackSpec,
+        on_delete=models.CASCADE,
+        related_name='product_layouts',
+        verbose_name='料架规格',
+    )
+    product_code = models.CharField('产品码', max_length=128)
+    product_name = models.CharField('产品名称', max_length=128, blank=True)
+    qty_per_layer = models.PositiveIntegerField('每层产品数', default=5)
+    is_active = models.BooleanField('启用', default=True, db_index=True)
+
+    class Meta:
+        ordering = ['rack_spec', 'product_code']
+        verbose_name = '2D泡棉产品布局'
+        unique_together = [('rack_spec', 'product_code')]
+
+    @property
+    def total_positions(self):
+        return self.rack_spec.layer_count * self.qty_per_layer
+
+    def __str__(self):
+        return f'{self.product_name or self.product_code} / {self.rack_spec.name}'
+
+
 class VisionRecipe(TimeStampedModel):
     RECIPE_TYPE_CHOICES = (
         ('FOAM_2D', '泡棉检测配方'),
@@ -330,6 +379,14 @@ class VisionRecipe(TimeStampedModel):
 
     recipe_type = models.CharField(max_length=32, choices=RECIPE_TYPE_CHOICES)
     name = models.CharField(max_length=100)
+    foam_product_layout = models.ForeignKey(
+        FoamProductLayout,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='recipes',
+        verbose_name='2D泡棉产品布局',
+    )
     product_code = models.CharField(max_length=100, blank=True, null=True)
     rack_type = models.CharField(max_length=100, blank=True, null=True)
     camera_side = models.CharField(max_length=20, blank=True, null=True, default='both')

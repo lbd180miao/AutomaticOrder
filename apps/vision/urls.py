@@ -3,6 +3,7 @@ from django.shortcuts import render
 
 from . import views
 from . import offline_data_views
+from . import views_foam_profile
 
 app_name = 'vision'
 
@@ -82,6 +83,11 @@ urlpatterns = [
     path('api/recipes/foam-2d/<int:recipe_id>/standard-mask/<str:side>/delete/', views.api_foam_standard_mask_delete, name='api_foam_standard_mask_delete'),
     path('api/recipes/foam-2d/create/', views.api_foam_recipe_create, name='api_foam_recipe_create'),
     path('api/recipes/foam-2d/<int:recipe_id>/delete/', views.api_foam_recipe_delete, name='api_foam_recipe_delete'),
+    path('api/foam/rack-specs/', views_foam_profile.api_foam_rack_specs, name='api_foam_rack_specs'),
+    path('api/foam/rack-specs/<int:spec_id>/', views_foam_profile.api_foam_rack_spec_detail, name='api_foam_rack_spec_detail'),
+    path('api/foam/rack-specs/<int:spec_id>/products/', views_foam_profile.api_foam_product_layouts, name='api_foam_product_layouts'),
+    path('api/foam/product-layouts/<int:layout_id>/', views_foam_profile.api_foam_product_layout_detail, name='api_foam_product_layout_detail'),
+    path('api/foam/product-layouts/<int:layout_id>/recipes/', views_foam_profile.api_foam_layout_recipes, name='api_foam_layout_recipes'),
     path('api/recipes/empty-rack-2d/', views.api_empty_rack_recipe, name='api_empty_rack_recipe'),
     path('api/recipes/empty-rack-2d/save/', views.api_empty_rack_recipe_save, name='api_empty_rack_recipe_save'),
     path('api/empty-rack/inspect/', views.api_empty_rack_inspect, name='api_empty_rack_inspect'),

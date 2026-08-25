@@ -672,7 +672,7 @@
       <p>在同一画布完成取图、ROI 示教、模板建立、试跑验证与生产检测。</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <a href="{% url 'vision:recipe_management' %}{% if empty_rack_mode or empty_rack_run_mode %}?tab=empty2d{% else %}?tab=foam2d{% endif %}" class="btn btn-secondary btn-sm">配方管理</a>
+      <a href="{% url 'vision:recipe_management' %}{% if empty_rack_mode or empty_rack_run_mode %}?tab=empty2d{% else %}?tab=foam2d{% endif %}{% if foam_layout_id %}&layout_id={{ foam_layout_id|urlencode }}{% endif %}" class="btn btn-secondary btn-sm">配方管理</a>
       <a href="{% url 'vision:foam_results' %}" class="btn btn-secondary btn-sm">历史记录</a>
       <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
     </div>
@@ -1138,6 +1138,9 @@ const API = {
 };
 const FOAM_RECIPE_TEACHING = {{ foam_recipe_mode|yesno:"true,false" }};
 const CREATE_NEW_RECIPE = {{ new_recipe_mode|yesno:"true,false" }};
+const WORKBENCH_QUERY = new URLSearchParams(window.location.search);
+const WORKBENCH_LAYOUT_ID = WORKBENCH_QUERY.get('layout_id') || '';
+const WORKBENCH_RECIPE_ID = WORKBENCH_QUERY.get('recipe_id') || '';
 let recipeValidationCompleted = false;
 
 // ── CSRF ─────────────────────────────────────────────────
@@ -2199,16 +2202,20 @@ function formatDefect(dt) {
 // ── 配方加载（简化版，仅用于 ROI 显示） ───────────────────
 async function loadRecipes() {
   try {
-    const query = FOAM_RECIPE_TEACHING
-      ? '?recipe_type=FOAM_2D'
-      : '?recipe_type=FOAM_2D&is_active=true';
-    const res = await fetch(API.recipes + query);
+    const query = new URLSearchParams({recipe_type: 'FOAM_2D'});
+    if (!FOAM_RECIPE_TEACHING) query.set('is_active', 'true');
+    if (WORKBENCH_LAYOUT_ID) query.set('layout_id', WORKBENCH_LAYOUT_ID);
+    const res = await fetch(`${API.recipes}?${query.toString()}`);
     const data = await res.json();
     if (data.success) {
       foam2DRecipes = data.recipes || [];
+      const requestedRecipe = foam2DRecipes.find(item => String(item.id) === WORKBENCH_RECIPE_ID);
       selectedRecipeForEdit = CREATE_NEW_RECIPE
         ? null
-        : (activeFoam2DRecipe() || foam2DRecipes[0] || null);
+        : (requestedRecipe || activeFoam2DRecipe() || foam2DRecipes[0] || null);
+      if (requestedRecipe) {
+        document.getElementById('pos-index').value = requestedRecipe.pos ?? 0;
+      }
       if (FOAM_RECIPE_TEACHING) {
         const nameInput = document.getElementById('foam-recipe-draft-name');
         const remarkInput = document.getElementById('foam-recipe-draft-remark');
@@ -2451,6 +2458,7 @@ async function saveRoiToRecipe(targetPos, saveMode = 'publish') {
   
   const payload = {
     id: existingRecipe?.id,
+    layout_id: WORKBENCH_LAYOUT_ID || existingRecipe?.foam_product_layout_id || null,
     pos: targetPos,
     name: document.getElementById('foam-recipe-draft-name')?.value.trim() || `第${targetPos + 1}层泡棉检测配方`,
     camera_side: 'both',
