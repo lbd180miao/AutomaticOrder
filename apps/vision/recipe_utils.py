@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from .models import VisionRecipe
+from .models import FoamProductLayout, FoamRackSpec, VisionRecipe
 
 
 DEFAULT_THRESHOLD_CONFIG = {
@@ -50,14 +50,26 @@ DEFAULT_FOAM_2D_RECIPES = [
 
 
 def ensure_default_foam_2d_recipes():
+    spec, _ = FoamRackSpec.objects.get_or_create(
+        rack_type='RACK-3L',
+        defaults={'name': '三层标准料架', 'layer_count': 3, 'remark': '系统初始化规格'},
+    )
+    layout, _ = FoamProductLayout.objects.get_or_create(
+        rack_spec=spec,
+        product_code='PROD-A',
+        defaults={'product_name': 'A 产品', 'qty_per_layer': 5},
+    )
     recipes = []
     for item in DEFAULT_FOAM_2D_RECIPES:
         recipe, _ = VisionRecipe.objects.get_or_create(
             recipe_type='FOAM_2D',
+            foam_product_layout=layout,
             pos=item['pos'],
             camera_side='both',
             defaults={
                 'name': item['name'],
+                'rack_type': spec.rack_type,
+                'product_code': layout.product_code,
                 'image_width': 1280,
                 'image_height': 720,
                 'roi_config': deepcopy(item['roi_config']),
@@ -69,26 +81,41 @@ def ensure_default_foam_2d_recipes():
     return recipes
 
 
-def get_active_foam_2d_recipe_by_pos(pos):
-    return (
-        VisionRecipe.objects
-        .filter(recipe_type='FOAM_2D', pos=int(pos), is_active=True)
-        .order_by('-updated_at', '-id')
-        .first()
+def get_active_foam_2d_recipe_by_pos(pos, layout_id=None):
+    queryset = VisionRecipe.objects.filter(
+        recipe_type='FOAM_2D', pos=int(pos), is_active=True,
     )
+    if layout_id not in (None, ''):
+        queryset = queryset.filter(foam_product_layout_id=int(layout_id))
+    return queryset.order_by('-updated_at', '-id').first()
 
 
 def serialize_recipe(recipe):
     template_status = get_foam_standard_template_status(recipe)
+    layout = recipe.foam_product_layout
+    if layout:
+        layer_number = recipe.pos // max(layout.qty_per_layer, 1) + 1
+        slot_number = recipe.pos % max(layout.qty_per_layer, 1) + 1
+    else:
+        layer_number = recipe.pos + 1
+        slot_number = 1
     return {
         'id': recipe.id,
         'name': recipe.name,
         'recipe_type': recipe.recipe_type,
         'product_code': recipe.product_code,
         'rack_type': recipe.rack_type,
+        'foam_product_layout_id': recipe.foam_product_layout_id,
+        'foam_product_name': layout.product_name if layout else '',
+        'foam_rack_name': layout.rack_spec.name if layout else '',
         'camera_side': recipe.camera_side or 'both',
         'pos': recipe.pos,
+        # Keep the legacy display field stable for older clients. Structured
+        # consumers should use rack_layer / slot_number / positionLabel.
         'layerName': f'第{recipe.pos + 1}层',
+        'rack_layer': layer_number,
+        'slot_number': slot_number,
+        'positionLabel': f'第{layer_number}层 · {slot_number}号位',
         'image_width': recipe.image_width,
         'image_height': recipe.image_height,
         'roi_config': recipe.roi_config or {},

@@ -3,6 +3,7 @@ import logging
 import tempfile
 import time
 import uuid
+from copy import deepcopy
 from pathlib import Path
 
 import cv2
@@ -40,6 +41,7 @@ from .algorithms.local_template_3d import LocalFrameResult
 from .algorithms.rack_structure_validator import RackStructureValidator
 from .models import (
     CalibrationProfile,
+    FoamProductLayout,
     FoamInspectionResult,
     RackLocationROI3D,
     RackLocationRecipe,
@@ -239,6 +241,7 @@ def foam_inspector_interactive(request):
         'foam_recipe_mode': foam_recipe_mode,
         'recipe_teaching_mode': recipe_teaching_mode,
         'new_recipe_mode': request.GET.get('new') == '1',
+        'foam_layout_id': request.GET.get('layout_id', ''),
         'workbench_mode': mode,
         'workbench_title': '2D 视觉工作台',
     })
@@ -332,11 +335,12 @@ def _save_foam_standard_template(recipe, image, source_metadata=None):
 @require_http_methods(['GET'])
 def api_vision_recipes(request):
     ensure_default_foam_2d_recipes()
-    qs = VisionRecipe.objects.all()
+    qs = VisionRecipe.objects.select_related('foam_product_layout__rack_spec')
     recipe_type = request.GET.get('recipe_type')
     pos = request.GET.get('pos')
     camera_side = request.GET.get('camera_side')
     is_active = request.GET.get('is_active')
+    layout_id = request.GET.get('layout_id')
     if recipe_type:
         qs = qs.filter(recipe_type=recipe_type)
     if pos not in (None, ''):
@@ -345,6 +349,8 @@ def api_vision_recipes(request):
         qs = qs.filter(camera_side=camera_side)
     if is_active not in (None, ''):
         qs = qs.filter(is_active=_as_bool(is_active))
+    if layout_id not in (None, ''):
+        qs = qs.filter(foam_product_layout_id=int(layout_id))
     return JsonResponse({
         'success': True,
         'recipes': [serialize_recipe(recipe) for recipe in qs.order_by('recipe_type', 'pos', '-updated_at')],
@@ -354,8 +360,9 @@ def api_vision_recipes(request):
 @require_http_methods(['GET'])
 def api_foam_recipe_by_pos(request):
     pos = int(request.GET.get('pos', 0))
+    layout_id = request.GET.get('layout_id')
     ensure_default_foam_2d_recipes()
-    recipe = get_active_foam_2d_recipe_by_pos(pos)
+    recipe = get_active_foam_2d_recipe_by_pos(pos, layout_id=layout_id)
     return JsonResponse({
         'success': True,
         'recipe': serialize_recipe(recipe) if recipe else None,
@@ -386,6 +393,16 @@ def api_foam_recipe_save(request):
             raise ValueError('threshold_config must be an object')
 
         recipe_id = body.get('id')
+        layout_id = body.get('layout_id') or body.get('foam_product_layout_id')
+        layout = None
+        if layout_id not in (None, ''):
+            layout = get_object_or_404(
+                FoamProductLayout.objects.select_related('rack_spec'),
+                id=int(layout_id),
+                is_active=True,
+            )
+            if pos >= layout.total_positions:
+                raise ValueError(f'POS {pos} 超出当前产品容量 0～{layout.total_positions - 1}')
         create_new = _as_bool(body.get('create_new'), False)
         save_mode = str(body.get('save_mode') or '').lower()
         if recipe_id:
@@ -395,7 +412,7 @@ def api_foam_recipe_save(request):
         elif create_new:
             recipe = None
         else:
-            recipe = get_active_foam_2d_recipe_by_pos(pos)
+            recipe = get_active_foam_2d_recipe_by_pos(pos, layout_id=layout_id)
         if recipe is None:
             recipe = VisionRecipe(recipe_type='FOAM_2D', pos=pos, camera_side='both')
         # 阈值表单只编辑少数字段。合并而不是整体替换，避免清除模板路径、
@@ -404,6 +421,10 @@ def api_foam_recipe_save(request):
         threshold_config.update(incoming_threshold_config)
         recipe.name = body.get('name') or f'第{pos + 1}层泡棉检测配方'
         recipe.pos = pos
+        if layout is not None:
+            recipe.foam_product_layout = layout
+            recipe.rack_type = layout.rack_spec.rack_type
+            recipe.product_code = layout.product_code
         recipe.camera_side = body.get('camera_side') or recipe.camera_side or 'both'
         recipe.image_width = int(body.get('image_width') or recipe.image_width or 1280)
         recipe.image_height = int(body.get('image_height') or recipe.image_height or 720)
@@ -416,9 +437,12 @@ def api_foam_recipe_save(request):
         recipe.remark = body.get('remark') or ''
         recipe.save()
         if recipe.is_active:
-            VisionRecipe.objects.filter(
+            conflicts = VisionRecipe.objects.filter(
                 recipe_type='FOAM_2D', pos=pos, is_active=True,
-            ).exclude(pk=recipe.pk).update(is_active=False)
+            )
+            if recipe.foam_product_layout_id:
+                conflicts = conflicts.filter(foam_product_layout_id=recipe.foam_product_layout_id)
+            conflicts.exclude(pk=recipe.pk).update(is_active=False)
         return JsonResponse({'success': True, 'recipe': serialize_recipe(recipe)})
     except (TypeError, ValueError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
@@ -812,10 +836,23 @@ def api_foam_recipe_create(request):
         pos = int(body.get('pos', 0))
         if pos < 0:
             raise ValueError('pos must be non-negative')
+
+        from .views_foam_profile import ensure_default_foam_profiles
+
+        default_layout = ensure_default_foam_profiles()
+        layout_id = body.get('layout_id') or body.get('foam_product_layout_id')
+        layout = get_object_or_404(
+            FoamProductLayout.objects.select_related('rack_spec'),
+            pk=int(layout_id) if layout_id not in (None, '') else default_layout.id,
+            is_active=True,
+        )
+        if pos >= layout.total_positions:
+            raise ValueError(f'POS {pos} 超出当前产品容量 0～{layout.total_positions - 1}')
         
         # 检查该 POS 是否已存在配方
         existing = VisionRecipe.objects.filter(
             recipe_type='FOAM_2D',
+            foam_product_layout=layout,
             pos=pos,
             is_active=True
         ).first()
@@ -826,30 +863,46 @@ def api_foam_recipe_create(request):
                 'error': f'POS {pos} 已存在配方，请先删除或编辑现有配方'
             }, status=400)
         
-        # 默认 ROI 配置
-        roi_config = body.get('roi_config') or {
+        source_recipe_id = body.get('source_recipe_id')
+        source = None
+        if source_recipe_id not in (None, ''):
+            source = get_object_or_404(
+                VisionRecipe,
+                pk=int(source_recipe_id),
+                recipe_type='FOAM_2D',
+            )
+
+        # 默认 ROI 配置；复制模式完整继承算法、阈值和模板数据。
+        roi_config = deepcopy(body.get('roi_config') or (source.roi_config if source else None) or {
             'leftFoamROI': {'x': 220, 'y': 140, 'width': 90, 'height': 70},
             'rightFoamROI': {'x': 780, 'y': 140, 'width': 110, 'height': 70}
-        }
+        })
         
         # 默认阈值配置（与算法默认值保持一致）
-        threshold_config = body.get('threshold_config') or {
+        threshold_config = deepcopy(body.get('threshold_config') or (source.threshold_config if source else None) or {
             'coverage_threshold': 0.08,  # 8% 覆盖率，适配大ROI场景
             'score_threshold': 0.8,      # 80% 综合得分
             'max_offset_mm': 2.0
-        }
+        })
         
         recipe = VisionRecipe.objects.create(
             recipe_type='FOAM_2D',
             name=body.get('name') or f'第{pos + 1}层泡棉检测配方',
+            foam_product_layout=layout,
+            rack_type=layout.rack_spec.rack_type,
+            product_code=layout.product_code,
             pos=pos,
-            camera_side=body.get('camera_side') or 'both',
-            image_width=int(body.get('image_width') or 1280),
-            image_height=int(body.get('image_height') or 720),
+            camera_side=body.get('camera_side') or (source.camera_side if source else 'both'),
+            image_width=int(body.get('image_width') or (source.image_width if source else 1280)),
+            image_height=int(body.get('image_height') or (source.image_height if source else 720)),
             roi_config=roi_config,
             threshold_config=threshold_config,
+            algorithm_config=deepcopy(source.algorithm_config) if source else {},
+            standard_template_config=deepcopy(source.standard_template_config) if source else {},
+            standard_template_built_at=source.standard_template_built_at if source else None,
+            standard_template_version=source.standard_template_version if source else '',
             is_active=True,
-            remark=body.get('remark') or ''
+            remark=body.get('remark') or (source.remark if source else '') or '',
         )
         
         return JsonResponse({'success': True, 'recipe': serialize_recipe(recipe)})
