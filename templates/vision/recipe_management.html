@@ -3,6 +3,8 @@
 {% block title %}视觉配方系统 - AutomaticBoxing{% endblock %}
 {% block content %}
 
+<link rel="stylesheet" href="{% static 'vision/css/empty_rack_recipe_summary.css' %}?v=20260826-v4">
+
 <style>
 /* ========== 视觉配方管理页面样式 v2.0 ========== */
 .recipe-page {
@@ -872,15 +874,140 @@
 </style>
 
 <div class="recipe-page">
+  <div class="recipe-title-bar">
+    <div class="recipe-title-copy">
+      <span class="eyebrow">VISION RECIPE SYSTEM</span>
+      <h1>视觉配方管理</h1>
+      <p>统一维护 2D 泡棉检测、2D 空箱检查与 3D 料架定位配方，配方数据和示教参数均保存到数据库。</p>
+    </div>
+    <div class="recipe-title-actions">
+      <button id="btn-create-recipe" class="btn btn-sm" style="background:var(--success);" type="button">新增位置配方</button>
+      <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-secondary btn-sm" id="btn-foam-workbench">进入 2D 工作台</a>
+      <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-secondary btn-sm" id="btn-rack-workbench" style="display:none;">进入 3D 工作台</a>
+      <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
+    </div>
+  </div>
+
+  <nav class="recipe-tabs" aria-label="视觉配方类型">
+    <button class="recipe-tab active" data-recipe-tab="foam2d" type="button">泡棉检测配方（2D）</button>
+    <button class="recipe-tab" data-recipe-tab="empty2d" type="button">空箱检测配方（2D）</button>
+    <button class="recipe-tab" data-recipe-tab="rack3d" type="button">料架定位配方（3D）</button>
+  </nav>
+
   <div class="recipe-content">
-    <section class="rack-technical-library">
-      <div class="rack-technical-title">3D 定位技术配方库</div>
-      <div class="rack-technical-body">
-        <div class="rack-technical-head">
-          <span>每条配方可独立复制、重命名或删除；复制会完整继承 ROI、标准坐标和三平面模板。</span>
+    <section id="recipe-tab-foam2d" class="recipe-tab-section tab-active">
+      <div class="foam-system-header">
+        <div>
+          <h2>2D 泡棉配方中心</h2>
+          <p>先选择料架规格和产品档案，再按实际装箱位置维护 ROI、阈值与标准模板。</p>
         </div>
-        <div id="rack3d-recipe-list"></div>
+        <span id="foam-current-profile" class="view-only-note">正在读取结构化档案…</span>
       </div>
+
+      <div class="recipe-structure-flow" aria-label="2D 泡棉配方组织结构">
+        <div class="structure-node active">
+          <small>LEVEL 1 · 料架规格</small>
+          <strong id="structure-rack-name">请选择料架</strong>
+          <span id="structure-rack-meta">层数决定矩阵的纵向分组</span>
+        </div>
+        <div class="structure-arrow">→</div>
+        <div class="structure-node active">
+          <small>LEVEL 2 · 产品档案</small>
+          <strong id="structure-product-name">请选择产品</strong>
+          <span id="structure-product-meta">每层数量决定横向槽位</span>
+        </div>
+        <div class="structure-arrow">→</div>
+        <div class="structure-node active">
+          <small>LEVEL 3 · 位置配方</small>
+          <strong id="structure-recipe-total">等待选择档案</strong>
+          <span>每个位置独立维护检测参数</span>
+        </div>
+      </div>
+
+      <div class="foam-profile-manager">
+        <section class="configuration-level foam-profile-column">
+          <div class="configuration-heading">
+            <div>
+              <h3><span class="level-number">1</span>料架规格</h3>
+              <p>按料架类型与层数管理检测结构。</p>
+            </div>
+            <button class="btn btn-sm" type="button" onclick="openRackProfileDialog()">＋ 新增料架</button>
+          </div>
+          <div id="foam-rack-profile-list" class="foam-profile-list"><div class="recipe-empty">正在读取料架规格…</div></div>
+          <div id="foam-rack-actions" class="foam-profile-actions" hidden>
+            <button type="button" class="capacity-button" onclick="changeRackLayers(-1)" aria-label="减少一层">−</button>
+            <span><strong id="foam-rack-layer-count">0</strong> 层</span>
+            <button type="button" class="capacity-button" onclick="changeRackLayers(1)" aria-label="增加一层">＋</button>
+            <button type="button" class="text-action" onclick="openRackProfileDialog(selectedFoamRackId)">编辑</button>
+            <button type="button" class="text-action danger" onclick="archiveRackProfile()">归档</button>
+          </div>
+        </section>
+
+        <section class="configuration-level foam-profile-column">
+          <div class="configuration-heading">
+            <div>
+              <h3><span class="level-number">2</span>产品档案</h3>
+              <p>同一料架可配置多个产品和独立容量。</p>
+            </div>
+            <button class="btn btn-sm" type="button" onclick="openProductProfileDialog()">＋ 新增产品</button>
+          </div>
+          <div id="foam-product-profile-list" class="foam-profile-list"><div class="recipe-empty">请先选择料架规格</div></div>
+          <div id="foam-product-actions" class="foam-profile-actions" hidden>
+            <button type="button" class="capacity-button" onclick="changeProductQuantity(-1)" aria-label="每层减少一个产品">−</button>
+            <span>每层 <strong id="foam-product-qty">0</strong> 个</span>
+            <button type="button" class="capacity-button" onclick="changeProductQuantity(1)" aria-label="每层增加一个产品">＋</button>
+            <button type="button" class="text-action" onclick="openProductProfileDialog(selectedFoamLayoutId)">编辑</button>
+            <button type="button" class="text-action danger" onclick="archiveProductProfile()">归档</button>
+          </div>
+        </section>
+      </div>
+
+      <div class="matrix-heading">
+        <div>
+          <h3><span class="level-number">3</span><span id="foam-matrix-title">位置配方</span></h3>
+          <p>按实际料架层分组；POS 为全料架连续位置编号，从 0 开始。</p>
+        </div>
+        <div class="matrix-stats">
+          <div class="matrix-stat"><strong id="recipe-configured-count">0</strong><span>已配置</span></div>
+          <div class="matrix-stat"><strong id="recipe-pending-count">0</strong><span>待配置</span></div>
+          <div class="matrix-stat"><strong id="recipe-total-count">0</strong><span>总位置</span></div>
+          <a id="foam-layout-workbench" href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-sm">在工作台选配方</a>
+        </div>
+      </div>
+
+      <div class="recipe-current-context">
+        当前自动匹配：<strong id="recipe-current-location">第 1 层 · 1 号产品位置</strong>
+        <span>（POS <strong id="recipe-current-pos">0</strong>）</span>
+      </div>
+      <div id="foam-overflow-warning" class="foam-overflow-warning" hidden></div>
+      <div id="foam-recipe-list"><div class="recipe-empty">正在读取位置配方…</div></div>
+    </section>
+
+    <section id="recipe-tab-empty2d" class="recipe-tab-section" style="display:none;">
+      <div class="empty-summary-heading">
+        <div>
+          <span>EMPTY RACK INSPECTION</span>
+          <h2>2D 空箱检测配方</h2>
+          <p>在这里查看当前配方摘要；拍照、导图、多 ROI 示教与保存统一在 2D 工作台完成。</p>
+        </div>
+        <a id="empty-rack-workbench-link" href="{% url 'vision:foam_inspector_interactive' %}?mode=empty_rack" class="btn btn-sm">进入 2D 空箱工作台</a>
+      </div>
+      <div id="empty-rack-recipe-summary" class="empty-summary-card">
+        <div class="empty-summary-loading">正在读取空箱检测配方…</div>
+      </div>
+    </section>
+
+    <section id="recipe-tab-rack3d" class="recipe-tab-section" style="display:none;">
+      <section class="rack-technical-library">
+        <div class="rack-technical-title">3D 定位技术配方库</div>
+        <div class="rack-technical-body">
+          <div class="rack-technical-head">
+            <span>每条配方可独立复制、重命名或删除；复制会完整继承 ROI、标准坐标和三平面模板。</span>
+            <button id="rack3d-create-button" class="btn btn-sm" type="button" onclick="open3DCopyModal()">＋ 新增配方</button>
+          </div>
+          <div id="rack3d-recipe-list"><div class="recipe-empty">正在读取 3D 配方…</div></div>
+        </div>
+      </section>
     </section>
   </div>
 </div>
@@ -896,11 +1023,17 @@
       <input type="hidden" id="rename-3d-id">
       <input type="hidden" id="rename-3d-source-id">
       <div id="rename-3d-copy-note" class="rack3d-readonly-note" style="display:none;margin:0 0 14px;">
-        将复制原配方的 ROI、标准坐标、三平面模板和算法参数；请为副本设置新的名称和料架号。
+        将复制原配方的 ROI、标准坐标、三平面模板和算法参数；创建后会自动进入 3D 工作台继续修改并保存。
+      </div>
+      <div id="rename-3d-source-group" class="form-group" style="display:none;">
+        <label for="rename-3d-source-select">复制已有配方 <span style="color:red;">*</span></label>
+        <select id="rename-3d-source-select" onchange="change3DCopySource(this.value)"></select>
+        <small>选择一份最接近的新配方作为模板。</small>
       </div>
       <div class="form-group">
         <label>配方名称 <span style="color:red;">*</span></label>
         <input type="text" id="rename-3d-name" placeholder="例如：A线 3D 料架定位配方">
+        <small id="rename-3d-name-help" style="display:none;">已自动生成副本名称，可在复制前重新命名。</small>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -2167,9 +2300,7 @@ document.querySelectorAll('.recipe-tab[data-recipe-tab]').forEach(tab => {
     currentTab = tabName;
     updateWorkbenchButtons(tabName);
 
-    if (tabName === 'rack3d') {
-      Promise.all([load3DRecipes(), loadRackMasterRecipes()]);
-    }
+    if (tabName === 'rack3d') load3DRecipes();
   });
 });
 
@@ -2557,7 +2688,8 @@ function render3DRecipeCards() {
   if (!rack3DRecipes.length) {
     list.innerHTML = `
       <div class="recipe-empty">
-        暂无 3D 配方数据，请先从 3D 料架定位工作台建立一份基础配方。
+        <div>暂无 3D 配方数据，请先建立一份基础配方。</div>
+        <button class="btn btn-sm" type="button" style="margin-top:12px;" onclick="create3DRecipe()">＋ 新增配方</button>
       </div>
     `;
     return;
@@ -2613,6 +2745,8 @@ window.open3DRenameModal = function(id) {
   document.getElementById('rename-3d-modal-title').textContent = '修改配方信息';
   document.getElementById('rename-3d-save-button').textContent = '保存修改';
   document.getElementById('rename-3d-copy-note').style.display = 'none';
+  document.getElementById('rename-3d-source-group').style.display = 'none';
+  document.getElementById('rename-3d-name-help').style.display = 'none';
   document.getElementById('rename-3d-source-id').value = '';
   document.getElementById('rename-3d-id').value = recipe.id;
   document.getElementById('rename-3d-name').value = recipe.recipe_name || '';
@@ -2622,17 +2756,39 @@ window.open3DRenameModal = function(id) {
   document.getElementById('rename-3d-name').focus();
 };
 
-window.open3DCopyModal = function(id) {
+function apply3DCopySource(id) {
   const recipe = rack3DRecipes.find(item => Number(item.id) === Number(id));
-  if (!recipe) return showToast('配方不存在或尚未加载', 'error');
-  document.getElementById('rename-3d-modal-title').textContent = '增加配方（复制）';
-  document.getElementById('rename-3d-save-button').textContent = '创建副本';
-  document.getElementById('rename-3d-copy-note').style.display = '';
-  document.getElementById('rename-3d-id').value = '';
+  if (!recipe) return false;
   document.getElementById('rename-3d-source-id').value = recipe.id;
   document.getElementById('rename-3d-name').value = `${recipe.recipe_name || '3D配方'} - 副本`;
   document.getElementById('rename-3d-layer-count').value = String(recipe.layer_count || 3);
-  document.getElementById('rename-3d-rack-no').value = '';
+  document.getElementById('rename-3d-rack-no').value = recipe.rack_type || '';
+  return true;
+}
+
+window.change3DCopySource = function(id) {
+  apply3DCopySource(id);
+};
+
+window.open3DCopyModal = function(id = null) {
+  if (!rack3DRecipes.length) {
+    showToast('暂无可复制的配方，请先新建一份空白配方', 'info');
+    create3DRecipe();
+    return;
+  }
+  const selectedId = Number(id) || Number(rack3DRecipes[0].id);
+  const sourceSelect = document.getElementById('rename-3d-source-select');
+  sourceSelect.innerHTML = rack3DRecipes.map(recipe => `
+    <option value="${recipe.id}">${escape3DHtml(recipe.recipe_name)}｜${recipe.layer_count || 3} 层｜${escape3DHtml(recipe.rack_type || '未设置')}</option>
+  `).join('');
+  sourceSelect.value = String(selectedId);
+  document.getElementById('rename-3d-modal-title').textContent = '新增配方（复制已有）';
+  document.getElementById('rename-3d-save-button').textContent = '复制并进入 3D 工作台';
+  document.getElementById('rename-3d-copy-note').style.display = '';
+  document.getElementById('rename-3d-source-group').style.display = '';
+  document.getElementById('rename-3d-name-help').style.display = '';
+  document.getElementById('rename-3d-id').value = '';
+  if (!apply3DCopySource(selectedId)) return showToast('配方不存在或尚未加载', 'error');
   document.getElementById('recipe-rename-modal').style.display = 'flex';
   document.getElementById('rename-3d-name').focus();
 };
@@ -2666,8 +2822,14 @@ window.save3DRename = async function() {
     const data = await response.json();
     if (!data.success) throw new Error(data.error || '保存失败');
     close3DRenameModal();
+    if (isCopy) {
+      const createdRecipeId = data.data?.recipe?.id || data.recipe?.id;
+      if (!createdRecipeId) throw new Error('副本已创建，但未返回新配方ID');
+      window.location.assign(`{% url "vision:rack_locator_panel" %}?recipe_id=${encodeURIComponent(createdRecipeId)}`);
+      return;
+    }
     await load3DRecipes();
-    showToast(isCopy ? '配方副本已创建' : '配方信息已更新', 'success');
+    showToast('配方信息已更新', 'success');
   } catch (error) {
     showToast('保存失败：' + error.message, 'error');
   }
@@ -2692,6 +2854,7 @@ window.create3DRecipe = function() {
   document.getElementById('modal-3d-std-rz').value = '0';
   update3DModalWorkbenchData(null);
   document.getElementById('recipe-3d-modal').style.display = 'flex';
+  document.getElementById('modal-3d-name').focus();
 };
 
 // ── 编辑3D配方 ──────────────────────────────────────
@@ -2915,8 +3078,26 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.appendChild(inp);
   }
 
-  load3DRecipes();
+  document.getElementById('btn-create-recipe')?.addEventListener('click', openCreateModal);
+  document.getElementById('modal-pos')?.addEventListener('input', updateModalPositionPreview);
+
+  loadRecipes();
+  const requestedTab = new URLSearchParams(window.location.search).get('tab');
+  if (requestedTab === 'rack3d' || requestedTab === 'empty2d') {
+    document.querySelector(`.recipe-tab[data-recipe-tab="${requestedTab}"]`)?.click();
+  } else {
+    updateWorkbenchButtons('foam2d');
+  }
 });
 </script>
+
+<script>
+window.emptyRackRecipeSummaryConfig = {
+  detailUrl: API.emptyRackRecipe,
+  renameUrlTemplate: '{% url "vision:api_empty_rack_recipe_rename" 0 %}'.replace('/0/', '/__RECIPE_ID__/'),
+  workbenchUrl: '{% url "vision:foam_inspector_interactive" %}?mode=empty_rack',
+};
+</script>
+<script src="{% static 'vision/js/empty_rack_recipe_summary.js' %}?v=20260826-v4"></script>
 
 {% endblock %}

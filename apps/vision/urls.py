@@ -89,6 +89,7 @@ urlpatterns = [
     path('api/foam/product-layouts/<int:layout_id>/', views_foam_profile.api_foam_product_layout_detail, name='api_foam_product_layout_detail'),
     path('api/foam/product-layouts/<int:layout_id>/recipes/', views_foam_profile.api_foam_layout_recipes, name='api_foam_layout_recipes'),
     path('api/recipes/empty-rack-2d/', views.api_empty_rack_recipe, name='api_empty_rack_recipe'),
+    path('api/recipes/empty-rack-2d/<int:recipe_id>/rename/', views.api_empty_rack_recipe_rename, name='api_empty_rack_recipe_rename'),
     path('api/recipes/empty-rack-2d/save/', views.api_empty_rack_recipe_save, name='api_empty_rack_recipe_save'),
     path('api/empty-rack/inspect/', views.api_empty_rack_inspect, name='api_empty_rack_inspect'),
     path('api/foam/capture-inspect/', views.api_foam_capture_inspect, name='api_foam_capture_inspect'),

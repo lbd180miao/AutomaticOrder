@@ -1306,7 +1306,13 @@
   // 注：这个函数会在下方 <script src="..."> 的 onload 回调中调用。
   function initFirstRecipeOnJsReady() {
     const select = document.getElementById('recipe-select');
-    if (select && select.options.length > 0 && select.options[0].value) {
+    if (!select) return;
+    const requestedRecipeId = new URLSearchParams(window.location.search).get('recipe_id');
+    if (requestedRecipeId) {
+      const requestedOption = Array.from(select.options).find(option => option.value === requestedRecipeId);
+      if (requestedOption) select.value = requestedRecipeId;
+    }
+    if (select.options.length > 0 && select.value) {
       applyRecipeFromDropdown();
     }
   }

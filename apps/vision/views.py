@@ -983,6 +983,33 @@ def api_empty_rack_recipe(request):
 
 
 @require_POST
+def api_empty_rack_recipe_rename(request, recipe_id):
+    """Rename one empty-rack recipe without touching its teaching data."""
+    try:
+        recipe = get_object_or_404(
+            VisionRecipe,
+            id=recipe_id,
+            recipe_type='EMPTY_RACK_2D',
+        )
+        data = _request_data(request)
+        name = str(data.get('name') or '').strip()
+        if not name:
+            return JsonResponse({'success': False, 'error': '配方名称不能为空'}, status=400)
+        if len(name) > 100:
+            return JsonResponse({'success': False, 'error': '配方名称不能超过 100 个字符'}, status=400)
+
+        recipe.name = name
+        recipe.save(update_fields=['name', 'updated_at'])
+        return JsonResponse({
+            'success': True,
+            'message': '空箱检测配方名称已更新',
+            'recipe': _empty_rack_recipe_payload(recipe),
+        })
+    except Exception as exc:  # noqa: BLE001
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@require_POST
 def api_empty_rack_recipe_save(request):
     """Create/update the empty-rack recipe and persist its multi-ROI definition."""
     try:
@@ -2551,6 +2578,9 @@ def api_vision_3d_recipes(request):
                 recipe.recipe_name = recipe_name
                 recipe.rack_type = rack_no
                 recipe.layer_count = layer_count
+                # 新增副本会立即进入工作台编辑，因此即使源配方已禁用，
+                # 副本也必须出现在工作台的“已启用配方”下拉框中。
+                recipe.enabled = True
                 recipe.save(force_insert=True)
 
                 for related_name in ('rois_3d', 'enhanced_rois_3d'):
