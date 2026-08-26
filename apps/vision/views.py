@@ -1707,14 +1707,14 @@ def api_foam_inspection_records(request):
 # ------------------------------------------------------------------
 
 def rack_locator_panel(request):
-    """3D料架定位工作台：沿用原布局，业务改为位置/层号单次拍照补偿。"""
+    """3D料架定位工作台：按整料架配方选择并加载示教数据。"""
     latest = (
         RackLocationResult.objects
         .select_related('recipe', 'vision_task')
         .order_by('-created_at')
         .first()
     )
-    recipes = RackLocationRecipe.objects.filter(enabled=True).order_by('position_no', 'layer_no')
+    recipes = RackLocationRecipe.objects.filter(enabled=True).order_by('rack_type', 'recipe_name')
     return render(request, 'vision/rack_locator_panel.html', {
         'latest': latest,
         'recipes': recipes,
@@ -2439,7 +2439,7 @@ def rack_location_preview_calculate(request):
 @require_http_methods(['GET', 'POST', 'PATCH', 'DELETE'])
 def api_vision_3d_recipes(request):
     if request.method == 'GET':
-        qs = RackLocationRecipe.objects.all().order_by('layer_no', '-updated_at')
+        qs = RackLocationRecipe.objects.all().order_by('rack_type', 'recipe_name', '-updated_at')
         recipe_id = request.GET.get('id')
         layer_no = request.GET.get('layer_no')
         enabled = request.GET.get('enabled')
@@ -2530,6 +2530,43 @@ def api_vision_3d_recipes(request):
     # POST - 创建新配方
     try:
         data = _request_data(request)
+        source_recipe_id = data.get('source_recipe_id')
+        if source_recipe_id:
+            source = get_object_or_404(RackLocationRecipe, pk=source_recipe_id)
+            recipe_name = str(data.get('recipe_name') or '').strip()
+            rack_no = str(data.get('rack_type') or '').strip()
+            layer_count = _as_int(data.get('layer_count'), source.layer_count)
+            if not recipe_name:
+                return _api3d_error('请填写副本配方名称')
+            if not rack_no:
+                return _api3d_error('请填写副本料架号')
+            if layer_count not in (2, 3):
+                return _api3d_error('料架层数只能是 2 或 3')
+
+            with transaction.atomic():
+                recipe = deepcopy(source)
+                recipe.pk = None
+                recipe.id = None
+                recipe._state.adding = True
+                recipe.recipe_name = recipe_name
+                recipe.rack_type = rack_no
+                recipe.layer_count = layer_count
+                recipe.save(force_insert=True)
+
+                for related_name in ('rois_3d', 'enhanced_rois_3d'):
+                    for source_roi in getattr(source, related_name).all():
+                        copied_roi = deepcopy(source_roi)
+                        copied_roi.pk = None
+                        copied_roi.id = None
+                        copied_roi._state.adding = True
+                        copied_roi.recipe = recipe
+                        copied_roi.save(force_insert=True)
+
+            return _api3d_success({
+                'recipe': _serialize_3d_recipe(recipe),
+                'message': f'已复制配方「{source.recipe_name}」',
+            })
+
         layer_no = _as_int(data.get('layer_no'), 1)
         locate_semantics(
             locate_type='GLOBAL' if layer_no == 0 else 'LAYER',

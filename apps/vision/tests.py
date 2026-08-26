@@ -108,18 +108,25 @@ class RackMasterRecipeApiTests(TestCase):
         self.assertEqual(response.json()['recipes'][0]['validation']['mapping_total_count'], 6)
         self.assertEqual(self.master.vision_mappings.count(), 0)
 
-    def test_recipe_page_exposes_master_mapping_and_resolver(self):
+    def test_recipe_page_only_exposes_3d_technical_recipe_library(self):
         response = self.client.get(
             reverse('vision:recipe_management') + '?tab=rack3d'
         )
 
-        self.assertContains(response, '料架装箱配方管理')
-        self.assertContains(response, '分层定位配方')
-        self.assertContains(response, '基础 / MES 参数')
-        self.assertContains(response, '1号位配方')
-        self.assertContains(response, '2号位配方')
-        self.assertContains(response, '检测与装箱规则')
-        self.assertContains(response, '高级设置：3D 定位技术配方库')
+        self.assertContains(response, '3D 定位技术配方库')
+        self.assertContains(response, 'rack3d-recipe-list')
+        self.assertContains(response, 'recipe-card-summary')
+        self.assertContains(response, '层料架配方')
+        self.assertContains(response, '料架号：')
+        self.assertContains(response, '修改命名')
+        self.assertContains(response, '增加（复制）')
+        self.assertContains(response, 'recipe-delete-button')
+        self.assertContains(response, 'recipe-rename-modal')
+        self.assertNotContains(response, '工位位置 <span')
+        self.assertNotContains(response, '适用层号 <span')
+        self.assertNotContains(response, '料架装箱配方管理')
+        self.assertNotContains(response, '泡棉检测配方（2D）')
+        self.assertNotContains(response, '空箱检测配方（2D）')
 
 
 class RackStructureValidatorThresholdTests(SimpleTestCase):
@@ -2966,12 +2973,12 @@ class VisionRecipeWorkbenchTemplateTests(TestCase):
         self.assertTrue(draft.is_active)
         self.assertFalse(published.is_active)
 
-    def test_recipe_page_exposes_empty_rack_multi_roi_editor(self):
+    def test_recipe_page_does_not_expose_empty_rack_summary(self):
         response = self.client.get(reverse('vision:recipe_management'))
 
-        self.assertContains(response, '空箱检测配方（2D）')
-        self.assertContains(response, 'empty-rack-recipe-summary')
-        self.assertContains(response, '进入 2D 空箱工作台')
+        self.assertNotContains(response, '空箱检测配方（2D）')
+        self.assertNotContains(response, 'empty-rack-recipe-summary')
+        self.assertNotContains(response, '进入 2D 空箱工作台')
         self.assertNotContains(response, 'empty-rack-canvas')
 
     def test_shared_2d_workbench_exposes_empty_rack_mode(self):
@@ -3039,17 +3046,14 @@ class VisionRecipeWorkbenchTemplateTests(TestCase):
         self.assertContains(response, 'editedRoiOrOriginal')
         self.assertContains(response, '...(recipe.threshold_config || {})')
 
-    def test_2d_recipe_page_organizes_recipes_by_rack_product_and_position(self):
+    def test_recipe_page_omits_2d_recipe_navigation(self):
         response = self.client.get(reverse('vision:recipe_management'))
 
-        self.assertContains(response, 'LEVEL 1 · 料架规格')
-        self.assertContains(response, 'LEVEL 2 · 产品分类')
-        self.assertContains(response, 'LEVEL 3 · 位置配方')
-        self.assertContains(response, 'A 产品 · 每层 5 个')
-        self.assertContains(response, '3 × 5 = 15')
-        self.assertContains(response, 'FOAM_SYSTEM_PROFILE')
-        self.assertContains(response, 'recipe-position-grid')
-        self.assertContains(response, 'openCreateModalForPosition')
+        self.assertNotContains(response, 'LEVEL 1 · 料架规格')
+        self.assertNotContains(response, 'LEVEL 2 · 产品分类')
+        self.assertNotContains(response, 'LEVEL 3 · 位置配方')
+        self.assertNotContains(response, 'A 产品 · 每层 5 个')
+        self.assertNotContains(response, '3 × 5 = 15')
 
 
 class DepthRoiDebugViewTests(TestCase):
@@ -3525,9 +3529,11 @@ class RackLocation3DViewTests(TestCase):
         Recipe = apps.get_model('vision', 'RackLocationRecipe')
         self.recipe = Recipe.objects.create(
             recipe_name='API-POS-03-L1',
+            rack_type='RACK-03',
             rack_side='BOTH',
             position_no=3,
             layer_no=1,
+            layer_count=3,
             standard_x=100,
             standard_y=200,
             standard_z=300,
@@ -3538,6 +3544,10 @@ class RackLocation3DViewTests(TestCase):
         response = self.client.get(reverse('vision:rack_locator_panel'))
 
         self.assertContains(response, '3D 料架定位工作台')
+        self.assertContains(response, 'API-POS-03-L1｜3 层料架配方｜料架号：RACK-03')
+        self.assertContains(response, 'selected-recipe-info')
+        self.assertContains(response, '管理 3D 配方')
+        self.assertNotContains(response, 'POS3 · L1 - API-POS-03-L1')
         self.assertContains(response, 'rack-side')
         self.assertContains(response, '左料架')
         self.assertContains(response, '右料架')
@@ -4507,6 +4517,35 @@ class Rack3DLocatorApiTests(TestCase):
         )
         self.assertEqual(update.status_code, 200)
         self.assertFalse(update.json()['data']['recipe']['enabled'])
+
+    def test_vision_3d_recipe_can_be_copied_with_technical_data(self):
+        self.recipe.rack_type = 'SOURCE-RACK'
+        self.recipe.roi_config = {'target_roi': {'x': 10, 'y': 20, 'w': 30, 'h': 40}}
+        self.recipe.local_template_std = {'origin': [1, 2, 3], 'plane1': {'offset': 4}}
+        self.recipe.save(update_fields=['rack_type', 'roi_config', 'local_template_std'])
+
+        response = self.client.post(
+            reverse('vision:api_vision_3d_recipes'),
+            data=json.dumps({
+                'source_recipe_id': self.recipe.id,
+                'recipe_name': 'API-3D-COPY',
+                'rack_type': 'COPY-RACK',
+                'layer_count': 2,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        copied = apps.get_model('vision', 'RackLocationRecipe').objects.get(
+            pk=response.json()['data']['recipe']['id'],
+        )
+        self.assertNotEqual(copied.id, self.recipe.id)
+        self.assertEqual(copied.recipe_name, 'API-3D-COPY')
+        self.assertEqual(copied.rack_type, 'COPY-RACK')
+        self.assertEqual(copied.layer_count, 2)
+        self.assertEqual(copied.roi_config, self.recipe.roi_config)
+        self.assertEqual(copied.local_template_std, self.recipe.local_template_std)
+        self.assertEqual(copied.standard_z, self.recipe.standard_z)
 
     def test_vision_3d_recipe_list_tolerates_legacy_unsupported_layer(self):
         Recipe = apps.get_model('vision', 'RackLocationRecipe')
