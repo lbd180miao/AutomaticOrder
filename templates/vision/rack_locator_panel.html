@@ -956,6 +956,7 @@
   <div class="rl-recipe-section">
     <div class="rl-recipe-section-head">
       <h2>选择配方</h2>
+      <a href="{% url 'vision:recipe_management' %}" class="btn btn-secondary btn-sm">管理 3D 配方</a>
     </div>
 
     <!-- 配方下拉选择器 -->
@@ -964,11 +965,12 @@
       <select id="recipe-select" class="recipe-dropdown">
         {% for recipe in recipes %}
         <option value="{{ recipe.id }}" data-pos="{{ recipe.position_no }}" data-layer="{{ recipe.layer_no }}"
+          data-layer-count="{{ recipe.layer_count }}" data-rack-no="{{ recipe.rack_type }}"
           data-sx="{{ recipe.standard_x }}" data-sy="{{ recipe.standard_y }}" data-sz="{{ recipe.standard_z }}"
           data-mox="{{ recipe.max_offset_x }}" data-moy="{{ recipe.max_offset_y }}" data-moz="{{ recipe.max_offset_z }}"
           data-conf="{{ recipe.confidence_threshold }}" data-name="{{ recipe.recipe_name }}"
           data-side="{{ recipe.rack_side }}" {% if forloop.first %}selected{% endif %}>
-          POS{{ recipe.position_no }} · L{{ recipe.layer_no }} - {{ recipe.recipe_name }}
+          {{ recipe.recipe_name }}｜{{ recipe.layer_count }} 层料架配方｜料架号：{{ recipe.rack_type|default:"未设置" }}
         </option>
         {% empty %}
         <option value="">暂无配方</option>
@@ -989,6 +991,22 @@
 
     {% if not recipes %}
     <div class="rl-no-recipe-bar">暂无已启用的 3D 配方，请先<a href="{% url 'vision:rack_location_recipes' %}">前往配方管理</a>新增配方。
+    </div>
+    {% endif %}
+
+    {% if recipes %}
+    <div id="selected-recipe-info" class="rl-recipe-info-card">
+      <div class="recipe-info-header">
+        <span class="recipe-info-icon">📋</span>
+        <span id="selected-recipe-name" class="recipe-info-title">正在加载配方…</span>
+        <span id="selected-recipe-layer-count" class="recipe-badge">—</span>
+      </div>
+      <div class="recipe-info-body">
+        <div class="recipe-info-row"><strong>料架号</strong><span id="selected-recipe-rack-no">—</span></div>
+        <div class="recipe-info-row"><strong>标准 X</strong><span id="selected-recipe-sx">—</span> mm</div>
+        <div class="recipe-info-row"><strong>标准 Y</strong><span id="selected-recipe-sy">—</span> mm</div>
+        <div class="recipe-info-row"><strong>标准 Z</strong><span id="selected-recipe-sz">—</span> mm</div>
+      </div>
     </div>
     {% endif %}
 
@@ -1199,6 +1217,8 @@
     const sy = option.dataset.sy || '0';
     const sz = option.dataset.sz || '0';
     const name = option.dataset.name || '';
+    const layerCount = option.dataset.layerCount || '3';
+    const rackNo = option.dataset.rackNo || '未设置';
     const conf = option.dataset.conf || '0.7';
     const side = option.dataset.side || 'BOTH';
 
@@ -1221,9 +1241,19 @@
       rackSideSelect.value = side;
     }
 
-    selectedRecipeData = { id, pos, layer, sx, sy, sz, conf, side };
+    selectedRecipeData = { id, pos, layer, layerCount, rackNo, sx, sy, sz, conf, side };
+    const setText = (elementId, value) => {
+      const element = document.getElementById(elementId);
+      if (element) element.textContent = value;
+    };
+    setText('selected-recipe-name', name);
+    setText('selected-recipe-layer-count', `${layerCount} 层料架配方`);
+    setText('selected-recipe-rack-no', rackNo);
+    setText('selected-recipe-sx', Number(sx).toFixed(2));
+    setText('selected-recipe-sy', Number(sy).toFixed(2));
+    setText('selected-recipe-sz', Number(sz).toFixed(2));
     document.getElementById('rl-status').textContent =
-      `已选配方：${name}（POS${pos} 层${layer}），可采集点云。`;
+      `已选配方：${name}（${layerCount} 层料架，料架号：${rackNo}），正在同步 ROI 与标准模板。`;
 
     if (typeof window.rackLocatorRecipeChanged === 'function') {
       window.rackLocatorRecipeChanged(id, layer);

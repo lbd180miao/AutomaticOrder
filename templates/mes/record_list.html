@@ -98,6 +98,8 @@
               <button type="button" class="btn btn-secondary btn-sm btn-open-manual-reupload" data-rack-code="{{ group.rack.rack_code }}">🛠️ 补全重传</button>
               <button type="button" class="btn btn-primary btn-sm btn-upload-rack-mes" data-rack-code="{{ group.rack.rack_code }}">🚀 上传 MES</button>
               <button type="button" class="btn btn-secondary btn-sm btn-enter-edit-mode">修改绑定</button>
+            {% else %}
+              <button type="button" class="btn btn-primary btn-sm btn-open-manual-rack" data-rack-id="" data-rack-code="">✏️ 手动输入料框码</button>
             {% endif %}
           </div>
           <div class="btn-group-edit" style="display: none;">
@@ -1248,19 +1250,59 @@
 
   document.getElementById('btn-manual-rack-confirm')?.addEventListener('click', async function () {
     const val = rackCodeInput.value.trim();
+    const existingRackId = rackIdInput.value ? parseInt(rackIdInput.value) : null;
+    
     if (!val) {
       toast('请输入有效的料框码', 'fail');
       return;
     }
+    
     const orig = this.textContent;
     this.disabled = true;
     this.textContent = '正在校验保存…';
+    
     try {
-      const data = await apiPost('/production/api/rack/manual-update/', {
-        rack_code: val,
-        rack_id: rackIdInput.value ? parseInt(rackIdInput.value) : null,
-      });
-      toast(data.message || '料框码已保存并成功关联 MES 配方', 'ok');
+      // 如果没有rack_id（未绑定料框的情况），需要将当前产品绑定到新料框
+      if (!existingRackId) {
+        // 查找当前页面中rack_id为空的卡片，获取其产品列表
+        const unboundCard = document.querySelector('.mes-binding-card[data-rack-id=""]');
+        if (unboundCard) {
+          // 收集该卡片中的所有产品
+          const products = [];
+          unboundCard.querySelectorAll('.product-item-row').forEach(row => {
+            const pId = row.dataset.productId ? parseInt(row.dataset.productId) : null;
+            if (pId) {
+              const prodCode = row.querySelector('.code-view-text strong')?.textContent.trim() || 
+                             row.dataset.originalCode;
+              if (prodCode) {
+                products.push({ id: pId, product_code: prodCode });
+              }
+            }
+          });
+          
+          // 使用rack_binding_save_api将产品绑定到新料框
+          const bindingData = await apiPost('/mes/api/rack-binding/save/', {
+            rack_code: val,
+            products: products,
+          });
+          toast(bindingData.message || '料框码已保存并成功关联产品', 'ok');
+        } else {
+          // 如果没有找到未绑定的卡片，仅创建料框
+          const data = await apiPost('/production/api/rack/manual-update/', {
+            rack_code: val,
+            rack_id: null,
+          });
+          toast(data.message || '料框码已保存并成功关联 MES 配方', 'ok');
+        }
+      } else {
+        // 已有rack_id，仅更新料框码
+        const data = await apiPost('/production/api/rack/manual-update/', {
+          rack_code: val,
+          rack_id: existingRackId,
+        });
+        toast(data.message || '料框码已保存并成功关联 MES 配方', 'ok');
+      }
+      
       closeRackModal();
       setTimeout(() => location.reload(), 700);
     } catch (err) {

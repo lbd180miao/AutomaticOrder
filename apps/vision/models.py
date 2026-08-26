@@ -36,7 +36,7 @@ class RackLocationRecipe(TimeStampedModel):
     """3D 深度相机料架定位配方。
 
     该模型只服务 3D 料架定位，不与 2D 泡棉检测 VisionRecipe 混用。
-    现场按“配方位置 + 料架层号”循环拍照，每次照片只计算当前点位补偿。
+    一条记录对应一套完整料架配方；position_no 和 layer_no 仅保留给旧定位链路兼容。
     """
 
     recipe_name = models.CharField(max_length=128, unique=True)
@@ -136,20 +136,14 @@ class RackLocationRecipe(TimeStampedModel):
 
 
     class Meta:
-        ordering = ['position_no', 'layer_no', '-updated_at']
+        ordering = ['rack_type', 'recipe_name', '-updated_at']
         indexes = [
             models.Index(fields=['position_no', 'layer_no', 'enabled']),
         ]
-        constraints = [
-            models.UniqueConstraint(
-                fields=['position_no', 'layer_no'],
-                condition=models.Q(enabled=True),
-                name='unique_enabled_recipe_per_position_layer',
-            ),
-        ]
 
     def __str__(self):
-        return f'{self.recipe_name}(POS {self.position_no}, L{self.layer_no})'
+        rack_no = self.rack_type or '未设置料架号'
+        return f'{self.recipe_name}（{self.layer_count}层料架，{rack_no}）'
 
     def applies_to(self, *, position_no, layer_no):
         return (
