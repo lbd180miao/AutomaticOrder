@@ -27,6 +27,30 @@ class ProductionServiceTests(TestCase):
         self.service.bind_product_to_rack(p, r)
         p.refresh_from_db()
         self.assertEqual(p.rack_id, r.pk)
+        self.assertIsNotNone(p.bound_at)
+
+    def test_binding_time_only_changes_when_rack_relationship_changes(self):
+        product = self.service.create_product('P-BIND-TIME')
+        first_rack = self.service.get_or_create_rack('RK-BIND-TIME-1')
+        second_rack = self.service.get_or_create_rack('RK-BIND-TIME-2')
+
+        self.service.bind_product_to_rack(product, first_rack)
+        product.refresh_from_db()
+        first_bound_at = product.bound_at
+
+        product.product_code = 'P-BIND-TIME-UPDATED'
+        product.save(update_fields=['product_code', 'updated_at'])
+        product.refresh_from_db()
+        self.assertEqual(product.bound_at, first_bound_at)
+
+        self.service.bind_product_to_rack(product, second_rack)
+        product.refresh_from_db()
+        self.assertGreater(product.bound_at, first_bound_at)
+
+        product.rack = None
+        product.save(update_fields=['rack', 'updated_at'])
+        product.refresh_from_db()
+        self.assertIsNone(product.bound_at)
 
     def test_upsert_recipe(self):
         recipe = self.service.upsert_recipe(

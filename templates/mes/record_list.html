@@ -87,6 +87,8 @@
             {% endif %}
             <span class="meta-dot">•</span>
             <span>已入框：<strong class="text-primary occupied-count-num">{{ group.occupied_count }}</strong> / {{ group.capacity|default:group.occupied_count }}</span>
+            <span class="meta-dot">•</span>
+            <span>最近绑定时间：<strong>{{ group.latest_bound_at|date:"Y-m-d H:i:s"|default:"—" }}</strong></span>
           </div>
         </div>
 
@@ -189,7 +191,7 @@
       {% endif %}
 
       <!-- 2. 明细表格（详细参数与状态） -->
-      <details class="binding-table-details" open>
+      <details class="binding-table-details">
         <summary class="table-details-summary">
           <span>📋 产品明细表格（共 <strong class="prod-count-inline">{{ group.occupied_count }}</strong> 件产品）</span>
           <small>点击折叠 / 展开详细参数</small>
@@ -202,6 +204,7 @@
                 <th style="width: 220px;">产品条码</th>
                 <th>状态/残次原因</th>
                 <th>批次</th>
+                <th>绑定时间</th>
                 <th>层 / 槽位</th>
                 <th>泡棉检测</th>
                 <th>MES 同步</th>
@@ -233,6 +236,7 @@
                   {% endif %}
                 </td>
                 <td><small class="cell-sub">{{ row.product.batch.batch_no|default:"无批次" }}</small></td>
+                <td class="mono-cell">{{ row.product.bound_at|date:"Y-m-d H:i:s"|default:"—" }}</td>
                 <td>{% if row.position %}<strong>L{{ row.layer_no }} / {{ row.slot_no }}</strong><small class="cell-sub">位置序号 {{ row.position }}</small>{% else %}<span class="text-faint">未记录</span>{% endif %}</td>
                 <td>{% if row.foam %}{% if row.foam.is_passed %}<span class="badge badge-ok">合格</span>{% else %}<span class="badge badge-fail">不合格</span>{% endif %}<small class="cell-sub">{{ row.foam.created_at|date:"m-d H:i:s" }}</small>{% else %}<span class="badge badge-muted">待检测</span>{% endif %}</td>
                 <td><span class="badge badge-{{ row.sync_tone }}">{{ row.sync_label }}</span>{% if row.upload %}<small class="cell-sub">{{ row.upload.created_at|date:"Y-m-d H:i:s" }}</small>{% endif %}</td>
@@ -252,7 +256,7 @@
                 </td>
               </tr>
               {% empty %}
-              <tr class="empty-row"><td colspan="9"><div class="empty"><strong>暂无绑定产品</strong><span>点击右上角「修改绑定」即可添加产品条码。</span></div></td></tr>
+              <tr class="empty-row"><td colspan="10"><div class="empty"><strong>暂无绑定产品</strong><span>点击右上角「修改绑定」即可添加产品条码。</span></div></td></tr>
               {% endfor %}
             </tbody>
           </table>

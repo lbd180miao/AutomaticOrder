@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from apps.core.constants import MarkStatus, MesUploadStatus, WorkflowState
 from apps.core.models import TimeStampedModel
@@ -121,6 +122,7 @@ class Product(TimeStampedModel):
     product_code = models.CharField(max_length=128, unique=True)
     batch = models.ForeignKey(ProductionBatch, null=True, blank=True, on_delete=models.SET_NULL)
     rack = models.ForeignKey(Rack, null=True, blank=True, on_delete=models.SET_NULL)
+    bound_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name='绑定时间')
     current_state = models.CharField(max_length=64, choices=WorkflowState.choices, default=WorkflowState.CREATED)
     mark_status = models.CharField(max_length=32, choices=MarkStatus.choices, default=MarkStatus.PENDING)
     mes_upload_status = models.CharField(max_length=32, choices=MesUploadStatus.choices, default=MesUploadStatus.PENDING)
@@ -133,6 +135,31 @@ class Product(TimeStampedModel):
         'self', null=True, blank=True, on_delete=models.SET_NULL,
         related_name='replaced_from', verbose_name='替换的新合格品'
     )
+
+    def save(self, *args, **kwargs):
+        """Keep the binding timestamp tied only to rack relationship changes."""
+        update_fields = kwargs.get('update_fields')
+        rack_is_being_saved = self._state.adding or update_fields is None or 'rack' in update_fields
+        if rack_is_being_saved:
+            previous_rack_id = None
+            if not self._state.adding:
+                previous_rack_id = type(self).objects.filter(pk=self.pk).values_list('rack_id', flat=True).first()
+
+            if self.rack_id is None:
+                next_bound_at = None
+            elif self._state.adding:
+                next_bound_at = self.bound_at or timezone.now()
+            elif previous_rack_id != self.rack_id:
+                next_bound_at = timezone.now()
+            else:
+                next_bound_at = self.bound_at
+
+            if next_bound_at != self.bound_at:
+                self.bound_at = next_bound_at
+                if update_fields is not None:
+                    kwargs['update_fields'] = set(update_fields) | {'bound_at'}
+
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return self.product_code

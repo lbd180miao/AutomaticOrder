@@ -135,7 +135,10 @@ class ProductionService:
         product.defect_at = timezone.now()
         product.current_state = WorkflowState.DEFECTIVE
         product.rack = None
-        product.save(update_fields=['is_defective', 'defect_reason', 'defect_at', 'current_state', 'rack', 'updated_at'])
+        product.save(update_fields=[
+            'is_defective', 'defect_reason', 'defect_at', 'current_state',
+            'rack', 'bound_at', 'updated_at',
+        ])
 
         # 2. 如果提供了替换条码，执行替换
         new_product = None

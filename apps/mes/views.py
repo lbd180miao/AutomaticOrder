@@ -73,7 +73,7 @@ def record_list(request):
 
     binding_qs = Product.objects.select_related(
         'rack', 'rack__current_recipe', 'batch', 'replaced_by',
-    ).order_by('-updated_at')
+    ).order_by('-bound_at', '-pk')
 
     latest_upload = MesRecord.objects.filter(
         action=MesAction.UPLOAD_PRODUCT_BARCODE,
@@ -114,9 +114,9 @@ def record_list(request):
         binding_qs = binding_qs.filter(is_defective=False)
 
     if start_value:
-        binding_qs = binding_qs.filter(updated_at__gte=timezone.make_aware(datetime.combine(start_value, time.min)))
+        binding_qs = binding_qs.filter(bound_at__gte=timezone.make_aware(datetime.combine(start_value, time.min)))
     if end_value:
-        binding_qs = binding_qs.filter(updated_at__lt=timezone.make_aware(datetime.combine(end_value + timedelta(days=1), time.min)))
+        binding_qs = binding_qs.filter(bound_at__lt=timezone.make_aware(datetime.combine(end_value + timedelta(days=1), time.min)))
 
     binding_page = Paginator(binding_qs, 50).get_page(request.GET.get('page'))
     binding_rows = _build_binding_rows(binding_page.object_list)
@@ -218,11 +218,17 @@ def _build_binding_rows(products):
             rack_groups[rack_id] = {
                 'rack': product.rack,
                 'recipe': recipe,
+                'latest_bound_at': product.bound_at,
                 'capacity': recipe.total_quantity if recipe and recipe.total_quantity else None,
                 'layer_count': recipe.layer_count if recipe and recipe.layer_count else None,
                 'quantity_per_layer': recipe.quantity_per_layer if recipe and recipe.quantity_per_layer else None,
                 'products': [],
             }
+        elif product.bound_at and (
+            rack_groups[rack_id]['latest_bound_at'] is None
+            or product.bound_at > rack_groups[rack_id]['latest_bound_at']
+        ):
+            rack_groups[rack_id]['latest_bound_at'] = product.bound_at
         foam = foam_by_product.get(product.pk)
         upload = upload_by_code.get(product.product_code)
         recipe = rack_groups[rack_id]['recipe']
@@ -292,7 +298,15 @@ def _build_binding_rows(products):
         g['occupancy_percent'] = int((len(g['products']) / total_slots * 100)) if total_slots else 0
         result.append(g)
 
-    return result
+    return sorted(
+        result,
+        key=lambda group: (
+            group['latest_bound_at'] is not None,
+            group['latest_bound_at'] or timezone.make_aware(datetime.min),
+            group['rack'].pk if group['rack'] else 0,
+        ),
+        reverse=True,
+    )
 
 
 def _build_recipe_rows(*, keyword='', rack_code='', recipe_code=''):
@@ -834,7 +848,7 @@ def rack_binding_save_api(request):
                 rack, _ = Rack.objects.get_or_create(rack_code=rack_code)
 
             if deleted_product_ids:
-                Product.objects.filter(pk__in=deleted_product_ids, rack=rack).update(rack=None)
+                Product.objects.filter(pk__in=deleted_product_ids, rack=rack).update(rack=None, bound_at=None)
 
             saved_products = []
             seen_codes = set()
@@ -995,7 +1009,7 @@ def manual_reupload_binding_api(request):
             rack, _ = Rack.objects.get_or_create(rack_code=rack_code)
 
             if deleted_ids:
-                Product.objects.filter(pk__in=deleted_ids, rack=rack).update(rack=None)
+                Product.objects.filter(pk__in=deleted_ids, rack=rack).update(rack=None, bound_at=None)
 
             saved_products = []
             seen_codes = set()
