@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -9,6 +10,7 @@ from django.test import override_settings
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.core.constants import MesAction
 from apps.mes.client import SimulatedMesClient
@@ -123,6 +125,27 @@ class MesRecordPageTests(TestCase):
         self.assertContains(response, 'PRODUCT-BIND-001')
         self.assertContains(response, 'MES-BIND-001')
         self.assertContains(response, '已确认')
+        content = response.content.decode()
+        self.assertIn('<details class="binding-table-details">', content)
+        self.assertNotIn('<details class="binding-table-details" open', content)
+
+    def test_binding_tab_orders_latest_binding_first(self):
+        older_rack = Rack.objects.create(rack_code='RACK-OLDER', rack_type='A')
+        latest_rack = Rack.objects.create(rack_code='RACK-LATEST', rack_type='A')
+        older_product = Product.objects.create(product_code='PRODUCT-OLDER', rack=older_rack)
+        latest_product = Product.objects.create(product_code='PRODUCT-LATEST', rack=latest_rack)
+        now = timezone.now()
+        Product.objects.filter(pk=older_product.pk).update(bound_at=now - timedelta(hours=1))
+        Product.objects.filter(pk=latest_product.pk).update(bound_at=now)
+
+        response = self.client.get(reverse('mes:record_list'), {'tab': 'bindings'})
+
+        rows = response.context['binding_rows']
+        self.assertEqual([row['rack'].rack_code for row in rows], ['RACK-LATEST', 'RACK-OLDER'])
+        self.assertContains(response, '最近绑定时间')
+        self.assertContains(response, '<th>绑定时间</th>', html=True)
+        content = response.content.decode()
+        self.assertLess(content.index('RACK-LATEST'), content.index('RACK-OLDER'))
 
     def test_recipe_tab_marks_mes_and_local_parameter_difference(self):
         recipe = RackRecipe.objects.create(

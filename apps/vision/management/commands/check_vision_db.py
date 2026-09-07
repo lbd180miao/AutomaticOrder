@@ -159,7 +159,7 @@ class Command(BaseCommand):
             if fix_mode:
                 VisionTask.objects.filter(
                     id__in=[row[0] for row in invalid_rack_ids]
-                ).update(rack_id=None)
+                ).update(rack_id=None, bound_at=None)
                 self.stdout.write(self.style.SUCCESS(f'    已清理 {len(invalid_rack_ids)} 条无效 rack 引用'))
         else:
             self.stdout.write('  ✓ Rack 外键完整')
