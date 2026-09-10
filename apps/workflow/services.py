@@ -199,23 +199,21 @@ class WorkflowService:
                                 message='料框已扫码并绑定')
 
     def _on_recipe_loaded(self, workflow):
-        """RACK_SCANNED -> RECIPE_LOADED：向 MES 获取配方并落库。"""
+        """RACK_SCANNED -> RECIPE_LOADED：向 MES 校验料架并加载配方。"""
         product = workflow.product
         rack = product.rack
         resp = self.mes.get_rack_recipe(rack.rack_code, rack=rack)
         if not resp.get('success'):
-            return self._fail(workflow, 'MES 配方获取失败，锁定流程',
+            return self._fail(workflow, 'MES 料架校验失败，锁定流程',
                               source=AlarmSource.MES)
-        data = resp['recipe']
-        recipe = self.production.upsert_recipe(
-            data['recipe_code'],
-            name=data['name'], rack_type=data['rack_type'],
-            layer_count=data['layer_count'], quantity_per_layer=data['quantity_per_layer'],
-            total_quantity=data['total_quantity'], layer_height=data['layer_height'],
-            layer_spacing=data['layer_spacing'], tolerance_x=data['tolerance_x'],
-            tolerance_y=data['tolerance_y'], tolerance_z=data['tolerance_z'],
-        )
-        self.production.assign_recipe_to_rack(rack, recipe)
+        if resp.get('is_sealed'):
+            return self._fail(workflow, '料架在 MES 已封箱，禁止装箱',
+                              source=AlarmSource.MES)
+        # REST 客户端返回完整 recipe；YFPO SOAP(20260801) 仅校验，配方回退本地
+        recipe = self.production.sync_recipe_from_mes(rack, resp)
+        if recipe is None:
+            return self._fail(workflow, 'MES 校验通过但未匹配到本地装箱配方，请先在配方页维护并绑定',
+                              source=AlarmSource.MES)
         return self._transition(workflow, W.RECIPE_LOADED, EventSource.MES,
                                 event_type='RECIPE', payload={'recipe_code': recipe.recipe_code},
                                 message='配方已加载')

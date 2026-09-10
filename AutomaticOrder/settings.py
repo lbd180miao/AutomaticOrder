@@ -179,9 +179,21 @@ RACK_3D_POSITIONING_MODE = os.environ.get('RACK_3D_POSITIONING_MODE', 'MOCK').up
 
 AUTOMATIC_ORDER = {
     'USE_SIMULATED_DEVICES': env_bool('USE_SIMULATED_DEVICES', False),
-    'MES_BASE_URL': os.environ.get('MES_BASE_URL', ''),
+    # 甲方 YFPO MES：部署时只需把 <MES主机> 改成现场 MES 服务器 IP/主机名
+    #'MES_BASE_URL': 'http://<MES主机>:10133/BaseService.svc?wsdl',
+    'MES_BASE_URL': 'http://10.252.6.51/MESService_LG/BaseService.svc?wsdl',
     'MES_TIMEOUT': int(os.environ.get('MES_TIMEOUT', 8)),
     'MES_TOKEN': os.environ.get('MES_TOKEN', ''),
+    # MES 协议：rest=内部 REST 客户端（默认）；soap=延锋 YFPO WCF(SOAP)，地址填 .../BaseService.svc?wsdl（运行时自动去掉 ?wsdl）
+    'MES_PROTOCOL': 'soap',
+    'MES_FACTORY_CODE': '2230',
+    'MES_PROD_LINE_CODE': 'I308',
+    # YFPO BaseService WSDL 确认的 InvokeMethod SOAPAction（项目固定值）
+    'MES_SOAP_ACTION': 'http://tempuri.org/IBaseService/InvokeMethod',
+    'MES_CONTENT_TYPE': os.environ.get('MES_CONTENT_TYPE', 'text/xml; charset=utf-8'),
+    'MES_AUTHORIZATION': os.environ.get('MES_AUTHORIZATION', ''),
+    # JSON 对象，例如 {"X-Factory":"F01"}
+    'MES_CUSTOM_HEADERS': os.environ.get('MES_CUSTOM_HEADERS', '{}'),
     'DEVICE_TIMEOUT_SECONDS': int(os.environ.get('DEVICE_TIMEOUT_SECONDS', 5)),
     'VISION_POSITION_RECIPE_ID': (
         int(os.environ['VISION_POSITION_RECIPE_ID'])

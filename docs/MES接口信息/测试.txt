@@ -1,0 +1,5 @@
+MES_PROTOCOL=soap
+MES_BASE_URL=http://<MES主机>:10133/BaseService.svc?wsdl
+MES_FACTORY_CODE=2230
+MES_PROD_LINE_CODE=I308
+python manage.py runserver 8082

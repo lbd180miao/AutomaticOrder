@@ -28,7 +28,7 @@ from apps.vision.rack_measurement import (
     profile_parameters,
 )
 from .models import MesRecord
-from .services import MesService
+from .services import MesService, describe_mes_runtime
 
 
 # ─── 页面视图 ─────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ from .services import MesService
 def record_list(request):
     """MES 数据工作台：业务查询、补传和接口审计统一入口。"""
     tab = request.GET.get('tab', 'bindings')
-    valid_tabs = {'bindings', 'recipes', 'pending', 'consistency', 'records'}
+    valid_tabs = {'bindings', 'recipes', 'pending', 'consistency', 'records', 'console'}
     if tab not in valid_tabs:
         tab = 'bindings'
 
@@ -170,8 +170,43 @@ def record_list(request):
         'start_date': start_date,
         'end_date': end_date,
         'latest_record': latest_record,
+        'mes_runtime': describe_mes_runtime(),
     }
     return render(request, 'mes/record_list.html', context)
+
+
+# YFPO SOAP 返回字段 -> 中文短标签（用于接口记录的友好摘要）
+_SOAP_FIELD_LABELS = [
+    ('rack_status', '料架状态'),
+    ('rack_status_label', '状态说明'),
+    ('hu_qty', '已装'),
+    ('hu_max_qty', '容量'),
+    ('is_sealed', '已封箱'),
+    ('part_no', '零件号'),
+    ('is_full', '已装满'),
+    ('bin_code', '区位号'),
+    ('is_not_task', 'IsNotTask'),
+    ('pull_task_label', '拉动任务'),
+    ('task_guid', '任务GUID'),
+    ('message', 'MES消息'),
+]
+
+
+def _soap_field_summary(response_payload):
+    """从响应 JSON 中提取 YFPO SOAP 关键业务字段，返回 [(标签, 值)]，无则空。"""
+    if not isinstance(response_payload, dict):
+        return []
+    rows = []
+    for key, label in _SOAP_FIELD_LABELS:
+        if key not in response_payload:
+            continue
+        value = response_payload.get(key)
+        if isinstance(value, bool):
+            value = '是' if value else '否'
+        if value in (None, ''):
+            continue
+        rows.append((label, value))
+    return rows
 
 
 def _decorate_mes_records(records):
@@ -185,6 +220,7 @@ def _decorate_mes_records(records):
             record.product.product_code if record.product_id
             else record.request_payload.get('product_code') or '—'
         )
+        record.soap_fields = _soap_field_summary(record.response_payload)
 
 
 def _build_binding_rows(products):

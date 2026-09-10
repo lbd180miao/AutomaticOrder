@@ -355,27 +355,15 @@ class StationWorkflowService:
         rack = self.production.get_or_create_rack(rack_code)
         recipe_response = self.mes.get_rack_recipe(rack_code, rack=rack)
         if not recipe_response.get('success'):
-            raise StationStepError('MES 装箱配方查询失败', AlarmSource.MES)
-        data = recipe_response.get('recipe') or {}
-        required = {
-            'recipe_code', 'name', 'rack_type', 'layer_count',
-            'quantity_per_layer', 'total_quantity', 'layer_height', 'layer_spacing',
-        }
-        missing = sorted(required - data.keys())
-        if missing:
-            raise StationStepError(f'MES 配方缺少字段: {missing}', AlarmSource.MES)
-        recipe = self.production.upsert_recipe(
-            data['recipe_code'],
-            name=data['name'], rack_type=data['rack_type'],
-            layer_count=data['layer_count'],
-            quantity_per_layer=data['quantity_per_layer'],
-            total_quantity=data['total_quantity'],
-            layer_height=data['layer_height'], layer_spacing=data['layer_spacing'],
-            tolerance_x=data.get('tolerance_x', 0),
-            tolerance_y=data.get('tolerance_y', 0),
-            tolerance_z=data.get('tolerance_z', 0),
-        )
-        self.production.assign_recipe_to_rack(rack, recipe)
+            raise StationStepError(
+                recipe_response.get('error') or 'MES 料架校验失败', AlarmSource.MES)
+        if recipe_response.get('is_sealed'):
+            raise StationStepError('料架在 MES 已封箱，禁止装箱', AlarmSource.MES)
+        # REST 返回完整 recipe；YFPO SOAP(20260801) 仅做装箱校验，配方回退本地匹配
+        recipe = self.production.sync_recipe_from_mes(rack, recipe_response)
+        if recipe is None:
+            raise StationStepError(
+                'MES 校验通过但未匹配到本地装箱配方，请先在配方页维护并绑定', AlarmSource.MES)
         cycle.rack = rack
         cycle.planned_quantity = int(recipe.total_quantity)
         cycle.save(update_fields=['rack', 'planned_quantity', 'updated_at'])
@@ -526,15 +514,24 @@ class StationWorkflowService:
             payload, product=cycle.product, rack=cycle.rack,
         )
         succeeded = bool(response.get('success'))
+        # SOAP(20260803) 封箱会回区位号 BinCode / TaskGuid，记入事件便于追溯（无字段则为空）
+        bin_code = response.get('bin_code', '') or ''
         cycle.mes_upload_success = succeeded
         cycle.save(update_fields=['mes_upload_success', 'updated_at'])
         self._write('mes_upload_success', succeeded, 69)
         self._write('mes_upload_done', True, 68)
+        if succeeded:
+            done_message = (
+                f'整框封箱已上传 MES，区位号 {bin_code}' if bin_code
+                else '整框绑定数据已上传 MES'
+            )
+        else:
+            done_message = 'MES 上传失败，本地记录等待自动补传'
         self._set_phase(
             cycle, StationPhase.WAIT_BOXING_RESET, event_type='BOXING_UPLOADED',
             source=EventSource.MES,
-            message='整框绑定数据已上传 MES' if succeeded else 'MES 上传失败，本地记录等待自动补传',
-            payload={**payload, 'mes_upload_success': succeeded},
+            message=done_message,
+            payload={**payload, 'mes_upload_success': succeeded, 'bin_code': bin_code},
             workflow_state=WorkflowState.BOXING,
         )
         return True

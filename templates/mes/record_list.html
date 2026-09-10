@@ -23,6 +23,7 @@
   <a class="{% if tab == 'pending' %}active{% endif %}" href="?tab=pending">待上传 / 补传 <em>{{ pending_records|length }}</em></a>
   <a class="{% if tab == 'consistency' %}active{% endif %}" href="?tab=consistency">数据一致性 <em>{{ consistency_issues|length }}</em></a>
   <a class="{% if tab == 'records' %}active{% endif %}" href="?tab=records">接口记录</a>
+  <a class="{% if tab == 'console' %}active{% endif %}" href="?tab=console">接口联调</a>
 </nav>
 
 {% if tab == 'bindings' %}
@@ -304,7 +305,7 @@
 
 {% elif tab == 'recipes' %}
 <section class="panel mes-context-strip">
-  <div><span>数据来源</span><strong>本地配方缓存 + 最近 MES 返回</strong><small>两份数据并列展示，不用本地值冒充 MES 实时值</small></div>
+  <div><span>数据来源</span><strong>本地缓存 + 最近 MES 返回</strong><small>两份数据并列展示，不用本地值冒充 MES 实时值</small></div>
   <div><span>配方核验</span><strong>层数、层高、层距、数量和容差</strong><small>发现差异时进入一致性异常</small></div>
   <div><span>工程调试</span><strong>与业务查询分离</strong><small><a href="{% url 'mes:recipe_check' %}">进入配方核验与 2D 调试</a></small></div>
 </section>
@@ -346,11 +347,158 @@
   </tbody></table></div>
 </section>
 
+{% elif tab == 'console' %}
+<style>
+  .mes-runtime-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:4px 0 8px;}
+  .mes-runtime-grid .rt{background:var(--bg-muted,#f6f7fb);border:1px solid var(--border,#e6e8ef);border-radius:10px;padding:10px 12px;}
+  .mes-runtime-grid .rt span{display:block;font-size:12px;color:var(--text-muted,#8a8fa3);margin-bottom:4px;}
+  .mes-runtime-grid .rt strong{word-break:break-all;font-size:14px;}
+  .mes-console-hint{margin-top:10px;padding:10px 12px;border-radius:8px;background:#fff8e6;border:1px solid #f0d99a;color:#7a5b12;font-size:13px;line-height:1.6;}
+  .mes-runtime-guide{margin-top:14px;padding:14px 16px;border-radius:10px;background:#f8fafc;border:1px solid var(--border,#e6e8ef);}
+  .mes-runtime-guide h3{margin:0 0 8px;font-size:13px;color:var(--text,#243047);}
+  .mes-runtime-guide p{margin:5px 0;color:var(--text-muted,#687089);font-size:12px;line-height:1.6;}
+  .mes-runtime-env{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:6px 18px;margin-top:10px;}
+  .mes-runtime-env code{display:block;padding:7px 9px;border-radius:6px;background:#111827;color:#dbeafe;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere;}
+  .mes-console-result{margin-top:14px;}
+  .mes-console-result .kv{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;}
+  .mes-console-result .chip{display:inline-flex;gap:6px;align-items:center;background:#eef4ff;border:1px solid #cdddff;color:#234;border-radius:999px;padding:3px 10px;font-size:12px;}
+  .mes-console-result .chip b{font-weight:600;}
+  .mes-console-result pre{background:#0f172a;color:#d6e2ff;border-radius:10px;padding:12px;overflow:auto;max-height:360px;font-size:12px;}
+  .mes-console-form{display:grid;grid-template-columns:minmax(220px,1.15fr) minmax(180px,.9fr) minmax(220px,1fr) auto;gap:12px;align-items:end;margin-top:14px;}
+  .mes-console-form label{min-width:0;}
+  .mes-console-form select,.mes-console-form input{width:100%;}
+  .mes-action-meta{display:flex;align-items:center;gap:8px;margin-top:6px;color:var(--text-muted,#8a8fa3);font-size:12px;}
+  .mes-code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#315ea8;background:#eef4ff;border:1px solid #cdddff;border-radius:5px;padding:2px 6px;}
+  .mes-console-empty{border:1px dashed var(--border,#dfe3ec);border-radius:10px;padding:18px;color:var(--text-muted,#8a8fa3);text-align:center;}
+  .mes-console-result .result-head{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  @media(max-width:850px){.mes-console-form{grid-template-columns:1fr 1fr;}.mes-console-form button{width:100%;}}
+  @media(max-width:560px){.mes-console-form{grid-template-columns:1fr;}}
+  .soap-fields{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;max-width:220px;}
+  .soap-chip{background:#eef4ff;border:1px solid #cdddff;color:#345;border-radius:6px;padding:1px 6px;font-size:11px;white-space:nowrap;}
+</style>
+<section class="panel">
+  <div class="panel-heading">
+    <div><span class="eyebrow">MES RUNTIME</span><h2>当前 MES 运行配置</h2><small>只读展示，实际取值来自 settings.AUTOMATIC_ORDER 与环境变量，修改后需重启服务生效。</small></div>
+    {% if mes_runtime.mode == 'soap' %}<span class="badge badge-ok">YFPO SOAP</span>
+    {% elif mes_runtime.mode == 'rest' %}<span class="badge badge-warn">REST</span>
+    {% else %}<span class="badge">模拟 SIMULATED</span>{% endif %}
+  </div>
+  <div class="mes-runtime-grid">
+    <div class="rt"><span>运行模式</span><strong>{{ mes_runtime.mode }}</strong></div>
+    <div class="rt"><span>协议 MES_PROTOCOL</span><strong>{{ mes_runtime.protocol }}</strong></div>
+    <div class="rt"><span>服务地址 MES_BASE_URL</span><strong>{{ mes_runtime.base_url|default:"（未配置，回退模拟）" }}</strong></div>
+    <div class="rt"><span>工厂码 FactoryCode</span><strong>{{ mes_runtime.factory_code|default:"—" }}</strong></div>
+    <div class="rt"><span>产线 ProdLineCode</span><strong>{{ mes_runtime.prod_line_code|default:"—" }}</strong></div>
+    <div class="rt"><span>超时(秒)</span><strong>{{ mes_runtime.timeout }}</strong></div>
+    <div class="rt"><span>SOAPAction</span><strong>{{ mes_runtime.soap_action|default:"未配置，请填写 InvokeMethod 的实际 action" }}</strong></div>
+    <div class="rt"><span>Content-Type</span><strong>{{ mes_runtime.content_type }}</strong></div>
+    <div class="rt"><span>Authorization</span><strong>{% if mes_runtime.has_authorization %}已配置{% else %}未配置{% endif %}</strong></div>
+  </div>
+  <div class="mes-runtime-guide">
+    <h3>启用延锋 YFPO SOAP</h3>
+    <p>部署时直接修改 <code>AutomaticOrder/settings.py</code> 中的 <code>MES_BASE_URL</code>，把 <code>&lt;MES主机&gt;</code> 换成现场 MES 服务器地址，然后重启 Django。SOAPAction 已按甲方确认值内置，现场无需再配置；地址中的 <code>?wsdl</code> 仅用于查看契约，运行时会自动去除。</p>
+    <div class="mes-runtime-env">
+      <code>MES_PROTOCOL = 'soap'</code>
+      <code>MES_BASE_URL = 'http://&lt;MES主机&gt;:10133/BaseService.svc?wsdl'</code>
+      <code>MES_FACTORY_CODE = '2230'</code>
+      <code>MES_PROD_LINE_CODE = 'I308'</code>
+    </div>
+    <p>如甲方启用了认证，配置 <code>MES_AUTHORIZATION</code>；额外请求头使用 <code>MES_CUSTOM_HEADERS</code> JSON 对象。</p>
+  </div>
+</section>
+<section class="panel">
+  <div class="panel-heading"><div><span class="eyebrow">INTERFACE CONSOLE</span><h2>接口手动联调</h2><small>选择接口并填写测试参数，调用结果会自动写入「接口记录」。建议先用测试料框码验证链路。</small></div><span class="badge badge-warn" id="console-code-badge">20260801</span></div>
+  <form class="mes-console-form" id="mes-console-form" onsubmit="return false;">
+    <label>调用接口
+      <select id="console-action">
+        <option value="GET_RACK_RECIPE" data-code="20260801">20260801 料架待装箱校验</option>
+        <option value="UPLOAD_PRODUCT_BARCODE" data-code="20260802" selected>20260802 条码绑定料架</option>
+        <option value="UPLOAD_BOXING_RESULT" data-code="20260803">20260803 封箱生成区位号</option>
+      </select>
+      <span class="mes-action-meta" id="console-action-help">检查料架是否可装箱、已装数量及封箱状态</span>
+    </label>
+    <label>料框码 <span class="mes-code">RackCode</span><input id="console-rack" value="INN0117G00" placeholder="例如 INN0117G00" autocomplete="off"></label>
+    <label id="console-barcode-wrap" style="display:none;">产品条码 <span class="mes-code">Barcode</span><input id="console-barcode" value="LG260624130024" placeholder="20260802 必填" autocomplete="off"></label>
+    <button type="button" class="btn btn-primary" id="console-send">发送调用</button>
+  </form>
+  <div id="console-result" class="mes-console-result"><div class="mes-console-empty">填写参数后点击“发送调用”，这里会显示 MES 返回结果。</div></div>
+  <script>
+  (function () {
+    var actionSel = document.getElementById('console-action');
+    var rackInput = document.getElementById('console-rack');
+    var barcodeWrap = document.getElementById('console-barcode-wrap');
+    var barcodeInput = document.getElementById('console-barcode');
+    var sendBtn = document.getElementById('console-send');
+    var box = document.getElementById('console-result');
+    var codeBadge = document.getElementById('console-code-badge');
+    var actionHelp = document.getElementById('console-action-help');
+    if (!actionSel) return;
+    // 去掉占位空项
+    actionSel.value = 'UPLOAD_PRODUCT_BARCODE';
+    var FIELD_LABELS = {
+      rack_status: '料架状态', rack_status_label: '状态说明', hu_qty: '已装', hu_max_qty: '容量', is_sealed: '已封箱',
+      part_no: '零件号', is_full: '已装满', bin_code: '区位号', is_not_task: '无任务',
+      task_guid: '任务GUID', pull_task_label: '拉动任务', message: 'MES消息', error: '错误'
+    };
+    var META = {
+      GET_RACK_RECIPE: ['20260801', '检查料架是否可装箱、已装数量及封箱状态'],
+      UPLOAD_PRODUCT_BARCODE: ['20260802', '将单个产品条码绑定到料架，并返回零件号与装箱进度'],
+      UPLOAD_BOXING_RESULT: ['20260803', '封箱料架并申请区位号，返回任务与区位信息']
+    };
+    function toggleBarcode() {
+      barcodeWrap.style.display = actionSel.value === 'UPLOAD_PRODUCT_BARCODE' ? '' : 'none';
+      var meta = META[actionSel.value] || ['', ''];
+      codeBadge.textContent = meta[0]; actionHelp.textContent = meta[1];
+      barcodeInput.required = actionSel.value === 'UPLOAD_PRODUCT_BARCODE';
+    }
+    actionSel.addEventListener('change', toggleBarcode); toggleBarcode();
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    function render(data) {
+      var chips = '';
+      Object.keys(FIELD_LABELS).forEach(function (k) {
+        if (data[k] === undefined || data[k] === null || data[k] === '') return;
+        var v = typeof data[k] === 'boolean' ? (data[k] ? '是' : '否') : data[k];
+        chips += '<span class="chip"><b>' + FIELD_LABELS[k] + '</b>: ' + esc(v) + '</span>';
+      });
+      var head = data.success
+        ? '<span class="badge badge-ok">调用成功</span>'
+        : '<span class="badge badge-fail">调用失败</span>';
+      box.innerHTML = '<div class="result-head">' + head + '<span class="text-faint">响应已写入接口记录</span></div>'
+        + (chips ? '<div class="kv">' + chips + '</div>' : '')
+        + '<details open><summary style="cursor:pointer;margin:6px 0;">原始返回 JSON</summary><pre>' + esc(JSON.stringify(data, null, 2)) + '</pre></details>';
+    }
+    sendBtn.addEventListener('click', async function () {
+      var action = actionSel.value, rack = rackInput.value.trim(), payload;
+      if (!rack) { box.innerHTML = '<span class="badge badge-fail">请先填写料框码</span>'; return; }
+      if (action === 'UPLOAD_PRODUCT_BARCODE') {
+        if (!barcodeInput.value.trim()) { box.innerHTML = '<span class="badge badge-fail">请填写产品条码</span>'; return; }
+        payload = { product_code: barcodeInput.value.trim(), rack_code: rack };
+      } else if (action === 'UPLOAD_BOXING_RESULT') {
+        payload = { rack_code: rack };
+      } else {
+        payload = { rack_code: rack };
+      }
+      var orig = sendBtn.textContent; sendBtn.disabled = true; sendBtn.textContent = '调用中…';
+      try {
+        var resp = await fetch("{% url 'mes:test_upload_api' %}", {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: action, payload: payload })
+        });
+        render(await resp.json());
+      } catch (e) {
+        box.innerHTML = '<span class="badge badge-fail">请求异常：' + esc(e.message) + '</span>';
+      } finally {
+        sendBtn.disabled = false; sendBtn.textContent = orig;
+      }
+    });
+  })();
+  </script>
+</section>
 {% else %}
 <section class="panel mes-health-strip"><div><span>24 小时请求</span><strong>{{ stats.total }} 次</strong></div><div><span>成功率</span><strong>{{ stats.success_rate }}%</strong></div><div><span>失败</span><strong>{{ stats.fail }} 次</strong></div><div><span>最近请求</span><strong>{{ latest_record.created_at|date:"Y-m-d H:i:s"|default:"—" }}</strong></div></section>
 <section class="panel filter-panel mes-filter-panel"><form method="get" class="mes-filter-form"><input type="hidden" name="tab" value="records"><label>开始日期<input type="date" name="start_date" value="{{ start_date }}"></label><label>结束日期<input type="date" name="end_date" value="{{ end_date }}"></label><label>业务动作<select name="action"><option value="">全部动作</option>{% for value,label in action_choices %}<option value="{{ value }}" {% if action_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label><label>调用结果<select name="result"><option value="">全部结果</option><option value="ok" {% if result_filter == 'ok' %}selected{% endif %}>成功</option><option value="fail" {% if result_filter == 'fail' %}selected{% endif %}>失败</option></select></label><button class="btn btn-primary" type="submit">查询</button><a class="btn btn-secondary" href="?tab=records">重置</a></form></section>
 <section class="panel mes-record-panel"><div class="panel-heading"><div><span class="eyebrow">INTERFACE AUDIT</span><h2>MES 接口记录</h2></div><span class="table-scope">最多显示 200 条</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>业务动作</th><th>产品 / 料框</th><th>结果</th><th>异常摘要</th><th>报文</th><th>操作</th></tr></thead><tbody>
-  {% for record in records %}<tr class="{% if not record.success %}row-fail{% endif %}"><td class="mono-cell">{{ record.created_at|date:"m-d H:i:s" }}</td><td><strong>{{ record.get_action_display }}</strong><small class="cell-sub">{{ record.action }}</small></td><td>{{ record.display_product_code }}<small class="cell-sub">{{ record.display_rack_code }}</small></td><td>{% if record.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}</td><td class="error-summary">{{ record.error_message|default:"—"|truncatechars:48 }}</td><td><details class="payload-details"><summary>查看</summary><div><strong>请求</strong><pre>{{ record.request_payload }}</pre><strong>响应</strong><pre>{{ record.response_payload }}</pre></div></details></td><td>{% if not record.success %}<div style="display:flex;gap:4px;"><button type="button" class="btn btn-secondary btn-sm retry-btn" data-id="{{ record.pk }}">重传</button><button type="button" class="btn btn-secondary btn-sm btn-open-manual-reupload" data-record-id="{{ record.pk }}" data-rack-code="{{ record.display_rack_code }}" data-product-code="{{ record.display_product_code }}">🛠️ 补全</button></div>{% else %}<span class="text-faint">—</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="7"><div class="empty"><strong>暂无接口记录</strong><span>MES 请求发生后会在这里保留完整报文和结果。</span></div></td></tr>{% endfor %}
+  {% for record in records %}<tr class="{% if not record.success %}row-fail{% endif %}"><td class="mono-cell">{{ record.created_at|date:"m-d H:i:s" }}</td><td><strong>{{ record.get_action_display }}</strong><small class="cell-sub">{{ record.action }}</small></td><td>{{ record.display_product_code }}<small class="cell-sub">{{ record.display_rack_code }}</small></td><td>{% if record.success %}<span class="badge badge-ok">成功</span>{% else %}<span class="badge badge-fail">失败</span>{% endif %}{% if record.soap_fields %}<div class="soap-fields">{% for flabel,fvalue in record.soap_fields %}<span class="soap-chip">{{ flabel }}:{{ fvalue }}</span>{% endfor %}</div>{% endif %}</td><td class="error-summary">{{ record.error_message|default:"—"|truncatechars:48 }}</td><td><details class="payload-details"><summary>查看</summary><div><strong>请求</strong><pre>{{ record.request_payload }}</pre><strong>响应</strong><pre>{{ record.response_payload }}</pre></div></details></td><td>{% if not record.success %}<div style="display:flex;gap:4px;"><button type="button" class="btn btn-secondary btn-sm retry-btn" data-id="{{ record.pk }}">重传</button><button type="button" class="btn btn-secondary btn-sm btn-open-manual-reupload" data-record-id="{{ record.pk }}" data-rack-code="{{ record.display_rack_code }}" data-product-code="{{ record.display_product_code }}">🛠️ 补全</button></div>{% else %}<span class="text-faint">—</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="7"><div class="empty"><strong>暂无接口记录</strong><span>MES 请求发生后会在这里保留完整报文和结果。</span></div></td></tr>{% endfor %}
 </tbody></table></div></section>
 {% endif %}
 

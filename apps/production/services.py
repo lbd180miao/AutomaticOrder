@@ -47,6 +47,47 @@ class ProductionService:
         rack.save(update_fields=['current_recipe', 'rack_type', 'updated_at'])
         return rack
 
+    # MES 配方字段：REST 客户端返回完整 recipe；YFPO SOAP(20260801) 只做装箱校验、不回配方几何
+    _RECIPE_FIELDS = (
+        'name', 'rack_type', 'layer_count', 'quantity_per_layer', 'total_quantity',
+        'layer_height', 'layer_spacing', 'tolerance_x', 'tolerance_y', 'tolerance_z',
+    )
+
+    def resolve_local_recipe(self, rack):
+        """SOAP 模式 MES 不回配方时，按“已绑 - 同料架类型唯一 - 全局唯一”回退本地启用配方。
+
+        匹配不唯一时不臆测，返回 None，交由上层提示人工在配方页绑定。
+        """
+        if rack is None:
+            return None
+        if rack.current_recipe_id:
+            return rack.current_recipe
+        active = RackRecipe.objects.filter(is_active=True)
+        if rack.rack_type:
+            same_type = list(active.filter(rack_type=rack.rack_type).order_by('-updated_at', '-pk'))
+            if len(same_type) == 1:
+                return same_type[0]
+        all_active = list(active.order_by('-updated_at', '-pk'))
+        return all_active[0] if len(all_active) == 1 else None
+
+    @transaction.atomic
+    def sync_recipe_from_mes(self, rack, mes_resp):
+        """根据 MES 返回同步料框配方，兼容 REST(返回完整 recipe) 与 SOAP(仅校验)。
+
+        返回 RackRecipe 或 None（None 表示 MES 没给配方、本地也无法唯一匹配）。
+        """
+        mes_resp = mes_resp or {}
+        data = mes_resp.get('recipe')
+        if isinstance(data, dict) and data.get('recipe_code'):
+            fields = {key: data.get(key) for key in self._RECIPE_FIELDS}
+            recipe = self.upsert_recipe(data['recipe_code'], **fields)
+            self.assign_recipe_to_rack(rack, recipe)
+            return recipe
+        recipe = self.resolve_local_recipe(rack)
+        if recipe and rack and not rack.current_recipe_id:
+            self.assign_recipe_to_rack(rack, recipe)
+        return recipe
+
     def open_batch(self, batch_no, product_type=''):
         batch, _ = ProductionBatch.objects.get_or_create(
             batch_no=batch_no,
@@ -76,25 +117,15 @@ class ProductionService:
         else:
             rack, _ = Rack.objects.get_or_create(rack_code=cleaned_code)
 
-        # 自动向 MES 获取装箱配方
+        # 向 MES 校验料架并同步配方（REST 返回完整配方；SOAP 仅校验，配方回退本地）
         mes_svc = MesService()
         recipe_resp = mes_svc.get_rack_recipe(cleaned_code, rack=rack)
-        if recipe_resp.get('success') and recipe_resp.get('recipe'):
-            r_data = recipe_resp['recipe']
-            recipe = self.upsert_recipe(
-                r_data.get('recipe_code', f'RCP-{cleaned_code}'),
-                name=r_data.get('name', f'{cleaned_code} 配方'),
-                rack_type=r_data.get('rack_type', ''),
-                layer_count=r_data.get('layer_count', 4),
-                quantity_per_layer=r_data.get('quantity_per_layer', 6),
-                total_quantity=r_data.get('total_quantity', 24),
-                layer_height=r_data.get('layer_height', 120),
-                layer_spacing=r_data.get('layer_spacing', 150),
-                tolerance_x=r_data.get('tolerance_x', 0),
-                tolerance_y=r_data.get('tolerance_y', 0),
-                tolerance_z=r_data.get('tolerance_z', 3.0),
-            )
-            self.assign_recipe_to_rack(rack, recipe)
+        if not recipe_resp.get('success'):
+            raise ValueError(recipe_resp.get('error') or 'MES 料架校验未通过')
+        if recipe_resp.get('success'):
+            if recipe_resp.get('is_sealed'):
+                raise ValueError(f'料架 {cleaned_code} 在 MES 已封箱（IsSealed=true），禁止装箱')
+            self.sync_recipe_from_mes(rack, recipe_resp)
 
         # 同步更新当前活跃工位周期
         if sync_cycle:

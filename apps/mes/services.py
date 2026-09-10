@@ -14,14 +14,69 @@ logger = logging.getLogger(__name__)
 
 
 def get_mes_client():
-    """按配置返回 MES 客户端实例。"""
+    """按配置返回 MES 客户端实例。
+
+    MES_PROTOCOL:
+      - 'rest'（默认）：内部 REST 风格 HttpMesClient；
+      - 'soap'：延锋 YFPO WCF(SOAP) 客户端（20260801 校验 / 20260802 绑定 / 20260803 封箱）。
+    模拟设备开关优先；未配置合法 MES_BASE_URL 时回退模拟客户端。
+    """
     conf = getattr(settings, 'AUTOMATIC_ORDER', {})
     base_url = conf.get('MES_BASE_URL') or ''
     if conf.get('USE_SIMULATED_DEVICES', False) or not base_url.strip() or not base_url.startswith(('http://', 'https://')):
         return SimulatedMesClient()
     timeout = conf.get('MES_TIMEOUT', conf.get('DEVICE_TIMEOUT_SECONDS', 8))
+    protocol = (conf.get('MES_PROTOCOL') or 'rest').strip().lower()
+    if protocol == 'soap':
+        from .yfpo_soap_client import YfpoSoapMesClient
+        custom_headers = conf.get('MES_CUSTOM_HEADERS', {})
+        if isinstance(custom_headers, str):
+            try:
+                custom_headers = json.loads(custom_headers or '{}')
+            except (TypeError, ValueError):
+                raise ValueError('MES_CUSTOM_HEADERS 必须是合法的 JSON 对象') from None
+        if not isinstance(custom_headers, dict) or any(
+            not isinstance(k, str) or not isinstance(v, str) for k, v in custom_headers.items()
+        ):
+            raise ValueError('MES_CUSTOM_HEADERS 必须是字符串键值对对象')
+        return YfpoSoapMesClient(
+            base_url=base_url,
+            factory_code=conf.get('MES_FACTORY_CODE', ''),
+            prod_line_code=conf.get('MES_PROD_LINE_CODE', ''),
+            timeout=timeout,
+            soap_action='http://tempuri.org/IBaseService/InvokeMethod',
+            content_type=conf.get('MES_CONTENT_TYPE', 'text/xml; charset=utf-8'),
+            authorization=conf.get('MES_AUTHORIZATION', ''),
+            custom_headers=custom_headers,
+        )
     token = conf.get('MES_TOKEN') or None
     return HttpMesClient(base_url=base_url, timeout=timeout, token=token)
+
+
+def describe_mes_runtime():
+    """返回当前生效的 MES 运行配置（供前端只读展示，不含敏感 token）。"""
+    conf = getattr(settings, 'AUTOMATIC_ORDER', {})
+    base_url = conf.get('MES_BASE_URL') or ''
+    use_sim = bool(conf.get('USE_SIMULATED_DEVICES', False))
+    protocol = (conf.get('MES_PROTOCOL') or 'rest').strip().lower()
+    if use_sim:
+        mode = 'simulated'
+    elif not base_url.strip() or not base_url.startswith(('http://', 'https://')):
+        mode = 'simulated'  # 地址不合法时工厂同样回退模拟
+    else:
+        mode = protocol
+    return {
+        'mode': mode,
+        'protocol': protocol,
+        'base_url': base_url,
+        'factory_code': conf.get('MES_FACTORY_CODE', ''),
+        'prod_line_code': conf.get('MES_PROD_LINE_CODE', ''),
+        'soap_action': 'http://tempuri.org/IBaseService/InvokeMethod',
+        'content_type': conf.get('MES_CONTENT_TYPE', 'text/xml; charset=utf-8'),
+        'has_authorization': bool(conf.get('MES_AUTHORIZATION', '')),
+        'timeout': conf.get('MES_TIMEOUT', conf.get('DEVICE_TIMEOUT_SECONDS', 8)),
+        'use_simulated': use_sim,
+    }
 
 
 class MesService:

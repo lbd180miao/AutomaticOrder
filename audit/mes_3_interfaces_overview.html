@@ -1,0 +1,89 @@
+﻿<html style="margin:0;padding:0;">
+<div style="width:100%;box-sizing:border-box;font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#f2f5f7;padding:18px;border-radius:12px;color:#1f2937;">
+  <style>
+    .env{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:14px;}
+    .env .t{font-size:15px;font-weight:600;color:#ffffff;margin-bottom:8px;}
+    .env .row{display:flex;flex-wrap:wrap;gap:6px;}
+    .chip{display:inline-block;font-size:13px;padding:3px 9px;border-radius:999px;background:#1e293b;border:1px solid #334155;color:#cbd5e1;}
+    .chip b{color:#7dd3fc;font-weight:600;}
+    .cards{display:flex;flex-wrap:wrap;gap:12px;}
+    .card{flex:1 1 250px;min-width:250px;background:#ffffff;border-radius:10px;border:1px solid #dde3ea;overflow:hidden;display:flex;flex-direction:column;}
+    .hd{padding:10px 12px;color:#ffffff;}
+    .hd .code{display:inline-block;font-size:12px;font-weight:700;background:rgba(255,255,255,.22);border-radius:6px;padding:2px 7px;margin-bottom:5px;}
+    .hd .name{font-size:15px;font-weight:700;line-height:1.25;}
+    .hd .fn{font-size:12.5px;opacity:.92;margin-top:3px;}
+    .c1 .hd{background:#0d9488;} .c1{border-top:3px solid #0d9488;}
+    .c2 .hd{background:#2563eb;} .c2{border-top:3px solid #2563eb;}
+    .c3 .hd{background:#ea580c;} .c3{border-top:3px solid #ea580c;}
+    .body{padding:10px 12px;display:flex;flex-direction:column;gap:8px;flex:1;}
+    .sec{font-size:13px;}
+    .sec .lbl{font-size:12px;font-weight:700;color:#64748b;letter-spacing:.5px;margin-bottom:3px;}
+    .sec .txt{color:#334155;line-height:1.5;}
+    .sec .txt b{color:#0f172a;}
+    .kvs{display:flex;flex-wrap:wrap;gap:4px;}
+    .kv{font-size:12.5px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:2px 7px;color:#334155;}
+    .kv b{color:#0f172a;font-weight:600;}
+    .note{margin-top:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;font-size:13px;color:#78350f;line-height:1.6;}
+    .note b{color:#92400e;}
+  </style>
+
+  <div class="env">
+    <div class="t">统一 SOAP 端点：BaseService.svc / InvokeMethod（WCF）</div>
+    <div class="row">
+      <span class="chip"><b>Code</b> 业务码</span>
+      <span class="chip"><b>Data</b> JSON 字符串</span>
+      <span class="chip"><b>FactoryCode</b> 工厂代码</span>
+      <span class="chip"><b>ProdLineCode</b> 产线代码（自动带上）</span>
+      <span class="chip"><b>Id = TaskId</b> 同一 GUID</span>
+      <span class="chip"><b>RT=1</b> Sender=1</span>
+      <span class="chip"><b>Status=1</b> TelId=1</span>
+      <span class="chip"><b>TimeStamp/Timestamp</b> 日期</span>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card c1">
+      <div class="hd">
+        <span class="code">20260801</span>
+        <div class="name">CheckIMMRackReadyToPkg</div>
+        <div class="fn">get_rack_recipe() → GET_RACK_RECIPE</div>
+      </div>
+      <div class="body">
+        <div class="sec"><div class="lbl">功能</div><div class="txt">料架<b>待装箱校验</b>：查能否装箱、当前已装数、容量、是否已封箱</div></div>
+        <div class="sec"><div class="lbl">请求 Data 参数</div><div class="kvs"><span class="kv"><b>RackCode</b> 料架码</span></div></div>
+        <div class="sec"><div class="lbl">返回字段</div><div class="kvs"><span class="kv"><b>rack_status</b> 状态</span><span class="kv"><b>hu_qty</b> 已装</span><span class="kv"><b>hu_max_qty</b> 容量</span><span class="kv"><b>is_sealed</b> 已封箱</span><span class="kv"><b>message</b></span></div></div>
+      </div>
+    </div>
+
+    <div class="card c2">
+      <div class="hd">
+        <span class="code">20260802</span>
+        <div class="name">BindIMMBarcodeToRK</div>
+        <div class="fn">upload_product_barcode() → UPLOAD_PRODUCT_BARCODE</div>
+      </div>
+      <div class="body">
+        <div class="sec"><div class="lbl">功能</div><div class="txt">注塑条码<b>绑定料架</b>：单条码绑到料架，MES 回零件号与数量</div></div>
+        <div class="sec"><div class="lbl">请求 Data 参数</div><div class="kvs"><span class="kv"><b>RackCode</b> 料架码</span><span class="kv"><b>Barcode</b> 产品条码</span></div></div>
+        <div class="sec"><div class="lbl">返回字段</div><div class="kvs"><span class="kv"><b>part_no</b> 零件号</span><span class="kv"><b>hu_qty</b></span><span class="kv"><b>hu_max_qty</b></span><span class="kv"><b>is_full</b> 已装满</span><span class="kv"><b>message</b></span></div></div>
+      </div>
+    </div>
+
+    <div class="card c3">
+      <div class="hd">
+        <span class="code">20260803</span>
+        <div class="name">SealIMMRKAndGenBin</div>
+        <div class="fn">upload_boxing_result() → UPLOAD_BOXING_RESULT</div>
+      </div>
+      <div class="body">
+        <div class="sec"><div class="lbl">功能</div><div class="txt">装箱完成<b>封箱并生成区位号</b>：拿到产品存放位置</div></div>
+        <div class="sec"><div class="lbl">请求 Data 参数</div><div class="kvs"><span class="kv"><b>RackCode</b> 料架码</span></div></div>
+        <div class="sec"><div class="lbl">返回字段</div><div class="kvs"><span class="kv"><b>bin_code</b> 区位号</span><span class="kv"><b>is_not_task</b> 无任务</span><span class="kv"><b>task_guid</b></span><span class="kv"><b>message</b></span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>共同机制：</b>成功判定分两层 —— 外层 <b>Status=200</b>（WCF 包装层）＋ 内层 <b>data.Status=True</b>（业务成功）；业务拒绝返回 success=False 且 business=True。本契约<b>没有</b> UPLOAD_VISION_RESULT / UPLOAD_ALARM 对应接口，调用会明确报"不支持"。
+  </div>
+</div>
+</html>
