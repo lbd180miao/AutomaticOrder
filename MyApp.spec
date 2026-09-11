@@ -1,9 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_submodules
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('templates', 'templates'), ('static', 'static')]
+datas = [('templates', 'templates'), ('static', 'static'), ('staticfiles', 'staticfiles')]
 binaries = []
 hiddenimports = ['waitress']
+hiddenimports += collect_submodules('whitenoise')
 tmp_ret = collect_all('django')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
