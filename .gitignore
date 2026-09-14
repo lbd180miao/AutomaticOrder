@@ -1,9 +1,55 @@
+# ── Python ──────────────────────────────────────────────
 .venv/
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+.Python
+pip-wheel-metadata/
+
+# ── Django ──────────────────────────────────────────────
 db.sqlite3
 media/
-*.log
-.idea/
-.claude/
 staticfiles/
+local_settings.py
+
+# ── 日志 ────────────────────────────────────────────────
+*.log
+logs/
+
+# ── 编译 / 打包产物 ──────────────────────────────────────
+dist/
+build/
+*.zip
+*.tar.gz
+*.egg-info/
+*.egg
+
+# ── 可执行文件 & 动态库 ───────────────────────────────────
+*.exe
+*.dll
+*.so
+*.pyd
+*.pkg
+*.pyz
+
+# ── 大型文档 / 3D 资源 ───────────────────────────────────
+docs/pic/
+*.stl
+*.ply
+*.tif
+*.tiff
+*.ply
+
+# ── IDE / 编辑器 ─────────────────────────────────────────
+.idea/
+.vscode/
+.claude/
+.kiro/
+*.suo
+*.user
+
+# ── 系统文件 ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
