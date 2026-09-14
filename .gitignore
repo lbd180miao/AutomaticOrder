@@ -6,3 +6,4 @@ media/
 *.log
 .idea/
 .claude/
+staticfiles/
