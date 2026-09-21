@@ -181,6 +181,7 @@ RACK_3D_POSITIONING_MODE = os.environ.get('RACK_3D_POSITIONING_MODE', 'MOCK').up
 
 AUTOMATIC_ORDER = {
     'USE_SIMULATED_DEVICES': env_bool('USE_SIMULATED_DEVICES', False),
+    # MES 相关配置
     # 甲方 YFPO MES：部署时只需把 <MES主机> 改成现场 MES 服务器 IP/主机名
     #'MES_BASE_URL': 'http://<MES主机>:10133/BaseService.svc?wsdl',
     'MES_BASE_URL': 'http://10.252.6.51/MESService_LG/BaseService.svc?wsdl',
