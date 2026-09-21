@@ -35,6 +35,7 @@ class RackPositioningErrorCode:
     ROI_NOT_FOUND = 'E3001'
     ROI_INVALID_BOUNDS = 'E3002'
     ROI_INSUFFICIENT_POINTS = 'E3003'
+    ROI_NO_TARGET = 'E3004'
 
     # 定位算法错误 (4xxx)
     RANSAC_FAILED = 'E4001'
@@ -42,6 +43,8 @@ class RackPositioningErrorCode:
     EDGE_DETECTION_FAILED = 'E4003'
     PILLAR_DETECTION_FAILED = 'E4004'
     LOW_CONFIDENCE = 'E4005'
+    MULTIFRAME_UNSTABLE = 'E4006'
+    GEOMETRY_INCONSISTENT = 'E4007'
 
     # 补偿计算错误 (5xxx)
     OFFSET_OUT_OF_RANGE = 'E5001'
@@ -54,6 +57,8 @@ class RackPositioningErrorCode:
     # 配置/通用错误 (9xxx)
     INVALID_MODE = 'E9001'
     RECIPE_NOT_FOUND = 'E9002'
+    INVALID_PARAMETERS = 'E9003'
+    INTERNAL_ERROR = 'E9004'
 
 
 class RackPositioningException(Exception):

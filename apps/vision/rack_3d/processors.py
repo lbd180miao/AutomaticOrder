@@ -11,18 +11,11 @@ import logging
 from typing import Optional
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 from .exceptions import RackPositioningErrorCode as EC, CoordinateTransformError
 
 logger = logging.getLogger(__name__)
-
-try:
-    import open3d as o3d
-    OPEN3D_AVAILABLE = True
-except Exception:  # pragma: no cover - open3d 可选
-    OPEN3D_AVAILABLE = False
-    logger.warning("Open3D 不可用，滤波/下采样将回退到 NumPy 实现")
-
 
 class PointCloudProcessor:
     """点云处理器：坐标转换、ROI 裁剪、滤波、下采样。"""
@@ -45,11 +38,11 @@ class PointCloudProcessor:
         """
         T_flange_camera = np.asarray(T_flange_camera, dtype=np.float64)
         T_base_flange = np.asarray(T_base_flange, dtype=np.float64)
-        if T_flange_camera.shape != (4, 4):
+        if T_flange_camera.shape != (4, 4) or not np.isfinite(T_flange_camera).all():
             raise CoordinateTransformError(
                 EC.HAND_EYE_INVALID, f"T_flange_camera 形状必须为 (4,4)，实际 {T_flange_camera.shape}"
             )
-        if T_base_flange.shape != (4, 4):
+        if T_base_flange.shape != (4, 4) or not np.isfinite(T_base_flange).all():
             raise CoordinateTransformError(
                 EC.ROBOT_POSE_MISSING, f"T_base_flange 形状必须为 (4,4)，实际 {T_base_flange.shape}"
             )
@@ -107,39 +100,33 @@ class PointCloudProcessor:
         nb_neighbors: int = 20,
         std_ratio: float = 2.0,
     ) -> np.ndarray:
-        """统计离群点滤波（Open3D，缺失时回退简单标准差滤波）。"""
+        """kNN 统计离群滤波；统一实现避免 Open3D 是否安装改变结果。"""
         pts = np.asarray(pointcloud, dtype=np.float64)
-        if pts.shape[0] < nb_neighbors:
+        if pts.shape[0] < 3:
             return pts
-
-        if OPEN3D_AVAILABLE:
-            pcd = o3d.geometry.PointCloud()
-            pcd.points = o3d.utility.Vector3dVector(pts)
-            clean, _ = pcd.remove_statistical_outlier(nb_neighbors, std_ratio)
-            filtered = np.asarray(clean.points)
-        else:
-            centroid = pts.mean(axis=0)
-            dist = np.linalg.norm(pts - centroid, axis=1)
-            thr = dist.mean() + std_ratio * dist.std()
-            filtered = pts[dist <= thr]
+        k = min(nb_neighbors + 1, len(pts))
+        tree = cKDTree(pts)
+        # Bound temporary neighbour arrays for full-resolution captures.
+        dist = np.empty(len(pts))
+        for start in range(0, len(pts), 8192):
+            distances, _ = tree.query(pts[start:start + 8192], k=k, workers=1)
+            dist[start:start + 8192] = distances[:, 1:].mean(axis=1)
+        filtered = pts[dist <= dist.mean() + std_ratio * dist.std()]
 
         logger.info("离群点滤波: %d -> %d 点", pts.shape[0], filtered.shape[0])
         return filtered
 
     def downsample(self, pointcloud: np.ndarray, voxel_size: float = 5.0) -> np.ndarray:
-        """体素下采样（Open3D，缺失时回退 NumPy 体素栅格）。"""
+        """确定性体素质心下采样，避免选择首点引入偏差。"""
         pts = np.asarray(pointcloud, dtype=np.float64)
         if pts.shape[0] == 0 or voxel_size <= 0:
             return pts
 
-        if OPEN3D_AVAILABLE:
-            pcd = o3d.geometry.PointCloud()
-            pcd.points = o3d.utility.Vector3dVector(pts)
-            down = np.asarray(pcd.voxel_down_sample(voxel_size).points)
-        else:
-            keys = np.floor(pts / voxel_size).astype(np.int64)
-            _, idx = np.unique(keys, axis=0, return_index=True)
-            down = pts[np.sort(idx)]
+        keys = np.floor(pts / voxel_size).astype(np.int64)
+        _, inverse, counts = np.unique(keys, axis=0, return_inverse=True, return_counts=True)
+        sums = np.zeros((len(counts), 3))
+        np.add.at(sums, inverse, pts)
+        down = sums / counts[:, None]
 
         logger.info("体素下采样: %d -> %d 点", pts.shape[0], down.shape[0])
         return down

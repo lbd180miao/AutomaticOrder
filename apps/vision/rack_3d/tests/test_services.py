@@ -79,7 +79,10 @@ class RackPositioningServiceMockTest(TestCase):
         self._service().execute_positioning(self.recipe.id, LAYER, save=False)
         self.assertEqual(RackLocationResult.objects.count(), 0)
 
-    def test_missing_roi_raises(self):
+    def test_missing_roi_is_persisted_failure(self):
         RackLocationROI3DEnhanced.objects.filter(roi_type=ROI3DType.PILLAR).delete()
-        with self.assertRaises(ROIError):
-            self._service().execute_positioning(self.recipe.id, LAYER)
+        result = self._service().execute_positioning(self.recipe.id, LAYER)
+        self.assertFalse(result['is_success'])
+        self.assertEqual(result['error_code'], 'E3001')
+        self.assertNotIn('compensation_matrix', result)
+        self.assertEqual(RackLocationResult.objects.get(id=result['result_id']).error_code, 'E3001')

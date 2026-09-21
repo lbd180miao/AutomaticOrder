@@ -91,6 +91,10 @@ class RackLocationRecipe(TimeStampedModel):
     
     roi_config = models.JSONField(default=dict, blank=True)
     reference_feature_config = models.JSONField(default=dict, blank=True)
+    positioning_config = models.JSONField(
+        default=dict, blank=True,
+        help_text='rack_3d 定位参数；长度 mm，密度 points/mm³，角度 °。空对象使用默认值。',
+    )
     
     # 保留旧字段用于向后兼容
     hand_eye_config = models.JSONField(

@@ -339,61 +339,24 @@ class RealDepthCameraProvider(DepthCameraProvider):
         recipe_id: Optional[int] = None,
         layer_no: Optional[int] = None,
     ) -> Dict[str, Any]:
-        source = 'dm_camera'
-        fallback_reason = ''
-        data = None
-        
         try:
             service = self._acquire_service()
             frame = service.capture_frame_data(frame_type='POINTCLOUD', save_record=True)
-
             width = int(frame.get('width') or frame.get('image_width') or 0)
             height = int(frame.get('height') or frame.get('image_height') or 0)
             data = self._normalize_pointcloud(frame.get('data'), width, height)
             if data.size == 0:
-                raise PointCloudError(EC.POINTCLOUD_EMPTY, "相机返回空点云")
+                raise PointCloudError(EC.POINTCLOUD_EMPTY, '相机返回空点云')
         except PointCloudError:
             raise
-        except Exception as exc:  # noqa: BLE001 - 连接类异常时回退到模拟点云
-            source = 'sample_fallback'
-            fallback_reason = str(exc)
-            data = None
-        
-        # 如果相机采集失败，使用模拟点云
-        if data is None:
-            logger.warning("[REAL] 相机采集失败，回退到模拟点云: %s", fallback_reason or "未知原因")
-            # 【Bug 修复】使用固定种子 42，避免回退点云每次不同导致结果不一致。
-            # 原代码 np.random.default_rng() 无种子，每次回退点云都不同。
-            rng = np.random.default_rng(42)
-            xs = np.linspace(-100.0, 100.0, 60)
-            ys = np.linspace(-60.0, 60.0, 30)
-            gx, gy = np.meshgrid(xs, ys)
-            gz = np.full_like(gx, 200.0) + rng.normal(0, 1.0, gx.shape)
-            support = np.column_stack([gx.ravel(), gy.ravel(), gz.ravel()])
-            
-            cloud = support
-            n = cloud.shape[0]
-            width = 80
-            height = int(np.ceil(n / width))
-            data = np.zeros((height * width, 3), dtype=np.float32)
-            data[:n] = cloud
-            data = data.reshape(height, width, 3)
-        
-        result = {
-            'data': data,
-            'width': width,
-            'height': height,
-            # 【Bug 修复】使用固定种子本地 rng 而非全局 np.random.randint，
-            # 避免污染全局随机状态（data 在此处必不为 None）。
-            'frame_index': int(np.random.default_rng(42).integers(1000, 9999)),
-            'confidence': 0.95,
-            'raw_data_path': '',
-            'result_image_path': '',
-            'source': source,
+        except Exception as exc:
+            raise PointCloudError(EC.CAMERA_NOT_CONNECTED, f'真实点云采集失败: {exc}') from exc
+        return {
+            'data': data, 'width': width, 'height': height,
+            'frame_index': frame.get('frame_index'), 'confidence': frame.get('confidence', 0.0),
+            'raw_data_path': frame.get('raw_data_path') or frame.get('file_path') or '',
+            'result_image_path': frame.get('result_image_path') or '', 'source': 'dm_camera',
         }
-        if source != 'dm_camera' and fallback_reason:
-            result['fallback_reason'] = fallback_reason
-        return result
 
     @staticmethod
     def _normalize_pointcloud(raw, width: int, height: int) -> np.ndarray:

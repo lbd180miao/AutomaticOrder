@@ -33,6 +33,7 @@ from apps.vision.models import (
     ROI3DType,
 )
 from .services import RackPositioningService
+from .config import load_config
 from .exceptions import RackPositioningException, RackPositioningErrorCode as EC
 
 logger = logging.getLogger(__name__)
@@ -96,6 +97,7 @@ def recipes(request):
         'standard_z': float(r.standard_z),
         'confidence_threshold': float(r.confidence_threshold),
         'enabled': r.enabled,
+        'positioning_config': r.positioning_config,
     } for r in qs]
     return _ok(data)
 
@@ -155,15 +157,21 @@ def update_coordinates(request, recipe_id):
         for field in ('standard_x', 'standard_y', 'standard_z'):
             if field in payload:
                 setattr(recipe, field, Decimal(str(payload[field])))
-        recipe.save(update_fields=['standard_x', 'standard_y', 'standard_z', 'updated_at'])
+        if 'positioning_config' in payload:
+            load_config(payload['positioning_config'])
+            recipe.positioning_config = payload['positioning_config']
+        recipe.save(update_fields=['standard_x', 'standard_y', 'standard_z', 'positioning_config', 'updated_at'])
         return _ok({
             'id': recipe.id,
             'standard_x': float(recipe.standard_x),
             'standard_y': float(recipe.standard_y),
             'standard_z': float(recipe.standard_z),
+            'positioning_config': recipe.positioning_config,
         })
     except RackLocationRecipe.DoesNotExist:
         return _err(EC.RECIPE_NOT_FOUND, f'配方不存在: {recipe_id}', status=404)
+    except RackPositioningException as exc:
+        return _handle_exc(exc)
     except (InvalidOperation, ValueError, json.JSONDecodeError) as exc:
         return _err('E9003', str(exc))
 
@@ -195,6 +203,8 @@ def calculate(request):
         layer_no = int(payload.get('layer_no', 1))
         save = bool(payload.get('save', False))
         result = RackPositioningService().execute_positioning(recipe_id, layer_no, save=save)
+        if result.get('error_code') in (EC.RECIPE_NOT_FOUND, EC.ROI_NOT_FOUND):
+            return _err(result['error_code'], result['error_message'], result, status=404)
         return _ok(result)
     except (KeyError, ValueError, json.JSONDecodeError) as exc:
         return _err('E9003', f'参数错误: {exc}')
@@ -223,6 +233,9 @@ def results(request):
         'offset_x': float(r.offset_x), 'offset_y': float(r.offset_y), 'offset_z': float(r.offset_z),
         'confidence': float(r.confidence),
         'is_success': r.is_success,
+        'error_code': r.error_code,
+        'error_message': r.error_message,
+        'result_data': r.result_data,
         'created_at': r.created_at.isoformat(),
     } for r in qs[:limit]]
     return _ok(data)
