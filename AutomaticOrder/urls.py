@@ -14,6 +14,7 @@ urlpatterns = [
     path('alarms/', include('apps.alarms.urls')),
     path('traceability/', include('apps.traceability.urls')),
     path('dm-camera/', include('apps.dm_camera.urls')),
+    path('rvc-camera/', include('apps.rvc_camera.urls')),
 ]
 
 if settings.DEBUG:

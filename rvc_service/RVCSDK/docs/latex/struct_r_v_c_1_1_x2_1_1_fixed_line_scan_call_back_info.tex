@@ -1,0 +1,64 @@
+\hypertarget{struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info}{}\doxysection{R\+VC\+::X2\+::Fixed\+Line\+Scan\+Call\+Back\+Info Struct Reference}
+\label{struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info}\index{RVC::X2::FixedLineScanCallBackInfo@{RVC::X2::FixedLineScanCallBackInfo}}
+
+
+Callback information structure for fixed-\/line scan mode.  
+
+
+
+
+{\ttfamily \#include $<$R\+V\+C.\+h$>$}
+
+
+
+Collaboration diagram for R\+VC\+::X2\+::Fixed\+Line\+Scan\+Call\+Back\+Info\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=220pt]{struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info_a0ab97278c2b18b7124830aad4ce708f4}\label{struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info_a0ab97278c2b18b7124830aad4ce708f4}} 
+\mbox{\hyperlink{struct_r_v_c_1_1_point_map}{R\+V\+C\+::\+Point\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info_a0ab97278c2b18b7124830aad4ce708f4}{pointmap}}
+\begin{DoxyCompactList}\small\item\em Point cloud data for the current trigger event. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info_addb8f568b8d86bbd4042c5800c2efb27}{pointmap\+\_\+index}}
+\begin{DoxyCompactList}\small\item\em Sequential frame index (0, 1, 2, ...) \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info_af8e4f774d5c9b04247fade5eb04e64bc}{encoder\+\_\+index}}
+\begin{DoxyCompactList}\small\item\em Encoder/trigger event index (0, 1, 2, ...) \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Callback information structure for fixed-\/line scan mode. 
+
+Contains point cloud data and indices for each trigger event in fixed-\/line scan mode. Used only with Capture\+Mode\+\_\+\+Fixed\+Line\+Scan when trigger mode is set to Trigger\+Mode\+\_\+\+Hard\+Ware or Trigger\+Mode\+\_\+\+Fixed\+Rate. 
+
+\doxysubsection{Member Data Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info_af8e4f774d5c9b04247fade5eb04e64bc}\label{struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info_af8e4f774d5c9b04247fade5eb04e64bc}} 
+\index{RVC::X2::FixedLineScanCallBackInfo@{RVC::X2::FixedLineScanCallBackInfo}!encoder\_index@{encoder\_index}}
+\index{encoder\_index@{encoder\_index}!RVC::X2::FixedLineScanCallBackInfo@{RVC::X2::FixedLineScanCallBackInfo}}
+\doxysubsubsection{\texorpdfstring{encoder\_index}{encoder\_index}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+X2\+::\+Fixed\+Line\+Scan\+Call\+Back\+Info\+::encoder\+\_\+index}
+
+
+
+Encoder/trigger event index (0, 1, 2, ...) 
+
+May skip values when frames are dropped. Use for spatial positioning and stitching. \mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info_addb8f568b8d86bbd4042c5800c2efb27}\label{struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info_addb8f568b8d86bbd4042c5800c2efb27}} 
+\index{RVC::X2::FixedLineScanCallBackInfo@{RVC::X2::FixedLineScanCallBackInfo}!pointmap\_index@{pointmap\_index}}
+\index{pointmap\_index@{pointmap\_index}!RVC::X2::FixedLineScanCallBackInfo@{RVC::X2::FixedLineScanCallBackInfo}}
+\doxysubsubsection{\texorpdfstring{pointmap\_index}{pointmap\_index}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+X2\+::\+Fixed\+Line\+Scan\+Call\+Back\+Info\+::pointmap\+\_\+index}
+
+
+
+Sequential frame index (0, 1, 2, ...) 
+
+Increments continuously regardless of frame drops. Always increases by 1 between consecutive frames. 
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+R\+V\+C.\+h\end{DoxyCompactItemize}

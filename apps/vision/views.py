@@ -2892,8 +2892,8 @@ def api_vision_3d_capture(request):
 @require_POST
 def api_vision_3d_camera_test(request):
     try:
-        from apps.dm_camera.services import DMCameraService
-        status = DMCameraService().get_status()
+        from apps.rvc_camera.services import RvcCameraService
+        status = RvcCameraService().get_status()
         return _api3d_success({
             'online': bool(status.get('connected') or status.get('streaming')),
             'status': status,

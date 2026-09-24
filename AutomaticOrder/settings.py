@@ -73,7 +73,8 @@ INSTALLED_APPS = [
     'apps.mes',
     'apps.alarms',
     'apps.traceability',    # 追溯数据层，导航已隐藏
-    'apps.dm_camera',  # DM 3D深度相机
+    'apps.dm_camera',  # DM 3D深度相机（旧机型，保留历史记录与外键）
+    'apps.rvc_camera',  # RVC 3D相机（现役机型，独立相机服务进程）
 ]
 
 MIDDLEWARE = [
@@ -236,7 +237,35 @@ AUTOMATIC_ORDER = {
         'DEFAULT_FRAME_RATE': int(os.environ.get('DM_CAMERA_FRAME_RATE', 10)),
         'DEFAULT_EXPOSURE_TIME': int(os.environ.get('DM_CAMERA_EXPOSURE_TIME', 1000)),
     },
+    # RVC 3D 相机：PyRVC 运行在独立进程 rvc_service，
+    # Django 启动时自动拉起（AppConfig.ready），无需手动开第二个终端。
+    'RVC_CAMERA': {
+        'SERVICE_URL': os.environ.get('RVC_CAMERA_SERVICE_URL', 'http://127.0.0.1:8001'),
+        'SERVICE_PORT': int(os.environ.get('RVC_CAMERA_SERVICE_PORT', '8001')),
+        # Django 启动时是否自动拉起相机服务子进程（False=手动启动 python -m rvc_service）
+        'AUTO_START': os.environ.get('RVC_CAMERA_AUTO_START', 'true').lower() not in ('0', 'false', 'no', 'off'),
+        # 相机默认 IP（网线直连，网卡需同网段 169.254.x.x / 255.255.0.0）
+        # 实测相机 SN=M2GM620B293，真实 IP=169.254.35.81
+        'CAMERA_IP': os.environ.get('RVC_CAMERA_IP', '169.254.35.81'),
+        # 指定 SN 后优先按 SN 连接（多相机场景），留空则按 IP
+        'CAMERA_SN': os.environ.get('RVC_CAMERA_SN', ''),
+        # 双目机型相机通道：0/1
+        'CAMERA_ID': int(os.environ.get('RVC_CAMERA_ID', '0')),
+        # 采集默认参数（连接后自动下发到相机服务）
+        'DEFAULT_MODE': os.environ.get('RVC_CAMERA_MODE', 'Normal'),  # 标准模式（Robust已废弃）
+        # ✅ 修正：RVC-M2600-V2 有效曝光范围 [3, 100]（SDK v1.15 实测）
+        'EXPOSURE_2D': float(os.environ.get('RVC_CAMERA_EXPOSURE_2D', '10')),
+        'EXPOSURE_3D': float(os.environ.get('RVC_CAMERA_EXPOSURE_3D', '50')),
+        'PROJECTOR_BRIGHTNESS': int(os.environ.get('RVC_CAMERA_PROJECTOR_BRIGHTNESS', '240')),
+        # RVC 点云原生单位为毫米；若实测为米，将此值设为 1000
+        'POINTCLOUD_SCALE': float(os.environ.get('RVC_CAMERA_POINTCLOUD_SCALE', '1.0')),
+        'OUTPUT_DIR': Path(os.environ.get(
+            'RVC_CAMERA_OUTPUT_DIR', BASE_DIR / 'media' / 'rvc_captures')),
+        'TIMEOUT': int(os.environ.get('RVC_CAMERA_TIMEOUT', '10')),
+        'CAPTURE_TIMEOUT': int(os.environ.get('RVC_CAMERA_CAPTURE_TIMEOUT', '60')),
+    },
 }
+
 
 
 # ── 日志配置：确保 MES SOAP 诊断信息始终输出到控制台 ──────────────────

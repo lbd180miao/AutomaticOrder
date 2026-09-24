@@ -1,0 +1,187 @@
+\hypertarget{struct_r_v_c_1_1_depth_map}{}\doxysection{R\+VC\+::Depth\+Map Struct Reference}
+\label{struct_r_v_c_1_1_depth_map}\index{RVC::DepthMap@{RVC::DepthMap}}
+
+
+\mbox{\hyperlink{namespace_r_v_c}{R\+VC}} X \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}}.  
+
+
+
+
+{\ttfamily \#include $<$R\+V\+C.\+h$>$}
+
+
+
+Collaboration diagram for R\+VC\+::Depth\+Map\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=170pt]{struct_r_v_c_1_1_depth_map__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_depth_map_a3f1782efe1f3cf9197e83f6f0e2aa6bf}{Is\+Valid}} ()
+\begin{DoxyCompactList}\small\item\em Check \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} obejct is Valid or not. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} \mbox{\hyperlink{struct_r_v_c_1_1_depth_map_abfd6341267f6f193e4b188289cad3196}{Get\+Size}} ()
+\begin{DoxyCompactList}\small\item\em Get the \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} object. \end{DoxyCompactList}\item 
+double $\ast$ \mbox{\hyperlink{struct_r_v_c_1_1_depth_map_a9c70aa27b05f0c9f7590997571ebe19e}{Get\+Data\+Ptr}} ()
+\begin{DoxyCompactList}\small\item\em Get the Data Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}}. \end{DoxyCompactList}\item 
+const double $\ast$ \mbox{\hyperlink{struct_r_v_c_1_1_depth_map_a39bf6a5efde257faeba1999e83d76797}{Get\+Data\+Const\+Ptr}} ()
+\begin{DoxyCompactList}\small\item\em Get the Data Const Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}}. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_depth_map_ae3ed435a8474c08f52c24ef6a3ceb427}{Save\+Depth\+Map}} (const char $\ast$address, bool is\+\_\+m=true)
+\begin{DoxyCompactList}\small\item\em Save \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} to file. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+static \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_depth_map_a79edbf28a689dca2b540197caa167581}{Create}} (const \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} sz, double $\ast$data=nullptr, bool own\+\_\+data=true)
+\begin{DoxyCompactList}\small\item\em Create \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} object. \end{DoxyCompactList}\item 
+static void \mbox{\hyperlink{struct_r_v_c_1_1_depth_map_aa245f1e8c0240b2c8c4eb16ccf7ac98c}{Destroy}} (\mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} depthmap, bool no\+\_\+reuse=true)
+\begin{DoxyCompactList}\small\item\em Destroy \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} object. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} \mbox{\hyperlink{struct_r_v_c_1_1_depth_map_a98f24636aad0f1b2b57e4403bcbc658e}{m\+\_\+handle}}
+\begin{DoxyCompactList}\small\item\em \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}}. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+\mbox{\hyperlink{namespace_r_v_c}{R\+VC}} X \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}}. 
+
+
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_depth_map_a79edbf28a689dca2b540197caa167581}\label{struct_r_v_c_1_1_depth_map_a79edbf28a689dca2b540197caa167581}} 
+\index{RVC::DepthMap@{RVC::DepthMap}!Create@{Create}}
+\index{Create@{Create}!RVC::DepthMap@{RVC::DepthMap}}
+\doxysubsubsection{\texorpdfstring{Create()}{Create()}}
+{\footnotesize\ttfamily static \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} R\+V\+C\+::\+Depth\+Map\+::\+Create (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}}}]{sz,  }\item[{double $\ast$}]{data = {\ttfamily nullptr},  }\item[{bool}]{own\+\_\+data = {\ttfamily true} }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Create \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} object. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em sz} & depthmap size \\
+\hline
+{\em data} & depthmap data \\
+\hline
+{\em own\+\_\+data} & depthmap data \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} object with given parameters 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_depth_map_aa245f1e8c0240b2c8c4eb16ccf7ac98c}\label{struct_r_v_c_1_1_depth_map_aa245f1e8c0240b2c8c4eb16ccf7ac98c}} 
+\index{RVC::DepthMap@{RVC::DepthMap}!Destroy@{Destroy}}
+\index{Destroy@{Destroy}!RVC::DepthMap@{RVC::DepthMap}}
+\doxysubsubsection{\texorpdfstring{Destroy()}{Destroy()}}
+{\footnotesize\ttfamily static void R\+V\+C\+::\+Depth\+Map\+::\+Destroy (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}}}]{depthmap,  }\item[{bool}]{no\+\_\+reuse = {\ttfamily true} }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Destroy \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} object. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em depthmap} & \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} object will be destroyed \\
+\hline
+{\em no\+\_\+reuse} & True for reuse current space of \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{struct_r_v_c_1_1_depth_map_a39bf6a5efde257faeba1999e83d76797}\label{struct_r_v_c_1_1_depth_map_a39bf6a5efde257faeba1999e83d76797}} 
+\index{RVC::DepthMap@{RVC::DepthMap}!GetDataConstPtr@{GetDataConstPtr}}
+\index{GetDataConstPtr@{GetDataConstPtr}!RVC::DepthMap@{RVC::DepthMap}}
+\doxysubsubsection{\texorpdfstring{GetDataConstPtr()}{GetDataConstPtr()}}
+{\footnotesize\ttfamily const double$\ast$ R\+V\+C\+::\+Depth\+Map\+::\+Get\+Data\+Const\+Ptr (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the Data Const Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}}. 
+
+\begin{DoxyReturn}{Returns}
+const double$\ast$ Data Ptr 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_depth_map_a9c70aa27b05f0c9f7590997571ebe19e}\label{struct_r_v_c_1_1_depth_map_a9c70aa27b05f0c9f7590997571ebe19e}} 
+\index{RVC::DepthMap@{RVC::DepthMap}!GetDataPtr@{GetDataPtr}}
+\index{GetDataPtr@{GetDataPtr}!RVC::DepthMap@{RVC::DepthMap}}
+\doxysubsubsection{\texorpdfstring{GetDataPtr()}{GetDataPtr()}}
+{\footnotesize\ttfamily double$\ast$ R\+V\+C\+::\+Depth\+Map\+::\+Get\+Data\+Ptr (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the Data Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}}. 
+
+\begin{DoxyReturn}{Returns}
+double$\ast$ Data Ptr 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_depth_map_abfd6341267f6f193e4b188289cad3196}\label{struct_r_v_c_1_1_depth_map_abfd6341267f6f193e4b188289cad3196}} 
+\index{RVC::DepthMap@{RVC::DepthMap}!GetSize@{GetSize}}
+\index{GetSize@{GetSize}!RVC::DepthMap@{RVC::DepthMap}}
+\doxysubsubsection{\texorpdfstring{GetSize()}{GetSize()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} R\+V\+C\+::\+Depth\+Map\+::\+Get\+Size (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} object. 
+
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_depth_map_a3f1782efe1f3cf9197e83f6f0e2aa6bf}\label{struct_r_v_c_1_1_depth_map_a3f1782efe1f3cf9197e83f6f0e2aa6bf}} 
+\index{RVC::DepthMap@{RVC::DepthMap}!IsValid@{IsValid}}
+\index{IsValid@{IsValid}!RVC::DepthMap@{RVC::DepthMap}}
+\doxysubsubsection{\texorpdfstring{IsValid()}{IsValid()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Depth\+Map\+::\+Is\+Valid (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Check \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} obejct is Valid or not. 
+
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_depth_map_ae3ed435a8474c08f52c24ef6a3ceb427}\label{struct_r_v_c_1_1_depth_map_ae3ed435a8474c08f52c24ef6a3ceb427}} 
+\index{RVC::DepthMap@{RVC::DepthMap}!SaveDepthMap@{SaveDepthMap}}
+\index{SaveDepthMap@{SaveDepthMap}!RVC::DepthMap@{RVC::DepthMap}}
+\doxysubsubsection{\texorpdfstring{SaveDepthMap()}{SaveDepthMap()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Depth\+Map\+::\+Save\+Depth\+Map (\begin{DoxyParamCaption}\item[{const char $\ast$}]{address,  }\item[{bool}]{is\+\_\+m = {\ttfamily true} }\end{DoxyParamCaption})}
+
+
+
+Save \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} to file. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em address} & save address \\
+\hline
+{\em is\+\_\+m} & save depthmap with m/mm\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+
+
+\doxysubsection{Member Data Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_depth_map_a98f24636aad0f1b2b57e4403bcbc658e}\label{struct_r_v_c_1_1_depth_map_a98f24636aad0f1b2b57e4403bcbc658e}} 
+\index{RVC::DepthMap@{RVC::DepthMap}!m\_handle@{m\_handle}}
+\index{m\_handle@{m\_handle}!RVC::DepthMap@{RVC::DepthMap}}
+\doxysubsubsection{\texorpdfstring{m\_handle}{m\_handle}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} R\+V\+C\+::\+Depth\+Map\+::m\+\_\+handle}
+
+
+
+\mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}}. 
+
+
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+R\+V\+C.\+h\end{DoxyCompactItemize}

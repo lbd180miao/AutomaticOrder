@@ -1,0 +1,159 @@
+\hypertarget{index_MinProgress}{}\doxysection{Start your first program}\label{index_MinProgress}
+This is a simple example to help you started with \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} 3D camera. 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{// Include files to use the RVC API.}}
+\DoxyCodeLine{\textcolor{preprocessor}{\#include <RVC/RVC.h>}}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{// Namespace for using RVC object.}}
+\DoxyCodeLine{\textcolor{keyword}{using namespace }\mbox{\hyperlink{namespace_r_v_c}{RVC}};}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{keywordtype}{int} main(\textcolor{keywordtype}{int} argc, \textcolor{keywordtype}{char} *argv[]) \{}
+\DoxyCodeLine{    \textcolor{comment}{// Before using any RVC methods, the RVC system must be initialized.}}
+\DoxyCodeLine{    \mbox{\hyperlink{namespace_r_v_c_a323593973d7de52708fae81cc20db39c}{RVC::SystemInit}}();}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// The parameter d\_num is the maximum number of avaliable Device which user desire to list.}}
+\DoxyCodeLine{    \textcolor{keyword}{const} \textcolor{keywordtype}{int} d\_num = 10;}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// Create Device array.}}
+\DoxyCodeLine{    \mbox{\hyperlink{struct_r_v_c_1_1_device}{RVC::Device}} devices[10];}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// The parameter actual\_size can be used to record the actual avaliable Devices number.}}
+\DoxyCodeLine{    \textcolor{keywordtype}{size\_t} actual\_size = 0;}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// List avaliable GigE Devices.}}
+\DoxyCodeLine{    \mbox{\hyperlink{namespace_r_v_c_a3ee199b906497d6b03fbb3139e74cb71}{SystemListDevices}}(devices, d\_num, \&actual\_size, RVC::SystemListDeviceType::GigE);}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// Check the number of Devices actually searched. If no device is found, terminate the program.}}
+\DoxyCodeLine{    \textcolor{keywordflow}{if} (actual\_size == 0) \{}
+\DoxyCodeLine{        \textcolor{keywordflow}{return} -\/1;}
+\DoxyCodeLine{    \}}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// Create X1 object which choose the first Device and the right camera.}}
+\DoxyCodeLine{    \mbox{\hyperlink{struct_r_v_c_1_1_x1}{RVC::X1}} x1 = \mbox{\hyperlink{struct_r_v_c_1_1_x1_a65084b6120a5dde2cfdda7f63a509339}{RVC::X1::Create}}(devices[0], RVC::CameraID\_Right);}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// Open X1.}}
+\DoxyCodeLine{    x1.\mbox{\hyperlink{struct_r_v_c_1_1_x1_a4bbe435b7e01b138938eec1fdadf4fea}{Open}}();}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// If X1 is not open, Destroy X1 and shutdown the system.}}
+\DoxyCodeLine{    \textcolor{keywordflow}{if} (!x1.\mbox{\hyperlink{struct_r_v_c_1_1_x1_aaa71348d88a10f38cfb547f1a22ab143}{IsOpen}}()) \{}
+\DoxyCodeLine{        \mbox{\hyperlink{struct_r_v_c_1_1_x1_a92e6808e2b266f827c1079b677589adb}{RVC::X1::Destroy}}(x1);}
+\DoxyCodeLine{        \mbox{\hyperlink{namespace_r_v_c_a7c616a5d26f42991a8fbe38176a46c69}{RVC::SystemShutdown}}();}
+\DoxyCodeLine{        \textcolor{keywordflow}{return} 1;}
+\DoxyCodeLine{    \}}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// Capture with default capture setting to get 3D point map and 2D image.}}
+\DoxyCodeLine{    \textcolor{keywordtype}{bool} cap\_state = x1.\mbox{\hyperlink{struct_r_v_c_1_1_x1_a39c4c419f586e4996557cf34f63be89d}{Capture}}();}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// If Capture success, get the data.}}
+\DoxyCodeLine{    \textcolor{keywordflow}{if} (cap\_state) \{}
+\DoxyCodeLine{        \textcolor{comment}{// Get 3D point map.}}
+\DoxyCodeLine{        \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{RVC::PointMap}} pm = x1.\mbox{\hyperlink{struct_r_v_c_1_1_x1_a7353fec452ad86f65399e7175ba14a24}{GetPointMap}}();}
+\DoxyCodeLine{}
+\DoxyCodeLine{        \textcolor{comment}{// Get 2D image.}}
+\DoxyCodeLine{        \mbox{\hyperlink{struct_r_v_c_1_1_image}{RVC::Image}} img = x1.\mbox{\hyperlink{struct_r_v_c_1_1_x1_a74ad979ea18b50808de1fa09621a900f}{GetImage}}();}
+\DoxyCodeLine{    \}}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// Close X1.}}
+\DoxyCodeLine{    x1.\mbox{\hyperlink{struct_r_v_c_1_1_x1_a82aa695ab6115b84be69033dc424cb10}{Close}}();}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// Destroy X1.}}
+\DoxyCodeLine{    \mbox{\hyperlink{struct_r_v_c_1_1_x1_a92e6808e2b266f827c1079b677589adb}{RVC::X1::Destroy}}(x1);}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// Releases all RVC resources.}}
+\DoxyCodeLine{    \mbox{\hyperlink{namespace_r_v_c_a7c616a5d26f42991a8fbe38176a46c69}{RVC::SystemShutdown}}();}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{keywordflow}{return} 0;}
+\DoxyCodeLine{\}}
+\end{DoxyCode}
+ It contains five part, which are described as bellow.\hypertarget{index_SystemInitialize}{}\doxysection{System initialize}\label{index_SystemInitialize}
+Initialize the \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} system 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{// Before using any RVC methods, the RVC system must be initialized.}}
+\DoxyCodeLine{\mbox{\hyperlink{namespace_r_v_c_a323593973d7de52708fae81cc20db39c}{RVC::SystemInit}}();}
+\end{DoxyCode}
+\hypertarget{index_ListDives}{}\doxysection{List devices}\label{index_ListDives}
+Find device of given \mbox{\hyperlink{struct_r_v_c_1_1_system_list_device_type}{System\+List\+Device\+Type}} 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{// The parameter d\_num is the maximum number of avaliable Device which user desire to list.}}
+\DoxyCodeLine{\textcolor{keyword}{const} \textcolor{keywordtype}{int} d\_num = 10;}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{// Create Device array.}}
+\DoxyCodeLine{\mbox{\hyperlink{struct_r_v_c_1_1_device}{RVC::Device}} devices[10];}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{// The parameter actual\_size can be used to record the actual avaliable Devices number.}}
+\DoxyCodeLine{\textcolor{keywordtype}{size\_t} actual\_size = 0;}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{// List avaliable GigE Devices.}}
+\DoxyCodeLine{\mbox{\hyperlink{namespace_r_v_c_a3ee199b906497d6b03fbb3139e74cb71}{SystemListDevices}}(devices, d\_num, \&actual\_size, RVC::SystemListDeviceType::GigE);}
+\end{DoxyCode}
+
+
+Check the number of cameras actually searched. If no device is found, terminate the program. 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{// Check the number of Devices actually searched. If no device is found, terminate the program.}}
+\DoxyCodeLine{\textcolor{keywordflow}{if} (actual\_size == 0) \{}
+\DoxyCodeLine{    \textcolor{keywordflow}{return} -\/1;}
+\DoxyCodeLine{\}}
+\end{DoxyCode}
+\hypertarget{index_Construction}{}\doxysection{Create X1 object}\label{index_Construction}
+Select one device from the avaliable devices and select Camera\+I\+D\+\_\+\+Left or Camera\+I\+D\+\_\+\+Right camera to create \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} object. 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{// Create X1 object which choose the first Device and the right camera.}}
+\DoxyCodeLine{\mbox{\hyperlink{struct_r_v_c_1_1_x1}{RVC::X1}} x1 = \mbox{\hyperlink{struct_r_v_c_1_1_x1_a65084b6120a5dde2cfdda7f63a509339}{RVC::X1::Create}}(devices[0], RVC::CameraID\_Right);}
+\end{DoxyCode}
+
+
+Open \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} and check whether it has been opened. 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{// Open X1.}}
+\DoxyCodeLine{x1.\mbox{\hyperlink{struct_r_v_c_1_1_x1_a4bbe435b7e01b138938eec1fdadf4fea}{Open}}();}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{// If X1 is not open, Destroy X1 and shutdown the system.}}
+\DoxyCodeLine{\textcolor{keywordflow}{if} (!x1.\mbox{\hyperlink{struct_r_v_c_1_1_x1_aaa71348d88a10f38cfb547f1a22ab143}{IsOpen}}()) \{}
+\DoxyCodeLine{    \mbox{\hyperlink{struct_r_v_c_1_1_x1_a92e6808e2b266f827c1079b677589adb}{RVC::X1::Destroy}}(x1);}
+\DoxyCodeLine{    \mbox{\hyperlink{namespace_r_v_c_a7c616a5d26f42991a8fbe38176a46c69}{RVC::SystemShutdown}}();}
+\DoxyCodeLine{    \textcolor{keywordflow}{return} 1;}
+\DoxyCodeLine{\}}
+\end{DoxyCode}
+\hypertarget{index_Capture}{}\doxysection{X1 Capture}\label{index_Capture}
+Capture with default setting to get 3D point map and 2D image
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{// Capture with default capture setting to get 3D point map and 2D image.}}
+\DoxyCodeLine{\textcolor{keywordtype}{bool} cap\_state = x1.\mbox{\hyperlink{struct_r_v_c_1_1_x1_a39c4c419f586e4996557cf34f63be89d}{Capture}}();}
+\end{DoxyCode}
+
+
+Get 3D point map and 2D image data 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{// If Capture success, get the data.}}
+\DoxyCodeLine{\textcolor{keywordflow}{if} (cap\_state) \{}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// Get 3D point map.}}
+\DoxyCodeLine{    \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{RVC::PointMap}} pm = x1.\mbox{\hyperlink{struct_r_v_c_1_1_x1_a7353fec452ad86f65399e7175ba14a24}{GetPointMap}}();}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{// Get 2D image.}}
+\DoxyCodeLine{    \mbox{\hyperlink{struct_r_v_c_1_1_image}{RVC::Image}} img = x1.\mbox{\hyperlink{struct_r_v_c_1_1_x1_a74ad979ea18b50808de1fa09621a900f}{GetImage}}();}
+\DoxyCodeLine{\}}
+\end{DoxyCode}
+\hypertarget{index_Destroy}{}\doxysection{Destroy X1 object}\label{index_Destroy}
+Close \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} and destroy this object.
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{// Close X1.}}
+\DoxyCodeLine{x1.\mbox{\hyperlink{struct_r_v_c_1_1_x1_a82aa695ab6115b84be69033dc424cb10}{Close}}();}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{// Destroy X1.}}
+\DoxyCodeLine{\mbox{\hyperlink{struct_r_v_c_1_1_x1_a92e6808e2b266f827c1079b677589adb}{RVC::X1::Destroy}}(x1);}
+\end{DoxyCode}
+\hypertarget{index_Shutdown}{}\doxysection{Shutdown R\+V\+C system}\label{index_Shutdown}
+Shutdown the \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} system
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{// Releases all RVC resources.}}
+\DoxyCodeLine{\mbox{\hyperlink{namespace_r_v_c_a7c616a5d26f42991a8fbe38176a46c69}{RVC::SystemShutdown}}();}
+\end{DoxyCode}
+ 

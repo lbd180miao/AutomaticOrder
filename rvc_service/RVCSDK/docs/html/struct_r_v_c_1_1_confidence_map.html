@@ -1,0 +1,434 @@
+<!-- HTML header for doxygen 1.8.6-->
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=9" />
+  <meta name="generator" content="Doxygen 1.8.18" />
+  <title>RVC: RVC::ConfidenceMap Struct Reference</title>
+  <link href="tabs.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="jquery.js"></script>
+  <script type="text/javascript" src="dynsections.js"></script>
+  <link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+  <link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+  <link href="doxygen.css" rel="stylesheet" type="text/css" />
+  <link
+    href="https://fonts.googleapis.com/css?family=Roboto:300,400,400italic,500,500italic,700,700italic|Roboto+Mono:400,700"
+    rel="stylesheet">
+  <link href="style.css" rel="stylesheet" type="text/css"/>
+  <script>
+    /**
+     * Check if the browser rendering this page is being run on an Android device.
+     * It checks if the string 'android' is found in the browser's `userAgent`.
+     * @return {boolean} This returns `true` if the browser's `userAgent` contains
+     * the string 'android' (indicating that the browser is on an Android device).
+     * Otherwise, it returns `false`.
+     */
+    function isAndroidDevice() {
+      if (navigator && navigator.userAgent) {
+        return navigator.userAgent.toLowerCase().indexOf('android') != -1;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Check if an HTML `class` attribute is in the browser-specific format.
+     * @param {string} An HTML `class` attribute in the format 'browser-{device}'.
+     * @return {boolean} Returns `true` if `browserClass` was in the valid format,
+     * prefixed with 'browser-'. Otherwise, it returns false.
+     */
+    function isBrowserSpecificClassName(browserClass) {
+      if (browserClass && browserClass.substring(0, 8) == 'browser-' &&
+        browserClass.length > 8) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Get all the HTML Elements with browser-specific `class` attributes.
+     * @return {array} Returns an array of all the HTML Elements with a `class`
+     * attribute that is prefixed with `browser-`.
+     */
+    function getAllBrowserSpecificElements() {
+      if (document) {
+        var htmlElements = document.getElementsByTagName("*");
+        var browserSpecificElements = [];
+        for (var i = 0; i < htmlElements.length; i++) {
+          if (isBrowserSpecificClassName(htmlElements[i].className)) {
+            browserSpecificElements.push(htmlElements[i]);
+          }
+        }
+        return browserSpecificElements;
+      } else {
+        return null;
+      }
+    }
+    /**
+     * Given a browser-specific HTML `class` attribute, extract the device name.
+     * @param {string} browserClass The string name of an HTML `class` attribute,
+     * in the format `browser-{device}`.
+     * @return {string} Returns a string containing only the device portion of
+     * the class name. If the input was invalid, then it returns `null`.
+     */
+    function extractDeviceFromBrowserClass(browserClass) {
+      if (isBrowserSpecificClassName(browserClass)) {
+        return browserClass.substring(8);
+      }
+      else {
+        return null;
+      }
+    }
+    /**
+     * Hide device specific elements that do not apply to the current device.
+     */
+    function handleDeviceSpecificLoading() {
+      var browserSpecificElements = getAllBrowserSpecificElements();
+      for (var i = 0; i < browserSpecificElements.length; i++) {
+        var device = extractDeviceFromBrowserClass(browserSpecificElements[i].className);
+        if (device && !isAndroidDevice() && device == 'android') {
+          browserSpecificElements[i].innerHTML = '';
+        } else if (device && isAndroidDevice() && device == 'desktop') {
+          browserSpecificElements[i].innerHTML = '';
+        }
+      }
+    }
+    $(document).ready(handleDeviceSpecificLoading);
+  </script>
+</head>
+<body>
+  <div id="top">
+    <!-- do not remove this div, it is closed by doxygen! -->
+    <div id="titlearea">
+      <table cellspacing="0" cellpadding="0">
+        <tbody>
+          <tr style="height: 56px;">
+            <!-- <td id="projectlogo">
+    <img alt="Logo" width=100px src="documentation.png"/>
+  </td> -->
+            <!-- END PROJECT_LOGO -->
+            <td id="commonprojectlogo">
+              <img alt="Logo" width=150px src="documentation.png" />
+            </td>
+            <td style="padding-left: 0.5em;">
+              <div id="projectname">RVC
+                &#160;<span id="projectnumber">1.15.1</span>
+              </div>
+              <div style="font-size:12px;">
+                a product by
+                <a href="https://www.rvbust.com">RVBUST</a>.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- end header part --><!-- Generated by Doxygen 1.8.18 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+var searchBox = new SearchBox("searchBox", "search",false,'Search');
+/* @license-end */
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(function() {
+  initMenu('',true,false,'search.php','Search');
+  $(document).ready(function() { init_search(); });
+});
+/* @license-end */</script>
+<div id="main-nav"></div>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(document).ready(function(){initNavTree('struct_r_v_c_1_1_confidence_map.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<iframe src="javascript:void(0)" frameborder="0" 
+        name="MSearchResults" id="MSearchResults">
+</iframe>
+</div>
+
+<div class="header">
+  <div class="summary">
+<a href="#pub-methods">Public Member Functions</a> &#124;
+<a href="#pub-static-methods">Static Public Member Functions</a> &#124;
+<a href="#pub-attribs">Public Attributes</a> &#124;
+<a href="struct_r_v_c_1_1_confidence_map-members.html">List of all members</a>  </div>
+  <div class="headertitle">
+<div class="title">RVC::ConfidenceMap Struct Reference</div>  </div>
+</div><!--header-->
+<div class="contents">
+<div class="dynheader">
+Collaboration diagram for RVC::ConfidenceMap:</div>
+<div class="dyncontent">
+<div class="center"><img src="struct_r_v_c_1_1_confidence_map__coll__graph.png" border="0" usemap="#_r_v_c_1_1_confidence_map_coll__map" alt="Collaboration graph"/></div>
+<map name="_r_v_c_1_1_confidence_map_coll__map" id="_r_v_c_1_1_confidence_map_coll__map">
+<area shape="rect" title=" " alt="" coords="5,95,152,121"/>
+<area shape="rect" href="struct_r_v_c_1_1_handle.html" title="RVC Handle." alt="" coords="30,5,127,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
+<table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
+Public Member Functions</h2></td></tr>
+<tr class="memitem:ac3b245d1b31d3fc5a3c23e82d74e72e0"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_confidence_map.html#ac3b245d1b31d3fc5a3c23e82d74e72e0">IsValid</a> ()</td></tr>
+<tr class="memdesc:ac3b245d1b31d3fc5a3c23e82d74e72e0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check obejct is Valid or not.  <a href="struct_r_v_c_1_1_confidence_map.html#ac3b245d1b31d3fc5a3c23e82d74e72e0">More...</a><br /></td></tr>
+<tr class="separator:ac3b245d1b31d3fc5a3c23e82d74e72e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abd573ab9a9f12a4d20bc10205b9920a5"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_size.html">Size</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_confidence_map.html#abd573ab9a9f12a4d20bc10205b9920a5">GetSize</a> ()</td></tr>
+<tr class="memdesc:abd573ab9a9f12a4d20bc10205b9920a5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the <a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> object.  <a href="struct_r_v_c_1_1_confidence_map.html#abd573ab9a9f12a4d20bc10205b9920a5">More...</a><br /></td></tr>
+<tr class="separator:abd573ab9a9f12a4d20bc10205b9920a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a931e9e6e6b8a02c7e5a128e0eb5b97eb"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_confidence_map.html#a931e9e6e6b8a02c7e5a128e0eb5b97eb">GetDataPtr</a> ()</td></tr>
+<tr class="memdesc:a931e9e6e6b8a02c7e5a128e0eb5b97eb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Data Ptr object.  <a href="struct_r_v_c_1_1_confidence_map.html#a931e9e6e6b8a02c7e5a128e0eb5b97eb">More...</a><br /></td></tr>
+<tr class="separator:a931e9e6e6b8a02c7e5a128e0eb5b97eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae10ba788e78307db92a4fd58712ea78d"><td class="memItemLeft" align="right" valign="top">const double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_confidence_map.html#ae10ba788e78307db92a4fd58712ea78d">GetDataConstPtr</a> ()</td></tr>
+<tr class="memdesc:ae10ba788e78307db92a4fd58712ea78d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Data Const Ptr object.  <a href="struct_r_v_c_1_1_confidence_map.html#ae10ba788e78307db92a4fd58712ea78d">More...</a><br /></td></tr>
+<tr class="separator:ae10ba788e78307db92a4fd58712ea78d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-static-methods"></a>
+Static Public Member Functions</h2></td></tr>
+<tr class="memitem:aaf953cca0e5a002c50cc674d464768fc"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="struct_r_v_c_1_1_confidence_map.html">ConfidenceMap</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_confidence_map.html#aaf953cca0e5a002c50cc674d464768fc">Create</a> (const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a> sz, double *data=nullptr, bool own_data=true)</td></tr>
+<tr class="memdesc:aaf953cca0e5a002c50cc674d464768fc"><td class="mdescLeft">&#160;</td><td class="mdescRight">create confidence map object, if object is no used, call Destroy to destroy it  <a href="struct_r_v_c_1_1_confidence_map.html#aaf953cca0e5a002c50cc674d464768fc">More...</a><br /></td></tr>
+<tr class="separator:aaf953cca0e5a002c50cc674d464768fc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aea93c52d55cf97714e22c4a1e8a49ecf"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_confidence_map.html#aea93c52d55cf97714e22c4a1e8a49ecf">Destroy</a> (<a class="el" href="struct_r_v_c_1_1_confidence_map.html">ConfidenceMap</a> confidencemap, bool no_reuse=true)</td></tr>
+<tr class="memdesc:aea93c52d55cf97714e22c4a1e8a49ecf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Destroy confidence map object.  <a href="struct_r_v_c_1_1_confidence_map.html#aea93c52d55cf97714e22c4a1e8a49ecf">More...</a><br /></td></tr>
+<tr class="separator:aea93c52d55cf97714e22c4a1e8a49ecf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
+Public Attributes</h2></td></tr>
+<tr class="memitem:a14263668babab783f2932835d8e2eb46"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_handle.html">Handle</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_confidence_map.html#a14263668babab783f2932835d8e2eb46">m_handle</a></td></tr>
+<tr class="memdesc:a14263668babab783f2932835d8e2eb46"><td class="mdescLeft">&#160;</td><td class="mdescRight">confidence map handle  <a href="struct_r_v_c_1_1_confidence_map.html#a14263668babab783f2932835d8e2eb46">More...</a><br /></td></tr>
+<tr class="separator:a14263668babab783f2932835d8e2eb46"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table>
+<h2 class="groupheader">Member Function Documentation</h2>
+<a id="aaf953cca0e5a002c50cc674d464768fc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aaf953cca0e5a002c50cc674d464768fc">&#9670;&nbsp;</a></span>Create()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="struct_r_v_c_1_1_confidence_map.html">ConfidenceMap</a> RVC::ConfidenceMap::Create </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a>&#160;</td>
+          <td class="paramname"><em>sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double *&#160;</td>
+          <td class="paramname"><em>data</em> = <code>nullptr</code>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>own_data</em> = <code>true</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>create confidence map object, if object is no used, call Destroy to destroy it </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">sz</td><td>confidence map size </td></tr>
+    <tr><td class="paramname">data</td><td>confidence map data </td></tr>
+    <tr><td class="paramname">own_data</td><td>own data flag </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_confidence_map.html">ConfidenceMap</a> object with given parameters </dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="struct_r_v_c_1_1_confidence_map.html#aea93c52d55cf97714e22c4a1e8a49ecf" title="Destroy confidence map object.">ConfidenceMap::Destroy</a> </dd></dl>
+
+</div>
+</div>
+<a id="aea93c52d55cf97714e22c4a1e8a49ecf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aea93c52d55cf97714e22c4a1e8a49ecf">&#9670;&nbsp;</a></span>Destroy()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void RVC::ConfidenceMap::Destroy </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_confidence_map.html">ConfidenceMap</a>&#160;</td>
+          <td class="paramname"><em>confidencemap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>no_reuse</em> = <code>true</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Destroy confidence map object. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">confidencemap</td><td>confidencemap to be destroy </td></tr>
+    <tr><td class="paramname">no_reuse</td><td>True for reuse current space of confidence map </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ae10ba788e78307db92a4fd58712ea78d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae10ba788e78307db92a4fd58712ea78d">&#9670;&nbsp;</a></span>GetDataConstPtr()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const double* RVC::ConfidenceMap::GetDataConstPtr </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Data Const Ptr object. </p>
+<dl class="section return"><dt>Returns</dt><dd>const double* </dd></dl>
+
+</div>
+</div>
+<a id="a931e9e6e6b8a02c7e5a128e0eb5b97eb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a931e9e6e6b8a02c7e5a128e0eb5b97eb">&#9670;&nbsp;</a></span>GetDataPtr()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double* RVC::ConfidenceMap::GetDataPtr </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Data Ptr object. </p>
+<dl class="section return"><dt>Returns</dt><dd>double* </dd></dl>
+
+</div>
+</div>
+<a id="abd573ab9a9f12a4d20bc10205b9920a5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abd573ab9a9f12a4d20bc10205b9920a5">&#9670;&nbsp;</a></span>GetSize()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_size.html">Size</a> RVC::ConfidenceMap::GetSize </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the <a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> object. </p>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> </dd></dl>
+
+</div>
+</div>
+<a id="ac3b245d1b31d3fc5a3c23e82d74e72e0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac3b245d1b31d3fc5a3c23e82d74e72e0">&#9670;&nbsp;</a></span>IsValid()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::ConfidenceMap::IsValid </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Check obejct is Valid or not. </p>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<h2 class="groupheader">Member Data Documentation</h2>
+<a id="a14263668babab783f2932835d8e2eb46"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a14263668babab783f2932835d8e2eb46">&#9670;&nbsp;</a></span>m_handle</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_handle.html">Handle</a> RVC::ConfidenceMap::m_handle</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>confidence map handle </p>
+
+</div>
+</div>
+<hr/>The documentation for this struct was generated from the following file:<ul>
+<li><a class="el" href="_r_v_c_8h_source.html">RVC.h</a></li>
+</ul>
+</div><!-- contents -->
+</div><!-- doc-content -->
+</body>
+</html>

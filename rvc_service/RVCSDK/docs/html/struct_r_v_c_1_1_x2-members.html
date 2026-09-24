@@ -1,0 +1,256 @@
+<!-- HTML header for doxygen 1.8.6-->
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=9" />
+  <meta name="generator" content="Doxygen 1.8.18" />
+  <title>RVC: Member List</title>
+  <link href="tabs.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="jquery.js"></script>
+  <script type="text/javascript" src="dynsections.js"></script>
+  <link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+  <link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+  <link href="doxygen.css" rel="stylesheet" type="text/css" />
+  <link
+    href="https://fonts.googleapis.com/css?family=Roboto:300,400,400italic,500,500italic,700,700italic|Roboto+Mono:400,700"
+    rel="stylesheet">
+  <link href="style.css" rel="stylesheet" type="text/css"/>
+  <script>
+    /**
+     * Check if the browser rendering this page is being run on an Android device.
+     * It checks if the string 'android' is found in the browser's `userAgent`.
+     * @return {boolean} This returns `true` if the browser's `userAgent` contains
+     * the string 'android' (indicating that the browser is on an Android device).
+     * Otherwise, it returns `false`.
+     */
+    function isAndroidDevice() {
+      if (navigator && navigator.userAgent) {
+        return navigator.userAgent.toLowerCase().indexOf('android') != -1;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Check if an HTML `class` attribute is in the browser-specific format.
+     * @param {string} An HTML `class` attribute in the format 'browser-{device}'.
+     * @return {boolean} Returns `true` if `browserClass` was in the valid format,
+     * prefixed with 'browser-'. Otherwise, it returns false.
+     */
+    function isBrowserSpecificClassName(browserClass) {
+      if (browserClass && browserClass.substring(0, 8) == 'browser-' &&
+        browserClass.length > 8) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Get all the HTML Elements with browser-specific `class` attributes.
+     * @return {array} Returns an array of all the HTML Elements with a `class`
+     * attribute that is prefixed with `browser-`.
+     */
+    function getAllBrowserSpecificElements() {
+      if (document) {
+        var htmlElements = document.getElementsByTagName("*");
+        var browserSpecificElements = [];
+        for (var i = 0; i < htmlElements.length; i++) {
+          if (isBrowserSpecificClassName(htmlElements[i].className)) {
+            browserSpecificElements.push(htmlElements[i]);
+          }
+        }
+        return browserSpecificElements;
+      } else {
+        return null;
+      }
+    }
+    /**
+     * Given a browser-specific HTML `class` attribute, extract the device name.
+     * @param {string} browserClass The string name of an HTML `class` attribute,
+     * in the format `browser-{device}`.
+     * @return {string} Returns a string containing only the device portion of
+     * the class name. If the input was invalid, then it returns `null`.
+     */
+    function extractDeviceFromBrowserClass(browserClass) {
+      if (isBrowserSpecificClassName(browserClass)) {
+        return browserClass.substring(8);
+      }
+      else {
+        return null;
+      }
+    }
+    /**
+     * Hide device specific elements that do not apply to the current device.
+     */
+    function handleDeviceSpecificLoading() {
+      var browserSpecificElements = getAllBrowserSpecificElements();
+      for (var i = 0; i < browserSpecificElements.length; i++) {
+        var device = extractDeviceFromBrowserClass(browserSpecificElements[i].className);
+        if (device && !isAndroidDevice() && device == 'android') {
+          browserSpecificElements[i].innerHTML = '';
+        } else if (device && isAndroidDevice() && device == 'desktop') {
+          browserSpecificElements[i].innerHTML = '';
+        }
+      }
+    }
+    $(document).ready(handleDeviceSpecificLoading);
+  </script>
+</head>
+<body>
+  <div id="top">
+    <!-- do not remove this div, it is closed by doxygen! -->
+    <div id="titlearea">
+      <table cellspacing="0" cellpadding="0">
+        <tbody>
+          <tr style="height: 56px;">
+            <!-- <td id="projectlogo">
+    <img alt="Logo" width=100px src="documentation.png"/>
+  </td> -->
+            <!-- END PROJECT_LOGO -->
+            <td id="commonprojectlogo">
+              <img alt="Logo" width=150px src="documentation.png" />
+            </td>
+            <td style="padding-left: 0.5em;">
+              <div id="projectname">RVC
+                &#160;<span id="projectnumber">1.15.1</span>
+              </div>
+              <div style="font-size:12px;">
+                a product by
+                <a href="https://www.rvbust.com">RVBUST</a>.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- end header part --><!-- Generated by Doxygen 1.8.18 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+var searchBox = new SearchBox("searchBox", "search",false,'Search');
+/* @license-end */
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(function() {
+  initMenu('',true,false,'search.php','Search');
+  $(document).ready(function() { init_search(); });
+});
+/* @license-end */</script>
+<div id="main-nav"></div>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(document).ready(function(){initNavTree('struct_r_v_c_1_1_x2.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<iframe src="javascript:void(0)" frameborder="0" 
+        name="MSearchResults" id="MSearchResults">
+</iframe>
+</div>
+
+<div class="header">
+  <div class="headertitle">
+<div class="title">RVC::X2 Member List</div>  </div>
+</div><!--header-->
+<div class="contents">
+
+<p>This is the complete list of members for <a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a>, including all inherited members.</p>
+<table class="directory">
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#ac78286663d840f3acd9de0e6e5b9ac30">AutoAdjustRoi</a>(ROI roi=ROI())</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#ad2aa34b7b31cde9e5fcaa2b13e10f873">AutoWhiteBalance</a>(int wb_times=10, const CaptureOptions &amp;opts=CaptureOptions(), const RVC::ROI &amp;roi=RVC::ROI())</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr bgcolor="#f0f0f0" class="even"><td class="entry"><b>CalculationCallBackPtr</b> typedef (defined in <a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a>)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#af7f696060a6fe5b4b8248b73609dbe67">Capture</a>(const CaptureOptions &amp;opts)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a8ec803244e3c9fa485ac515239e677cc">Capture</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a0758ec8ef6b48c52402649027fad7547">Capture2D</a>(const CameraID cid, const CaptureOptions &amp;opts)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a8f026ed23fa05fe2682f086625b5506e">Capture2D</a>(const CameraID cid)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a4b4cf070606a4a6362c32ad32ff878e2">CheckRoi</a>(ROI roi)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a406258deb04b02e00c969672ce2d1219">Close</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a92b95519b5a956642929cf4281240e8e">CloseProtectiveCover</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#aa0b4b993e1b32cb55df69cbd5d3dea70">CloseProtectiveCoverAsync</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#abbbfb3f52a8955553277ae2bea3c77bb">CollectionCallBackPtr</a> typedef</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a00b7a6605af2c815713b1678fd41ff55">Create</a>(const Device &amp;d)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"><span class="mlabel">static</span></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#ae672010b55a304c56aad605ac9a03ab8">Destroy</a>(X2 &amp;x)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"><span class="mlabel">static</span></td></tr>
+  <tr bgcolor="#f0f0f0" class="even"><td class="entry"><b>FixedLineScanCallBackPtr</b> typedef (defined in <a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a>)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a223c909da27109eecd3813a62aba8ed0">GetAuto2DExposureTime</a>(CaptureOptions &amp;opts, const ROI &amp;roi=ROI())</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a4d9bc5a2f6f26e6b1ee5b279eb7deab3">GetAutoCaptureSetting</a>(CaptureOptions &amp;opts, const ROI &amp;roi=ROI())</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a323720dc81744173dcdb4d57eb804cc0">GetAutoHdrCaptureSetting</a>(CaptureOptions &amp;opts, const ROI &amp;roi)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#ae6e763669d5a01abceeecffc1b871801">GetAutoNoiseRemovalSetting</a>(CaptureOptions &amp;opts)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a5f7c39114c7c9f650748c9977350101f">GetBandwidth</a>(float &amp;percent)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#affe95dbcc553a7bbc2b9f49e3e0fdaf4">GetCameraResolution</a>(Size &amp;resolution)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a4267e13d7dc37de23311e656a7c8c67e">GetCameraTemperature</a>(const CameraID cid, CameraTempSelector seletor, float &amp;temperature)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a1a0035f4cd30b98563fb4fc864f396e5">GetConfidenceMap</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a0870b2e1fb76e4a6658535daf785e8e5">GetCorrespondMap</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a71db6728701308d166084790ed911f77">GetCurrentUserSet</a>(int &amp;id)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#af27236f9f4e56efb11f5b451b7d0a521">GetCustomTransformation</a>(CustomTransformOptions &amp;opts)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a3d173b1e339bdddfb59a6fa6d5c06099">GetDepthMap</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a8bf8a10027177cc6ec9fa5dfd103aab6">GetExposureTimeRange</a>(int *min_value, int *max_value)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a69996ceb2250750c7f8bd050d1948236">GetExtrinsicMatrix</a>(const CameraID cid, float *matrix)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a22c546f56eb956f390a9e5ca5d940142">GetFixedLineScanPointMap</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a3d193f30af9d6dcf1b43df1075ac8b13">GetFixedLineScanPointMap</a>(PointMap &amp;point_map)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a54109481063d8b67d9f8e767d5965b14">GetGainRange</a>(float *min_value, float *max_value)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a5f3227f78a88a7936ea72fa9569bca75">GetGammaRange</a>(float *min_value, float *max_value)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#ab71a809ec745620668e8101deda300b3">GetImage</a>(const CameraID cid)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a2dd51ceb4fe11c8cc41822d144fa6a6d">GetIntrinsicParameters</a>(const CameraID cid, float *instrinsicMatrix, float *distortion)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a2c9dd6bb3d96eb5dbf8205a9b29b81f6">GetMesh</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a83a5c69c670df3f6e9951c04b8e34b3c">GetPointMap</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#af3590d5d23af8b5ccc04655f2d4e3872">GetProjectorTemperature</a>(float &amp;temperature)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a901159c44e282ea1afe9fbb712c607d1">GetProtectiveCoverStatus</a>(ProtectiveCoverStatus &amp;status)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#ac4644286c4277f06fe3d20b5f6cfb3de">GetRoiRange</a>(ROIRange &amp;range)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a68de38f977fbc27e8fa1248d45b7527c">GetTimestamp</a>(uint64_t &amp;timestamp)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a58069f6d3cb505d59c20ad86251201c5">GetUserSetName</a>(const int &amp;id, char *name)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#ac399e8c8c2ac0c87bab365f109d3e363">IsOpen</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a01d293fa0bc7087e05f43bb55a9e0364">IsPhysicallyConnected</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a1ae7678e58414e758b6a3e1ef2237d24">IsValid</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#aa83bd44b81819ede5ffce9b8ab235582">LoadCaptureOptionParameters</a>(X2::CaptureOptions &amp;opts)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a5ba1cb03a875a6bafbbbfc0ca6d21a99">LoadSettingFromFile</a>(const char *filename)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr bgcolor="#f0f0f0"><td class="entry"><b>m_handle</b> (defined in <a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a>)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#af5eb5b9bcaf2e65feac44839f1f4ae50">Open</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a75201080879faffbb624a54856c6e924">OpenProtectiveCover</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a88c9d53f508863c96d969c4957570b66">OpenProtectiveCoverAsync</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#ac66ae1d3e26ea745dc2367270319282b">ResetProtectiveCover</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a87dc2d1c2f76b7c4ac8f3ace02701886">ResetTimestamp</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a535c05f05a6d4d4a812c906fde561e78">SaveCaptureOptionParameters</a>(const X2::CaptureOptions &amp;opts)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#aea2d31ca5300c909d05509a09069fcf7">SaveEncodedImagesData</a>(const char *addr)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#abc2fd5c150573d0a78df750258b48975">SaveSettingToFile</a>(const char *filename)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a9b58d50be15a7fb4344d1d760f4c3909">SetBandwidth</a>(float percent)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a521aebe6a7b4767a5f39672b84e34a7b">SetCalculationCallBack</a>(X2::CalculationCallBackPtr cb, UserPtr ctx)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a27b692aa51820e38a677c2de31320bda">SetCollectionCallBack</a>(X2::CollectionCallBackPtr cb, UserPtr ctx)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a8a419e28faddcd8f32906b2d97d080dc">SetCurrentUserSet</a>(const int &amp;id)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#ad58304ba92bcf67bc4ee2a1579b2988d">SetCustomTransformation</a>(const CustomTransformOptions &amp;opts)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a96aba4c4c20cd29c603efbb4bb9e7bbd">SetFixedLineScanCallback</a>(const X2::FixedLineScanCallBackPtr cb, UserPtr ctx)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a224f002e54982ea8a1f98f38887e8a13">SetUserSetName</a>(const int &amp;id, const char *name)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a1d2ccefe329faacafbe762b7ec3e93ab">StartFixedLineScan</a>(const CaptureOptions &amp;opts)</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr class="even"><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a7fe9994d5773a6f090725e8fdae4140d">StartFixedLineScan</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+  <tr><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html#a5d81a848c34408cf4ac6281b13cbe3f1">StopFixedLineScan</a>()</td><td class="entry"><a class="el" href="struct_r_v_c_1_1_x2.html">RVC::X2</a></td><td class="entry"></td></tr>
+</table></div><!-- contents -->
+</div><!-- doc-content -->
+</body>
+</html>

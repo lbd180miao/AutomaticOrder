@@ -1,0 +1,152 @@
+\hypertarget{struct_r_v_c_1_1_confidence_map}{}\doxysection{R\+VC\+::Confidence\+Map Struct Reference}
+\label{struct_r_v_c_1_1_confidence_map}\index{RVC::ConfidenceMap@{RVC::ConfidenceMap}}
+
+
+Collaboration diagram for R\+VC\+::Confidence\+Map\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=190pt]{struct_r_v_c_1_1_confidence_map__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_confidence_map_ac3b245d1b31d3fc5a3c23e82d74e72e0}{Is\+Valid}} ()
+\begin{DoxyCompactList}\small\item\em Check obejct is Valid or not. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} \mbox{\hyperlink{struct_r_v_c_1_1_confidence_map_abd573ab9a9f12a4d20bc10205b9920a5}{Get\+Size}} ()
+\begin{DoxyCompactList}\small\item\em Get the \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} object. \end{DoxyCompactList}\item 
+double $\ast$ \mbox{\hyperlink{struct_r_v_c_1_1_confidence_map_a931e9e6e6b8a02c7e5a128e0eb5b97eb}{Get\+Data\+Ptr}} ()
+\begin{DoxyCompactList}\small\item\em Get the Data Ptr object. \end{DoxyCompactList}\item 
+const double $\ast$ \mbox{\hyperlink{struct_r_v_c_1_1_confidence_map_ae10ba788e78307db92a4fd58712ea78d}{Get\+Data\+Const\+Ptr}} ()
+\begin{DoxyCompactList}\small\item\em Get the Data Const Ptr object. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+static \mbox{\hyperlink{struct_r_v_c_1_1_confidence_map}{Confidence\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_confidence_map_aaf953cca0e5a002c50cc674d464768fc}{Create}} (const \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} sz, double $\ast$data=nullptr, bool own\+\_\+data=true)
+\begin{DoxyCompactList}\small\item\em create confidence map object, if object is no used, call Destroy to destroy it \end{DoxyCompactList}\item 
+static void \mbox{\hyperlink{struct_r_v_c_1_1_confidence_map_aea93c52d55cf97714e22c4a1e8a49ecf}{Destroy}} (\mbox{\hyperlink{struct_r_v_c_1_1_confidence_map}{Confidence\+Map}} confidencemap, bool no\+\_\+reuse=true)
+\begin{DoxyCompactList}\small\item\em Destroy confidence map object. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} \mbox{\hyperlink{struct_r_v_c_1_1_confidence_map_a14263668babab783f2932835d8e2eb46}{m\+\_\+handle}}
+\begin{DoxyCompactList}\small\item\em confidence map handle \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_confidence_map_aaf953cca0e5a002c50cc674d464768fc}\label{struct_r_v_c_1_1_confidence_map_aaf953cca0e5a002c50cc674d464768fc}} 
+\index{RVC::ConfidenceMap@{RVC::ConfidenceMap}!Create@{Create}}
+\index{Create@{Create}!RVC::ConfidenceMap@{RVC::ConfidenceMap}}
+\doxysubsubsection{\texorpdfstring{Create()}{Create()}}
+{\footnotesize\ttfamily static \mbox{\hyperlink{struct_r_v_c_1_1_confidence_map}{Confidence\+Map}} R\+V\+C\+::\+Confidence\+Map\+::\+Create (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}}}]{sz,  }\item[{double $\ast$}]{data = {\ttfamily nullptr},  }\item[{bool}]{own\+\_\+data = {\ttfamily true} }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+create confidence map object, if object is no used, call Destroy to destroy it 
+
+
+\begin{DoxyParams}{Parameters}
+{\em sz} & confidence map size \\
+\hline
+{\em data} & confidence map data \\
+\hline
+{\em own\+\_\+data} & own data flag \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_confidence_map}{Confidence\+Map}} object with given parameters 
+\end{DoxyReturn}
+\begin{DoxySeeAlso}{See also}
+\mbox{\hyperlink{struct_r_v_c_1_1_confidence_map_aea93c52d55cf97714e22c4a1e8a49ecf}{Confidence\+Map\+::\+Destroy}} 
+\end{DoxySeeAlso}
+\mbox{\Hypertarget{struct_r_v_c_1_1_confidence_map_aea93c52d55cf97714e22c4a1e8a49ecf}\label{struct_r_v_c_1_1_confidence_map_aea93c52d55cf97714e22c4a1e8a49ecf}} 
+\index{RVC::ConfidenceMap@{RVC::ConfidenceMap}!Destroy@{Destroy}}
+\index{Destroy@{Destroy}!RVC::ConfidenceMap@{RVC::ConfidenceMap}}
+\doxysubsubsection{\texorpdfstring{Destroy()}{Destroy()}}
+{\footnotesize\ttfamily static void R\+V\+C\+::\+Confidence\+Map\+::\+Destroy (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_confidence_map}{Confidence\+Map}}}]{confidencemap,  }\item[{bool}]{no\+\_\+reuse = {\ttfamily true} }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Destroy confidence map object. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em confidencemap} & confidencemap to be destroy \\
+\hline
+{\em no\+\_\+reuse} & True for reuse current space of confidence map \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{struct_r_v_c_1_1_confidence_map_ae10ba788e78307db92a4fd58712ea78d}\label{struct_r_v_c_1_1_confidence_map_ae10ba788e78307db92a4fd58712ea78d}} 
+\index{RVC::ConfidenceMap@{RVC::ConfidenceMap}!GetDataConstPtr@{GetDataConstPtr}}
+\index{GetDataConstPtr@{GetDataConstPtr}!RVC::ConfidenceMap@{RVC::ConfidenceMap}}
+\doxysubsubsection{\texorpdfstring{GetDataConstPtr()}{GetDataConstPtr()}}
+{\footnotesize\ttfamily const double$\ast$ R\+V\+C\+::\+Confidence\+Map\+::\+Get\+Data\+Const\+Ptr (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the Data Const Ptr object. 
+
+\begin{DoxyReturn}{Returns}
+const double$\ast$ 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_confidence_map_a931e9e6e6b8a02c7e5a128e0eb5b97eb}\label{struct_r_v_c_1_1_confidence_map_a931e9e6e6b8a02c7e5a128e0eb5b97eb}} 
+\index{RVC::ConfidenceMap@{RVC::ConfidenceMap}!GetDataPtr@{GetDataPtr}}
+\index{GetDataPtr@{GetDataPtr}!RVC::ConfidenceMap@{RVC::ConfidenceMap}}
+\doxysubsubsection{\texorpdfstring{GetDataPtr()}{GetDataPtr()}}
+{\footnotesize\ttfamily double$\ast$ R\+V\+C\+::\+Confidence\+Map\+::\+Get\+Data\+Ptr (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the Data Ptr object. 
+
+\begin{DoxyReturn}{Returns}
+double$\ast$ 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_confidence_map_abd573ab9a9f12a4d20bc10205b9920a5}\label{struct_r_v_c_1_1_confidence_map_abd573ab9a9f12a4d20bc10205b9920a5}} 
+\index{RVC::ConfidenceMap@{RVC::ConfidenceMap}!GetSize@{GetSize}}
+\index{GetSize@{GetSize}!RVC::ConfidenceMap@{RVC::ConfidenceMap}}
+\doxysubsubsection{\texorpdfstring{GetSize()}{GetSize()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} R\+V\+C\+::\+Confidence\+Map\+::\+Get\+Size (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} object. 
+
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_confidence_map_ac3b245d1b31d3fc5a3c23e82d74e72e0}\label{struct_r_v_c_1_1_confidence_map_ac3b245d1b31d3fc5a3c23e82d74e72e0}} 
+\index{RVC::ConfidenceMap@{RVC::ConfidenceMap}!IsValid@{IsValid}}
+\index{IsValid@{IsValid}!RVC::ConfidenceMap@{RVC::ConfidenceMap}}
+\doxysubsubsection{\texorpdfstring{IsValid()}{IsValid()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Confidence\+Map\+::\+Is\+Valid (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Check obejct is Valid or not. 
+
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+
+
+\doxysubsection{Member Data Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_confidence_map_a14263668babab783f2932835d8e2eb46}\label{struct_r_v_c_1_1_confidence_map_a14263668babab783f2932835d8e2eb46}} 
+\index{RVC::ConfidenceMap@{RVC::ConfidenceMap}!m\_handle@{m\_handle}}
+\index{m\_handle@{m\_handle}!RVC::ConfidenceMap@{RVC::ConfidenceMap}}
+\doxysubsubsection{\texorpdfstring{m\_handle}{m\_handle}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} R\+V\+C\+::\+Confidence\+Map\+::m\+\_\+handle}
+
+
+
+confidence map handle 
+
+
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+R\+V\+C.\+h\end{DoxyCompactItemize}

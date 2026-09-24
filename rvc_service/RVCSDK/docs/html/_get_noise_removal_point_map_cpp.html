@@ -1,0 +1,291 @@
+<!-- HTML header for doxygen 1.8.6-->
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=9" />
+  <meta name="generator" content="Doxygen 1.8.18" />
+  <title>RVC: get noise removal point map</title>
+  <link href="tabs.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="jquery.js"></script>
+  <script type="text/javascript" src="dynsections.js"></script>
+  <link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+  <link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+  <link href="doxygen.css" rel="stylesheet" type="text/css" />
+  <link
+    href="https://fonts.googleapis.com/css?family=Roboto:300,400,400italic,500,500italic,700,700italic|Roboto+Mono:400,700"
+    rel="stylesheet">
+  <link href="style.css" rel="stylesheet" type="text/css"/>
+  <script>
+    /**
+     * Check if the browser rendering this page is being run on an Android device.
+     * It checks if the string 'android' is found in the browser's `userAgent`.
+     * @return {boolean} This returns `true` if the browser's `userAgent` contains
+     * the string 'android' (indicating that the browser is on an Android device).
+     * Otherwise, it returns `false`.
+     */
+    function isAndroidDevice() {
+      if (navigator && navigator.userAgent) {
+        return navigator.userAgent.toLowerCase().indexOf('android') != -1;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Check if an HTML `class` attribute is in the browser-specific format.
+     * @param {string} An HTML `class` attribute in the format 'browser-{device}'.
+     * @return {boolean} Returns `true` if `browserClass` was in the valid format,
+     * prefixed with 'browser-'. Otherwise, it returns false.
+     */
+    function isBrowserSpecificClassName(browserClass) {
+      if (browserClass && browserClass.substring(0, 8) == 'browser-' &&
+        browserClass.length > 8) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Get all the HTML Elements with browser-specific `class` attributes.
+     * @return {array} Returns an array of all the HTML Elements with a `class`
+     * attribute that is prefixed with `browser-`.
+     */
+    function getAllBrowserSpecificElements() {
+      if (document) {
+        var htmlElements = document.getElementsByTagName("*");
+        var browserSpecificElements = [];
+        for (var i = 0; i < htmlElements.length; i++) {
+          if (isBrowserSpecificClassName(htmlElements[i].className)) {
+            browserSpecificElements.push(htmlElements[i]);
+          }
+        }
+        return browserSpecificElements;
+      } else {
+        return null;
+      }
+    }
+    /**
+     * Given a browser-specific HTML `class` attribute, extract the device name.
+     * @param {string} browserClass The string name of an HTML `class` attribute,
+     * in the format `browser-{device}`.
+     * @return {string} Returns a string containing only the device portion of
+     * the class name. If the input was invalid, then it returns `null`.
+     */
+    function extractDeviceFromBrowserClass(browserClass) {
+      if (isBrowserSpecificClassName(browserClass)) {
+        return browserClass.substring(8);
+      }
+      else {
+        return null;
+      }
+    }
+    /**
+     * Hide device specific elements that do not apply to the current device.
+     */
+    function handleDeviceSpecificLoading() {
+      var browserSpecificElements = getAllBrowserSpecificElements();
+      for (var i = 0; i < browserSpecificElements.length; i++) {
+        var device = extractDeviceFromBrowserClass(browserSpecificElements[i].className);
+        if (device && !isAndroidDevice() && device == 'android') {
+          browserSpecificElements[i].innerHTML = '';
+        } else if (device && isAndroidDevice() && device == 'desktop') {
+          browserSpecificElements[i].innerHTML = '';
+        }
+      }
+    }
+    $(document).ready(handleDeviceSpecificLoading);
+  </script>
+</head>
+<body>
+  <div id="top">
+    <!-- do not remove this div, it is closed by doxygen! -->
+    <div id="titlearea">
+      <table cellspacing="0" cellpadding="0">
+        <tbody>
+          <tr style="height: 56px;">
+            <!-- <td id="projectlogo">
+    <img alt="Logo" width=100px src="documentation.png"/>
+  </td> -->
+            <!-- END PROJECT_LOGO -->
+            <td id="commonprojectlogo">
+              <img alt="Logo" width=150px src="documentation.png" />
+            </td>
+            <td style="padding-left: 0.5em;">
+              <div id="projectname">RVC
+                &#160;<span id="projectnumber">1.15.1</span>
+              </div>
+              <div style="font-size:12px;">
+                a product by
+                <a href="https://www.rvbust.com">RVBUST</a>.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- end header part --><!-- Generated by Doxygen 1.8.18 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+var searchBox = new SearchBox("searchBox", "search",false,'Search');
+/* @license-end */
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(function() {
+  initMenu('',true,false,'search.php','Search');
+  $(document).ready(function() { init_search(); });
+});
+/* @license-end */</script>
+<div id="main-nav"></div>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(document).ready(function(){initNavTree('_get_noise_removal_point_map_cpp.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<iframe src="javascript:void(0)" frameborder="0" 
+        name="MSearchResults" id="MSearchResults">
+</iframe>
+</div>
+
+<div class="PageDoc"><div class="header">
+  <div class="headertitle">
+<div class="title">get noise removal point map </div>  </div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><div class="fragment"><div class="line"> </div>
+<div class="line"><span class="preprocessor">#include &lt;RVC/RVC.h&gt;</span></div>
+<div class="line"><span class="preprocessor">#include &lt;iostream&gt;</span></div>
+<div class="line"><span class="preprocessor">#include &quot;IO/FileIO.h&quot;</span></div>
+<div class="line"><span class="preprocessor">#include &quot;IO/SavePointMap.h&quot;</span></div>
+<div class="line"> </div>
+<div class="line"><span class="keywordtype">int</span> main(<span class="keywordtype">int</span> argc, <span class="keywordtype">char</span> *argv[]) {</div>
+<div class="line">    <span class="comment">// Initialize RVC system.</span></div>
+<div class="line">    <a class="code" href="namespace_r_v_c.html#a323593973d7de52708fae81cc20db39c">RVC::SystemInit</a>();</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Scan all RVC Camera devices.</span></div>
+<div class="line">    <a class="code" href="struct_r_v_c_1_1_device.html">RVC::Device</a> devices[10];</div>
+<div class="line">    <span class="keywordtype">size_t</span> actual_size = 0;</div>
+<div class="line">    <a class="code" href="namespace_r_v_c.html#a3ee199b906497d6b03fbb3139e74cb71">SystemListDevices</a>(devices, 10, &amp;actual_size, RVC::SystemListDeviceType::All);</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Find whether any RVC Camera is connected or not.</span></div>
+<div class="line">    <span class="keywordflow">if</span> (actual_size == 0) {</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;Can not find any RVC Camera!&quot;</span> &lt;&lt; std::endl;</div>
+<div class="line">        <span class="keywordflow">return</span> -1;</div>
+<div class="line">    }</div>
+<div class="line"> </div>
+<div class="line">    <span class="keywordflow">if</span>(devices[0].IsFirmwareMatch() == <span class="keyword">false</span>){</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;device firmware mismatch, Please use RVCManager to upgrade the firmware&quot;</span> &lt;&lt; std::endl;</div>
+<div class="line">        <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC::SystemShutdown</a>();</div>
+<div class="line">        <span class="keywordflow">return</span> -1;</div>
+<div class="line">    }</div>
+<div class="line">    <span class="comment">// Create a RVC Camera and choose use left side camera.</span></div>
+<div class="line">    <a class="code" href="struct_r_v_c_1_1_x1.html">RVC::X1</a> x1 = <a class="code" href="struct_r_v_c_1_1_x1.html#a65084b6120a5dde2cfdda7f63a509339">RVC::X1::Create</a>(devices[0], RVC::CameraID_Left);</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Open RVC Camera.</span></div>
+<div class="line">    x1.<a class="code" href="struct_r_v_c_1_1_x1.html#a4bbe435b7e01b138938eec1fdadf4fea">Open</a>();</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Test RVC Camera is opened or not.</span></div>
+<div class="line">    <span class="keywordflow">if</span> (!x1.<a class="code" href="struct_r_v_c_1_1_x1.html#aaa71348d88a10f38cfb547f1a22ab143">IsOpen</a>()) {</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;Failed to open camera! Please check whether the camera is connected and make sure it is not occupied and supports X1.&quot;</span> &lt;&lt; std::endl;</div>
+<div class="line">        <a class="code" href="struct_r_v_c_1_1_x1.html#a92e6808e2b266f827c1079b677589adb">RVC::X1::Destroy</a>(x1);</div>
+<div class="line">        <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC::SystemShutdown</a>();</div>
+<div class="line">        <span class="keywordflow">return</span> 1;</div>
+<div class="line">    }</div>
+<div class="line"> </div>
+<div class="line">    <a class="code" href="struct_r_v_c_1_1_x1_1_1_capture_options.html">RVC::X1::CaptureOptions</a> cap_opt;</div>
+<div class="line">    x1.<a class="code" href="struct_r_v_c_1_1_x1.html#aa1f35cdec05e6937e6294f1e29944a89">LoadCaptureOptionParameters</a>(cap_opt);</div>
+<div class="line">    cap_opt.<a class="code" href="struct_r_v_c_1_1_x1_1_1_capture_options.html#ad7b25e0b6e39cbcbeb4155b057964965">noise_removal_distance</a> = 0.5;  <span class="comment">// unit: mm</span></div>
+<div class="line">    cap_opt.<a class="code" href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a953a4da9ea4bfa44492734b178d5c816">noise_removal_point_number</a> = 40;</div>
+<div class="line"> </div>
+<div class="line">    cap_opt.<a class="code" href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a790a32173942346fdf45480b58ed7d5f">reflection_filter_threshold</a> = 10;</div>
+<div class="line"> </div>
+<div class="line">    <span class="keyword">const</span> std::string save_directory = <span class="stringliteral">&quot;./Data/&quot;</span>;</div>
+<div class="line">    MakeDirectories(save_directory);</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Capture a point map and a image with default setting.</span></div>
+<div class="line">    <span class="keywordflow">if</span> (x1.<a class="code" href="struct_r_v_c_1_1_x1.html#a39c4c419f586e4996557cf34f63be89d">Capture</a>(cap_opt) == <span class="keyword">true</span>) {</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;RVC Camera capture successed!&quot;</span> &lt;&lt; std::endl;</div>
+<div class="line"> </div>
+<div class="line">        <span class="comment">// Get point map data (m).</span></div>
+<div class="line">        <a class="code" href="struct_r_v_c_1_1_point_map.html">RVC::PointMap</a> pm = x1.<a class="code" href="struct_r_v_c_1_1_x1.html#a7353fec452ad86f65399e7175ba14a24">GetPointMap</a>();</div>
+<div class="line">        std::string pm_addr = save_directory + <span class="stringliteral">&quot;test.ply&quot;</span>;</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;save point map to file: &quot;</span> &lt;&lt; pm_addr &lt;&lt; std::endl;</div>
+<div class="line">        pm.<a class="code" href="struct_r_v_c_1_1_point_map.html#aa623644e8ec081625549da3294669449">Save</a>(pm_addr.c_str(), RVC::PointMapUnit::Meter, <span class="keyword">true</span>);</div>
+<div class="line">        <span class="comment">// Get image data.</span></div>
+<div class="line">        <a class="code" href="struct_r_v_c_1_1_image.html">RVC::Image</a> img = x1.<a class="code" href="struct_r_v_c_1_1_x1.html#a74ad979ea18b50808de1fa09621a900f">GetImage</a>();</div>
+<div class="line">        std::string img_addr = save_directory + <span class="stringliteral">&quot;test.png&quot;</span>;</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;save image to file: &quot;</span> &lt;&lt; img_addr &lt;&lt; std::endl;</div>
+<div class="line">        img.<a class="code" href="struct_r_v_c_1_1_image.html#a0252adee2e031190a0526d6265070192">SaveImage</a>(img_addr.c_str());</div>
+<div class="line">    } <span class="keywordflow">else</span> {</div>
+<div class="line">        std::cout &lt;&lt; <a class="code" href="namespace_r_v_c.html#a02779b50f9e7e758b8ab4a4566efb85c">RVC::GetLastErrorMessage</a>() &lt;&lt; std::endl;</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;RVC Camera capture failed!&quot;</span> &lt;&lt; std::endl;</div>
+<div class="line">    }</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Close RVC Camera.</span></div>
+<div class="line">    x1.<a class="code" href="struct_r_v_c_1_1_x1.html#a82aa695ab6115b84be69033dc424cb10">Close</a>();</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Destroy RVC Camera.</span></div>
+<div class="line">    <a class="code" href="struct_r_v_c_1_1_x1.html#a92e6808e2b266f827c1079b677589adb">RVC::X1::Destroy</a>(x1);</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Shutdown RVC System.</span></div>
+<div class="line">    <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC::SystemShutdown</a>();</div>
+<div class="line"> </div>
+<div class="line">    <span class="keywordflow">return</span> 0;</div>
+<div class="line">}</div>
+</div><!-- fragment --> </div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a7353fec452ad86f65399e7175ba14a24"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a7353fec452ad86f65399e7175ba14a24">RVC::X1::GetPointMap</a></div><div class="ttdeci">PointMap GetPointMap()</div><div class="ttdoc">Get the Point Map object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a74ad979ea18b50808de1fa09621a900f"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a74ad979ea18b50808de1fa09621a900f">RVC::X1::GetImage</a></div><div class="ttdeci">Image GetImage()</div><div class="ttdoc">Get the Image object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a953a4da9ea4bfa44492734b178d5c816"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a953a4da9ea4bfa44492734b178d5c816">RVC::X1::CaptureOptions::noise_removal_point_number</a></div><div class="ttdeci">int noise_removal_point_number</div><div class="ttdoc">Set the noise filter parameter 2. The larger the value, the greater the filtering degree.</div><div class="ttdef"><b>Definition:</b> RVC.h:1222</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_aaa71348d88a10f38cfb547f1a22ab143"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#aaa71348d88a10f38cfb547f1a22ab143">RVC::X1::IsOpen</a></div><div class="ttdeci">bool IsOpen()</div><div class="ttdoc">Check X1 is open or not.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a4bbe435b7e01b138938eec1fdadf4fea"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a4bbe435b7e01b138938eec1fdadf4fea">RVC::X1::Open</a></div><div class="ttdeci">bool Open()</div><div class="ttdoc">Open X1 before you use it.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a82aa695ab6115b84be69033dc424cb10"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a82aa695ab6115b84be69033dc424cb10">RVC::X1::Close</a></div><div class="ttdeci">void Close()</div><div class="ttdoc">Close X1 after you Open it.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_image_html_a0252adee2e031190a0526d6265070192"><div class="ttname"><a href="struct_r_v_c_1_1_image.html#a0252adee2e031190a0526d6265070192">RVC::Image::SaveImage</a></div><div class="ttdeci">bool SaveImage(const char *addr) const</div><div class="ttdoc">Save Image to file.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_aa1f35cdec05e6937e6294f1e29944a89"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#aa1f35cdec05e6937e6294f1e29944a89">RVC::X1::LoadCaptureOptionParameters</a></div><div class="ttdeci">bool LoadCaptureOptionParameters(X1::CaptureOptions &amp;opts)</div><div class="ttdoc">Get capture option parameters.</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a3ee199b906497d6b03fbb3139e74cb71"><div class="ttname"><a href="namespace_r_v_c.html#a3ee199b906497d6b03fbb3139e74cb71">RVC::SystemListDevices</a></div><div class="ttdeci">RVC_EXPORT int SystemListDevices(Device *pdevices, size_t size, size_t *actual_size, SystemListDeviceType::Enum opt=SystemListDeviceType::All)</div><div class="ttdoc">List the fix number devices.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html">RVC::X1::CaptureOptions</a></div><div class="ttdoc">Capture options.</div><div class="ttdef"><b>Definition:</b> RVC.h:1131</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a92e6808e2b266f827c1079b677589adb"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a92e6808e2b266f827c1079b677589adb">RVC::X1::Destroy</a></div><div class="ttdeci">static void Destroy(X1 &amp;x)</div><div class="ttdoc">Release all X1 resources after you use X1.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a65084b6120a5dde2cfdda7f63a509339"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a65084b6120a5dde2cfdda7f63a509339">RVC::X1::Create</a></div><div class="ttdeci">static X1 Create(const Device &amp;d, enum CameraID camid=CameraID_Left)</div><div class="ttdoc">Create a RVC X Camera and choose the CameraID which you desire before you use X1.</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a7c616a5d26f42991a8fbe38176a46c69"><div class="ttname"><a href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC::SystemShutdown</a></div><div class="ttdeci">RVC_EXPORT void SystemShutdown()</div><div class="ttdoc">SystemShutdown.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_image_html"><div class="ttname"><a href="struct_r_v_c_1_1_image.html">RVC::Image</a></div><div class="ttdoc">RVC X Image object.</div><div class="ttdef"><b>Definition:</b> RVC.h:303</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_ad7b25e0b6e39cbcbeb4155b057964965"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#ad7b25e0b6e39cbcbeb4155b057964965">RVC::X1::CaptureOptions::noise_removal_distance</a></div><div class="ttdeci">double noise_removal_distance</div><div class="ttdoc">The smaller the value, the greater the filtering degree. range: 0 ~ 20 (units: mm)</div><div class="ttdef"><b>Definition:</b> RVC.h:1218</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_point_map_html_aa623644e8ec081625549da3294669449"><div class="ttname"><a href="struct_r_v_c_1_1_point_map.html#aa623644e8ec081625549da3294669449">RVC::PointMap::Save</a></div><div class="ttdeci">bool Save(const char *fileName, const PointMapUnit::Enum unit, const bool isBinary, const Image &amp;rawImage=Image())</div><div class="ttdoc">export PointMap's data to local file. Only support the *.ply* format.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_point_map_html"><div class="ttname"><a href="struct_r_v_c_1_1_point_map.html">RVC::PointMap</a></div><div class="ttdoc">RVC X PointMap.</div><div class="ttdef"><b>Definition:</b> RVC.h:560</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a323593973d7de52708fae81cc20db39c"><div class="ttname"><a href="namespace_r_v_c.html#a323593973d7de52708fae81cc20db39c">RVC::SystemInit</a></div><div class="ttdeci">RVC_EXPORT bool SystemInit()</div><div class="ttdoc">SystemInit.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a790a32173942346fdf45480b58ed7d5f"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a790a32173942346fdf45480b58ed7d5f">RVC::X1::CaptureOptions::reflection_filter_threshold</a></div><div class="ttdeci">int reflection_filter_threshold</div><div class="ttdoc">Used to remove large-area erroneous point clouds caused by reflections. The higher this value is set,...</div><div class="ttdef"><b>Definition:</b> RVC.h:1394</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_device_html"><div class="ttname"><a href="struct_r_v_c_1_1_device.html">RVC::Device</a></div><div class="ttdoc">Device struct.</div><div class="ttdef"><b>Definition:</b> RVC.h:948</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html">RVC::X1</a></div><div class="ttdoc">X1 struct.</div><div class="ttdef"><b>Definition:</b> RVC.h:1125</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a39c4c419f586e4996557cf34f63be89d"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a39c4c419f586e4996557cf34f63be89d">RVC::X1::Capture</a></div><div class="ttdeci">bool Capture(const CaptureOptions &amp;opts)</div><div class="ttdoc">Capture one point map and one image. This function will save capture options into camera.</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a02779b50f9e7e758b8ab4a4566efb85c"><div class="ttname"><a href="namespace_r_v_c.html#a02779b50f9e7e758b8ab4a4566efb85c">RVC::GetLastErrorMessage</a></div><div class="ttdeci">RVC_EXPORT const char * GetLastErrorMessage()</div><div class="ttdoc">Get the lastest error message. The pointer to string is temporary, you need to copy data from its buf...</div></div>
+</body>
+</html>

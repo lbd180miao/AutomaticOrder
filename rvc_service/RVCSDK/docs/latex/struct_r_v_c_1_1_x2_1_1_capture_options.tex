@@ -1,0 +1,537 @@
+\hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options}{}\doxysection{R\+VC\+::X2\+::Capture\+Options Struct Reference}
+\label{struct_r_v_c_1_1_x2_1_1_capture_options}\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+
+
+Capture options.  
+
+
+
+
+{\ttfamily \#include $<$R\+V\+C.\+h$>$}
+
+
+
+Collaboration diagram for R\+VC\+::X2\+::Capture\+Options\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=207pt]{struct_r_v_c_1_1_x2_1_1_capture_options__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a70fb68e7973d53c1d5695b6bfcd5299e}{Capture\+Options}} ()
+\begin{DoxyCompactList}\small\item\em Construct a new Capture Options object. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a7c8a6be8a69f08b06719f2c26cd96242}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a7c8a6be8a69f08b06719f2c26cd96242}} 
+\mbox{\hyperlink{namespace_r_v_c_adf5057625a1487c09643b07ec5578e78}{Camera\+ID}} \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a7c8a6be8a69f08b06719f2c26cd96242}{transform\+\_\+to\+\_\+camera}}
+\begin{DoxyCompactList}\small\item\em Camera\+I\+D\+\_\+\+Left transfrom 3D points from calibration board system to left camera coordinate system Camera\+I\+D\+\_\+\+Right transfrom 3D points from calibration board system to right camera coordinate system other is do not transfrom. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a80d0bd7b39eaf157c723dec9244713e9}{projector\+\_\+brightness}}
+\begin{DoxyCompactList}\small\item\em Set the projector brightness value. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_addc0674080aff6796f361ac6fe071a84}{calc\+\_\+normal}}
+\begin{DoxyCompactList}\small\item\em flag Whether calculate 3D points normal vector \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a4be2932638f9f45ecc3c6fbde2660cba}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a4be2932638f9f45ecc3c6fbde2660cba}} 
+unsigned int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a4be2932638f9f45ecc3c6fbde2660cba}{calc\+\_\+normal\+\_\+radius}}
+\begin{DoxyCompactList}\small\item\em Neighborhood radius in pixel of calculating normal, $>$ 0. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a1424dd73d0a8f03b75251332810e708e}{light\+\_\+contrast\+\_\+threshold}}
+\begin{DoxyCompactList}\small\item\em Light contrast trheshold, range in \mbox{[}0, 10\mbox{]}. The contrast of point less than this value will be treat as invalid point and be removed. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a393f2fdb529b863bdc2c8e8dd754fd3f}{edge\+\_\+noise\+\_\+reduction\+\_\+threshold}}
+\begin{DoxyCompactList}\small\item\em edge control after point matching, range in \mbox{[}0, 10\mbox{]}, default = 2. The big the value, the more edge noise to be removed. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a182637624d485019887829439c53a3d1}{exposure\+\_\+time\+\_\+2d}}
+\begin{DoxyCompactList}\small\item\em Set the exposure\+\_\+time 2D value in milliseconds. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_ae7e7fb4668e73846a2766d2509d931f2}{exposure\+\_\+time\+\_\+3d}}
+\begin{DoxyCompactList}\small\item\em Set the exposure\+\_\+time 3D value in milliseconds. \end{DoxyCompactList}\item 
+float \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a2ff10f1b193e4c2cd8fafbf580d0d223}{gain\+\_\+2d}}
+\begin{DoxyCompactList}\small\item\em Set the 2D gain value in milliseconds. \end{DoxyCompactList}\item 
+float \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a5a6572401c503d1e567640ffbf2c88ab}{gain\+\_\+3d}}
+\begin{DoxyCompactList}\small\item\em Set the 3D gain value in milliseconds. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_af370a825b14c4f3d04b9241cd5bc28a7}{hdr\+\_\+exposure\+\_\+times}}
+\begin{DoxyCompactList}\small\item\em Set the hdr exposure times value. 0,2,3. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a6ea71728e9fb3ade2c88534b501ea5d6}{hdr\+\_\+exposuretime\+\_\+content}} \mbox{[}3\mbox{]}
+\begin{DoxyCompactList}\small\item\em Set the hdr exposure time content. capture with white light, range \mbox{[}11, 100\mbox{]}, others \mbox{[}3, 100\mbox{]}. If use M-\/series, range\mbox{[}10, 100\mbox{]}. \end{DoxyCompactList}\item 
+float \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_ada032debd30c3425640b0a362358a6a5}{hdr\+\_\+gain\+\_\+3d}} \mbox{[}3\mbox{]}
+\begin{DoxyCompactList}\small\item\em Set the hdr 3D gain content. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a138942c35c2cf4382ec16a7bb6c722d6}{hdr\+\_\+projector\+\_\+brightness}} \mbox{[}3\mbox{]}
+\begin{DoxyCompactList}\small\item\em Set the hdr projector brightness value. \end{DoxyCompactList}\item 
+float \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a12c25daf7fd0732bc9230eb91190507b}{gamma\+\_\+2d}}
+\begin{DoxyCompactList}\small\item\em Set the 2D gamma value in milliseconds. \end{DoxyCompactList}\item 
+float \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a3e44a5a71a17a91f1c93b8a2699b1c1f}{gamma\+\_\+3d}}
+\begin{DoxyCompactList}\small\item\em Set the 3D gamma value in milliseconds. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a845b1bbcc047fe96f4bab07b9e0ea87d}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a845b1bbcc047fe96f4bab07b9e0ea87d}} 
+\mbox{\hyperlink{namespace_r_v_c_a155d5d1c16539d4c36280adee0d0b7d9}{Projector\+Color}} \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a845b1bbcc047fe96f4bab07b9e0ea87d}{projector\+\_\+color}}
+\begin{DoxyCompactList}\small\item\em projector color \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a12d14e53dde0452be851c6c24352a960}{use\+\_\+projector\+\_\+capturing\+\_\+2d\+\_\+image}}
+\begin{DoxyCompactList}\small\item\em Set 2D image whether use projector. \end{DoxyCompactList}\item 
+Smoothness\+Level \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_ad3d9e8c487bfccf8c215f3e546f36113}{smoothness}}
+\begin{DoxyCompactList}\small\item\em control point map smoothness \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_ac3b40ac886fc85fec718429f5368658c}{use\+\_\+auto\+\_\+noise\+\_\+removal}}
+\begin{DoxyCompactList}\small\item\em flag Whether to use auto noise removal. If true, the noise\+\_\+removal\+\_\+distance and noise\+\_\+removal\+\_\+point\+\_\+number will be ignored. It will automatically adjust these two parameters according to the point cloud data and do noise removal. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a37c244f9b4dd10dc9de2f6d115034398}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a37c244f9b4dd10dc9de2f6d115034398}} 
+double \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a37c244f9b4dd10dc9de2f6d115034398}{noise\+\_\+removal\+\_\+distance}}
+\begin{DoxyCompactList}\small\item\em The smaller the value, the greater the filtering degree. range\+: 0 $\sim$ 20 (units\+: mm) \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a4b7d317fb43d4e3957535d1b0b24388d}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a4b7d317fb43d4e3957535d1b0b24388d}} 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a4b7d317fb43d4e3957535d1b0b24388d}{noise\+\_\+removal\+\_\+point\+\_\+number}}
+\begin{DoxyCompactList}\small\item\em Set the noise filter parameter 2. The larger the value, the greater the filtering degree. \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a5eb11564cc8b02a87015cd6cc52a8fdf}{downsample\+\_\+distance}}
+\begin{DoxyCompactList}\small\item\em uniform downsample distance. if $<$= 0, do nothing. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{namespace_r_v_c_ac331383f6ea8e291540955a1a98fffc8}{Capture\+Mode}} \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_afd438f9af4d5015c1c3aefa8fc9a0975}{capture\+\_\+mode}}
+\begin{DoxyCompactList}\small\item\em control capture mode \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_ac2ba6f56980c901194e4b3608e64a63c}{confidence\+\_\+threshold}}
+\begin{DoxyCompactList}\small\item\em confidence threshold, the point with confindence low then this value will be removed range\+: \mbox{[}0, 1\mbox{]} \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a7a8cd1c5c7280d9008e7e1372a5359fd}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a7a8cd1c5c7280d9008e7e1372a5359fd}} 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a7a8cd1c5c7280d9008e7e1372a5359fd}{scan\+\_\+times}}
+\begin{DoxyCompactList}\small\item\em scan times, only use in robust mode. range\+: \mbox{[}1, 8\mbox{]} \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a0f5480ae7cb620843b063c80b4953e7f}{hdr\+\_\+scan\+\_\+times}} \mbox{[}3\mbox{]}
+\begin{DoxyCompactList}\small\item\em Set the hdr scan times, only use in robust mode. range\+: \mbox{[}1, 8\mbox{]}. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a55b3421db00acb916bafd1edefb62c7f}{bilateral\+\_\+filter\+\_\+kernal\+\_\+size}}
+\begin{DoxyCompactList}\small\item\em the kernal size of bilateral filter of depth map range\+: \mbox{[}3, 31\mbox{]}, 0 for not use bilateral filter \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_af4818f24d0d81b46728be90d85b53187}{bilateral\+\_\+filter\+\_\+depth\+\_\+sigma}}
+\begin{DoxyCompactList}\small\item\em the guassian sigma in depth of bilateral filter of depth map range\+: \mbox{[}0, 100\mbox{]} \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a43a1a6e5b64d03d6a97519ac6aa1c1d0}{bilateral\+\_\+filter\+\_\+space\+\_\+sigma}}
+\begin{DoxyCompactList}\small\item\em the guassian sigma in space of bilateral filter of depth map range\+: \mbox{[}0, 100\mbox{]} \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a18a82856de1c4664c2d0fdc2cd4524fd}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a18a82856de1c4664c2d0fdc2cd4524fd}} 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a18a82856de1c4664c2d0fdc2cd4524fd}{line\+\_\+scanner\+\_\+scan\+\_\+time\+\_\+ms}}
+\begin{DoxyCompactList}\small\item\em Set line scanner mode\textquotesingle{}s total scan time. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_ad68ca7c3b249208c138fa2121f8ad02d}\label{struct_r_v_c_1_1_x2_1_1_capture_options_ad68ca7c3b249208c138fa2121f8ad02d}} 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_ad68ca7c3b249208c138fa2121f8ad02d}{line\+\_\+scanner\+\_\+exposure\+\_\+time\+\_\+us}}
+\begin{DoxyCompactList}\small\item\em Set line scanner mode\textquotesingle{}s single line exposure time. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a2607ed214809cbb54218f71fc7123e11}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a2607ed214809cbb54218f71fc7123e11}} 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a2607ed214809cbb54218f71fc7123e11}{line\+\_\+scanner\+\_\+min\+\_\+distance}}
+\begin{DoxyCompactList}\small\item\em Set line scanner mode\textquotesingle{}s minimum working distance. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a1602b70efc5dab17a7e5b389bbd3a8ad}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a1602b70efc5dab17a7e5b389bbd3a8ad}} 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a1602b70efc5dab17a7e5b389bbd3a8ad}{line\+\_\+scanner\+\_\+max\+\_\+distance}}
+\begin{DoxyCompactList}\small\item\em Set line scanner mode\textquotesingle{}s maximum working distance. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_abb31cb6e77ec0f12bad7b251da019d4a}{correspond2d}}
+\begin{DoxyCompactList}\small\item\em whether to generate point clouds corresponding to 2D images \end{DoxyCompactList}\item 
+uint16\+\_\+t \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a99be15f03e9c0eb98375695831a8ce6d}{line\+\_\+scanner\+\_\+laser\+\_\+position}}
+\begin{DoxyCompactList}\small\item\em select laser position in fixed line scan mode \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a390c5f08205806f0a8a53278435d5281}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a390c5f08205806f0a8a53278435d5281}} 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a390c5f08205806f0a8a53278435d5281}{use\+\_\+auto\+\_\+bilateral\+\_\+filter}}
+\begin{DoxyCompactList}\small\item\em flag Whether to use auto bilateral filter. If true, the bilateral\+\_\+filter\+\_\+kernal\+\_\+size and bilateral\+\_\+filter\+\_\+depth\+\_\+sigma and bilateral\+\_\+filter\+\_\+space\+\_\+sigma will be ignored. It will automatically adjust these three parameters according to the point cloud data and do bilateral filter. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a49a7ca6bc4173642b2d5c9d754e81323}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a49a7ca6bc4173642b2d5c9d754e81323}} 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a49a7ca6bc4173642b2d5c9d754e81323}{reflection\+\_\+filter\+\_\+threshold}}
+\begin{DoxyCompactList}\small\item\em Used to remove large-\/area erroneous point clouds caused by reflections. The higher this value is set, the more points will be removed by the reflection filter. Setting it too large may remove data from thin and pointy objects. range\+:\mbox{[}0, 30\mbox{]}. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_af2213d405a452c5278508424c8c2300c}\label{struct_r_v_c_1_1_x2_1_1_capture_options_af2213d405a452c5278508424c8c2300c}} 
+double \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_af2213d405a452c5278508424c8c2300c}{smooth\+\_\+sigma}}
+\begin{DoxyCompactList}\small\item\em The Gaussian filters are used to smooth points. The larger the smooth\+\_\+sigma, the smoother the point cloud becomes. However, an excessively large smooth\+\_\+sigma can cause edges to be smoothed out as well. range\+: \mbox{[}0, 5\mbox{]}. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a92015f50b3e5ba5f4b97033401635bb6}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a92015f50b3e5ba5f4b97033401635bb6}} 
+\mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+V\+C\+::\+R\+OI}} \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a92015f50b3e5ba5f4b97033401635bb6}{roi}}
+\begin{DoxyCompactList}\small\item\em set \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} function, only 3d points in the roi will be generated. This function can improve 3d capture speed and only support Swing\+Line\+Scan capture mode. The parameters of roi must comply with the rules of the equipment and can be checked by Check\+Roi. We recommend that you adjust roi automatically through C before Auto\+Adjust\+Roi. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a44632458373a6267b465fe1808c71176}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a44632458373a6267b465fe1808c71176}} 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a44632458373a6267b465fe1808c71176}{enable\+\_\+2d\+\_\+in\+\_\+capture}}
+\begin{DoxyCompactList}\small\item\em Acquire 2D images during capture. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_aaaf3b8f27ba515034a5e1d7461e39a32}\label{struct_r_v_c_1_1_x2_1_1_capture_options_aaaf3b8f27ba515034a5e1d7461e39a32}} 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_aaaf3b8f27ba515034a5e1d7461e39a32}{pointcloud\+\_\+completion}}
+\begin{DoxyCompactList}\small\item\em In \textquotesingle{}Capture\+Mode\+\_\+\+Swing\+Line\+Scan\textquotesingle{} mode with \textquotesingle{}correspond2d\textquotesingle{} enabled,turning on \textquotesingle{}pointcloud\+\_\+completion\textquotesingle{} will interpolate the point cloud to produce a dense reconstruction. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a955a77957a5e23adf5bf2af33cf5641c}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a955a77957a5e23adf5bf2af33cf5641c}} 
+int {\bfseries line\+\_\+scanner\+\_\+brightness\+\_\+threshold}
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_acf29ae2363969eb5c459d7ef8ef6323a}\label{struct_r_v_c_1_1_x2_1_1_capture_options_acf29ae2363969eb5c459d7ef8ef6323a}} 
+\mbox{\hyperlink{namespace_r_v_c_ae50597f664acd39bb4ab0122809c18b0}{Trigger\+Mode}} \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_acf29ae2363969eb5c459d7ef8ef6323a}{trigger\+\_\+mode}}
+\begin{DoxyCompactList}\small\item\em Trigger mode. Currently, only the \textquotesingle{}Fixed\+Line\+Scan\textquotesingle{} mode supports hardware triggering (Trigger\+Mode\+\_\+\+Hard\+Ware); all other modes only support software triggering (Trigger\+Mode\+\_\+\+Soft\+Ware). \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_ac235875fb08d6d929a714531377024e2}\label{struct_r_v_c_1_1_x2_1_1_capture_options_ac235875fb08d6d929a714531377024e2}} 
+int \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_ac235875fb08d6d929a714531377024e2}{encoder\+\_\+trigger\+\_\+interval}}
+\begin{DoxyCompactList}\small\item\em Number of encoder pulses required to trigger one profile acquisition. \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a1405cebcb5aed817e6f93b9c82aba877}{truncate\+\_\+z\+\_\+min}}
+\begin{DoxyCompactList}\small\item\em truncate point map and depth map by z direction minimum value (units\+: mm) and truncate\+\_\+z\+\_\+min should less than truncate\+\_\+z\+\_\+max range\+: \mbox{[}-\/29999, 29999\mbox{]} \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_aaf0fb5567bbbbd6b9750eebb9a33410f}{truncate\+\_\+z\+\_\+max}}
+\begin{DoxyCompactList}\small\item\em truncate point map and depth map by z direction maximum value (units\+: mm) and truncate\+\_\+z\+\_\+max should more than truncate\+\_\+z\+\_\+min range\+: \mbox{[}-\/29999, 29999\mbox{]} \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_ad5abe05bbee37bb694d4121d51ca6ee2}{line\+\_\+scanner\+\_\+confidence}}
+\begin{DoxyCompactList}\small\item\em Line scanner confidence threshold for point cloud filtering. \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_aa712d23dfcda3f4263700aa6f5d4d2f8}{fixed\+\_\+rate}}
+\begin{DoxyCompactList}\small\item\em Fixed-\/rate trigger frequency in Hz. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a3cf8f8dcf762834f863c3b257ad6b43c}{auto\+\_\+set\+\_\+fixed\+\_\+rate}}
+\begin{DoxyCompactList}\small\item\em Enable automatic fixed rate estimation. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x2_1_1_capture_options_a7b65186cb3ab90480e0280547db6535c}{enable\+\_\+transfer\+\_\+control}}
+\begin{DoxyCompactList}\small\item\em Enable transfer control. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Capture options. 
+
+
+
+\doxysubsection{Constructor \& Destructor Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a70fb68e7973d53c1d5695b6bfcd5299e}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a70fb68e7973d53c1d5695b6bfcd5299e}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!CaptureOptions@{CaptureOptions}}
+\index{CaptureOptions@{CaptureOptions}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{CaptureOptions()}{CaptureOptions()}}
+{\footnotesize\ttfamily R\+V\+C\+::\+X2\+::\+Capture\+Options\+::\+Capture\+Options (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Construct a new Capture Options object. 
+
+
+
+\doxysubsection{Member Data Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a3cf8f8dcf762834f863c3b257ad6b43c}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a3cf8f8dcf762834f863c3b257ad6b43c}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!auto\_set\_fixed\_rate@{auto\_set\_fixed\_rate}}
+\index{auto\_set\_fixed\_rate@{auto\_set\_fixed\_rate}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{auto\_set\_fixed\_rate}{auto\_set\_fixed\_rate}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X2\+::\+Capture\+Options\+::auto\+\_\+set\+\_\+fixed\+\_\+rate}
+
+
+
+Enable automatic fixed rate estimation. 
+
+When true\+: camera auto-\/estimates trigger rate, ignoring fixed\+\_\+rate. When false\+: manual fixed\+\_\+rate setting takes effect.
+
+\begin{DoxyNote}{Note}
+Automatic rate estimation provides a relatively safe value but doesn\textquotesingle{}t guarantee no frame drops. 
+\end{DoxyNote}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_af4818f24d0d81b46728be90d85b53187}\label{struct_r_v_c_1_1_x2_1_1_capture_options_af4818f24d0d81b46728be90d85b53187}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!bilateral\_filter\_depth\_sigma@{bilateral\_filter\_depth\_sigma}}
+\index{bilateral\_filter\_depth\_sigma@{bilateral\_filter\_depth\_sigma}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{bilateral\_filter\_depth\_sigma}{bilateral\_filter\_depth\_sigma}}
+{\footnotesize\ttfamily double R\+V\+C\+::\+X2\+::\+Capture\+Options\+::bilateral\+\_\+filter\+\_\+depth\+\_\+sigma}
+
+
+
+the guassian sigma in depth of bilateral filter of depth map range\+: \mbox{[}0, 100\mbox{]} 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a55b3421db00acb916bafd1edefb62c7f}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a55b3421db00acb916bafd1edefb62c7f}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!bilateral\_filter\_kernal\_size@{bilateral\_filter\_kernal\_size}}
+\index{bilateral\_filter\_kernal\_size@{bilateral\_filter\_kernal\_size}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{bilateral\_filter\_kernal\_size}{bilateral\_filter\_kernal\_size}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+X2\+::\+Capture\+Options\+::bilateral\+\_\+filter\+\_\+kernal\+\_\+size}
+
+
+
+the kernal size of bilateral filter of depth map range\+: \mbox{[}3, 31\mbox{]}, 0 for not use bilateral filter 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a43a1a6e5b64d03d6a97519ac6aa1c1d0}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a43a1a6e5b64d03d6a97519ac6aa1c1d0}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!bilateral\_filter\_space\_sigma@{bilateral\_filter\_space\_sigma}}
+\index{bilateral\_filter\_space\_sigma@{bilateral\_filter\_space\_sigma}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{bilateral\_filter\_space\_sigma}{bilateral\_filter\_space\_sigma}}
+{\footnotesize\ttfamily double R\+V\+C\+::\+X2\+::\+Capture\+Options\+::bilateral\+\_\+filter\+\_\+space\+\_\+sigma}
+
+
+
+the guassian sigma in space of bilateral filter of depth map range\+: \mbox{[}0, 100\mbox{]} 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_addc0674080aff6796f361ac6fe071a84}\label{struct_r_v_c_1_1_x2_1_1_capture_options_addc0674080aff6796f361ac6fe071a84}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!calc\_normal@{calc\_normal}}
+\index{calc\_normal@{calc\_normal}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{calc\_normal}{calc\_normal}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X2\+::\+Capture\+Options\+::calc\+\_\+normal}
+
+
+
+flag Whether calculate 3D points normal vector 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_afd438f9af4d5015c1c3aefa8fc9a0975}\label{struct_r_v_c_1_1_x2_1_1_capture_options_afd438f9af4d5015c1c3aefa8fc9a0975}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!capture\_mode@{capture\_mode}}
+\index{capture\_mode@{capture\_mode}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{capture\_mode}{capture\_mode}}
+{\footnotesize\ttfamily \mbox{\hyperlink{namespace_r_v_c_ac331383f6ea8e291540955a1a98fffc8}{Capture\+Mode}} R\+V\+C\+::\+X2\+::\+Capture\+Options\+::capture\+\_\+mode}
+
+
+
+control capture mode 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_ac2ba6f56980c901194e4b3608e64a63c}\label{struct_r_v_c_1_1_x2_1_1_capture_options_ac2ba6f56980c901194e4b3608e64a63c}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!confidence\_threshold@{confidence\_threshold}}
+\index{confidence\_threshold@{confidence\_threshold}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{confidence\_threshold}{confidence\_threshold}}
+{\footnotesize\ttfamily double R\+V\+C\+::\+X2\+::\+Capture\+Options\+::confidence\+\_\+threshold}
+
+
+
+confidence threshold, the point with confindence low then this value will be removed range\+: \mbox{[}0, 1\mbox{]} 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_abb31cb6e77ec0f12bad7b251da019d4a}\label{struct_r_v_c_1_1_x2_1_1_capture_options_abb31cb6e77ec0f12bad7b251da019d4a}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!correspond2d@{correspond2d}}
+\index{correspond2d@{correspond2d}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{correspond2d}{correspond2d}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X2\+::\+Capture\+Options\+::correspond2d}
+
+
+
+whether to generate point clouds corresponding to 2D images 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a5eb11564cc8b02a87015cd6cc52a8fdf}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a5eb11564cc8b02a87015cd6cc52a8fdf}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!downsample\_distance@{downsample\_distance}}
+\index{downsample\_distance@{downsample\_distance}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{downsample\_distance}{downsample\_distance}}
+{\footnotesize\ttfamily double R\+V\+C\+::\+X2\+::\+Capture\+Options\+::downsample\+\_\+distance}
+
+
+
+uniform downsample distance. if $<$= 0, do nothing. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a393f2fdb529b863bdc2c8e8dd754fd3f}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a393f2fdb529b863bdc2c8e8dd754fd3f}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!edge\_noise\_reduction\_threshold@{edge\_noise\_reduction\_threshold}}
+\index{edge\_noise\_reduction\_threshold@{edge\_noise\_reduction\_threshold}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{edge\_noise\_reduction\_threshold}{edge\_noise\_reduction\_threshold}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+X2\+::\+Capture\+Options\+::edge\+\_\+noise\+\_\+reduction\+\_\+threshold}
+
+
+
+edge control after point matching, range in \mbox{[}0, 10\mbox{]}, default = 2. The big the value, the more edge noise to be removed. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a7b65186cb3ab90480e0280547db6535c}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a7b65186cb3ab90480e0280547db6535c}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!enable\_transfer\_control@{enable\_transfer\_control}}
+\index{enable\_transfer\_control@{enable\_transfer\_control}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{enable\_transfer\_control}{enable\_transfer\_control}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X2\+::\+Capture\+Options\+::enable\+\_\+transfer\+\_\+control}
+
+
+
+Enable transfer control. 
+
+When true\+: Network transmission is more stable, but data may be lost if the buffer is full. When false\+: Network transmission is faster, but packet loss may occur. \mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a182637624d485019887829439c53a3d1}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a182637624d485019887829439c53a3d1}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!exposure\_time\_2d@{exposure\_time\_2d}}
+\index{exposure\_time\_2d@{exposure\_time\_2d}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{exposure\_time\_2d}{exposure\_time\_2d}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+X2\+::\+Capture\+Options\+::exposure\+\_\+time\+\_\+2d}
+
+
+
+Set the exposure\+\_\+time 2D value in milliseconds. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_ae7e7fb4668e73846a2766d2509d931f2}\label{struct_r_v_c_1_1_x2_1_1_capture_options_ae7e7fb4668e73846a2766d2509d931f2}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!exposure\_time\_3d@{exposure\_time\_3d}}
+\index{exposure\_time\_3d@{exposure\_time\_3d}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{exposure\_time\_3d}{exposure\_time\_3d}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+X2\+::\+Capture\+Options\+::exposure\+\_\+time\+\_\+3d}
+
+
+
+Set the exposure\+\_\+time 3D value in milliseconds. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_aa712d23dfcda3f4263700aa6f5d4d2f8}\label{struct_r_v_c_1_1_x2_1_1_capture_options_aa712d23dfcda3f4263700aa6f5d4d2f8}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!fixed\_rate@{fixed\_rate}}
+\index{fixed\_rate@{fixed\_rate}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{fixed\_rate}{fixed\_rate}}
+{\footnotesize\ttfamily double R\+V\+C\+::\+X2\+::\+Capture\+Options\+::fixed\+\_\+rate}
+
+
+
+Fixed-\/rate trigger frequency in Hz. 
+
+Specifies the internal trigger frequency in Trigger\+Mode\+\_\+\+Fixed\+Rate mode.
+
+
+\begin{DoxyItemize}
+\item Unit\+: Hertz (Hz), frames per second
+\item Only effective when Trigger\+Mode = Trigger\+Mode\+\_\+\+Fixed\+Rate
+\item Behavior\+:
+\begin{DoxyItemize}
+\item If auto\+\_\+set\+\_\+fixed\+\_\+rate = true\+: ignored, camera auto-\/estimates rate
+\item If auto\+\_\+set\+\_\+fixed\+\_\+rate = false\+: use specified frequency
+\end{DoxyItemize}
+\end{DoxyItemize}
+
+\begin{DoxyNote}{Note}
+Automatic rate estimation provides a relatively safe value but doesn\textquotesingle{}t guarantee no frame drops. 
+\end{DoxyNote}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a2ff10f1b193e4c2cd8fafbf580d0d223}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a2ff10f1b193e4c2cd8fafbf580d0d223}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!gain\_2d@{gain\_2d}}
+\index{gain\_2d@{gain\_2d}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{gain\_2d}{gain\_2d}}
+{\footnotesize\ttfamily float R\+V\+C\+::\+X2\+::\+Capture\+Options\+::gain\+\_\+2d}
+
+
+
+Set the 2D gain value in milliseconds. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a5a6572401c503d1e567640ffbf2c88ab}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a5a6572401c503d1e567640ffbf2c88ab}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!gain\_3d@{gain\_3d}}
+\index{gain\_3d@{gain\_3d}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{gain\_3d}{gain\_3d}}
+{\footnotesize\ttfamily float R\+V\+C\+::\+X2\+::\+Capture\+Options\+::gain\+\_\+3d}
+
+
+
+Set the 3D gain value in milliseconds. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a12c25daf7fd0732bc9230eb91190507b}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a12c25daf7fd0732bc9230eb91190507b}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!gamma\_2d@{gamma\_2d}}
+\index{gamma\_2d@{gamma\_2d}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{gamma\_2d}{gamma\_2d}}
+{\footnotesize\ttfamily float R\+V\+C\+::\+X2\+::\+Capture\+Options\+::gamma\+\_\+2d}
+
+
+
+Set the 2D gamma value in milliseconds. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a3e44a5a71a17a91f1c93b8a2699b1c1f}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a3e44a5a71a17a91f1c93b8a2699b1c1f}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!gamma\_3d@{gamma\_3d}}
+\index{gamma\_3d@{gamma\_3d}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{gamma\_3d}{gamma\_3d}}
+{\footnotesize\ttfamily float R\+V\+C\+::\+X2\+::\+Capture\+Options\+::gamma\+\_\+3d}
+
+
+
+Set the 3D gamma value in milliseconds. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_af370a825b14c4f3d04b9241cd5bc28a7}\label{struct_r_v_c_1_1_x2_1_1_capture_options_af370a825b14c4f3d04b9241cd5bc28a7}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!hdr\_exposure\_times@{hdr\_exposure\_times}}
+\index{hdr\_exposure\_times@{hdr\_exposure\_times}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{hdr\_exposure\_times}{hdr\_exposure\_times}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+X2\+::\+Capture\+Options\+::hdr\+\_\+exposure\+\_\+times}
+
+
+
+Set the hdr exposure times value. 0,2,3. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a6ea71728e9fb3ade2c88534b501ea5d6}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a6ea71728e9fb3ade2c88534b501ea5d6}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!hdr\_exposuretime\_content@{hdr\_exposuretime\_content}}
+\index{hdr\_exposuretime\_content@{hdr\_exposuretime\_content}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{hdr\_exposuretime\_content}{hdr\_exposuretime\_content}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+X2\+::\+Capture\+Options\+::hdr\+\_\+exposuretime\+\_\+content\mbox{[}3\mbox{]}}
+
+
+
+Set the hdr exposure time content. capture with white light, range \mbox{[}11, 100\mbox{]}, others \mbox{[}3, 100\mbox{]}. If use M-\/series, range\mbox{[}10, 100\mbox{]}. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_ada032debd30c3425640b0a362358a6a5}\label{struct_r_v_c_1_1_x2_1_1_capture_options_ada032debd30c3425640b0a362358a6a5}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!hdr\_gain\_3d@{hdr\_gain\_3d}}
+\index{hdr\_gain\_3d@{hdr\_gain\_3d}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{hdr\_gain\_3d}{hdr\_gain\_3d}}
+{\footnotesize\ttfamily float R\+V\+C\+::\+X2\+::\+Capture\+Options\+::hdr\+\_\+gain\+\_\+3d\mbox{[}3\mbox{]}}
+
+
+
+Set the hdr 3D gain content. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a138942c35c2cf4382ec16a7bb6c722d6}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a138942c35c2cf4382ec16a7bb6c722d6}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!hdr\_projector\_brightness@{hdr\_projector\_brightness}}
+\index{hdr\_projector\_brightness@{hdr\_projector\_brightness}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{hdr\_projector\_brightness}{hdr\_projector\_brightness}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+X2\+::\+Capture\+Options\+::hdr\+\_\+projector\+\_\+brightness\mbox{[}3\mbox{]}}
+
+
+
+Set the hdr projector brightness value. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a0f5480ae7cb620843b063c80b4953e7f}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a0f5480ae7cb620843b063c80b4953e7f}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!hdr\_scan\_times@{hdr\_scan\_times}}
+\index{hdr\_scan\_times@{hdr\_scan\_times}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{hdr\_scan\_times}{hdr\_scan\_times}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+X2\+::\+Capture\+Options\+::hdr\+\_\+scan\+\_\+times\mbox{[}3\mbox{]}}
+
+
+
+Set the hdr scan times, only use in robust mode. range\+: \mbox{[}1, 8\mbox{]}. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a1424dd73d0a8f03b75251332810e708e}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a1424dd73d0a8f03b75251332810e708e}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!light\_contrast\_threshold@{light\_contrast\_threshold}}
+\index{light\_contrast\_threshold@{light\_contrast\_threshold}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{light\_contrast\_threshold}{light\_contrast\_threshold}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+X2\+::\+Capture\+Options\+::light\+\_\+contrast\+\_\+threshold}
+
+
+
+Light contrast trheshold, range in \mbox{[}0, 10\mbox{]}. The contrast of point less than this value will be treat as invalid point and be removed. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_ad5abe05bbee37bb694d4121d51ca6ee2}\label{struct_r_v_c_1_1_x2_1_1_capture_options_ad5abe05bbee37bb694d4121d51ca6ee2}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!line\_scanner\_confidence@{line\_scanner\_confidence}}
+\index{line\_scanner\_confidence@{line\_scanner\_confidence}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{line\_scanner\_confidence}{line\_scanner\_confidence}}
+{\footnotesize\ttfamily double R\+V\+C\+::\+X2\+::\+Capture\+Options\+::line\+\_\+scanner\+\_\+confidence}
+
+
+
+Line scanner confidence threshold for point cloud filtering. 
+
+Sets the minimum confidence level for line scanner data points \mbox{[}0,1\mbox{]}
+\begin{DoxyItemize}
+\item Value 0\+: disables this filtering function
+\item Values $>$0\+: points with confidence below this value are removed and fixed when possible
+\end{DoxyItemize}
+
+How it works\+:
+\begin{DoxyItemize}
+\item Higher values\+: more points removed (cleaner data)
+\item Lower values\+: more points kept (may include noise)
+\item Removes noise that clustering filters cannot remove
+\item Default 0.\+72 works well for most scenarios within the default working range
+\end{DoxyItemize}
+
+Adjustment suggestions\+:
+\begin{DoxyItemize}
+\item 0.\+72 is optimal for most scenarios within the default working range
+\item For extended ranges (e.\+g., scanning distant objects), consider lowering this value
+\end{DoxyItemize}
+
+Warning\+: Setting too high may remove valid data points \mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a99be15f03e9c0eb98375695831a8ce6d}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a99be15f03e9c0eb98375695831a8ce6d}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!line\_scanner\_laser\_position@{line\_scanner\_laser\_position}}
+\index{line\_scanner\_laser\_position@{line\_scanner\_laser\_position}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{line\_scanner\_laser\_position}{line\_scanner\_laser\_position}}
+{\footnotesize\ttfamily uint16\+\_\+t R\+V\+C\+::\+X2\+::\+Capture\+Options\+::line\+\_\+scanner\+\_\+laser\+\_\+position}
+
+
+
+select laser position in fixed line scan mode 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a80d0bd7b39eaf157c723dec9244713e9}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a80d0bd7b39eaf157c723dec9244713e9}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!projector\_brightness@{projector\_brightness}}
+\index{projector\_brightness@{projector\_brightness}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{projector\_brightness}{projector\_brightness}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+X2\+::\+Capture\+Options\+::projector\+\_\+brightness}
+
+
+
+Set the projector brightness value. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_ad3d9e8c487bfccf8c215f3e546f36113}\label{struct_r_v_c_1_1_x2_1_1_capture_options_ad3d9e8c487bfccf8c215f3e546f36113}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!smoothness@{smoothness}}
+\index{smoothness@{smoothness}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{smoothness}{smoothness}}
+{\footnotesize\ttfamily Smoothness\+Level R\+V\+C\+::\+X2\+::\+Capture\+Options\+::smoothness}
+
+
+
+control point map smoothness 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_aaf0fb5567bbbbd6b9750eebb9a33410f}\label{struct_r_v_c_1_1_x2_1_1_capture_options_aaf0fb5567bbbbd6b9750eebb9a33410f}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!truncate\_z\_max@{truncate\_z\_max}}
+\index{truncate\_z\_max@{truncate\_z\_max}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{truncate\_z\_max}{truncate\_z\_max}}
+{\footnotesize\ttfamily double R\+V\+C\+::\+X2\+::\+Capture\+Options\+::truncate\+\_\+z\+\_\+max}
+
+
+
+truncate point map and depth map by z direction maximum value (units\+: mm) and truncate\+\_\+z\+\_\+max should more than truncate\+\_\+z\+\_\+min range\+: \mbox{[}-\/29999, 29999\mbox{]} 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a1405cebcb5aed817e6f93b9c82aba877}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a1405cebcb5aed817e6f93b9c82aba877}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!truncate\_z\_min@{truncate\_z\_min}}
+\index{truncate\_z\_min@{truncate\_z\_min}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{truncate\_z\_min}{truncate\_z\_min}}
+{\footnotesize\ttfamily double R\+V\+C\+::\+X2\+::\+Capture\+Options\+::truncate\+\_\+z\+\_\+min}
+
+
+
+truncate point map and depth map by z direction minimum value (units\+: mm) and truncate\+\_\+z\+\_\+min should less than truncate\+\_\+z\+\_\+max range\+: \mbox{[}-\/29999, 29999\mbox{]} 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_ac3b40ac886fc85fec718429f5368658c}\label{struct_r_v_c_1_1_x2_1_1_capture_options_ac3b40ac886fc85fec718429f5368658c}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!use\_auto\_noise\_removal@{use\_auto\_noise\_removal}}
+\index{use\_auto\_noise\_removal@{use\_auto\_noise\_removal}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{use\_auto\_noise\_removal}{use\_auto\_noise\_removal}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X2\+::\+Capture\+Options\+::use\+\_\+auto\+\_\+noise\+\_\+removal}
+
+
+
+flag Whether to use auto noise removal. If true, the noise\+\_\+removal\+\_\+distance and noise\+\_\+removal\+\_\+point\+\_\+number will be ignored. It will automatically adjust these two parameters according to the point cloud data and do noise removal. 
+
+Point cloud noise removal algorithm, contains three parameters\+: use\+\_\+auto\+\_\+noise\+\_\+removal, noise\+\_\+removal\+\_\+distance and noise\+\_\+removal\+\_\+point\+\_\+number. This algorithm performs noise reduction through a clustering algorithm. The point cloud is classified into blocks according to the distance (noise\+\_\+removal\+\_\+distance). If the total number of points in the block is less than a certain threshold (noise\+\_\+removal\+\_\+point\+\_\+number), the points in the block are considered as noise points and need to be removed. \mbox{\Hypertarget{struct_r_v_c_1_1_x2_1_1_capture_options_a12d14e53dde0452be851c6c24352a960}\label{struct_r_v_c_1_1_x2_1_1_capture_options_a12d14e53dde0452be851c6c24352a960}} 
+\index{RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}!use\_projector\_capturing\_2d\_image@{use\_projector\_capturing\_2d\_image}}
+\index{use\_projector\_capturing\_2d\_image@{use\_projector\_capturing\_2d\_image}!RVC::X2::CaptureOptions@{RVC::X2::CaptureOptions}}
+\doxysubsubsection{\texorpdfstring{use\_projector\_capturing\_2d\_image}{use\_projector\_capturing\_2d\_image}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X2\+::\+Capture\+Options\+::use\+\_\+projector\+\_\+capturing\+\_\+2d\+\_\+image}
+
+
+
+Set 2D image whether use projector. 
+
+
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+R\+V\+C.\+h\end{DoxyCompactItemize}

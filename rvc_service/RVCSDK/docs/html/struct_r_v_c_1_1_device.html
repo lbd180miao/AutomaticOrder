@@ -1,0 +1,579 @@
+<!-- HTML header for doxygen 1.8.6-->
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=9" />
+  <meta name="generator" content="Doxygen 1.8.18" />
+  <title>RVC: RVC::Device Struct Reference</title>
+  <link href="tabs.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="jquery.js"></script>
+  <script type="text/javascript" src="dynsections.js"></script>
+  <link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+  <link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+  <link href="doxygen.css" rel="stylesheet" type="text/css" />
+  <link
+    href="https://fonts.googleapis.com/css?family=Roboto:300,400,400italic,500,500italic,700,700italic|Roboto+Mono:400,700"
+    rel="stylesheet">
+  <link href="style.css" rel="stylesheet" type="text/css"/>
+  <script>
+    /**
+     * Check if the browser rendering this page is being run on an Android device.
+     * It checks if the string 'android' is found in the browser's `userAgent`.
+     * @return {boolean} This returns `true` if the browser's `userAgent` contains
+     * the string 'android' (indicating that the browser is on an Android device).
+     * Otherwise, it returns `false`.
+     */
+    function isAndroidDevice() {
+      if (navigator && navigator.userAgent) {
+        return navigator.userAgent.toLowerCase().indexOf('android') != -1;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Check if an HTML `class` attribute is in the browser-specific format.
+     * @param {string} An HTML `class` attribute in the format 'browser-{device}'.
+     * @return {boolean} Returns `true` if `browserClass` was in the valid format,
+     * prefixed with 'browser-'. Otherwise, it returns false.
+     */
+    function isBrowserSpecificClassName(browserClass) {
+      if (browserClass && browserClass.substring(0, 8) == 'browser-' &&
+        browserClass.length > 8) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Get all the HTML Elements with browser-specific `class` attributes.
+     * @return {array} Returns an array of all the HTML Elements with a `class`
+     * attribute that is prefixed with `browser-`.
+     */
+    function getAllBrowserSpecificElements() {
+      if (document) {
+        var htmlElements = document.getElementsByTagName("*");
+        var browserSpecificElements = [];
+        for (var i = 0; i < htmlElements.length; i++) {
+          if (isBrowserSpecificClassName(htmlElements[i].className)) {
+            browserSpecificElements.push(htmlElements[i]);
+          }
+        }
+        return browserSpecificElements;
+      } else {
+        return null;
+      }
+    }
+    /**
+     * Given a browser-specific HTML `class` attribute, extract the device name.
+     * @param {string} browserClass The string name of an HTML `class` attribute,
+     * in the format `browser-{device}`.
+     * @return {string} Returns a string containing only the device portion of
+     * the class name. If the input was invalid, then it returns `null`.
+     */
+    function extractDeviceFromBrowserClass(browserClass) {
+      if (isBrowserSpecificClassName(browserClass)) {
+        return browserClass.substring(8);
+      }
+      else {
+        return null;
+      }
+    }
+    /**
+     * Hide device specific elements that do not apply to the current device.
+     */
+    function handleDeviceSpecificLoading() {
+      var browserSpecificElements = getAllBrowserSpecificElements();
+      for (var i = 0; i < browserSpecificElements.length; i++) {
+        var device = extractDeviceFromBrowserClass(browserSpecificElements[i].className);
+        if (device && !isAndroidDevice() && device == 'android') {
+          browserSpecificElements[i].innerHTML = '';
+        } else if (device && isAndroidDevice() && device == 'desktop') {
+          browserSpecificElements[i].innerHTML = '';
+        }
+      }
+    }
+    $(document).ready(handleDeviceSpecificLoading);
+  </script>
+</head>
+<body>
+  <div id="top">
+    <!-- do not remove this div, it is closed by doxygen! -->
+    <div id="titlearea">
+      <table cellspacing="0" cellpadding="0">
+        <tbody>
+          <tr style="height: 56px;">
+            <!-- <td id="projectlogo">
+    <img alt="Logo" width=100px src="documentation.png"/>
+  </td> -->
+            <!-- END PROJECT_LOGO -->
+            <td id="commonprojectlogo">
+              <img alt="Logo" width=150px src="documentation.png" />
+            </td>
+            <td style="padding-left: 0.5em;">
+              <div id="projectname">RVC
+                &#160;<span id="projectnumber">1.15.1</span>
+              </div>
+              <div style="font-size:12px;">
+                a product by
+                <a href="https://www.rvbust.com">RVBUST</a>.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- end header part --><!-- Generated by Doxygen 1.8.18 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+var searchBox = new SearchBox("searchBox", "search",false,'Search');
+/* @license-end */
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(function() {
+  initMenu('',true,false,'search.php','Search');
+  $(document).ready(function() { init_search(); });
+});
+/* @license-end */</script>
+<div id="main-nav"></div>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(document).ready(function(){initNavTree('struct_r_v_c_1_1_device.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<iframe src="javascript:void(0)" frameborder="0" 
+        name="MSearchResults" id="MSearchResults">
+</iframe>
+</div>
+
+<div class="header">
+  <div class="summary">
+<a href="#pub-methods">Public Member Functions</a> &#124;
+<a href="#pub-static-methods">Static Public Member Functions</a> &#124;
+<a href="#pub-attribs">Public Attributes</a> &#124;
+<a href="struct_r_v_c_1_1_device-members.html">List of all members</a>  </div>
+  <div class="headertitle">
+<div class="title">RVC::Device Struct Reference</div>  </div>
+</div><!--header-->
+<div class="contents">
+
+<p><a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> struct.  
+ <a href="struct_r_v_c_1_1_device.html#details">More...</a></p>
+
+<p><code>#include &lt;<a class="el" href="_r_v_c_8h_source.html">RVC.h</a>&gt;</code></p>
+<div class="dynheader">
+Collaboration diagram for RVC::Device:</div>
+<div class="dyncontent">
+<div class="center"><img src="struct_r_v_c_1_1_device__coll__graph.png" border="0" usemap="#_r_v_c_1_1_device_coll__map" alt="Collaboration graph"/></div>
+<map name="_r_v_c_1_1_device_coll__map" id="_r_v_c_1_1_device_coll__map">
+<area shape="rect" title="Device struct." alt="" coords="7,95,101,121"/>
+<area shape="rect" href="struct_r_v_c_1_1_handle.html" title="RVC Handle." alt="" coords="5,5,103,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
+<table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
+Public Member Functions</h2></td></tr>
+<tr class="memitem:a00602516d6f5fb3dfe64f5883c6ae75b"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_device.html#a00602516d6f5fb3dfe64f5883c6ae75b">IsValid</a> () const</td></tr>
+<tr class="memdesc:a00602516d6f5fb3dfe64f5883c6ae75b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check device is valid or not.  <a href="struct_r_v_c_1_1_device.html#a00602516d6f5fb3dfe64f5883c6ae75b">More...</a><br /></td></tr>
+<tr class="separator:a00602516d6f5fb3dfe64f5883c6ae75b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a85fa5bef5760bfe8eaff10bd40dd232c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_device.html#a85fa5bef5760bfe8eaff10bd40dd232c">Print</a> () const</td></tr>
+<tr class="memdesc:a85fa5bef5760bfe8eaff10bd40dd232c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Print device info.  <a href="struct_r_v_c_1_1_device.html#a85fa5bef5760bfe8eaff10bd40dd232c">More...</a><br /></td></tr>
+<tr class="separator:a85fa5bef5760bfe8eaff10bd40dd232c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad5edfbbaf441b14d432fc609a71f1d89"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_device.html#ad5edfbbaf441b14d432fc609a71f1d89">GetDeviceInfo</a> (<a class="el" href="struct_r_v_c_1_1_device_info.html">DeviceInfo</a> *pinfo)</td></tr>
+<tr class="memdesc:ad5edfbbaf441b14d432fc609a71f1d89"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the <a class="el" href="struct_r_v_c_1_1_device_info.html" title="RVC X Device info.">DeviceInfo</a> object.  <a href="struct_r_v_c_1_1_device.html#ad5edfbbaf441b14d432fc609a71f1d89">More...</a><br /></td></tr>
+<tr class="separator:ad5edfbbaf441b14d432fc609a71f1d89"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adc92971e89e16e86bb1516a3fef5a5ee"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_device.html#adc92971e89e16e86bb1516a3fef5a5ee">SetNetworkConfig</a> (enum <a class="el" href="namespace_r_v_c.html#a430a7044e1b511a70857607b700e1683">NetworkDevice</a> d, <a class="el" href="namespace_r_v_c.html#a2345e06c5ee95e12b6fa56ab07176237">NetworkType</a> type, const char *ip, const char *netMask, const char *gateway)</td></tr>
+<tr class="memdesc:adc92971e89e16e86bb1516a3fef5a5ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> network configuration.  <a href="struct_r_v_c_1_1_device.html#adc92971e89e16e86bb1516a3fef5a5ee">More...</a><br /></td></tr>
+<tr class="separator:adc92971e89e16e86bb1516a3fef5a5ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aba4133fb3df2e7c1d4a7c88b00e15012"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_device.html#aba4133fb3df2e7c1d4a7c88b00e15012">GetNetworkConfig</a> (enum <a class="el" href="namespace_r_v_c.html#a430a7044e1b511a70857607b700e1683">NetworkDevice</a> d, <a class="el" href="namespace_r_v_c.html#a2345e06c5ee95e12b6fa56ab07176237">NetworkType</a> *type, char *ip, char *netMask, char *gateway, int *status)</td></tr>
+<tr class="memdesc:aba4133fb3df2e7c1d4a7c88b00e15012"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the device network configuration.  <a href="struct_r_v_c_1_1_device.html#aba4133fb3df2e7c1d4a7c88b00e15012">More...</a><br /></td></tr>
+<tr class="separator:aba4133fb3df2e7c1d4a7c88b00e15012"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6948fac0c9f6f98aa8aac581db66af07"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_device.html#a6948fac0c9f6f98aa8aac581db66af07">AutoConfigureNetwork</a> ()</td></tr>
+<tr class="memdesc:a6948fac0c9f6f98aa8aac581db66af07"><td class="mdescLeft">&#160;</td><td class="mdescRight">Automatically configure network IP addresses for all devices (LightMachine and cameras) This function automatically finds available IP addresses in the same network segment and configures them for devices that are not in OK status. This is equivalent to the "one-click configuration" feature in <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> Manager.  <a href="struct_r_v_c_1_1_device.html#a6948fac0c9f6f98aa8aac581db66af07">More...</a><br /></td></tr>
+<tr class="separator:a6948fac0c9f6f98aa8aac581db66af07"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2f39d9a4c0fa75f0a57e0809c55a4a28"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_device.html#a2f39d9a4c0fa75f0a57e0809c55a4a28">UpgradeFirmware</a> (const char *device_firmware_path, const char *config_data_path)</td></tr>
+<tr class="memdesc:a2f39d9a4c0fa75f0a57e0809c55a4a28"><td class="mdescLeft">&#160;</td><td class="mdescRight">Upgrade <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> Firmware.  <a href="struct_r_v_c_1_1_device.html#a2f39d9a4c0fa75f0a57e0809c55a4a28">More...</a><br /></td></tr>
+<tr class="separator:a2f39d9a4c0fa75f0a57e0809c55a4a28"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a49659aa124927a586743d6e029a5d147"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_device.html#a49659aa124927a586743d6e029a5d147">IsFirmwareMatch</a> (void)</td></tr>
+<tr class="memdesc:a49659aa124927a586743d6e029a5d147"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check if device firmware is match.  <a href="struct_r_v_c_1_1_device.html#a49659aa124927a586743d6e029a5d147">More...</a><br /></td></tr>
+<tr class="separator:a49659aa124927a586743d6e029a5d147"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-static-methods"></a>
+Static Public Member Functions</h2></td></tr>
+<tr class="memitem:a671e2b02ff41389dfbd6a1647a17d8b4"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_device.html#a671e2b02ff41389dfbd6a1647a17d8b4">Destroy</a> (<a class="el" href="struct_r_v_c_1_1_device.html">Device</a> d)</td></tr>
+<tr class="memdesc:a671e2b02ff41389dfbd6a1647a17d8b4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Destroy the device.  <a href="struct_r_v_c_1_1_device.html#a671e2b02ff41389dfbd6a1647a17d8b4">More...</a><br /></td></tr>
+<tr class="separator:a671e2b02ff41389dfbd6a1647a17d8b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
+Public Attributes</h2></td></tr>
+<tr class="memitem:a7391d6f2e308315d6d63241abd5094e1"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_handle.html">Handle</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_device.html#a7391d6f2e308315d6d63241abd5094e1">m_handle</a></td></tr>
+<tr class="memdesc:a7391d6f2e308315d6d63241abd5094e1"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> <a class="el" href="struct_r_v_c_1_1_handle.html" title="RVC Handle.">Handle</a>.  <a href="struct_r_v_c_1_1_device.html#a7391d6f2e308315d6d63241abd5094e1">More...</a><br /></td></tr>
+<tr class="separator:a7391d6f2e308315d6d63241abd5094e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p><a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> struct. </p>
+</div><h2 class="groupheader">Member Function Documentation</h2>
+<a id="a6948fac0c9f6f98aa8aac581db66af07"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6948fac0c9f6f98aa8aac581db66af07">&#9670;&nbsp;</a></span>AutoConfigureNetwork()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int RVC::Device::AutoConfigureNetwork </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Automatically configure network IP addresses for all devices (LightMachine and cameras) This function automatically finds available IP addresses in the same network segment and configures them for devices that are not in OK status. This is equivalent to the "one-click configuration" feature in <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> Manager. </p>
+<dl class="section return"><dt>Returns</dt><dd>int Status code (RVC_NO_ERROR on success) </dd></dl>
+
+</div>
+</div>
+<a id="a671e2b02ff41389dfbd6a1647a17d8b4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a671e2b02ff41389dfbd6a1647a17d8b4">&#9670;&nbsp;</a></span>Destroy()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void RVC::Device::Destroy </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_device.html">Device</a>&#160;</td>
+          <td class="paramname"><em>d</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Destroy the device. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">d</td><td><a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> to be destroyed </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ad5edfbbaf441b14d432fc609a71f1d89"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad5edfbbaf441b14d432fc609a71f1d89">&#9670;&nbsp;</a></span>GetDeviceInfo()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::Device::GetDeviceInfo </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_device_info.html">DeviceInfo</a> *&#160;</td>
+          <td class="paramname"><em>pinfo</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the <a class="el" href="struct_r_v_c_1_1_device_info.html" title="RVC X Device info.">DeviceInfo</a> object. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">pinfo</td><td>Current <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> information </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="aba4133fb3df2e7c1d4a7c88b00e15012"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aba4133fb3df2e7c1d4a7c88b00e15012">&#9670;&nbsp;</a></span>GetNetworkConfig()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int RVC::Device::GetNetworkConfig </td>
+          <td>(</td>
+          <td class="paramtype">enum <a class="el" href="namespace_r_v_c.html#a430a7044e1b511a70857607b700e1683">NetworkDevice</a>&#160;</td>
+          <td class="paramname"><em>d</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespace_r_v_c.html#a2345e06c5ee95e12b6fa56ab07176237">NetworkType</a> *&#160;</td>
+          <td class="paramname"><em>type</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>ip</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>netMask</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>gateway</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>status</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the device network configuration. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">d</td><td>NetworkDevice </td></tr>
+    <tr><td class="paramname">type</td><td>NetworkType of <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> DHCP/Static </td></tr>
+    <tr><td class="paramname">ip</td><td>Current ip of <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> </td></tr>
+    <tr><td class="paramname">netMask</td><td>Current netmask of <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> </td></tr>
+    <tr><td class="paramname">gateway</td><td>Current gateway of <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> </td></tr>
+    <tr><td class="paramname">status</td><td>Device`s status </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>int Status code </dd></dl>
+
+</div>
+</div>
+<a id="a49659aa124927a586743d6e029a5d147"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a49659aa124927a586743d6e029a5d147">&#9670;&nbsp;</a></span>IsFirmwareMatch()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::Device::IsFirmwareMatch </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Check if device firmware is match. </p>
+<dl class="section return"><dt>Returns</dt><dd>true : firmware match </dd>
+<dd>
+false : firmware mismatch, need to upgrade </dd></dl>
+
+</div>
+</div>
+<a id="a00602516d6f5fb3dfe64f5883c6ae75b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a00602516d6f5fb3dfe64f5883c6ae75b">&#9670;&nbsp;</a></span>IsValid()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::Device::IsValid </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Check device is valid or not. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Valid </dd>
+<dd>
+false Not valid </dd></dl>
+
+</div>
+</div>
+<a id="a85fa5bef5760bfe8eaff10bd40dd232c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a85fa5bef5760bfe8eaff10bd40dd232c">&#9670;&nbsp;</a></span>Print()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void RVC::Device::Print </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Print device info. </p>
+
+</div>
+</div>
+<a id="adc92971e89e16e86bb1516a3fef5a5ee"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adc92971e89e16e86bb1516a3fef5a5ee">&#9670;&nbsp;</a></span>SetNetworkConfig()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int RVC::Device::SetNetworkConfig </td>
+          <td>(</td>
+          <td class="paramtype">enum <a class="el" href="namespace_r_v_c.html#a430a7044e1b511a70857607b700e1683">NetworkDevice</a>&#160;</td>
+          <td class="paramname"><em>d</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespace_r_v_c.html#a2345e06c5ee95e12b6fa56ab07176237">NetworkType</a>&#160;</td>
+          <td class="paramname"><em>type</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>ip</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>netMask</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>gateway</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set the <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> network configuration. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">d</td><td>NetworkDevice </td></tr>
+    <tr><td class="paramname">type</td><td>NetworkType of <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> DHCP/Static </td></tr>
+    <tr><td class="paramname">ip</td><td>New ip for <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a>, valid if NetworkType is <em>NetworkType_STATIC</em> </td></tr>
+    <tr><td class="paramname">netMask</td><td>New netmask for <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a>, valid if NetworkType is <em>NetworkType_STATIC</em> </td></tr>
+    <tr><td class="paramname">gateway</td><td>New gateway for <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a>, valid if NetworkType is <em>NetworkType_STATIC</em> </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>int status code </dd></dl>
+
+</div>
+</div>
+<a id="a2f39d9a4c0fa75f0a57e0809c55a4a28"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2f39d9a4c0fa75f0a57e0809c55a4a28">&#9670;&nbsp;</a></span>UpgradeFirmware()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::Device::UpgradeFirmware </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>device_firmware_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>config_data_path</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Upgrade <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> Firmware. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">device_firmware_path</td><td>device firmware path, rvbin </td></tr>
+    <tr><td class="paramname">config_data_path</td><td>config data path, if set to nullptr, will ignore </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>bool Status </dd></dl>
+
+</div>
+</div>
+<h2 class="groupheader">Member Data Documentation</h2>
+<a id="a7391d6f2e308315d6d63241abd5094e1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7391d6f2e308315d6d63241abd5094e1">&#9670;&nbsp;</a></span>m_handle</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_handle.html">Handle</a> RVC::Device::m_handle</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> <a class="el" href="struct_r_v_c_1_1_handle.html" title="RVC Handle.">Handle</a>. </p>
+
+</div>
+</div>
+<hr/>The documentation for this struct was generated from the following file:<ul>
+<li><a class="el" href="_r_v_c_8h_source.html">RVC.h</a></li>
+</ul>
+</div><!-- contents -->
+</div><!-- doc-content -->
+</body>
+</html>

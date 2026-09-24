@@ -1,0 +1,345 @@
+<!-- HTML header for doxygen 1.8.6-->
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=9" />
+  <meta name="generator" content="Doxygen 1.8.18" />
+  <title>RVC: X1 Get Auto Capture Setting</title>
+  <link href="tabs.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="jquery.js"></script>
+  <script type="text/javascript" src="dynsections.js"></script>
+  <link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+  <link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+  <link href="doxygen.css" rel="stylesheet" type="text/css" />
+  <link
+    href="https://fonts.googleapis.com/css?family=Roboto:300,400,400italic,500,500italic,700,700italic|Roboto+Mono:400,700"
+    rel="stylesheet">
+  <link href="style.css" rel="stylesheet" type="text/css"/>
+  <script>
+    /**
+     * Check if the browser rendering this page is being run on an Android device.
+     * It checks if the string 'android' is found in the browser's `userAgent`.
+     * @return {boolean} This returns `true` if the browser's `userAgent` contains
+     * the string 'android' (indicating that the browser is on an Android device).
+     * Otherwise, it returns `false`.
+     */
+    function isAndroidDevice() {
+      if (navigator && navigator.userAgent) {
+        return navigator.userAgent.toLowerCase().indexOf('android') != -1;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Check if an HTML `class` attribute is in the browser-specific format.
+     * @param {string} An HTML `class` attribute in the format 'browser-{device}'.
+     * @return {boolean} Returns `true` if `browserClass` was in the valid format,
+     * prefixed with 'browser-'. Otherwise, it returns false.
+     */
+    function isBrowserSpecificClassName(browserClass) {
+      if (browserClass && browserClass.substring(0, 8) == 'browser-' &&
+        browserClass.length > 8) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Get all the HTML Elements with browser-specific `class` attributes.
+     * @return {array} Returns an array of all the HTML Elements with a `class`
+     * attribute that is prefixed with `browser-`.
+     */
+    function getAllBrowserSpecificElements() {
+      if (document) {
+        var htmlElements = document.getElementsByTagName("*");
+        var browserSpecificElements = [];
+        for (var i = 0; i < htmlElements.length; i++) {
+          if (isBrowserSpecificClassName(htmlElements[i].className)) {
+            browserSpecificElements.push(htmlElements[i]);
+          }
+        }
+        return browserSpecificElements;
+      } else {
+        return null;
+      }
+    }
+    /**
+     * Given a browser-specific HTML `class` attribute, extract the device name.
+     * @param {string} browserClass The string name of an HTML `class` attribute,
+     * in the format `browser-{device}`.
+     * @return {string} Returns a string containing only the device portion of
+     * the class name. If the input was invalid, then it returns `null`.
+     */
+    function extractDeviceFromBrowserClass(browserClass) {
+      if (isBrowserSpecificClassName(browserClass)) {
+        return browserClass.substring(8);
+      }
+      else {
+        return null;
+      }
+    }
+    /**
+     * Hide device specific elements that do not apply to the current device.
+     */
+    function handleDeviceSpecificLoading() {
+      var browserSpecificElements = getAllBrowserSpecificElements();
+      for (var i = 0; i < browserSpecificElements.length; i++) {
+        var device = extractDeviceFromBrowserClass(browserSpecificElements[i].className);
+        if (device && !isAndroidDevice() && device == 'android') {
+          browserSpecificElements[i].innerHTML = '';
+        } else if (device && isAndroidDevice() && device == 'desktop') {
+          browserSpecificElements[i].innerHTML = '';
+        }
+      }
+    }
+    $(document).ready(handleDeviceSpecificLoading);
+  </script>
+</head>
+<body>
+  <div id="top">
+    <!-- do not remove this div, it is closed by doxygen! -->
+    <div id="titlearea">
+      <table cellspacing="0" cellpadding="0">
+        <tbody>
+          <tr style="height: 56px;">
+            <!-- <td id="projectlogo">
+    <img alt="Logo" width=100px src="documentation.png"/>
+  </td> -->
+            <!-- END PROJECT_LOGO -->
+            <td id="commonprojectlogo">
+              <img alt="Logo" width=150px src="documentation.png" />
+            </td>
+            <td style="padding-left: 0.5em;">
+              <div id="projectname">RVC
+                &#160;<span id="projectnumber">1.15.1</span>
+              </div>
+              <div style="font-size:12px;">
+                a product by
+                <a href="https://www.rvbust.com">RVBUST</a>.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- end header part --><!-- Generated by Doxygen 1.8.18 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+var searchBox = new SearchBox("searchBox", "search",false,'Search');
+/* @license-end */
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(function() {
+  initMenu('',true,false,'search.php','Search');
+  $(document).ready(function() { init_search(); });
+});
+/* @license-end */</script>
+<div id="main-nav"></div>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(document).ready(function(){initNavTree('_x1_auto_set_param_py.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<iframe src="javascript:void(0)" frameborder="0" 
+        name="MSearchResults" id="MSearchResults">
+</iframe>
+</div>
+
+<div class="PageDoc"><div class="header">
+  <div class="headertitle">
+<div class="title">X1 Get Auto Capture Setting </div>  </div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><div class="fragment"><div class="line"><span class="comment"># Copyright (c) RVBUST, Inc - All rights reserved.</span></div>
+<div class="line"><span class="keyword">import</span> PyRVC <span class="keyword">as</span> RVC</div>
+<div class="line"><span class="keyword">import</span> os</div>
+<div class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</div>
+<div class="line"><span class="keyword">import</span> cv2</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">import</span> time</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">from</span> numpy.lib.npyio <span class="keyword">import</span> save</div>
+<div class="line"><span class="keyword">from</span> IPython <span class="keyword">import</span> embed</div>
+<div class="line"><span class="keyword">from</span> Utils.Tools <span class="keyword">import</span> *</div>
+<div class="line"> </div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">def </span>App():</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Initialize RVC system.</span></div>
+<div class="line">    <a class="code" href="namespace_r_v_c.html#a323593973d7de52708fae81cc20db39c">RVC.SystemInit</a>()</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Choose RVC Camera type (USB, GigE or All)</span></div>
+<div class="line">    opt = RVC.SystemListDeviceTypeEnum.All</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Scan all RVC Camera devices.</span></div>
+<div class="line">    ret, devices = <a class="code" href="namespace_r_v_c.html#a3ee199b906497d6b03fbb3139e74cb71">RVC.SystemListDevices</a>(opt)</div>
+<div class="line">    print(<span class="stringliteral">&quot;RVC Camera devices number:%d&quot;</span> % len(devices))</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Find whether any RVC Camera is connected or not.</span></div>
+<div class="line">    <span class="keywordflow">if</span> len(devices) == 0:</div>
+<div class="line">        print(<span class="stringliteral">&quot;Can not find any RVC Camera!&quot;</span>)</div>
+<div class="line">        <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC.SystemShutdown</a>()</div>
+<div class="line">        <span class="keywordflow">return</span> 1</div>
+<div class="line">    print(<span class="stringliteral">&quot;devices size = %d&quot;</span> % len(devices))</div>
+<div class="line">    <span class="keywordflow">if</span> devices[0].IsFirmwareMatch() == <span class="keyword">False</span>:</div>
+<div class="line">        print(<span class="stringliteral">&quot;device firmware mismatch, Please use RVCManager to upgrade the firmware&quot;</span>)</div>
+<div class="line">        <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC.SystemShutdown</a>()</div>
+<div class="line">        <span class="keywordflow">return</span> 1</div>
+<div class="line">    <span class="comment"># Create a RVC Camera and choose use left side camera.</span></div>
+<div class="line">    x = <a class="code" href="struct_r_v_c_1_1_x1.html#a65084b6120a5dde2cfdda7f63a509339">RVC.X1.Create</a>(devices[0], RVC.CameraID_Left)</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Test RVC Camera is valid or not.</span></div>
+<div class="line">    <span class="keywordflow">if</span> x.IsValid() == <span class="keyword">True</span>:</div>
+<div class="line">        print(<span class="stringliteral">&quot;RVC Camera is valid!&quot;</span>)</div>
+<div class="line">    <span class="keywordflow">else</span>:</div>
+<div class="line">        print(<span class="stringliteral">&quot;RVC Camera is not valid!&quot;</span>)</div>
+<div class="line">        <a class="code" href="struct_r_v_c_1_1_x1.html#a92e6808e2b266f827c1079b677589adb">RVC.X1.Destroy</a>(x)</div>
+<div class="line">        <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC.SystemShutdown</a>()</div>
+<div class="line">        <span class="keywordflow">return</span> 1</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">#PrintCaptureMode(devices[0])</span></div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Open RVC Camera.</span></div>
+<div class="line">    ret1 = x.Open()</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Test RVC Camera is opened or not.</span></div>
+<div class="line">    <span class="keywordflow">if</span> x.IsOpen() == <span class="keyword">True</span>:</div>
+<div class="line">        print(<span class="stringliteral">&quot;RVC Camera is opened!&quot;</span>)</div>
+<div class="line">    <span class="keywordflow">else</span>:</div>
+<div class="line">        print(<span class="stringliteral">&quot;Failed to open camera! Please check whether the camera is connected and make sure it is not occupied and supports X1.&quot;</span>)</div>
+<div class="line">        <a class="code" href="struct_r_v_c_1_1_x1.html#a92e6808e2b266f827c1079b677589adb">RVC.X1.Destroy</a>(x)</div>
+<div class="line">        <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC.SystemShutdown</a>()</div>
+<div class="line">        <span class="keywordflow">return</span> 1</div>
+<div class="line">    </div>
+<div class="line">    <span class="comment"># Print ExposureTime Range</span></div>
+<div class="line">    _, exp_range_min, exp_range_max = x.GetExposureTimeRange()</div>
+<div class="line">    print(<span class="stringliteral">&quot;ExposureTime Range:[{}, {}]&quot;</span>.format(exp_range_min, exp_range_max))</div>
+<div class="line"> </div>
+<div class="line">    cap_opt = RVC.X1_CaptureOptions()</div>
+<div class="line">    ret,cap_opt = x.LoadCaptureOptionParameters()</div>
+<div class="line">    cap_opt.transform_to_camera = <span class="keyword">True</span></div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Set 2d and 3d exposure time. Capture with white light, range [11, 100]ms, others [3, 100]ms.</span></div>
+<div class="line">    exposure_time = 100</div>
+<div class="line">    cap_opt.exposure_time_2d = exposure_time</div>
+<div class="line">    cap_opt.exposure_time_3d = exposure_time</div>
+<div class="line"> </div>
+<div class="line">    cap_opt.filter_range = 0</div>
+<div class="line">    cap_opt.phase_filter_range = 0</div>
+<div class="line"> </div>
+<div class="line">    cap_opt.projector_brightness = 240</div>
+<div class="line">    cap_opt.light_contrast_threshold = 3</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># ROI Setting</span></div>
+<div class="line">    start_x = 10</div>
+<div class="line">    start_y = 10</div>
+<div class="line">    width = 200</div>
+<div class="line">    height = 200</div>
+<div class="line"> </div>
+<div class="line">    roi = <a class="code" href="struct_r_v_c_1_1_r_o_i.html">RVC.ROI</a>(start_x, start_y, width, height)</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Get auto capture setting.exposure_time_3d,projector_brightness,</span></div>
+<div class="line">    <span class="comment"># light_contrast_threshold will be adjusted automatically</span></div>
+<div class="line">    ret2, cap_opt = x.GetAutoCaptureSetting(cap_opt, roi)</div>
+<div class="line"> </div>
+<div class="line">    <span class="keywordflow">if</span> ret2:</div>
+<div class="line">        print(<span class="stringliteral">&quot;get auto capture setting success!&quot;</span>)</div>
+<div class="line">        print(<span class="stringliteral">&quot;auto exposure_time_2d: {} ms&quot;</span>.format(cap_opt.exposure_time_2d))</div>
+<div class="line">        print(<span class="stringliteral">&quot;auto exposure_time_3d: {} ms&quot;</span>.format(cap_opt.exposure_time_3d))</div>
+<div class="line">        print(<span class="stringliteral">&quot;auto projector_brightness: {}&quot;</span>.format(cap_opt.projector_brightness))</div>
+<div class="line">        print(<span class="stringliteral">&quot;auto light_contrast_threshold: {}&quot;</span>.format(cap_opt.light_contrast_threshold))</div>
+<div class="line">    <span class="keywordflow">else</span>:</div>
+<div class="line">        print(<span class="stringliteral">&quot;get auto capture setting failed, custom setting will be used.&quot;</span>)</div>
+<div class="line">        print(<a class="code" href="namespace_r_v_c.html#a02779b50f9e7e758b8ab4a4566efb85c">RVC.GetLastErrorMessage</a>())</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Capture a point map and a image.</span></div>
+<div class="line">    ret3 = x.Capture(cap_opt)</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Create saving address of image and point map.</span></div>
+<div class="line">    save_address = <span class="stringliteral">&quot;Data&quot;</span></div>
+<div class="line">    TryCreateDir(save_address)</div>
+<div class="line"> </div>
+<div class="line">    <span class="keywordflow">if</span> ret3 == <span class="keyword">True</span>:</div>
+<div class="line">        print(<span class="stringliteral">&quot;RVC Camera capture successed!&quot;</span>)</div>
+<div class="line"> </div>
+<div class="line">        <span class="comment"># Get image data and image size.</span></div>
+<div class="line">        img = x.GetImage()</div>
+<div class="line">        width = img.GetSize().cols</div>
+<div class="line">        height = img.GetSize().rows</div>
+<div class="line"> </div>
+<div class="line">        <span class="comment"># Save image</span></div>
+<div class="line">        <span class="keywordflow">if</span> img.SaveImage(save_address + <span class="stringliteral">&quot;/image.png&quot;</span>):</div>
+<div class="line">            print(<span class="stringliteral">&quot;Save image successed!&quot;</span>)</div>
+<div class="line">        <span class="keywordflow">else</span>:</div>
+<div class="line">            print(<span class="stringliteral">&quot;Save image failed!&quot;</span>)</div>
+<div class="line"> </div>
+<div class="line">        <span class="comment"># Save point map (m) to file.</span></div>
+<div class="line">        <span class="keywordflow">if</span> x.GetPointMap().Save(<span class="stringliteral">&quot;Data/test.ply&quot;</span>, RVC.PointMapUnitEnum.Meter):</div>
+<div class="line">            print(<span class="stringliteral">&quot;Save point map successed!&quot;</span>)</div>
+<div class="line">        <span class="keywordflow">else</span>:</div>
+<div class="line">            print(<span class="stringliteral">&quot;Save point map failed!&quot;</span>)</div>
+<div class="line">    <span class="keywordflow">else</span>:</div>
+<div class="line">        print(<span class="stringliteral">&quot;RVC Camera capture failed!&quot;</span>)</div>
+<div class="line">        print(<a class="code" href="namespace_r_v_c.html#a02779b50f9e7e758b8ab4a4566efb85c">RVC.GetLastErrorMessage</a>())</div>
+<div class="line">        x.Close()</div>
+<div class="line">        <a class="code" href="struct_r_v_c_1_1_x1.html#a92e6808e2b266f827c1079b677589adb">RVC.X1.Destroy</a>(x)</div>
+<div class="line">        <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC.SystemShutdown</a>()</div>
+<div class="line">        <span class="keywordflow">return</span> 1</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Close RVC Camera.</span></div>
+<div class="line">    x.Close()</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Destroy RVC Camera.</span></div>
+<div class="line">    <a class="code" href="struct_r_v_c_1_1_x1.html#a92e6808e2b266f827c1079b677589adb">RVC.X1.Destroy</a>(x)</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment"># Shutdown RVC System.</span></div>
+<div class="line">    <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC.SystemShutdown</a>()</div>
+<div class="line"> </div>
+<div class="line">    <span class="keywordflow">return</span> 0</div>
+<div class="line"> </div>
+<div class="line"> </div>
+<div class="line"><span class="keywordflow">if</span> __name__ == <span class="stringliteral">&quot;__main__&quot;</span>:</div>
+<div class="line">    App()</div>
+</div><!-- fragment --> </div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<div class="ttc" id="astruct_r_v_c_1_1_r_o_i_html"><div class="ttname"><a href="struct_r_v_c_1_1_r_o_i.html">RVC::ROI</a></div><div class="ttdoc">Image ROI.</div><div class="ttdef"><b>Definition:</b> RVC.h:164</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a3ee199b906497d6b03fbb3139e74cb71"><div class="ttname"><a href="namespace_r_v_c.html#a3ee199b906497d6b03fbb3139e74cb71">RVC::SystemListDevices</a></div><div class="ttdeci">RVC_EXPORT int SystemListDevices(Device *pdevices, size_t size, size_t *actual_size, SystemListDeviceType::Enum opt=SystemListDeviceType::All)</div><div class="ttdoc">List the fix number devices.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a92e6808e2b266f827c1079b677589adb"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a92e6808e2b266f827c1079b677589adb">RVC::X1::Destroy</a></div><div class="ttdeci">static void Destroy(X1 &amp;x)</div><div class="ttdoc">Release all X1 resources after you use X1.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a65084b6120a5dde2cfdda7f63a509339"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a65084b6120a5dde2cfdda7f63a509339">RVC::X1::Create</a></div><div class="ttdeci">static X1 Create(const Device &amp;d, enum CameraID camid=CameraID_Left)</div><div class="ttdoc">Create a RVC X Camera and choose the CameraID which you desire before you use X1.</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a7c616a5d26f42991a8fbe38176a46c69"><div class="ttname"><a href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC::SystemShutdown</a></div><div class="ttdeci">RVC_EXPORT void SystemShutdown()</div><div class="ttdoc">SystemShutdown.</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a323593973d7de52708fae81cc20db39c"><div class="ttname"><a href="namespace_r_v_c.html#a323593973d7de52708fae81cc20db39c">RVC::SystemInit</a></div><div class="ttdeci">RVC_EXPORT bool SystemInit()</div><div class="ttdoc">SystemInit.</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a02779b50f9e7e758b8ab4a4566efb85c"><div class="ttname"><a href="namespace_r_v_c.html#a02779b50f9e7e758b8ab4a4566efb85c">RVC::GetLastErrorMessage</a></div><div class="ttdeci">RVC_EXPORT const char * GetLastErrorMessage()</div><div class="ttdoc">Get the lastest error message. The pointer to string is temporary, you need to copy data from its buf...</div></div>
+</body>
+</html>

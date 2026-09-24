@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RVC 3D相机控制台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #1e3a8a 0%, #0f766e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #1f2937;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header, .panel {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,.1);
+            margin-bottom: 20px;
+        }
+        .header h1 { font-size: 26px; margin-bottom: 6px; }
+        .header .hint { color: #6b7280; font-size: 13px; line-height: 1.7; }
+        .status-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+        .badge { padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: bold; color: #fff; background:#6b7280; }
+        .badge.ok { background: #10b981; }
+        .badge.err { background: #ef4444; }
+        .badge.info { background: #3b82f6; }
+        .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .panel h2 {
+            font-size: 18px; margin-bottom: 15px; padding-bottom: 8px;
+            border-bottom: 2px solid #0f766e;
+        }
+        .btn {
+            padding: 11px 16px; border: none; border-radius: 6px; font-size: 14px;
+            font-weight: bold; cursor: pointer; transition: all .2s; color: #fff;
+            background: #0f766e; width: 100%; margin-bottom: 8px;
+        }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,.2); }
+        .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+        .btn.blue { background: #2563eb; }
+        .btn.orange { background: #ea580c; }
+        .btn.red { background: #dc2626; }
+        .btn.gray { background: #6b7280; }
+        .row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        .row > * { flex: 1; }
+        label { font-size: 13px; color: #374151; display: block; margin-bottom: 4px; }
+        select, input {
+            width: 100%; padding: 9px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;
+        }
+        #log {
+            background: #111827; color: #d1fae5; border-radius: 8px; padding: 12px;
+            height: 220px; overflow-y: auto; font-family: Consolas, monospace;
+            font-size: 12px; line-height: 1.6; white-space: pre-wrap;
+        }
+        .preview { text-align: center; min-height: 120px; }
+        .preview img { max-width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; }
+        .meta { font-size: 13px; line-height: 1.9; color: #374151; }
+        .meta a { color: #2563eb; word-break: break-all; }
+        .device-list { font-size: 13px; line-height: 1.8; }
+        .device-list table { width: 100%; border-collapse: collapse; }
+        .device-list th, .device-list td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; }
+        @media (max-width: 900px) { .main-content { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>RVC 3D 相机控制台</h1>
+        <div class="hint">
+            相机服务地址：<b>{{ service_url }}</b>（独立进程，启动命令：<code>python -m rvc_service</code>）；
+            相机默认 IP：<b>{{ camera_ip }}</b>。<br>
+            使用前请关闭 <b>RVCManager</b>（会抢占相机连接）；线扫模式需要工件/相机配合运动。
+        </div>
+        <div class="status-bar">
+            <span class="badge" id="badge-service">服务未知</span>
+            <span class="badge" id="badge-connect">相机未知</span>
+            <span class="badge info" id="badge-mode">模式 -</span>
+            <span class="badge info" id="badge-device">设备 -</span>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="panel">
+            <h2>连接与采集</h2>
+            <div class="row">
+                <button class="btn blue" onclick="refreshStatus()">刷新状态</button>
+                <button class="btn blue" onclick="findDevices()">查找设备</button>
+            </div>
+            <div class="row">
+                <button class="btn" onclick="connectCamera()">连接相机</button>
+                <button class="btn orange" onclick="recoverCamera()">一键恢复连接</button>
+                <button class="btn gray" onclick="disconnectCamera()">断开</button>
+            </div>
+            <div class="device-list" id="device-list"></div>
+
+            <h2 style="margin-top:18px;">采集参数</h2>
+            <label>采集模式</label>
+            <select id="mode">
+                <option value="Fast">快速 Fast</option>
+                <option value="Normal">标准 Normal</option>
+                <option value="Robust" selected>高精度 Robust（HighPrecision）</option>
+                <option value="Ultra">超精细 Ultra</option>
+                <option value="AntiInterReflection">抗多次反射 AntiInterReflection</option>
+                <option value="SwingLineScan">摆动线扫 SwingLineScan</option>
+                <option value="FixedLineScan">固定线扫 FixedLineScan</option>
+            </select>
+            <div class="row" style="margin-top:10px;">
+                <div><label>2D 曝光(µs)</label><input id="exp2d" type="number" value="10000"></div>
+                <div><label>3D 曝光(µs)</label><input id="exp3d" type="number" value="30000"></div>
+                <div><label>投影亮度(0-255)</label><input id="brightness" type="number" value="240" min="0" max="255"></div>
+            </div>
+            <div class="row">
+                <button class="btn blue" onclick="applyMode()">应用模式</button>
+                <button class="btn blue" onclick="applyExposure()">应用曝光</button>
+            </div>
+            <div class="row">
+                <button class="btn" onclick="capture('POINTCLOUD')">采集点云（含2D图）</button>
+                <button class="btn" onclick="capture('RGB')">仅采集 2D 图</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>采集结果</h2>
+            <div class="preview" id="preview">尚未采集</div>
+            <div class="meta" id="capture-meta" style="margin-top:10px;"></div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>运行日志</h2>
+        <div id="log"></div>
+    </div>
+</div>
+
+<script>
+const API_BASE = '/rvc-camera/api';
+function log(msg, level) {
+    const el = document.getElementById('log');
+    const time = new Date().toLocaleTimeString();
+    el.textContent += `[${time}] ${msg}\n`;
+    el.scrollTop = el.scrollHeight;
+}
+async function api(path, options) {
+    const resp = await fetch(API_BASE + path, options || {});
+    return resp.json();
+}
+function post(path, body) {
+    return api(path, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body || {})
+    });
+}
+async function refreshStatus() {
+    try {
+        const r = await api('/status/');
+        if (r.success) {
+            const d = r.data;
+            const svc = document.getElementById('badge-service');
+            svc.textContent = '相机服务在线'; svc.className = 'badge ok';
+            const conn = document.getElementById('badge-connect');
+            if (d.connected) { conn.textContent = '相机已连接'; conn.className = 'badge ok'; }
+            else { conn.textContent = '相机未连接'; conn.className = 'badge err'; }
+            document.getElementById('badge-mode').textContent = '模式 ' + (d.mode || '-');
+            const dev = d.device || {};
+            document.getElementById('badge-device').textContent =
+                '设备 ' + (dev.sn || '-') + (dev.ip ? ' @' + dev.ip : '');
+            if (d.exposure_2d) document.getElementById('exp2d').value = d.exposure_2d;
+            if (d.exposure_3d) document.getElementById('exp3d').value = d.exposure_3d;
+            if (d.projector_brightness != null) document.getElementById('brightness').value = d.projector_brightness;
+            if (d.mode) document.getElementById('mode').value = d.mode;
+            if (d.last_error) log('相机上报错误: ' + d.last_error);
+        } else {
+            const svc = document.getElementById('badge-service');
+            svc.textContent = '服务异常'; svc.className = 'badge err';
+            log('状态查询失败: ' + r.error);
+        }
+    } catch (e) {
+        const svc = document.getElementById('badge-service');
+        svc.textContent = '服务未启动'; svc.className = 'badge err';
+        log('无法连接 Django 后端: ' + e);
+    }
+}
+async function findDevices() {
+    log('正在查找设备 ...');
+    const r = await api('/find/');
+    const box = document.getElementById('device-list');
+    if (!r.success) { log('查找设备失败: ' + r.error); box.innerHTML = ''; return; }
+    const devs = r.data.devices || [];
+    if (!devs.length) { box.innerHTML = '<p style="color:#dc2626">未发现设备：检查电源/网段，并关闭 RVCManager</p>'; return; }
+    let html = '<table><tr><th>SN</th><th>名称</th><th>IP</th><th>型号</th><th>彩色</th></tr>';
+    devs.forEach(d => {
+        html += `<tr><td>${d.sn||''}</td><td>${d.name||''}</td><td>${d.ip||''}</td><td>${d.support_x2?'X2':(d.support_x1?'X1':'-')}</td><td>${d.support_color?'是':'否'}</td></tr>`;
+    });
+    html += '</table>';
+    box.innerHTML = html;
+    log(`发现 ${devs.length} 台设备`);
+}
+async function connectCamera() {
+    log('正在连接相机 ...');
+    const r = await post('/connect/', {});
+    r.success ? log('连接成功: ' + JSON.stringify(r.data.device || {}), 'ok') : log('连接失败: ' + r.error);
+    refreshStatus();
+}
+async function recoverCamera() {
+    log('正在重新初始化并恢复连接 ...');
+    const r = await post('/recover/', {});
+    r.success ? log('恢复成功', 'ok') : log('恢复失败: ' + r.error);
+    refreshStatus();
+}
+async function disconnectCamera() {
+    const r = await post('/disconnect/', {});
+    r.success ? log('已断开') : log('断开失败: ' + r.error);
+    refreshStatus();
+}
+async function applyMode() {
+    const mode = document.getElementById('mode').value;
+    const r = await post('/mode/', {mode});
+    r.success ? log('已切换模式: ' + r.data.mode, 'ok') : log('模式切换失败: ' + r.error);
+    refreshStatus();
+}
+async function applyExposure() {
+    const body = {
+        exposure_2d: Number(document.getElementById('exp2d').value),
+        exposure_3d: Number(document.getElementById('exp3d').value),
+        projector_brightness: Number(document.getElementById('brightness').value)
+    };
+    const r = await post('/exposure/', body);
+    r.success ? log('曝光参数已更新', 'ok') : log('曝光设置失败: ' + r.error);
+}
+async function capture(frameType) {
+    const mode = document.getElementById('mode').value;
+    log(`开始采集 ${frameType}（模式 ${mode}）...`);
+    const r = await post('/capture/', {frame_type: frameType, mode});
+    if (!r.success) { log('采集失败: ' + r.error); return; }
+    const d = r.data;
+    log(`采集成功：${d.width}x${d.height}，有效点比例 ${d.confidence}`);
+    const meta = document.getElementById('capture-meta');
+    let html = `
+        <div>帧序号：${d.frame_index}　模式：${d.mode || '-'}</div>
+        <div>点云尺寸：${d.width} x ${d.height}　有效点比例：${d.confidence}</div>`;
+    if (d.preview_url) {
+        document.getElementById('preview').innerHTML =
+            '<img src="' + d.preview_url + '?t=' + Date.now() + '" alt="2D预览">';
+        html += `<div>2D 预览图：<a href="${d.preview_url}" target="_blank">${d.result_image_path}</a></div>`;
+    }
+    if (d.raw_data_path) html += `<div>点云 NPY：<a href="/media/${d.raw_data_path}" target="_blank">${d.raw_data_path}</a></div>`;
+    if (d.ply_path) html += `<div>点云 PLY：<a href="/media/${d.ply_path}" target="_blank">${d.ply_path}</a></div>`;
+    meta.innerHTML = html;
+}
+refreshStatus();
+setInterval(refreshStatus, 10000);
+</script>
+</body>
+</html>

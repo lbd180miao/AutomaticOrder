@@ -1,0 +1,65 @@
+\hypertarget{struct_r_v_c_1_1_mesh}{}\doxysection{R\+VC\+::Mesh Struct Reference}
+\label{struct_r_v_c_1_1_mesh}\index{RVC::Mesh@{RVC::Mesh}}
+
+
+Collaboration diagram for R\+VC\+::Mesh\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=163pt]{struct_r_v_c_1_1_mesh__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_a4646675e3a85d9454f7ff6c4eeef4ae1}\label{struct_r_v_c_1_1_mesh_a4646675e3a85d9454f7ff6c4eeef4ae1}} 
+bool {\bfseries Is\+Valid} () const
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_ab846a1cd8bfc36ad6d587c82218cbaf3}\label{struct_r_v_c_1_1_mesh_ab846a1cd8bfc36ad6d587c82218cbaf3}} 
+\mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} {\bfseries Get\+Size} () const
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_aa4689e8b090ca02c3e87043ebe6da53d}\label{struct_r_v_c_1_1_mesh_aa4689e8b090ca02c3e87043ebe6da53d}} 
+double $\ast$ {\bfseries Get\+Mesh\+Point\+Data\+Ptr} ()
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_a9120c70d231dcc6f654ec3a01c950764}\label{struct_r_v_c_1_1_mesh_a9120c70d231dcc6f654ec3a01c950764}} 
+int $\ast$ {\bfseries Get\+Mesh\+Index\+Data\+Ptr} ()
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_ac7a4c98e61d343b265449e5a584956d6}\label{struct_r_v_c_1_1_mesh_ac7a4c98e61d343b265449e5a584956d6}} 
+const double $\ast$ {\bfseries Get\+Mesh\+Point\+Data\+Const\+Ptr} () const
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_aac3544cd62b333a0a9fc3d2a78f8e08f}\label{struct_r_v_c_1_1_mesh_aac3544cd62b333a0a9fc3d2a78f8e08f}} 
+const int $\ast$ {\bfseries Get\+Mesh\+Index\+Data\+Const\+Ptr} () const
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_a6c8256259170eb65f79f67d4d1997f1d}\label{struct_r_v_c_1_1_mesh_a6c8256259170eb65f79f67d4d1997f1d}} 
+const int \& {\bfseries Get\+Mesh\+Index\+Num} () const
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_a532ba0f55befe24bb89f430b234f41b7}\label{struct_r_v_c_1_1_mesh_a532ba0f55befe24bb89f430b234f41b7}} 
+bool {\bfseries Save} (const char $\ast$file, const \mbox{\hyperlink{struct_r_v_c_1_1_point_map_unit_aa0ced57a0947829c94ea7b40d747f0e5}{Point\+Map\+Unit\+::\+Enum}} unit=Point\+Map\+Unit\+::\+Meter)
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_ace4c910eb992eeb67aa7298831a1a800}\label{struct_r_v_c_1_1_mesh_ace4c910eb992eeb67aa7298831a1a800}} 
+\mbox{\hyperlink{struct_r_v_c_1_1_mesh}{Mesh}} {\bfseries Clone} () const
+\end{DoxyCompactItemize}
+\doxysubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_ad5bf8b134d67fac5275d49786aa644bb}\label{struct_r_v_c_1_1_mesh_ad5bf8b134d67fac5275d49786aa644bb}} 
+static \mbox{\hyperlink{struct_r_v_c_1_1_mesh}{Mesh}} {\bfseries Create\+From\+Point\+Map\+Data} (const \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} \&size, const double $\ast$data=nullptr, const double \&z\+\_\+threshold=0.\+01)
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_a6e0d6550cda7074eddb1153c377da6ca}\label{struct_r_v_c_1_1_mesh_a6e0d6550cda7074eddb1153c377da6ca}} 
+static \mbox{\hyperlink{struct_r_v_c_1_1_mesh}{Mesh}} {\bfseries Create\+From\+Point\+Map} (const \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} \&pm, const double \&z\+\_\+threshold=0.\+01)
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_a1dba17a5046d344632b8ebaa9d23ee0d}\label{struct_r_v_c_1_1_mesh_a1dba17a5046d344632b8ebaa9d23ee0d}} 
+static void {\bfseries Destroy} (\mbox{\hyperlink{struct_r_v_c_1_1_mesh}{Mesh}} mesh, bool no\+\_\+reuse=true)
+\end{DoxyCompactItemize}
+\doxysubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_mesh_a4a2eb12d3790176ae53bb1ecea0403c6}\label{struct_r_v_c_1_1_mesh_a4a2eb12d3790176ae53bb1ecea0403c6}} 
+\mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} {\bfseries m\+\_\+handle}
+\end{DoxyCompactItemize}
+
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+R\+V\+C.\+h\end{DoxyCompactItemize}

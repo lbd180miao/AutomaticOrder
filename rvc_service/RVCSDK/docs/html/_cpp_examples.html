@@ -1,0 +1,372 @@
+<!-- HTML header for doxygen 1.8.6-->
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=9" />
+  <meta name="generator" content="Doxygen 1.8.18" />
+  <title>RVC: C++ examples</title>
+  <link href="tabs.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="jquery.js"></script>
+  <script type="text/javascript" src="dynsections.js"></script>
+  <link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+  <link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+  <link href="doxygen.css" rel="stylesheet" type="text/css" />
+  <link
+    href="https://fonts.googleapis.com/css?family=Roboto:300,400,400italic,500,500italic,700,700italic|Roboto+Mono:400,700"
+    rel="stylesheet">
+  <link href="style.css" rel="stylesheet" type="text/css"/>
+  <script>
+    /**
+     * Check if the browser rendering this page is being run on an Android device.
+     * It checks if the string 'android' is found in the browser's `userAgent`.
+     * @return {boolean} This returns `true` if the browser's `userAgent` contains
+     * the string 'android' (indicating that the browser is on an Android device).
+     * Otherwise, it returns `false`.
+     */
+    function isAndroidDevice() {
+      if (navigator && navigator.userAgent) {
+        return navigator.userAgent.toLowerCase().indexOf('android') != -1;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Check if an HTML `class` attribute is in the browser-specific format.
+     * @param {string} An HTML `class` attribute in the format 'browser-{device}'.
+     * @return {boolean} Returns `true` if `browserClass` was in the valid format,
+     * prefixed with 'browser-'. Otherwise, it returns false.
+     */
+    function isBrowserSpecificClassName(browserClass) {
+      if (browserClass && browserClass.substring(0, 8) == 'browser-' &&
+        browserClass.length > 8) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Get all the HTML Elements with browser-specific `class` attributes.
+     * @return {array} Returns an array of all the HTML Elements with a `class`
+     * attribute that is prefixed with `browser-`.
+     */
+    function getAllBrowserSpecificElements() {
+      if (document) {
+        var htmlElements = document.getElementsByTagName("*");
+        var browserSpecificElements = [];
+        for (var i = 0; i < htmlElements.length; i++) {
+          if (isBrowserSpecificClassName(htmlElements[i].className)) {
+            browserSpecificElements.push(htmlElements[i]);
+          }
+        }
+        return browserSpecificElements;
+      } else {
+        return null;
+      }
+    }
+    /**
+     * Given a browser-specific HTML `class` attribute, extract the device name.
+     * @param {string} browserClass The string name of an HTML `class` attribute,
+     * in the format `browser-{device}`.
+     * @return {string} Returns a string containing only the device portion of
+     * the class name. If the input was invalid, then it returns `null`.
+     */
+    function extractDeviceFromBrowserClass(browserClass) {
+      if (isBrowserSpecificClassName(browserClass)) {
+        return browserClass.substring(8);
+      }
+      else {
+        return null;
+      }
+    }
+    /**
+     * Hide device specific elements that do not apply to the current device.
+     */
+    function handleDeviceSpecificLoading() {
+      var browserSpecificElements = getAllBrowserSpecificElements();
+      for (var i = 0; i < browserSpecificElements.length; i++) {
+        var device = extractDeviceFromBrowserClass(browserSpecificElements[i].className);
+        if (device && !isAndroidDevice() && device == 'android') {
+          browserSpecificElements[i].innerHTML = '';
+        } else if (device && isAndroidDevice() && device == 'desktop') {
+          browserSpecificElements[i].innerHTML = '';
+        }
+      }
+    }
+    $(document).ready(handleDeviceSpecificLoading);
+  </script>
+</head>
+<body>
+  <div id="top">
+    <!-- do not remove this div, it is closed by doxygen! -->
+    <div id="titlearea">
+      <table cellspacing="0" cellpadding="0">
+        <tbody>
+          <tr style="height: 56px;">
+            <!-- <td id="projectlogo">
+    <img alt="Logo" width=100px src="documentation.png"/>
+  </td> -->
+            <!-- END PROJECT_LOGO -->
+            <td id="commonprojectlogo">
+              <img alt="Logo" width=150px src="documentation.png" />
+            </td>
+            <td style="padding-left: 0.5em;">
+              <div id="projectname">RVC
+                &#160;<span id="projectnumber">1.15.1</span>
+              </div>
+              <div style="font-size:12px;">
+                a product by
+                <a href="https://www.rvbust.com">RVBUST</a>.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- end header part --><!-- Generated by Doxygen 1.8.18 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+var searchBox = new SearchBox("searchBox", "search",false,'Search');
+/* @license-end */
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(function() {
+  initMenu('',true,false,'search.php','Search');
+  $(document).ready(function() { init_search(); });
+});
+/* @license-end */</script>
+<div id="main-nav"></div>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(document).ready(function(){initNavTree('_cpp_examples.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<iframe src="javascript:void(0)" frameborder="0" 
+        name="MSearchResults" id="MSearchResults">
+</iframe>
+</div>
+
+<div class="PageDoc"><div class="header">
+  <div class="headertitle">
+<div class="title">C++ examples </div>  </div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><p>This page contains several examples of using <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> SDK</p>
+<ul>
+<li><a class="el" href="_adjust_capture_parameter_cpp.html">Adjust capture parameters</a></li>
+<li><a class="el" href="_capture_and_convert_to_p_c_l_type_cpp.html">Capture and convert to pcl PointCloud</a></li>
+<li><a class="el" href="_capture_gig_e_cpp.html">Capture from GigE device</a></li>
+<li><a class="el" href="_capture_u_s_b_cpp.html">Capture from USB device</a></li>
+<li><a class="el" href="_capture_in_continue_mode_cpp.html">Capture in continue mode</a></li>
+<li><a class="el" href="_get_camera_parameter_cpp.html">Get camera parameter</a></li>
+<li><a class="el" href="_get_depth_image_cpp.html">Get depth image</a></li>
+<li><a class="el" href="_get_image_corresponce_point_cpp.html">Get image corresponding point</a></li>
+<li><a class="el" href="_get_normal_map_cpp.html">Get normal map</a></li>
+<li><a class="el" href="_get_valid_point_map_cpp.html">Get valid point map</a></li>
+<li><a class="el" href="_save_color_point_map_cpp.html">Save color point map</a></li>
+<li><a class="el" href="_capture_by_x2_cpp.html">Capture by X2</a></li>
+<li><a class="el" href="_save_load_capture_options_cpp.html">Save and load capture options</a></li>
+<li><a class="el" href="_truncate_point_cloud_cpp.html">Truncate point cloud</a></li>
+<li><a class="el" href="_x1_h_d_r_cpp.html">Capture by X1 HDR</a></li>
+<li><a class="el" href="_x2_h_d_r_cpp.html">Capture by X2 HDR</a></li>
+<li><a class="el" href="_get_cali_board_pose_x1_cpp.html">X1 get cali board pose</a></li>
+<li><a class="el" href="_get_cali_board_pose_x2_cpp.html">X2 get cali board pose</a></li>
+<li><a class="el" href="_x1_set_transformation_cpp.html">X1 set custom transformation</a></li>
+<li><a class="el" href="_x2_set_transformation_cpp.html">X2 set custom transformation</a></li>
+<li><a class="el" href="_x1_capture2_d_cpp.html">Capture 2D Image By X1</a></li>
+<li><a class="el" href="_x2_capture2_d_cpp.html">Capture 2D Image By X2</a></li>
+<li><a class="el" href="_x1_auto_set_param_cpp.html">X1 Get Auto Capture Setting</a></li>
+<li><a class="el" href="_x2_auto_set_param_cpp.html">X2 Get Auto Capture Setting</a></li>
+<li><a class="el" href="_get_smooth_point_map_cpp.html">get smoothness point map</a></li>
+<li><a class="el" href="_get_downsample_point_map_cpp.html">get downsample point map</a></li>
+<li><a class="el" href="_get_point_map_seperated_cpp.html">Get pointmap Seperated</a></li>
+<li><a class="el" href="_adjust_capture_mode_cpp.html">Adjust capture mode</a></li>
+<li><a class="el" href="_convert_depth_map_to_point_map_cpp.html">convert depthmap to pointmap</a></li>
+<li><a class="el" href="_x1_auto_hdr_set_param_cpp.html">X1 Get Auto hdr Capture Setting</a></li>
+<li><a class="el" href="_x2_auto_hdr_set_param_cpp.html">X2 Get Auto hdr Capture Setting</a></li>
+<li><a class="el" href="_get_confidence_map_cpp.html">Get confidence map</a></li>
+<li><a class="el" href="_get_noise_removal_point_map_cpp.html">get noise removal point map</a></li>
+<li><a class="el" href="_get_auto_noise_removal_setting_cpp.html">get auto noise removal setting</a> </li>
+</ul>
+</div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<div class="ttc" id="astruct_r_v_c_1_1_image_html_a8e97cd6f8a0f86897e11611b2b912f60"><div class="ttname"><a href="struct_r_v_c_1_1_image.html#a8e97cd6f8a0f86897e11611b2b912f60">RVC::Image::GetDataPtr</a></div><div class="ttdeci">unsigned char * GetDataPtr() const</div><div class="ttdoc">Get the Data Ptr of Image object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a8db776be35bec22feee6b2833f956984"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a8db776be35bec22feee6b2833f956984">RVC::X1::CaptureOptions::gain_2d</a></div><div class="ttdeci">float gain_2d</div><div class="ttdoc">Set the 2D gain value.</div><div class="ttdef"><b>Definition:</b> RVC.h:1253</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_ab3592ac526fa81e74305c4d686bf088f"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#ab3592ac526fa81e74305c4d686bf088f">RVC::X1::CaptureOptions::gamma_3d</a></div><div class="ttdeci">float gamma_3d</div><div class="ttdoc">Set the 3D gamma value.</div><div class="ttdef"><b>Definition:</b> RVC.h:1300</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_acf29ae2363969eb5c459d7ef8ef6323a"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#acf29ae2363969eb5c459d7ef8ef6323a">RVC::X2::CaptureOptions::trigger_mode</a></div><div class="ttdeci">TriggerMode trigger_mode</div><div class="ttdoc">Trigger mode. Currently, only the 'FixedLineScan' mode supports hardware triggering (TriggerMode_Hard...</div><div class="ttdef"><b>Definition:</b> RVC.h:2316</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_ac399e8c8c2ac0c87bab365f109d3e363"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#ac399e8c8c2ac0c87bab365f109d3e363">RVC::X2::IsOpen</a></div><div class="ttdeci">bool IsOpen()</div><div class="ttdoc">Check X2 is open or not.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_aa4dd149b76db3a87d51478bf3d776e38"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#aa4dd149b76db3a87d51478bf3d776e38">RVC::X1::CaptureOptions::truncate_z_min</a></div><div class="ttdeci">double truncate_z_min</div><div class="ttdoc">truncate point map and depth map by z direction minimum value (units: mm) and truncate_z_min should l...</div><div class="ttdef"><b>Definition:</b> RVC.h:1345</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a845b1bbcc047fe96f4bab07b9e0ea87d"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a845b1bbcc047fe96f4bab07b9e0ea87d">RVC::X2::CaptureOptions::projector_color</a></div><div class="ttdeci">ProjectorColor projector_color</div><div class="ttdoc">projector color</div><div class="ttdef"><b>Definition:</b> RVC.h:2142</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_r_o_i_html_a477c96671f17b470fc0688dac55620e8"><div class="ttname"><a href="struct_r_v_c_1_1_r_o_i.html#a477c96671f17b470fc0688dac55620e8">RVC::ROI::y</a></div><div class="ttdeci">int y</div><div class="ttdoc">start y of Image roi (row index of roi up left corner)</div><div class="ttdef"><b>Definition:</b> RVC.h:188</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_af2213d405a452c5278508424c8c2300c"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#af2213d405a452c5278508424c8c2300c">RVC::X2::CaptureOptions::smooth_sigma</a></div><div class="ttdeci">double smooth_sigma</div><div class="ttdoc">The Gaussian filters are used to smooth points. The larger the smooth_sigma, the smoother the point c...</div><div class="ttdef"><b>Definition:</b> RVC.h:2278</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a12c25daf7fd0732bc9230eb91190507b"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a12c25daf7fd0732bc9230eb91190507b">RVC::X2::CaptureOptions::gamma_2d</a></div><div class="ttdeci">float gamma_2d</div><div class="ttdoc">Set the 2D gamma value in milliseconds.</div><div class="ttdef"><b>Definition:</b> RVC.h:2133</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a7353fec452ad86f65399e7175ba14a24"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a7353fec452ad86f65399e7175ba14a24">RVC::X1::GetPointMap</a></div><div class="ttdeci">PointMap GetPointMap()</div><div class="ttdoc">Get the Point Map object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a74ad979ea18b50808de1fa09621a900f"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a74ad979ea18b50808de1fa09621a900f">RVC::X1::GetImage</a></div><div class="ttdeci">Image GetImage()</div><div class="ttdoc">Get the Image object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_depth_map_html"><div class="ttname"><a href="struct_r_v_c_1_1_depth_map.html">RVC::DepthMap</a></div><div class="ttdoc">RVC X DepthMap.</div><div class="ttdef"><b>Definition:</b> RVC.h:399</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a69996ceb2250750c7f8bd050d1948236"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a69996ceb2250750c7f8bd050d1948236">RVC::X2::GetExtrinsicMatrix</a></div><div class="ttdeci">bool GetExtrinsicMatrix(const CameraID cid, float *matrix)</div><div class="ttdoc">Get the extrinsic matrix (transformation from calibration board to specified camera)</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a953a4da9ea4bfa44492734b178d5c816"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a953a4da9ea4bfa44492734b178d5c816">RVC::X1::CaptureOptions::noise_removal_point_number</a></div><div class="ttdeci">int noise_removal_point_number</div><div class="ttdoc">Set the noise filter parameter 2. The larger the value, the greater the filtering degree.</div><div class="ttdef"><b>Definition:</b> RVC.h:1222</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_image_html_a1f790c52286f79ff00a2323e6e1c151d"><div class="ttname"><a href="struct_r_v_c_1_1_image.html#a1f790c52286f79ff00a2323e6e1c151d">RVC::Image::GetTimestamp</a></div><div class="ttdeci">uint64_t GetTimestamp() const</div><div class="ttdoc">Retrieves the timestamp of the Image.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a1602b70efc5dab17a7e5b389bbd3a8ad"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a1602b70efc5dab17a7e5b389bbd3a8ad">RVC::X2::CaptureOptions::line_scanner_max_distance</a></div><div class="ttdeci">int line_scanner_max_distance</div><div class="ttdoc">Set line scanner mode's maximum working distance.</div><div class="ttdef"><b>Definition:</b> RVC.h:2242</div></div>
+<div class="ttc" id="anamespace_r_v_c_html"><div class="ttname"><a href="namespace_r_v_c.html">RVC</a></div><div class="ttdoc">RVC namespace.</div><div class="ttdef"><b>Definition:</b> QuickStart.dox:1</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_af370a825b14c4f3d04b9241cd5bc28a7"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#af370a825b14c4f3d04b9241cd5bc28a7">RVC::X2::CaptureOptions::hdr_exposure_times</a></div><div class="ttdeci">int hdr_exposure_times</div><div class="ttdoc">Set the hdr exposure times value. 0,2,3.</div><div class="ttdef"><b>Definition:</b> RVC.h:2112</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a84ff22a5a5eb279fa3eb19d8278ca44d"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a84ff22a5a5eb279fa3eb19d8278ca44d">RVC::X1::CaptureOptions::capture_mode</a></div><div class="ttdeci">CaptureMode capture_mode</div><div class="ttdoc">control capture mode</div><div class="ttdef"><b>Definition:</b> RVC.h:1323</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_ae4853a61e70eb0e687969c82c20b61f3"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#ae4853a61e70eb0e687969c82c20b61f3">RVC::X1::CaptureOptions::phase_filter_range</a></div><div class="ttdeci">int phase_filter_range</div><div class="ttdoc">Set the phase filter value. The larger the value, the greater the filtering degree 0~40.</div><div class="ttdef"><b>Definition:</b> RVC.h:1233</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a0292452a6aea65f39127bc242f1e7238"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a0292452a6aea65f39127bc242f1e7238">RVC::X1::CaptureOptions::filter_range</a></div><div class="ttdeci">int filter_range</div><div class="ttdoc">Set the noise filter value. The larger the value, the greater the filtering degree....</div><div class="ttdef"><b>Definition:</b> RVC.h:1200</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_image_html_abe5c51321af14fddf954f741148a53f9"><div class="ttname"><a href="struct_r_v_c_1_1_image.html#abe5c51321af14fddf954f741148a53f9">RVC::Image::GetSize</a></div><div class="ttdeci">Size GetSize() const</div><div class="ttdoc">Get the Image Size object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_depth_map_html_abfd6341267f6f193e4b188289cad3196"><div class="ttname"><a href="struct_r_v_c_1_1_depth_map.html#abfd6341267f6f193e4b188289cad3196">RVC::DepthMap::GetSize</a></div><div class="ttdeci">Size GetSize()</div><div class="ttdoc">Get the DepthMap Size object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a779965020381ef47d330bb065537f673"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a779965020381ef47d330bb065537f673">RVC::X1::Capture2D</a></div><div class="ttdeci">bool Capture2D(const CaptureOptions &amp;opts)</div><div class="ttdoc">Capture one image. This function will save capture options into camera. You can use GetImage() to obt...</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a12d14e53dde0452be851c6c24352a960"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a12d14e53dde0452be851c6c24352a960">RVC::X2::CaptureOptions::use_projector_capturing_2d_image</a></div><div class="ttdeci">bool use_projector_capturing_2d_image</div><div class="ttdoc">Set 2D image whether use projector.</div><div class="ttdef"><b>Definition:</b> RVC.h:2147</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_ae7e7fb4668e73846a2766d2509d931f2"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#ae7e7fb4668e73846a2766d2509d931f2">RVC::X2::CaptureOptions::exposure_time_3d</a></div><div class="ttdeci">int exposure_time_3d</div><div class="ttdoc">Set the exposure_time 3D value in milliseconds.</div><div class="ttdef"><b>Definition:</b> RVC.h:2097</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a2607ed214809cbb54218f71fc7123e11"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a2607ed214809cbb54218f71fc7123e11">RVC::X2::CaptureOptions::line_scanner_min_distance</a></div><div class="ttdeci">int line_scanner_min_distance</div><div class="ttdoc">Set line scanner mode's minimum working distance.</div><div class="ttdef"><b>Definition:</b> RVC.h:2238</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a18a82856de1c4664c2d0fdc2cd4524fd"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a18a82856de1c4664c2d0fdc2cd4524fd">RVC::X2::CaptureOptions::line_scanner_scan_time_ms</a></div><div class="ttdeci">int line_scanner_scan_time_ms</div><div class="ttdoc">Set line scanner mode's total scan time.</div><div class="ttdef"><b>Definition:</b> RVC.h:2230</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a00b7a6605af2c815713b1678fd41ff55"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a00b7a6605af2c815713b1678fd41ff55">RVC::X2::Create</a></div><div class="ttdeci">static X2 Create(const Device &amp;d)</div><div class="ttdoc">Create a RVC X Camera before you use x2.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_confidence_map_html_abd573ab9a9f12a4d20bc10205b9920a5"><div class="ttname"><a href="struct_r_v_c_1_1_confidence_map.html#abd573ab9a9f12a4d20bc10205b9920a5">RVC::ConfidenceMap::GetSize</a></div><div class="ttdeci">Size GetSize()</div><div class="ttdoc">Get the Size object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_image_html_a6c9b3da6bae0d446e29e8383a54b7d5f"><div class="ttname"><a href="struct_r_v_c_1_1_image.html#a6c9b3da6bae0d446e29e8383a54b7d5f">RVC::Image::GetType</a></div><div class="ttdeci">ImageType::Enum GetType() const</div><div class="ttdoc">Get the ImageType object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_aaaf3b8f27ba515034a5e1d7461e39a32"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#aaaf3b8f27ba515034a5e1d7461e39a32">RVC::X2::CaptureOptions::pointcloud_completion</a></div><div class="ttdeci">bool pointcloud_completion</div><div class="ttdoc">In 'CaptureMode_SwingLineScan' mode with 'correspond2d' enabled,turning on 'pointcloud_completion' wi...</div><div class="ttdef"><b>Definition:</b> RVC.h:2297</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_ae672010b55a304c56aad605ac9a03ab8"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#ae672010b55a304c56aad605ac9a03ab8">RVC::X2::Destroy</a></div><div class="ttdeci">static void Destroy(X2 &amp;x)</div><div class="ttdoc">Release all X2 resources after you use X2.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_confidence_map_html"><div class="ttname"><a href="struct_r_v_c_1_1_confidence_map.html">RVC::ConfidenceMap</a></div><div class="ttdef"><b>Definition:</b> RVC.h:462</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_aa83bd44b81819ede5ffce9b8ab235582"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#aa83bd44b81819ede5ffce9b8ab235582">RVC::X2::LoadCaptureOptionParameters</a></div><div class="ttdeci">bool LoadCaptureOptionParameters(X2::CaptureOptions &amp;opts)</div><div class="ttdoc">Get capture option parameters.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a49a7ca6bc4173642b2d5c9d754e81323"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a49a7ca6bc4173642b2d5c9d754e81323">RVC::X2::CaptureOptions::reflection_filter_threshold</a></div><div class="ttdeci">int reflection_filter_threshold</div><div class="ttdoc">Used to remove large-area erroneous point clouds caused by reflections. The higher this value is set,...</div><div class="ttdef"><b>Definition:</b> RVC.h:2270</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_af7f696060a6fe5b4b8248b73609dbe67"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#af7f696060a6fe5b4b8248b73609dbe67">RVC::X2::Capture</a></div><div class="ttdeci">bool Capture(const CaptureOptions &amp;opts)</div><div class="ttdoc">Capture one point map and one image.This function will save capture options into camera.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a182637624d485019887829439c53a3d1"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a182637624d485019887829439c53a3d1">RVC::X2::CaptureOptions::exposure_time_2d</a></div><div class="ttdeci">int exposure_time_2d</div><div class="ttdoc">Set the exposure_time 2D value in milliseconds.</div><div class="ttdef"><b>Definition:</b> RVC.h:2092</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a7a8cd1c5c7280d9008e7e1372a5359fd"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a7a8cd1c5c7280d9008e7e1372a5359fd">RVC::X2::CaptureOptions::scan_times</a></div><div class="ttdeci">int scan_times</div><div class="ttdoc">scan times, only use in robust mode. range: [1, 8]</div><div class="ttdef"><b>Definition:</b> RVC.h:2199</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a4dedf2cabe779908045fb2eb1a2ba914"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a4dedf2cabe779908045fb2eb1a2ba914">RVC::X1::CaptureOptions::hdr_exposure_times</a></div><div class="ttdeci">int hdr_exposure_times</div><div class="ttdoc">Set the hdr exposure times value. 0,2,3.</div><div class="ttdef"><b>Definition:</b> RVC.h:1263</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_point_map_html_a5e3e3b13728d8d5e0fadab2530960e15"><div class="ttname"><a href="struct_r_v_c_1_1_point_map.html#a5e3e3b13728d8d5e0fadab2530960e15">RVC::PointMap::GetPointDataConstPtr</a></div><div class="ttdeci">const double * GetPointDataConstPtr() const</div><div class="ttdoc">Get the Point Data Const Ptr of PointMap object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_custom_transform_options_html_a18a9f20e5cc406207dfab5f9ba020505"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_custom_transform_options.html#a18a9f20e5cc406207dfab5f9ba020505">RVC::X1::CustomTransformOptions::coordinate_select</a></div><div class="ttdeci">CoordinateSelect coordinate_select</div><div class="ttdoc">base coordinate setting of custom transformation</div><div class="ttdef"><b>Definition:</b> RVC.h:1434</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_ab9e750359005a9c445e28c43552e6d16"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#ab9e750359005a9c445e28c43552e6d16">RVC::X1::GetAutoHdrCaptureSetting</a></div><div class="ttdeci">bool GetAutoHdrCaptureSetting(CaptureOptions &amp;opts, const ROI &amp;roi)</div><div class="ttdoc">adjust 3D capturing parameters</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a2ff10f1b193e4c2cd8fafbf580d0d223"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a2ff10f1b193e4c2cd8fafbf580d0d223">RVC::X2::CaptureOptions::gain_2d</a></div><div class="ttdeci">float gain_2d</div><div class="ttdoc">Set the 2D gain value in milliseconds.</div><div class="ttdef"><b>Definition:</b> RVC.h:2102</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_size_html"><div class="ttname"><a href="struct_r_v_c_1_1_size.html">RVC::Size</a></div><div class="ttdoc">Image/PointMap Size.</div><div class="ttdef"><b>Definition:</b> RVC.h:108</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_aaa71348d88a10f38cfb547f1a22ab143"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#aaa71348d88a10f38cfb547f1a22ab143">RVC::X1::IsOpen</a></div><div class="ttdeci">bool IsOpen()</div><div class="ttdoc">Check X1 is open or not.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_r_o_i_html_a195750342d677bae42f2f8314e98a587"><div class="ttname"><a href="struct_r_v_c_1_1_r_o_i.html#a195750342d677bae42f2f8314e98a587">RVC::ROI::x</a></div><div class="ttdeci">int x</div><div class="ttdoc">start x of Image roi (col index of roi up left corner)</div><div class="ttdef"><b>Definition:</b> RVC.h:183</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a535c05f05a6d4d4a812c906fde561e78"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a535c05f05a6d4d4a812c906fde561e78">RVC::X2::SaveCaptureOptionParameters</a></div><div class="ttdeci">bool SaveCaptureOptionParameters(const X2::CaptureOptions &amp;opts)</div><div class="ttdoc">Save capture option parameters.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a4d9bc5a2f6f26e6b1ee5b279eb7deab3"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a4d9bc5a2f6f26e6b1ee5b279eb7deab3">RVC::X2::GetAutoCaptureSetting</a></div><div class="ttdeci">bool GetAutoCaptureSetting(CaptureOptions &amp;opts, const ROI &amp;roi=ROI())</div><div class="ttdoc">Get auto capture setting. Exposure_time_2d, exposure_time_3d, projector_brightness,...</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a4bbe435b7e01b138938eec1fdadf4fea"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a4bbe435b7e01b138938eec1fdadf4fea">RVC::X1::Open</a></div><div class="ttdeci">bool Open()</div><div class="ttdoc">Open X1 before you use it.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_ac235875fb08d6d929a714531377024e2"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#ac235875fb08d6d929a714531377024e2">RVC::X2::CaptureOptions::encoder_trigger_interval</a></div><div class="ttdeci">int encoder_trigger_interval</div><div class="ttdoc">Number of encoder pulses required to trigger one profile acquisition.</div><div class="ttdef"><b>Definition:</b> RVC.h:2321</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a118d019068cdb91057de4770bebb48cd"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a118d019068cdb91057de4770bebb48cd">RVC::X1::CaptureOptions::exposure_time_2d</a></div><div class="ttdeci">int exposure_time_2d</div><div class="ttdoc">Set the exposure_time 2D value in milliseconds.</div><div class="ttdef"><b>Definition:</b> RVC.h:1238</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_aaf0fb5567bbbbd6b9750eebb9a33410f"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#aaf0fb5567bbbbd6b9750eebb9a33410f">RVC::X2::CaptureOptions::truncate_z_max</a></div><div class="ttdeci">double truncate_z_max</div><div class="ttdoc">truncate point map and depth map by z direction maximum value (units: mm) and truncate_z_max should m...</div><div class="ttdef"><b>Definition:</b> RVC.h:2335</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_ad027c5a69eecb314449b59dbc3ef5531"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#ad027c5a69eecb314449b59dbc3ef5531">RVC::X1::GetIntrinsicParameters</a></div><div class="ttdeci">bool GetIntrinsicParameters(float *instrinsic_matrix, float *distortion)</div><div class="ttdoc">Get intrinsic and distortion parameters.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a5d35ced8c3d7ac632f8b40904789e07d"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a5d35ced8c3d7ac632f8b40904789e07d">RVC::X1::CaptureOptions::use_projector_capturing_2d_image</a></div><div class="ttdeci">bool use_projector_capturing_2d_image</div><div class="ttdoc">Set 2D image whether use projector.</div><div class="ttdef"><b>Definition:</b> RVC.h:1305</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_custom_transform_options_html"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_custom_transform_options.html">RVC::X1::CustomTransformOptions</a></div><div class="ttdoc">Options when setting custom transformation.</div><div class="ttdef"><b>Definition:</b> RVC.h:1413</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a80d0bd7b39eaf157c723dec9244713e9"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a80d0bd7b39eaf157c723dec9244713e9">RVC::X2::CaptureOptions::projector_brightness</a></div><div class="ttdeci">int projector_brightness</div><div class="ttdoc">Set the projector brightness value.</div><div class="ttdef"><b>Definition:</b> RVC.h:2064</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a82aa695ab6115b84be69033dc424cb10"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a82aa695ab6115b84be69033dc424cb10">RVC::X1::Close</a></div><div class="ttdeci">void Close()</div><div class="ttdoc">Close X1 after you Open it.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_point_map_html_a0ade7a2e351aa214bb599a569b06b85c"><div class="ttname"><a href="struct_r_v_c_1_1_point_map.html#a0ade7a2e351aa214bb599a569b06b85c">RVC::PointMap::GetPointMapSeperated</a></div><div class="ttdeci">bool GetPointMapSeperated(double *x, double *y, double *z, const double scale=1.0)</div><div class="ttdoc">Get the Point Data Seperated.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_ad58304ba92bcf67bc4ee2a1579b2988d"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#ad58304ba92bcf67bc4ee2a1579b2988d">RVC::X2::SetCustomTransformation</a></div><div class="ttdeci">bool SetCustomTransformation(const CustomTransformOptions &amp;opts)</div><div class="ttdoc">Set the Transformation of output point cloud.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_ab046405c3c27f3502572684dc1547990"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#ab046405c3c27f3502572684dc1547990">RVC::X1::AutoWhiteBalance</a></div><div class="ttdeci">bool AutoWhiteBalance(int wb_times=10, const CaptureOptions &amp;opts=CaptureOptions(), const RVC::ROI &amp;roi=RVC::ROI())</div><div class="ttdoc">Only Color Camera can use this function. This function can get suitable white balance paramters.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_image_html_a0252adee2e031190a0526d6265070192"><div class="ttname"><a href="struct_r_v_c_1_1_image.html#a0252adee2e031190a0526d6265070192">RVC::Image::SaveImage</a></div><div class="ttdeci">bool SaveImage(const char *addr) const</div><div class="ttdoc">Save Image to file.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a3e44a5a71a17a91f1c93b8a2699b1c1f"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a3e44a5a71a17a91f1c93b8a2699b1c1f">RVC::X2::CaptureOptions::gamma_3d</a></div><div class="ttdeci">float gamma_3d</div><div class="ttdoc">Set the 3D gamma value in milliseconds.</div><div class="ttdef"><b>Definition:</b> RVC.h:2138</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_aa1f35cdec05e6937e6294f1e29944a89"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#aa1f35cdec05e6937e6294f1e29944a89">RVC::X1::LoadCaptureOptionParameters</a></div><div class="ttdeci">bool LoadCaptureOptionParameters(X1::CaptureOptions &amp;opts)</div><div class="ttdoc">Get capture option parameters.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_r_o_i_html"><div class="ttname"><a href="struct_r_v_c_1_1_r_o_i.html">RVC::ROI</a></div><div class="ttdoc">Image ROI.</div><div class="ttdef"><b>Definition:</b> RVC.h:164</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a1405cebcb5aed817e6f93b9c82aba877"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a1405cebcb5aed817e6f93b9c82aba877">RVC::X2::CaptureOptions::truncate_z_min</a></div><div class="ttdeci">double truncate_z_min</div><div class="ttdoc">truncate point map and depth map by z direction minimum value (units: mm) and truncate_z_min should l...</div><div class="ttdef"><b>Definition:</b> RVC.h:2328</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a87dc2d1c2f76b7c4ac8f3ace02701886"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a87dc2d1c2f76b7c4ac8f3ace02701886">RVC::X2::ResetTimestamp</a></div><div class="ttdeci">bool ResetTimestamp()</div><div class="ttdoc">Resets the camera timestamp to zero.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a8bf8a10027177cc6ec9fa5dfd103aab6"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a8bf8a10027177cc6ec9fa5dfd103aab6">RVC::X2::GetExposureTimeRange</a></div><div class="ttdeci">bool GetExposureTimeRange(int *min_value, int *max_value)</div><div class="ttdoc">Get the Exposure Time Range.</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a3ee199b906497d6b03fbb3139e74cb71"><div class="ttname"><a href="namespace_r_v_c.html#a3ee199b906497d6b03fbb3139e74cb71">RVC::SystemListDevices</a></div><div class="ttdeci">RVC_EXPORT int SystemListDevices(Device *pdevices, size_t size, size_t *actual_size, SystemListDeviceType::Enum opt=SystemListDeviceType::All)</div><div class="ttdoc">List the fix number devices.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_custom_transform_options_html_a81c00d609891efa66ba600c889538fc2"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_custom_transform_options.html#a81c00d609891efa66ba600c889538fc2">RVC::X2::CustomTransformOptions::coordinate_select</a></div><div class="ttdeci">CoordinateSelect coordinate_select</div><div class="ttdoc">base coordinate setting of custom transformation</div><div class="ttdef"><b>Definition:</b> RVC.h:2419</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html">RVC::X1::CaptureOptions</a></div><div class="ttdoc">Capture options.</div><div class="ttdef"><b>Definition:</b> RVC.h:1131</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_ad512737646f472115892b03513a68fcb"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#ad512737646f472115892b03513a68fcb">RVC::X1::CaptureOptions::smoothness</a></div><div class="ttdeci">SmoothnessLevel smoothness</div><div class="ttdoc">control point map smoothness</div><div class="ttdef"><b>Definition:</b> RVC.h:1311</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a6322cb55c59acd3d83cb26427c2cdc23"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a6322cb55c59acd3d83cb26427c2cdc23">RVC::X1::CaptureOptions::scan_times</a></div><div class="ttdeci">int scan_times</div><div class="ttdoc">scan times, only use in robust mode. range: [1, 8]</div><div class="ttdef"><b>Definition:</b> RVC.h:1378</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a68d40b56d29a3f8791557a0bd42c552c"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a68d40b56d29a3f8791557a0bd42c552c">RVC::X1::CaptureOptions::calc_normal</a></div><div class="ttdeci">bool calc_normal</div><div class="ttdoc">flag Whether calculate 3D points normal vector</div><div class="ttdef"><b>Definition:</b> RVC.h:1188</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_custom_transform_options_html_ae7f5b4a5ec831bcecbacf3c3270cd3ce"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_custom_transform_options.html#ae7f5b4a5ec831bcecbacf3c3270cd3ce">RVC::X1::CustomTransformOptions::transform</a></div><div class="ttdeci">double transform[16]</div><div class="ttdoc">custom transformation, translation unit: m</div><div class="ttdef"><b>Definition:</b> RVC.h:1440</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_confidence_map_html_ae10ba788e78307db92a4fd58712ea78d"><div class="ttname"><a href="struct_r_v_c_1_1_confidence_map.html#ae10ba788e78307db92a4fd58712ea78d">RVC::ConfidenceMap::GetDataConstPtr</a></div><div class="ttdeci">const double * GetDataConstPtr()</div><div class="ttdoc">Get the Data Const Ptr object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_point_map_html_a4acdaaea3fd07d7e1746b17d038df4cf"><div class="ttname"><a href="struct_r_v_c_1_1_point_map.html#a4acdaaea3fd07d7e1746b17d038df4cf">RVC::PointMap::Create</a></div><div class="ttdeci">static PointMap Create(PointMapType::Enum pmt, const Size size, double *data=nullptr, bool owndata=true)</div><div class="ttdoc">Create PointMap object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a44632458373a6267b465fe1808c71176"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a44632458373a6267b465fe1808c71176">RVC::X2::CaptureOptions::enable_2d_in_capture</a></div><div class="ttdeci">bool enable_2d_in_capture</div><div class="ttdoc">Acquire 2D images during capture.</div><div class="ttdef"><b>Definition:</b> RVC.h:2291</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_ab77cb08b9cc5f69e58c34f836c56d0c7"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#ab77cb08b9cc5f69e58c34f836c56d0c7">RVC::X1::CaptureOptions::roi</a></div><div class="ttdeci">RVC::ROI roi</div><div class="ttdoc">set ROI function, only 3d points in the roi will be generated. This function can improve 3d capturesp...</div><div class="ttdef"><b>Definition:</b> RVC.h:1338</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a92e6808e2b266f827c1079b677589adb"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a92e6808e2b266f827c1079b677589adb">RVC::X1::Destroy</a></div><div class="ttdeci">static void Destroy(X1 &amp;x)</div><div class="ttdoc">Release all X1 resources after you use X1.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_point_map_html_a099e6e81efa12be4f4b650375374a07f"><div class="ttname"><a href="struct_r_v_c_1_1_point_map.html#a099e6e81efa12be4f4b650375374a07f">RVC::PointMap::GetSize</a></div><div class="ttdeci">Size GetSize() const</div><div class="ttdoc">Get the PointMap Size object.</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_adf5057625a1487c09643b07ec5578e78"><div class="ttname"><a href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">RVC::CameraID</a></div><div class="ttdeci">CameraID</div><div class="ttdoc">CameraID, support CameraID_Left and CameraID_Right</div><div class="ttdef"><b>Definition:</b> RVC.h:742</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a99be15f03e9c0eb98375695831a8ce6d"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a99be15f03e9c0eb98375695831a8ce6d">RVC::X2::CaptureOptions::line_scanner_laser_position</a></div><div class="ttdeci">uint16_t line_scanner_laser_position</div><div class="ttdoc">select laser position in fixed line scan mode</div><div class="ttdef"><b>Definition:</b> RVC.h:2254</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_custom_transform_options_html_a8a1f33f55a667188fbaa196a81e824e8"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_custom_transform_options.html#a8a1f33f55a667188fbaa196a81e824e8">RVC::X2::CustomTransformOptions::transform</a></div><div class="ttdeci">double transform[16]</div><div class="ttdoc">custom transformation, translation unit: m</div><div class="ttdef"><b>Definition:</b> RVC.h:2425</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a679194015fca33c27a6b1437727ca8dd"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a679194015fca33c27a6b1437727ca8dd">RVC::X1::GetAutoNoiseRemovalSetting</a></div><div class="ttdeci">bool GetAutoNoiseRemovalSetting(CaptureOptions &amp;opts)</div><div class="ttdoc">Automatically calculates and applies the optimal point cloud noise removal parameters.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a65084b6120a5dde2cfdda7f63a509339"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a65084b6120a5dde2cfdda7f63a509339">RVC::X1::Create</a></div><div class="ttdeci">static X1 Create(const Device &amp;d, enum CameraID camid=CameraID_Left)</div><div class="ttdoc">Create a RVC X Camera and choose the CameraID which you desire before you use X1.</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a7c616a5d26f42991a8fbe38176a46c69"><div class="ttname"><a href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC::SystemShutdown</a></div><div class="ttdeci">RVC_EXPORT void SystemShutdown()</div><div class="ttdoc">SystemShutdown.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_ad68ca7c3b249208c138fa2121f8ad02d"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#ad68ca7c3b249208c138fa2121f8ad02d">RVC::X2::CaptureOptions::line_scanner_exposure_time_us</a></div><div class="ttdeci">int line_scanner_exposure_time_us</div><div class="ttdoc">Set line scanner mode's single line exposure time.</div><div class="ttdef"><b>Definition:</b> RVC.h:2234</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_ab4c167dee6985f140e702be2fca33a1e"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#ab4c167dee6985f140e702be2fca33a1e">RVC::X1::SaveCaptureOptionParameters</a></div><div class="ttdeci">bool SaveCaptureOptionParameters(const X1::CaptureOptions &amp;opts)</div><div class="ttdoc">Save capture option parameters.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html">RVC::X2::CaptureOptions</a></div><div class="ttdoc">Capture options.</div><div class="ttdef"><b>Definition:</b> RVC.h:1982</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a4be2932638f9f45ecc3c6fbde2660cba"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a4be2932638f9f45ecc3c6fbde2660cba">RVC::X2::CaptureOptions::calc_normal_radius</a></div><div class="ttdeci">unsigned int calc_normal_radius</div><div class="ttdoc">Neighborhood radius in pixel of calculating normal, &gt; 0.</div><div class="ttdef"><b>Definition:</b> RVC.h:2074</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_device_html_ad5edfbbaf441b14d432fc609a71f1d89"><div class="ttname"><a href="struct_r_v_c_1_1_device.html#ad5edfbbaf441b14d432fc609a71f1d89">RVC::Device::GetDeviceInfo</a></div><div class="ttdeci">bool GetDeviceInfo(DeviceInfo *pinfo)</div><div class="ttdoc">Get the DeviceInfo object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a7df65ec4e9546bb3ea12a0844c325a8b"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a7df65ec4e9546bb3ea12a0844c325a8b">RVC::X1::GetAutoCaptureSetting</a></div><div class="ttdeci">bool GetAutoCaptureSetting(CaptureOptions &amp;opts, const ROI &amp;roi=ROI())</div><div class="ttdoc">Get auto capture setting. Exposure_time_2d, exposure_time_3d, projector_brightness,...</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_mesh_html"><div class="ttname"><a href="struct_r_v_c_1_1_mesh.html">RVC::Mesh</a></div><div class="ttdef"><b>Definition:</b> RVC.h:685</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a0758ec8ef6b48c52402649027fad7547"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a0758ec8ef6b48c52402649027fad7547">RVC::X2::Capture2D</a></div><div class="ttdeci">bool Capture2D(const CameraID cid, const CaptureOptions &amp;opts)</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a8e03fd611655a0acb4794f767cff4b96"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a8e03fd611655a0acb4794f767cff4b96">RVC::X1::CaptureOptions::smooth_sigma</a></div><div class="ttdeci">double smooth_sigma</div><div class="ttdoc">The Gaussian filters are used to smooth points. The larger the smooth_sigma, the smoother the point c...</div><div class="ttdef"><b>Definition:</b> RVC.h:1402</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_image_html"><div class="ttname"><a href="struct_r_v_c_1_1_image.html">RVC::Image</a></div><div class="ttdoc">RVC X Image object.</div><div class="ttdef"><b>Definition:</b> RVC.h:303</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a5df1516be24200816cb5a8568881663b"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a5df1516be24200816cb5a8568881663b">RVC::X1::GetExtrinsicMatrix</a></div><div class="ttdeci">bool GetExtrinsicMatrix(float *matrix)</div><div class="ttdoc">Get the extrinsic matrix (transformation from calibration board to specified camera)</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a61b8c719b0a6cb8989f27bbef9121501"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a61b8c719b0a6cb8989f27bbef9121501">RVC::X1::CaptureOptions::enable_2d_in_capture</a></div><div class="ttdeci">bool enable_2d_in_capture</div><div class="ttdoc">Acquire 2D images during capture.</div><div class="ttdef"><b>Definition:</b> RVC.h:1407</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a5a6572401c503d1e567640ffbf2c88ab"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a5a6572401c503d1e567640ffbf2c88ab">RVC::X2::CaptureOptions::gain_3d</a></div><div class="ttdeci">float gain_3d</div><div class="ttdoc">Set the 3D gain value in milliseconds.</div><div class="ttdef"><b>Definition:</b> RVC.h:2107</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a406258deb04b02e00c969672ce2d1219"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a406258deb04b02e00c969672ce2d1219">RVC::X2::Close</a></div><div class="ttdeci">void Close()</div><div class="ttdoc">Close X2 after you Open it.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_depth_map_html_a9c70aa27b05f0c9f7590997571ebe19e"><div class="ttname"><a href="struct_r_v_c_1_1_depth_map.html#a9c70aa27b05f0c9f7590997571ebe19e">RVC::DepthMap::GetDataPtr</a></div><div class="ttdeci">double * GetDataPtr()</div><div class="ttdoc">Get the Data Ptr of DepthMap.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_afc4f7ff42e15553fb9b5e61cea24dcba"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#afc4f7ff42e15553fb9b5e61cea24dcba">RVC::X1::CaptureOptions::truncate_z_max</a></div><div class="ttdeci">double truncate_z_max</div><div class="ttdoc">truncate point map and depth map by z direction maximum value (units: mm) and truncate_z_max should m...</div><div class="ttdef"><b>Definition:</b> RVC.h:1352</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_depth_map_html_ae3ed435a8474c08f52c24ef6a3ceb427"><div class="ttname"><a href="struct_r_v_c_1_1_depth_map.html#ae3ed435a8474c08f52c24ef6a3ceb427">RVC::DepthMap::SaveDepthMap</a></div><div class="ttdeci">bool SaveDepthMap(const char *address, bool is_m=true)</div><div class="ttdoc">Save DepthMap to file.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a8e2108d2b4faad3178628119479145f8"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a8e2108d2b4faad3178628119479145f8">RVC::X1::CaptureOptions::light_contrast_threshold</a></div><div class="ttdeci">int light_contrast_threshold</div><div class="ttdoc">Light contrast trheshold, range in [0, 10]. The contrast of point less than this value will be treat ...</div><div class="ttdef"><b>Definition:</b> RVC.h:1228</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_ad7b25e0b6e39cbcbeb4155b057964965"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#ad7b25e0b6e39cbcbeb4155b057964965">RVC::X1::CaptureOptions::noise_removal_distance</a></div><div class="ttdeci">double noise_removal_distance</div><div class="ttdoc">The smaller the value, the greater the filtering degree. range: 0 ~ 20 (units: mm)</div><div class="ttdef"><b>Definition:</b> RVC.h:1218</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_device_info_html"><div class="ttname"><a href="struct_r_v_c_1_1_device_info.html">RVC::DeviceInfo</a></div><div class="ttdoc">RVC X Device info.</div><div class="ttdef"><b>Definition:</b> RVC.h:924</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a1424dd73d0a8f03b75251332810e708e"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a1424dd73d0a8f03b75251332810e708e">RVC::X2::CaptureOptions::light_contrast_threshold</a></div><div class="ttdeci">int light_contrast_threshold</div><div class="ttdoc">Light contrast trheshold, range in [0, 10]. The contrast of point less than this value will be treat ...</div><div class="ttdef"><b>Definition:</b> RVC.h:2081</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a83a5c69c670df3f6e9951c04b8e34b3c"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a83a5c69c670df3f6e9951c04b8e34b3c">RVC::X2::GetPointMap</a></div><div class="ttdeci">PointMap GetPointMap()</div><div class="ttdoc">Get the Point Map object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a2dd51ceb4fe11c8cc41822d144fa6a6d"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a2dd51ceb4fe11c8cc41822d144fa6a6d">RVC::X2::GetIntrinsicParameters</a></div><div class="ttdeci">bool GetIntrinsicParameters(const CameraID cid, float *instrinsicMatrix, float *distortion)</div><div class="ttdoc">Get intrinsic and distortion parameters of the specified camera.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a323720dc81744173dcdb4d57eb804cc0"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a323720dc81744173dcdb4d57eb804cc0">RVC::X2::GetAutoHdrCaptureSetting</a></div><div class="ttdeci">bool GetAutoHdrCaptureSetting(CaptureOptions &amp;opts, const ROI &amp;roi)</div><div class="ttdoc">adjust 3D capturing parameters</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_point_map_html_aa623644e8ec081625549da3294669449"><div class="ttname"><a href="struct_r_v_c_1_1_point_map.html#aa623644e8ec081625549da3294669449">RVC::PointMap::Save</a></div><div class="ttdeci">bool Save(const char *fileName, const PointMapUnit::Enum unit, const bool isBinary, const Image &amp;rawImage=Image())</div><div class="ttdoc">export PointMap's data to local file. Only support the *.ply* format.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html">RVC::X2</a></div><div class="ttdoc">X2 struct.</div><div class="ttdef"><b>Definition:</b> RVC.h:1977</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a5eb11564cc8b02a87015cd6cc52a8fdf"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a5eb11564cc8b02a87015cd6cc52a8fdf">RVC::X2::CaptureOptions::downsample_distance</a></div><div class="ttdeci">double downsample_distance</div><div class="ttdoc">uniform downsample distance. if &lt;= 0, do nothing.</div><div class="ttdef"><b>Definition:</b> RVC.h:2182</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_ac331383f6ea8e291540955a1a98fffc8"><div class="ttname"><a href="namespace_r_v_c.html#ac331383f6ea8e291540955a1a98fffc8">RVC::CaptureMode</a></div><div class="ttdeci">CaptureMode</div><div class="ttdoc">CaptureMode, support CaptureMode_Fast, CaptureMode_Normal, CaptureMode_Ultra, CaptureMode_Robust,...</div><div class="ttdef"><b>Definition:</b> RVC.h:842</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_abdca40f0d45ae87f56bbede8eaf25e56"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#abdca40f0d45ae87f56bbede8eaf25e56">RVC::X1::CaptureOptions::downsample_distance</a></div><div class="ttdeci">double downsample_distance</div><div class="ttdoc">uniform downsample distance. if &lt;= 0, do nothing.</div><div class="ttdef"><b>Definition:</b> RVC.h:1317</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_point_map_html"><div class="ttname"><a href="struct_r_v_c_1_1_point_map.html">RVC::PointMap</a></div><div class="ttdoc">RVC X PointMap.</div><div class="ttdef"><b>Definition:</b> RVC.h:560</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a2c9dd6bb3d96eb5dbf8205a9b29b81f6"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a2c9dd6bb3d96eb5dbf8205a9b29b81f6">RVC::X2::GetMesh</a></div><div class="ttdeci">Mesh GetMesh()</div><div class="ttdoc">Get the Mesh object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a830b8e8a4f9b603edb9d10606fde511c"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a830b8e8a4f9b603edb9d10606fde511c">RVC::X1::CaptureOptions::confidence_threshold</a></div><div class="ttdeci">double confidence_threshold</div><div class="ttdoc">confidence threshold, the point with confindence low then this value will be removed range: [0,...</div><div class="ttdef"><b>Definition:</b> RVC.h:1330</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a323593973d7de52708fae81cc20db39c"><div class="ttname"><a href="namespace_r_v_c.html#a323593973d7de52708fae81cc20db39c">RVC::SystemInit</a></div><div class="ttdeci">RVC_EXPORT bool SystemInit()</div><div class="ttdoc">SystemInit.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_abd413c87273c47a414b260ff34bd6f73"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#abd413c87273c47a414b260ff34bd6f73">RVC::X1::CaptureOptions::gain_3d</a></div><div class="ttdeci">float gain_3d</div><div class="ttdoc">Set the 3D gain value.</div><div class="ttdef"><b>Definition:</b> RVC.h:1258</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_abb31cb6e77ec0f12bad7b251da019d4a"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#abb31cb6e77ec0f12bad7b251da019d4a">RVC::X2::CaptureOptions::correspond2d</a></div><div class="ttdeci">bool correspond2d</div><div class="ttdoc">whether to generate point clouds corresponding to 2D images</div><div class="ttdef"><b>Definition:</b> RVC.h:2248</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a8bc126739e79ea37427ac5c56d06984c"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a8bc126739e79ea37427ac5c56d06984c">RVC::X1::GetExposureTimeRange</a></div><div class="ttdeci">bool GetExposureTimeRange(int *min_value, int *max_value)</div><div class="ttdoc">Get the Exposure Time Range.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_point_map_html_aac42fb0bd7985ea4758f05389bf6c967"><div class="ttname"><a href="struct_r_v_c_1_1_point_map.html#aac42fb0bd7985ea4758f05389bf6c967">RVC::PointMap::GetPointDataPtr</a></div><div class="ttdeci">double * GetPointDataPtr()</div><div class="ttdoc">Get the Point Data Ptr of PointMap object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_abcdab65b924be54ed1903f46cbb67891"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#abcdab65b924be54ed1903f46cbb67891">RVC::X1::GetConfidenceMap</a></div><div class="ttdeci">ConfidenceMap GetConfidenceMap()</div><div class="ttdoc">Get the Confidence Map object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_afef575ac1735e0b6666cf0e36d2da3f9"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#afef575ac1735e0b6666cf0e36d2da3f9">RVC::X1::CaptureOptions::exposure_time_3d</a></div><div class="ttdeci">int exposure_time_3d</div><div class="ttdoc">Set the exposure_time 3D value in milliseconds.</div><div class="ttdef"><b>Definition:</b> RVC.h:1243</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_af8f31dd31ad124dcf7f47a47dc842449"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#af8f31dd31ad124dcf7f47a47dc842449">RVC::X1::CaptureOptions::projector_brightness</a></div><div class="ttdeci">int projector_brightness</div><div class="ttdoc">Set the projector brightness value.</div><div class="ttdef"><b>Definition:</b> RVC.h:1248</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a6ea71728e9fb3ade2c88534b501ea5d6"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a6ea71728e9fb3ade2c88534b501ea5d6">RVC::X2::CaptureOptions::hdr_exposuretime_content</a></div><div class="ttdeci">int hdr_exposuretime_content[3]</div><div class="ttdoc">Set the hdr exposure time content. capture with white light, range [11, 100], others [3,...</div><div class="ttdef"><b>Definition:</b> RVC.h:2118</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a790a32173942346fdf45480b58ed7d5f"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a790a32173942346fdf45480b58ed7d5f">RVC::X1::CaptureOptions::reflection_filter_threshold</a></div><div class="ttdeci">int reflection_filter_threshold</div><div class="ttdoc">Used to remove large-area erroneous point clouds caused by reflections. The higher this value is set,...</div><div class="ttdef"><b>Definition:</b> RVC.h:1394</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a5b68445435a90edb8b80ebd76130d31e"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a5b68445435a90edb8b80ebd76130d31e">RVC::X1::CaptureOptions::transform_to_camera</a></div><div class="ttdeci">bool transform_to_camera</div><div class="ttdoc">flag Whether transfrom 3D points from calibration board system to camera coordinate system</div><div class="ttdef"><b>Definition:</b> RVC.h:1193</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_device_html"><div class="ttname"><a href="struct_r_v_c_1_1_device.html">RVC::Device</a></div><div class="ttdoc">Device struct.</div><div class="ttdef"><b>Definition:</b> RVC.h:948</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_ad5abe05bbee37bb694d4121d51ca6ee2"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#ad5abe05bbee37bb694d4121d51ca6ee2">RVC::X2::CaptureOptions::line_scanner_confidence</a></div><div class="ttdeci">double line_scanner_confidence</div><div class="ttdoc">Line scanner confidence threshold for point cloud filtering.</div><div class="ttdef"><b>Definition:</b> RVC.h:2356</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_af5eb5b9bcaf2e65feac44839f1f4ae50"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#af5eb5b9bcaf2e65feac44839f1f4ae50">RVC::X2::Open</a></div><div class="ttdeci">bool Open()</div><div class="ttdoc">Open X2 before you use it.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_custom_transform_options_html"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_custom_transform_options.html">RVC::X2::CustomTransformOptions</a></div><div class="ttdoc">Options when setting custom transformation.</div><div class="ttdef"><b>Definition:</b> RVC.h:2397</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a906eb6a3a2bf3585609d519739672f48"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a906eb6a3a2bf3585609d519739672f48">RVC::X1::CaptureOptions::hdr_exposuretime_content</a></div><div class="ttdeci">int hdr_exposuretime_content[3]</div><div class="ttdoc">Set the hdr exposure time content. capture with white light, range [11, 100], others [3,...</div><div class="ttdef"><b>Definition:</b> RVC.h:1269</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html">RVC::X1</a></div><div class="ttdoc">X1 struct.</div><div class="ttdef"><b>Definition:</b> RVC.h:1125</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_acb717ec04f1c22f689f5acbd5c92c27b"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#acb717ec04f1c22f689f5acbd5c92c27b">RVC::X1::CaptureOptions::calc_normal_radius</a></div><div class="ttdeci">unsigned int calc_normal_radius</div><div class="ttdoc">Neighborhood radius in pixel of calculating normal, &gt; 0.</div><div class="ttdef"><b>Definition:</b> RVC.h:1290</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a43ebfa76b2622a8da96433186c61a005"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a43ebfa76b2622a8da96433186c61a005">RVC::X1::SetCustomTransformation</a></div><div class="ttdeci">bool SetCustomTransformation(const CustomTransformOptions &amp;opts)</div><div class="ttdoc">Set the Transformation of output point cloud.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a89c2482583eb89f9206bc22b8c9a8cf8"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a89c2482583eb89f9206bc22b8c9a8cf8">RVC::X1::GetDepthMap</a></div><div class="ttdeci">DepthMap GetDepthMap()</div><div class="ttdoc">Get the DepthMap object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_1_1_capture_options_html_a185a7ff8aca9cc5ee6428e390aaca887"><div class="ttname"><a href="struct_r_v_c_1_1_x1_1_1_capture_options.html#a185a7ff8aca9cc5ee6428e390aaca887">RVC::X1::CaptureOptions::gamma_2d</a></div><div class="ttdeci">float gamma_2d</div><div class="ttdoc">Set the 2D gamma value.</div><div class="ttdef"><b>Definition:</b> RVC.h:1295</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a7c8a6be8a69f08b06719f2c26cd96242"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a7c8a6be8a69f08b06719f2c26cd96242">RVC::X2::CaptureOptions::transform_to_camera</a></div><div class="ttdeci">CameraID transform_to_camera</div><div class="ttdoc">CameraID_Left transfrom 3D points from calibration board system to left camera coordinate system Came...</div><div class="ttdef"><b>Definition:</b> RVC.h:2059</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a39c4c419f586e4996557cf34f63be89d"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a39c4c419f586e4996557cf34f63be89d">RVC::X1::Capture</a></div><div class="ttdeci">bool Capture(const CaptureOptions &amp;opts)</div><div class="ttdoc">Capture one point map and one image. This function will save capture options into camera.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_ab71a809ec745620668e8101deda300b3"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#ab71a809ec745620668e8101deda300b3">RVC::X2::GetImage</a></div><div class="ttdeci">Image GetImage(const CameraID cid)</div><div class="ttdoc">Get the Image object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x1_html_a99a48ef7eace67fe846d38078912b8cf"><div class="ttname"><a href="struct_r_v_c_1_1_x1.html#a99a48ef7eace67fe846d38078912b8cf">RVC::X1::SetBandwidth</a></div><div class="ttdeci">bool SetBandwidth(float percent)</div><div class="ttdoc">Set the camera band width ratio.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_addc0674080aff6796f361ac6fe071a84"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#addc0674080aff6796f361ac6fe071a84">RVC::X2::CaptureOptions::calc_normal</a></div><div class="ttdeci">bool calc_normal</div><div class="ttdoc">flag Whether calculate 3D points normal vector</div><div class="ttdef"><b>Definition:</b> RVC.h:2069</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a02779b50f9e7e758b8ab4a4566efb85c"><div class="ttname"><a href="namespace_r_v_c.html#a02779b50f9e7e758b8ab4a4566efb85c">RVC::GetLastErrorMessage</a></div><div class="ttdeci">RVC_EXPORT const char * GetLastErrorMessage()</div><div class="ttdoc">Get the lastest error message. The pointer to string is temporary, you need to copy data from its buf...</div></div>
+</body>
+</html>

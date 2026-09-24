@@ -9,3 +9,6 @@ python-snap7==3.1.2
 plyfile==1.1.5
 whitenoise==6.12.0
 zeep==4.3.3
+
+# RVC 3D 相机（独立相机服务进程使用；import 名为 PyRVC）
+PyRVC==1.15.0

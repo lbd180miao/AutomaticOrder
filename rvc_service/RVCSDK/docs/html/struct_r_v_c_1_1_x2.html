@@ -1,0 +1,2227 @@
+<!-- HTML header for doxygen 1.8.6-->
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=9" />
+  <meta name="generator" content="Doxygen 1.8.18" />
+  <title>RVC: RVC::X2 Struct Reference</title>
+  <link href="tabs.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="jquery.js"></script>
+  <script type="text/javascript" src="dynsections.js"></script>
+  <link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+  <link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+  <link href="doxygen.css" rel="stylesheet" type="text/css" />
+  <link
+    href="https://fonts.googleapis.com/css?family=Roboto:300,400,400italic,500,500italic,700,700italic|Roboto+Mono:400,700"
+    rel="stylesheet">
+  <link href="style.css" rel="stylesheet" type="text/css"/>
+  <script>
+    /**
+     * Check if the browser rendering this page is being run on an Android device.
+     * It checks if the string 'android' is found in the browser's `userAgent`.
+     * @return {boolean} This returns `true` if the browser's `userAgent` contains
+     * the string 'android' (indicating that the browser is on an Android device).
+     * Otherwise, it returns `false`.
+     */
+    function isAndroidDevice() {
+      if (navigator && navigator.userAgent) {
+        return navigator.userAgent.toLowerCase().indexOf('android') != -1;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Check if an HTML `class` attribute is in the browser-specific format.
+     * @param {string} An HTML `class` attribute in the format 'browser-{device}'.
+     * @return {boolean} Returns `true` if `browserClass` was in the valid format,
+     * prefixed with 'browser-'. Otherwise, it returns false.
+     */
+    function isBrowserSpecificClassName(browserClass) {
+      if (browserClass && browserClass.substring(0, 8) == 'browser-' &&
+        browserClass.length > 8) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Get all the HTML Elements with browser-specific `class` attributes.
+     * @return {array} Returns an array of all the HTML Elements with a `class`
+     * attribute that is prefixed with `browser-`.
+     */
+    function getAllBrowserSpecificElements() {
+      if (document) {
+        var htmlElements = document.getElementsByTagName("*");
+        var browserSpecificElements = [];
+        for (var i = 0; i < htmlElements.length; i++) {
+          if (isBrowserSpecificClassName(htmlElements[i].className)) {
+            browserSpecificElements.push(htmlElements[i]);
+          }
+        }
+        return browserSpecificElements;
+      } else {
+        return null;
+      }
+    }
+    /**
+     * Given a browser-specific HTML `class` attribute, extract the device name.
+     * @param {string} browserClass The string name of an HTML `class` attribute,
+     * in the format `browser-{device}`.
+     * @return {string} Returns a string containing only the device portion of
+     * the class name. If the input was invalid, then it returns `null`.
+     */
+    function extractDeviceFromBrowserClass(browserClass) {
+      if (isBrowserSpecificClassName(browserClass)) {
+        return browserClass.substring(8);
+      }
+      else {
+        return null;
+      }
+    }
+    /**
+     * Hide device specific elements that do not apply to the current device.
+     */
+    function handleDeviceSpecificLoading() {
+      var browserSpecificElements = getAllBrowserSpecificElements();
+      for (var i = 0; i < browserSpecificElements.length; i++) {
+        var device = extractDeviceFromBrowserClass(browserSpecificElements[i].className);
+        if (device && !isAndroidDevice() && device == 'android') {
+          browserSpecificElements[i].innerHTML = '';
+        } else if (device && isAndroidDevice() && device == 'desktop') {
+          browserSpecificElements[i].innerHTML = '';
+        }
+      }
+    }
+    $(document).ready(handleDeviceSpecificLoading);
+  </script>
+</head>
+<body>
+  <div id="top">
+    <!-- do not remove this div, it is closed by doxygen! -->
+    <div id="titlearea">
+      <table cellspacing="0" cellpadding="0">
+        <tbody>
+          <tr style="height: 56px;">
+            <!-- <td id="projectlogo">
+    <img alt="Logo" width=100px src="documentation.png"/>
+  </td> -->
+            <!-- END PROJECT_LOGO -->
+            <td id="commonprojectlogo">
+              <img alt="Logo" width=150px src="documentation.png" />
+            </td>
+            <td style="padding-left: 0.5em;">
+              <div id="projectname">RVC
+                &#160;<span id="projectnumber">1.15.1</span>
+              </div>
+              <div style="font-size:12px;">
+                a product by
+                <a href="https://www.rvbust.com">RVBUST</a>.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- end header part --><!-- Generated by Doxygen 1.8.18 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+var searchBox = new SearchBox("searchBox", "search",false,'Search');
+/* @license-end */
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(function() {
+  initMenu('',true,false,'search.php','Search');
+  $(document).ready(function() { init_search(); });
+});
+/* @license-end */</script>
+<div id="main-nav"></div>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(document).ready(function(){initNavTree('struct_r_v_c_1_1_x2.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<iframe src="javascript:void(0)" frameborder="0" 
+        name="MSearchResults" id="MSearchResults">
+</iframe>
+</div>
+
+<div class="header">
+  <div class="summary">
+<a href="#nested-classes">Classes</a> &#124;
+<a href="#pub-types">Public Types</a> &#124;
+<a href="#pub-methods">Public Member Functions</a> &#124;
+<a href="#pub-static-methods">Static Public Member Functions</a> &#124;
+<a href="#pub-attribs">Public Attributes</a> &#124;
+<a href="struct_r_v_c_1_1_x2-members.html">List of all members</a>  </div>
+  <div class="headertitle">
+<div class="title">RVC::X2 Struct Reference</div>  </div>
+</div><!--header-->
+<div class="contents">
+
+<p><a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> struct.  
+ <a href="struct_r_v_c_1_1_x2.html#details">More...</a></p>
+
+<p><code>#include &lt;<a class="el" href="_r_v_c_8h_source.html">RVC.h</a>&gt;</code></p>
+<div class="dynheader">
+Collaboration diagram for RVC::X2:</div>
+<div class="dyncontent">
+<div class="center"><img src="struct_r_v_c_1_1_x2__coll__graph.png" border="0" usemap="#_r_v_c_1_1_x2_coll__map" alt="Collaboration graph"/></div>
+<map name="_r_v_c_1_1_x2_coll__map" id="_r_v_c_1_1_x2_coll__map">
+<area shape="rect" title="X2 struct." alt="" coords="19,95,89,121"/>
+<area shape="rect" href="struct_r_v_c_1_1_handle.html" title="RVC Handle." alt="" coords="5,5,103,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
+<table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="nested-classes"></a>
+Classes</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2_1_1_calculation_call_back_info.html">CalculationCallBackInfo</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> <a class="el" href="struct_r_v_c_1_1_x2_1_1_calculation_call_back_info.html" title="X2 CalculationCallBackInfo.">CalculationCallBackInfo</a>.  <a href="struct_r_v_c_1_1_x2_1_1_calculation_call_back_info.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Capture options.  <a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2_1_1_collection_call_back_info.html">CollectionCallBackInfo</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> <a class="el" href="struct_r_v_c_1_1_x2_1_1_collection_call_back_info.html" title="X2 CollectionCallBackInfo.">CollectionCallBackInfo</a>.  <a href="struct_r_v_c_1_1_x2_1_1_collection_call_back_info.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2_1_1_custom_transform_options.html">CustomTransformOptions</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Options when setting custom transformation.  <a href="struct_r_v_c_1_1_x2_1_1_custom_transform_options.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info.html">FixedLineScanCallBackInfo</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Callback information structure for fixed-line scan mode.  <a href="struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-types"></a>
+Public Types</h2></td></tr>
+<tr class="memitem:abbbfb3f52a8955553277ae2bea3c77bb"><td class="memItemLeft" align="right" valign="top"><a id="abbbfb3f52a8955553277ae2bea3c77bb"></a>
+typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#abbbfb3f52a8955553277ae2bea3c77bb">CollectionCallBackPtr</a>) (<a class="el" href="struct_r_v_c_1_1_x2_1_1_collection_call_back_info.html">X2::CollectionCallBackInfo</a>, <a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">X2::CaptureOptions</a>, UserPtr)</td></tr>
+<tr class="memdesc:abbbfb3f52a8955553277ae2bea3c77bb"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> CallBackPtr. <br /></td></tr>
+<tr class="separator:abbbfb3f52a8955553277ae2bea3c77bb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6e1b22b4dafd4eff4a8ab64fa597ae13"><td class="memItemLeft" align="right" valign="top"><a id="a6e1b22b4dafd4eff4a8ab64fa597ae13"></a>
+typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><b>CalculationCallBackPtr</b>) (<a class="el" href="struct_r_v_c_1_1_x2_1_1_calculation_call_back_info.html">X2::CalculationCallBackInfo</a>, <a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">X2::CaptureOptions</a>, UserPtr)</td></tr>
+<tr class="separator:a6e1b22b4dafd4eff4a8ab64fa597ae13"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a08726c8438c96940f699ed78dda64c14"><td class="memItemLeft" align="right" valign="top"><a id="a08726c8438c96940f699ed78dda64c14"></a>
+typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><b>FixedLineScanCallBackPtr</b>) (<a class="el" href="struct_r_v_c_1_1_x2_1_1_fixed_line_scan_call_back_info.html">X2::FixedLineScanCallBackInfo</a>, UserPtr)</td></tr>
+<tr class="separator:a08726c8438c96940f699ed78dda64c14"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
+Public Member Functions</h2></td></tr>
+<tr class="memitem:a1ae7678e58414e758b6a3e1ef2237d24"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a1ae7678e58414e758b6a3e1ef2237d24">IsValid</a> ()</td></tr>
+<tr class="memdesc:a1ae7678e58414e758b6a3e1ef2237d24"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> is valid or not before use <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a>.  <a href="struct_r_v_c_1_1_x2.html#a1ae7678e58414e758b6a3e1ef2237d24">More...</a><br /></td></tr>
+<tr class="separator:a1ae7678e58414e758b6a3e1ef2237d24"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af5eb5b9bcaf2e65feac44839f1f4ae50"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#af5eb5b9bcaf2e65feac44839f1f4ae50">Open</a> ()</td></tr>
+<tr class="memdesc:af5eb5b9bcaf2e65feac44839f1f4ae50"><td class="mdescLeft">&#160;</td><td class="mdescRight">Open <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> before you use it.  <a href="struct_r_v_c_1_1_x2.html#af5eb5b9bcaf2e65feac44839f1f4ae50">More...</a><br /></td></tr>
+<tr class="separator:af5eb5b9bcaf2e65feac44839f1f4ae50"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a406258deb04b02e00c969672ce2d1219"><td class="memItemLeft" align="right" valign="top"><a id="a406258deb04b02e00c969672ce2d1219"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a406258deb04b02e00c969672ce2d1219">Close</a> ()</td></tr>
+<tr class="memdesc:a406258deb04b02e00c969672ce2d1219"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> after you Open it. <br /></td></tr>
+<tr class="separator:a406258deb04b02e00c969672ce2d1219"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac399e8c8c2ac0c87bab365f109d3e363"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#ac399e8c8c2ac0c87bab365f109d3e363">IsOpen</a> ()</td></tr>
+<tr class="memdesc:ac399e8c8c2ac0c87bab365f109d3e363"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> is open or not.  <a href="struct_r_v_c_1_1_x2.html#ac399e8c8c2ac0c87bab365f109d3e363">More...</a><br /></td></tr>
+<tr class="separator:ac399e8c8c2ac0c87bab365f109d3e363"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a01d293fa0bc7087e05f43bb55a9e0364"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a01d293fa0bc7087e05f43bb55a9e0364">IsPhysicallyConnected</a> ()</td></tr>
+<tr class="memdesc:a01d293fa0bc7087e05f43bb55a9e0364"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> is physically connected or not.  <a href="struct_r_v_c_1_1_x2.html#a01d293fa0bc7087e05f43bb55a9e0364">More...</a><br /></td></tr>
+<tr class="separator:a01d293fa0bc7087e05f43bb55a9e0364"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a75201080879faffbb624a54856c6e924"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a75201080879faffbb624a54856c6e924">OpenProtectiveCover</a> ()</td></tr>
+<tr class="memdesc:a75201080879faffbb624a54856c6e924"><td class="mdescLeft">&#160;</td><td class="mdescRight">Open ProtectiveCover.  <a href="struct_r_v_c_1_1_x2.html#a75201080879faffbb624a54856c6e924">More...</a><br /></td></tr>
+<tr class="separator:a75201080879faffbb624a54856c6e924"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a88c9d53f508863c96d969c4957570b66"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a88c9d53f508863c96d969c4957570b66">OpenProtectiveCoverAsync</a> ()</td></tr>
+<tr class="memdesc:a88c9d53f508863c96d969c4957570b66"><td class="mdescLeft">&#160;</td><td class="mdescRight">Open ProtectiveCover Async.  <a href="struct_r_v_c_1_1_x2.html#a88c9d53f508863c96d969c4957570b66">More...</a><br /></td></tr>
+<tr class="separator:a88c9d53f508863c96d969c4957570b66"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a92b95519b5a956642929cf4281240e8e"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a92b95519b5a956642929cf4281240e8e">CloseProtectiveCover</a> ()</td></tr>
+<tr class="memdesc:a92b95519b5a956642929cf4281240e8e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close ProtectiveCover.  <a href="struct_r_v_c_1_1_x2.html#a92b95519b5a956642929cf4281240e8e">More...</a><br /></td></tr>
+<tr class="separator:a92b95519b5a956642929cf4281240e8e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa0b4b993e1b32cb55df69cbd5d3dea70"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#aa0b4b993e1b32cb55df69cbd5d3dea70">CloseProtectiveCoverAsync</a> ()</td></tr>
+<tr class="memdesc:aa0b4b993e1b32cb55df69cbd5d3dea70"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close ProtectiveCover Async.  <a href="struct_r_v_c_1_1_x2.html#aa0b4b993e1b32cb55df69cbd5d3dea70">More...</a><br /></td></tr>
+<tr class="separator:aa0b4b993e1b32cb55df69cbd5d3dea70"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac66ae1d3e26ea745dc2367270319282b"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#ac66ae1d3e26ea745dc2367270319282b">ResetProtectiveCover</a> ()</td></tr>
+<tr class="memdesc:ac66ae1d3e26ea745dc2367270319282b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reset ProtectiveCover.  <a href="struct_r_v_c_1_1_x2.html#ac66ae1d3e26ea745dc2367270319282b">More...</a><br /></td></tr>
+<tr class="separator:ac66ae1d3e26ea745dc2367270319282b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a901159c44e282ea1afe9fbb712c607d1"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a901159c44e282ea1afe9fbb712c607d1">GetProtectiveCoverStatus</a> (<a class="el" href="namespace_r_v_c.html#ab8d0448e7d1243c2712167c6f3b8e189">ProtectiveCoverStatus</a> &amp;status)</td></tr>
+<tr class="memdesc:a901159c44e282ea1afe9fbb712c607d1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get Status of ProtectiveCover.  <a href="struct_r_v_c_1_1_x2.html#a901159c44e282ea1afe9fbb712c607d1">More...</a><br /></td></tr>
+<tr class="separator:a901159c44e282ea1afe9fbb712c607d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a27b692aa51820e38a677c2de31320bda"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a27b692aa51820e38a677c2de31320bda">SetCollectionCallBack</a> (<a class="el" href="struct_r_v_c_1_1_x2.html#abbbfb3f52a8955553277ae2bea3c77bb">X2::CollectionCallBackPtr</a> cb, UserPtr ctx)</td></tr>
+<tr class="memdesc:a27b692aa51820e38a677c2de31320bda"><td class="mdescLeft">&#160;</td><td class="mdescRight">Provide a callback to <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> system and it will be called when collection finished.  <a href="struct_r_v_c_1_1_x2.html#a27b692aa51820e38a677c2de31320bda">More...</a><br /></td></tr>
+<tr class="separator:a27b692aa51820e38a677c2de31320bda"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a521aebe6a7b4767a5f39672b84e34a7b"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a521aebe6a7b4767a5f39672b84e34a7b">SetCalculationCallBack</a> (X2::CalculationCallBackPtr cb, UserPtr ctx)</td></tr>
+<tr class="memdesc:a521aebe6a7b4767a5f39672b84e34a7b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Provide a callback to <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> system and it will be called when calculation finished.  <a href="struct_r_v_c_1_1_x2.html#a521aebe6a7b4767a5f39672b84e34a7b">More...</a><br /></td></tr>
+<tr class="separator:a521aebe6a7b4767a5f39672b84e34a7b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af7f696060a6fe5b4b8248b73609dbe67"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#af7f696060a6fe5b4b8248b73609dbe67">Capture</a> (const <a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;opts)</td></tr>
+<tr class="memdesc:af7f696060a6fe5b4b8248b73609dbe67"><td class="mdescLeft">&#160;</td><td class="mdescRight">Capture one point map and one image.This function will save capture options into camera.  <a href="struct_r_v_c_1_1_x2.html#af7f696060a6fe5b4b8248b73609dbe67">More...</a><br /></td></tr>
+<tr class="separator:af7f696060a6fe5b4b8248b73609dbe67"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8ec803244e3c9fa485ac515239e677cc"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a8ec803244e3c9fa485ac515239e677cc">Capture</a> ()</td></tr>
+<tr class="memdesc:a8ec803244e3c9fa485ac515239e677cc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Capture one point map and one image.This function will load capture options from camera.  <a href="struct_r_v_c_1_1_x2.html#a8ec803244e3c9fa485ac515239e677cc">More...</a><br /></td></tr>
+<tr class="separator:a8ec803244e3c9fa485ac515239e677cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1d2ccefe329faacafbe762b7ec3e93ab"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a1d2ccefe329faacafbe762b7ec3e93ab">StartFixedLineScan</a> (const <a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;opts)</td></tr>
+<tr class="memdesc:a1d2ccefe329faacafbe762b7ec3e93ab"><td class="mdescLeft">&#160;</td><td class="mdescRight">Start capture fixed line scan. Only support CaptureMode_FixedLineScan mode. This function will save capture options into camera. Need to call the StopFixedLineScan interface to manually stop.  <a href="struct_r_v_c_1_1_x2.html#a1d2ccefe329faacafbe762b7ec3e93ab">More...</a><br /></td></tr>
+<tr class="separator:a1d2ccefe329faacafbe762b7ec3e93ab"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7fe9994d5773a6f090725e8fdae4140d"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a7fe9994d5773a6f090725e8fdae4140d">StartFixedLineScan</a> ()</td></tr>
+<tr class="memdesc:a7fe9994d5773a6f090725e8fdae4140d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Start capture fixed line scan. Only support CaptureMode_FixedLineScan mode. Need to call the StopFixedLineScan interface to manually stop.  <a href="struct_r_v_c_1_1_x2.html#a7fe9994d5773a6f090725e8fdae4140d">More...</a><br /></td></tr>
+<tr class="separator:a7fe9994d5773a6f090725e8fdae4140d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a22c546f56eb956f390a9e5ca5d940142"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a22c546f56eb956f390a9e5ca5d940142">GetFixedLineScanPointMap</a> ()</td></tr>
+<tr class="memdesc:a22c546f56eb956f390a9e5ca5d940142"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get fixed line scan point map.  <a href="struct_r_v_c_1_1_x2.html#a22c546f56eb956f390a9e5ca5d940142">More...</a><br /></td></tr>
+<tr class="separator:a22c546f56eb956f390a9e5ca5d940142"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3d193f30af9d6dcf1b43df1075ac8b13"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a3d193f30af9d6dcf1b43df1075ac8b13">GetFixedLineScanPointMap</a> (<a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a> &amp;point_map)</td></tr>
+<tr class="memdesc:a3d193f30af9d6dcf1b43df1075ac8b13"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get fixed line scan point map.  <a href="struct_r_v_c_1_1_x2.html#a3d193f30af9d6dcf1b43df1075ac8b13">More...</a><br /></td></tr>
+<tr class="separator:a3d193f30af9d6dcf1b43df1075ac8b13"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5d81a848c34408cf4ac6281b13cbe3f1"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a5d81a848c34408cf4ac6281b13cbe3f1">StopFixedLineScan</a> ()</td></tr>
+<tr class="memdesc:a5d81a848c34408cf4ac6281b13cbe3f1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Stop capture fixed line scan.  <a href="struct_r_v_c_1_1_x2.html#a5d81a848c34408cf4ac6281b13cbe3f1">More...</a><br /></td></tr>
+<tr class="separator:a5d81a848c34408cf4ac6281b13cbe3f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0758ec8ef6b48c52402649027fad7547"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a0758ec8ef6b48c52402649027fad7547">Capture2D</a> (const <a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a> cid, const <a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;opts)</td></tr>
+<tr class="separator:a0758ec8ef6b48c52402649027fad7547"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8f026ed23fa05fe2682f086625b5506e"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a8f026ed23fa05fe2682f086625b5506e">Capture2D</a> (const <a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a> cid)</td></tr>
+<tr class="separator:a8f026ed23fa05fe2682f086625b5506e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9b58d50be15a7fb4344d1d760f4c3909"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a9b58d50be15a7fb4344d1d760f4c3909">SetBandwidth</a> (float percent)</td></tr>
+<tr class="memdesc:a9b58d50be15a7fb4344d1d760f4c3909"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the camera band width ratio.  <a href="struct_r_v_c_1_1_x2.html#a9b58d50be15a7fb4344d1d760f4c3909">More...</a><br /></td></tr>
+<tr class="separator:a9b58d50be15a7fb4344d1d760f4c3909"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5f7c39114c7c9f650748c9977350101f"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a5f7c39114c7c9f650748c9977350101f">GetBandwidth</a> (float &amp;percent)</td></tr>
+<tr class="memdesc:a5f7c39114c7c9f650748c9977350101f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the camera band width ratio.  <a href="struct_r_v_c_1_1_x2.html#a5f7c39114c7c9f650748c9977350101f">More...</a><br /></td></tr>
+<tr class="separator:a5f7c39114c7c9f650748c9977350101f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad58304ba92bcf67bc4ee2a1579b2988d"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#ad58304ba92bcf67bc4ee2a1579b2988d">SetCustomTransformation</a> (const <a class="el" href="struct_r_v_c_1_1_x2_1_1_custom_transform_options.html">CustomTransformOptions</a> &amp;opts)</td></tr>
+<tr class="memdesc:ad58304ba92bcf67bc4ee2a1579b2988d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the Transformation of output point cloud.  <a href="struct_r_v_c_1_1_x2.html#ad58304ba92bcf67bc4ee2a1579b2988d">More...</a><br /></td></tr>
+<tr class="separator:ad58304ba92bcf67bc4ee2a1579b2988d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af27236f9f4e56efb11f5b451b7d0a521"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#af27236f9f4e56efb11f5b451b7d0a521">GetCustomTransformation</a> (<a class="el" href="struct_r_v_c_1_1_x2_1_1_custom_transform_options.html">CustomTransformOptions</a> &amp;opts)</td></tr>
+<tr class="memdesc:af27236f9f4e56efb11f5b451b7d0a521"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Custom Transformation object.  <a href="struct_r_v_c_1_1_x2.html#af27236f9f4e56efb11f5b451b7d0a521">More...</a><br /></td></tr>
+<tr class="separator:af27236f9f4e56efb11f5b451b7d0a521"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a83a5c69c670df3f6e9951c04b8e34b3c"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a83a5c69c670df3f6e9951c04b8e34b3c">GetPointMap</a> ()</td></tr>
+<tr class="memdesc:a83a5c69c670df3f6e9951c04b8e34b3c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Point Map object.  <a href="struct_r_v_c_1_1_x2.html#a83a5c69c670df3f6e9951c04b8e34b3c">More...</a><br /></td></tr>
+<tr class="separator:a83a5c69c670df3f6e9951c04b8e34b3c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab71a809ec745620668e8101deda300b3"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_image.html">Image</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#ab71a809ec745620668e8101deda300b3">GetImage</a> (const <a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a> cid)</td></tr>
+<tr class="memdesc:ab71a809ec745620668e8101deda300b3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> object.  <a href="struct_r_v_c_1_1_x2.html#ab71a809ec745620668e8101deda300b3">More...</a><br /></td></tr>
+<tr class="separator:ab71a809ec745620668e8101deda300b3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3d173b1e339bdddfb59a6fa6d5c06099"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_depth_map.html">DepthMap</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a3d173b1e339bdddfb59a6fa6d5c06099">GetDepthMap</a> ()</td></tr>
+<tr class="memdesc:a3d173b1e339bdddfb59a6fa6d5c06099"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the <a class="el" href="struct_r_v_c_1_1_depth_map.html" title="RVC X DepthMap.">DepthMap</a> object.  <a href="struct_r_v_c_1_1_x2.html#a3d173b1e339bdddfb59a6fa6d5c06099">More...</a><br /></td></tr>
+<tr class="separator:a3d173b1e339bdddfb59a6fa6d5c06099"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1a0035f4cd30b98563fb4fc864f396e5"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_confidence_map.html">ConfidenceMap</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a1a0035f4cd30b98563fb4fc864f396e5">GetConfidenceMap</a> ()</td></tr>
+<tr class="memdesc:a1a0035f4cd30b98563fb4fc864f396e5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Confidence Map object.  <a href="struct_r_v_c_1_1_x2.html#a1a0035f4cd30b98563fb4fc864f396e5">More...</a><br /></td></tr>
+<tr class="separator:a1a0035f4cd30b98563fb4fc864f396e5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0870b2e1fb76e4a6658535daf785e8e5"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_correspond_map.html">CorrespondMap</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a0870b2e1fb76e4a6658535daf785e8e5">GetCorrespondMap</a> ()</td></tr>
+<tr class="memdesc:a0870b2e1fb76e4a6658535daf785e8e5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Correspond Map object.  <a href="struct_r_v_c_1_1_x2.html#a0870b2e1fb76e4a6658535daf785e8e5">More...</a><br /></td></tr>
+<tr class="separator:a0870b2e1fb76e4a6658535daf785e8e5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a69996ceb2250750c7f8bd050d1948236"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a69996ceb2250750c7f8bd050d1948236">GetExtrinsicMatrix</a> (const <a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a> cid, float *matrix)</td></tr>
+<tr class="memdesc:a69996ceb2250750c7f8bd050d1948236"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the extrinsic matrix (transformation from calibration board to specified camera)  <a href="struct_r_v_c_1_1_x2.html#a69996ceb2250750c7f8bd050d1948236">More...</a><br /></td></tr>
+<tr class="separator:a69996ceb2250750c7f8bd050d1948236"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2dd51ceb4fe11c8cc41822d144fa6a6d"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a2dd51ceb4fe11c8cc41822d144fa6a6d">GetIntrinsicParameters</a> (const <a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a> cid, float *instrinsicMatrix, float *distortion)</td></tr>
+<tr class="memdesc:a2dd51ceb4fe11c8cc41822d144fa6a6d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get intrinsic and distortion parameters of the specified camera.  <a href="struct_r_v_c_1_1_x2.html#a2dd51ceb4fe11c8cc41822d144fa6a6d">More...</a><br /></td></tr>
+<tr class="separator:a2dd51ceb4fe11c8cc41822d144fa6a6d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af3590d5d23af8b5ccc04655f2d4e3872"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#af3590d5d23af8b5ccc04655f2d4e3872">GetProjectorTemperature</a> (float &amp;temperature)</td></tr>
+<tr class="memdesc:af3590d5d23af8b5ccc04655f2d4e3872"><td class="mdescLeft">&#160;</td><td class="mdescRight">GetProjectorTemperature.  <a href="struct_r_v_c_1_1_x2.html#af3590d5d23af8b5ccc04655f2d4e3872">More...</a><br /></td></tr>
+<tr class="separator:af3590d5d23af8b5ccc04655f2d4e3872"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4267e13d7dc37de23311e656a7c8c67e"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a4267e13d7dc37de23311e656a7c8c67e">GetCameraTemperature</a> (const <a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a> cid, CameraTempSelector seletor, float &amp;temperature)</td></tr>
+<tr class="memdesc:a4267e13d7dc37de23311e656a7c8c67e"><td class="mdescLeft">&#160;</td><td class="mdescRight">GetCameraTemperature.  <a href="struct_r_v_c_1_1_x2.html#a4267e13d7dc37de23311e656a7c8c67e">More...</a><br /></td></tr>
+<tr class="separator:a4267e13d7dc37de23311e656a7c8c67e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad2aa34b7b31cde9e5fcaa2b13e10f873"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#ad2aa34b7b31cde9e5fcaa2b13e10f873">AutoWhiteBalance</a> (int wb_times=10, const <a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;opts=<a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a>(), const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">RVC::ROI</a> &amp;roi=<a class="el" href="struct_r_v_c_1_1_r_o_i.html">RVC::ROI</a>())</td></tr>
+<tr class="memdesc:ad2aa34b7b31cde9e5fcaa2b13e10f873"><td class="mdescLeft">&#160;</td><td class="mdescRight">Only Color Camera can use this function. This function can get suitable white balance paramters.  <a href="struct_r_v_c_1_1_x2.html#ad2aa34b7b31cde9e5fcaa2b13e10f873">More...</a><br /></td></tr>
+<tr class="separator:ad2aa34b7b31cde9e5fcaa2b13e10f873"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8bf8a10027177cc6ec9fa5dfd103aab6"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a8bf8a10027177cc6ec9fa5dfd103aab6">GetExposureTimeRange</a> (int *min_value, int *max_value)</td></tr>
+<tr class="memdesc:a8bf8a10027177cc6ec9fa5dfd103aab6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Exposure Time Range.  <a href="struct_r_v_c_1_1_x2.html#a8bf8a10027177cc6ec9fa5dfd103aab6">More...</a><br /></td></tr>
+<tr class="separator:a8bf8a10027177cc6ec9fa5dfd103aab6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a54109481063d8b67d9f8e767d5965b14"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a54109481063d8b67d9f8e767d5965b14">GetGainRange</a> (float *min_value, float *max_value)</td></tr>
+<tr class="memdesc:a54109481063d8b67d9f8e767d5965b14"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Gain Range.  <a href="struct_r_v_c_1_1_x2.html#a54109481063d8b67d9f8e767d5965b14">More...</a><br /></td></tr>
+<tr class="separator:a54109481063d8b67d9f8e767d5965b14"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5f3227f78a88a7936ea72fa9569bca75"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a5f3227f78a88a7936ea72fa9569bca75">GetGammaRange</a> (float *min_value, float *max_value)</td></tr>
+<tr class="memdesc:a5f3227f78a88a7936ea72fa9569bca75"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Gamma Range.  <a href="struct_r_v_c_1_1_x2.html#a5f3227f78a88a7936ea72fa9569bca75">More...</a><br /></td></tr>
+<tr class="separator:a5f3227f78a88a7936ea72fa9569bca75"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aea2d31ca5300c909d05509a09069fcf7"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#aea2d31ca5300c909d05509a09069fcf7">SaveEncodedImagesData</a> (const char *addr)</td></tr>
+<tr class="memdesc:aea2d31ca5300c909d05509a09069fcf7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Save encoded map in txt.  <a href="struct_r_v_c_1_1_x2.html#aea2d31ca5300c909d05509a09069fcf7">More...</a><br /></td></tr>
+<tr class="separator:aea2d31ca5300c909d05509a09069fcf7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a535c05f05a6d4d4a812c906fde561e78"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a535c05f05a6d4d4a812c906fde561e78">SaveCaptureOptionParameters</a> (const <a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">X2::CaptureOptions</a> &amp;opts)</td></tr>
+<tr class="memdesc:a535c05f05a6d4d4a812c906fde561e78"><td class="mdescLeft">&#160;</td><td class="mdescRight">Save capture option parameters.  <a href="struct_r_v_c_1_1_x2.html#a535c05f05a6d4d4a812c906fde561e78">More...</a><br /></td></tr>
+<tr class="separator:a535c05f05a6d4d4a812c906fde561e78"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa83bd44b81819ede5ffce9b8ab235582"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#aa83bd44b81819ede5ffce9b8ab235582">LoadCaptureOptionParameters</a> (<a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">X2::CaptureOptions</a> &amp;opts)</td></tr>
+<tr class="memdesc:aa83bd44b81819ede5ffce9b8ab235582"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get capture option parameters.  <a href="struct_r_v_c_1_1_x2.html#aa83bd44b81819ede5ffce9b8ab235582">More...</a><br /></td></tr>
+<tr class="separator:aa83bd44b81819ede5ffce9b8ab235582"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4d9bc5a2f6f26e6b1ee5b279eb7deab3"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a4d9bc5a2f6f26e6b1ee5b279eb7deab3">GetAutoCaptureSetting</a> (<a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;opts, const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;roi=<a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a>())</td></tr>
+<tr class="memdesc:a4d9bc5a2f6f26e6b1ee5b279eb7deab3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get auto capture setting. Exposure_time_2d, exposure_time_3d, projector_brightness, light_contrast_threshold will be adjusted automatically. automatically.  <a href="struct_r_v_c_1_1_x2.html#a4d9bc5a2f6f26e6b1ee5b279eb7deab3">More...</a><br /></td></tr>
+<tr class="separator:a4d9bc5a2f6f26e6b1ee5b279eb7deab3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a323720dc81744173dcdb4d57eb804cc0"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a323720dc81744173dcdb4d57eb804cc0">GetAutoHdrCaptureSetting</a> (<a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;opts, const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;roi)</td></tr>
+<tr class="memdesc:a323720dc81744173dcdb4d57eb804cc0"><td class="mdescLeft">&#160;</td><td class="mdescRight">adjust 3D capturing parameters  <a href="struct_r_v_c_1_1_x2.html#a323720dc81744173dcdb4d57eb804cc0">More...</a><br /></td></tr>
+<tr class="separator:a323720dc81744173dcdb4d57eb804cc0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae6e763669d5a01abceeecffc1b871801"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#ae6e763669d5a01abceeecffc1b871801">GetAutoNoiseRemovalSetting</a> (<a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;opts)</td></tr>
+<tr class="memdesc:ae6e763669d5a01abceeecffc1b871801"><td class="mdescLeft">&#160;</td><td class="mdescRight">Automatically calculates and applies the optimal point cloud noise removal parameters.  <a href="struct_r_v_c_1_1_x2.html#ae6e763669d5a01abceeecffc1b871801">More...</a><br /></td></tr>
+<tr class="separator:ae6e763669d5a01abceeecffc1b871801"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5ba1cb03a875a6bafbbbfc0ca6d21a99"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a5ba1cb03a875a6bafbbbfc0ca6d21a99">LoadSettingFromFile</a> (const char *filename)</td></tr>
+<tr class="memdesc:a5ba1cb03a875a6bafbbbfc0ca6d21a99"><td class="mdescLeft">&#160;</td><td class="mdescRight">Load camera setting from local file .  <a href="struct_r_v_c_1_1_x2.html#a5ba1cb03a875a6bafbbbfc0ca6d21a99">More...</a><br /></td></tr>
+<tr class="separator:a5ba1cb03a875a6bafbbbfc0ca6d21a99"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abc2fd5c150573d0a78df750258b48975"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#abc2fd5c150573d0a78df750258b48975">SaveSettingToFile</a> (const char *filename)</td></tr>
+<tr class="memdesc:abc2fd5c150573d0a78df750258b48975"><td class="mdescLeft">&#160;</td><td class="mdescRight">Save camera setting to local file.  <a href="struct_r_v_c_1_1_x2.html#abc2fd5c150573d0a78df750258b48975">More...</a><br /></td></tr>
+<tr class="separator:abc2fd5c150573d0a78df750258b48975"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4b4cf070606a4a6362c32ad32ff878e2"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a4b4cf070606a4a6362c32ad32ff878e2">CheckRoi</a> (<a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> roi)</td></tr>
+<tr class="memdesc:a4b4cf070606a4a6362c32ad32ff878e2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check whether the parameters of <a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a> meet the requirements.  <a href="struct_r_v_c_1_1_x2.html#a4b4cf070606a4a6362c32ad32ff878e2">More...</a><br /></td></tr>
+<tr class="separator:a4b4cf070606a4a6362c32ad32ff878e2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac78286663d840f3acd9de0e6e5b9ac30"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#ac78286663d840f3acd9de0e6e5b9ac30">AutoAdjustRoi</a> (<a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> roi=<a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a>())</td></tr>
+<tr class="memdesc:ac78286663d840f3acd9de0e6e5b9ac30"><td class="mdescLeft">&#160;</td><td class="mdescRight">Automatically correct the parameters of <a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a>. You need to correct <a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a> before Capture/Captrue2D.  <a href="struct_r_v_c_1_1_x2.html#ac78286663d840f3acd9de0e6e5b9ac30">More...</a><br /></td></tr>
+<tr class="separator:ac78286663d840f3acd9de0e6e5b9ac30"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac4644286c4277f06fe3d20b5f6cfb3de"><td class="memItemLeft" align="right" valign="top"><a id="ac4644286c4277f06fe3d20b5f6cfb3de"></a>
+bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#ac4644286c4277f06fe3d20b5f6cfb3de">GetRoiRange</a> (<a class="el" href="struct_r_v_c_1_1_r_o_i_range.html">ROIRange</a> &amp;range)</td></tr>
+<tr class="memdesc:ac4644286c4277f06fe3d20b5f6cfb3de"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the range of <a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a>. <br /></td></tr>
+<tr class="separator:ac4644286c4277f06fe3d20b5f6cfb3de"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:affe95dbcc553a7bbc2b9f49e3e0fdaf4"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#affe95dbcc553a7bbc2b9f49e3e0fdaf4">GetCameraResolution</a> (<a class="el" href="struct_r_v_c_1_1_size.html">Size</a> &amp;resolution)</td></tr>
+<tr class="memdesc:affe95dbcc553a7bbc2b9f49e3e0fdaf4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get Camera Resolution.  <a href="struct_r_v_c_1_1_x2.html#affe95dbcc553a7bbc2b9f49e3e0fdaf4">More...</a><br /></td></tr>
+<tr class="separator:affe95dbcc553a7bbc2b9f49e3e0fdaf4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2c9dd6bb3d96eb5dbf8205a9b29b81f6"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_mesh.html">Mesh</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a2c9dd6bb3d96eb5dbf8205a9b29b81f6">GetMesh</a> ()</td></tr>
+<tr class="memdesc:a2c9dd6bb3d96eb5dbf8205a9b29b81f6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the <a class="el" href="struct_r_v_c_1_1_mesh.html">Mesh</a> object.  <a href="struct_r_v_c_1_1_x2.html#a2c9dd6bb3d96eb5dbf8205a9b29b81f6">More...</a><br /></td></tr>
+<tr class="separator:a2c9dd6bb3d96eb5dbf8205a9b29b81f6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a96aba4c4c20cd29c603efbb4bb9e7bbd"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a96aba4c4c20cd29c603efbb4bb9e7bbd">SetFixedLineScanCallback</a> (const X2::FixedLineScanCallBackPtr cb, UserPtr ctx)</td></tr>
+<tr class="memdesc:a96aba4c4c20cd29c603efbb4bb9e7bbd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Registers callback for point cloud results in fixed line scan mode.  <a href="struct_r_v_c_1_1_x2.html#a96aba4c4c20cd29c603efbb4bb9e7bbd">More...</a><br /></td></tr>
+<tr class="separator:a96aba4c4c20cd29c603efbb4bb9e7bbd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a68de38f977fbc27e8fa1248d45b7527c"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a68de38f977fbc27e8fa1248d45b7527c">GetTimestamp</a> (uint64_t &amp;timestamp)</td></tr>
+<tr class="memdesc:a68de38f977fbc27e8fa1248d45b7527c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Retrieves the camera timestamp in microseconds (us)  <a href="struct_r_v_c_1_1_x2.html#a68de38f977fbc27e8fa1248d45b7527c">More...</a><br /></td></tr>
+<tr class="separator:a68de38f977fbc27e8fa1248d45b7527c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a87dc2d1c2f76b7c4ac8f3ace02701886"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a87dc2d1c2f76b7c4ac8f3ace02701886">ResetTimestamp</a> ()</td></tr>
+<tr class="memdesc:a87dc2d1c2f76b7c4ac8f3ace02701886"><td class="mdescLeft">&#160;</td><td class="mdescRight">Resets the camera timestamp to zero.  <a href="struct_r_v_c_1_1_x2.html#a87dc2d1c2f76b7c4ac8f3ace02701886">More...</a><br /></td></tr>
+<tr class="separator:a87dc2d1c2f76b7c4ac8f3ace02701886"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a223c909da27109eecd3813a62aba8ed0"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a223c909da27109eecd3813a62aba8ed0">GetAuto2DExposureTime</a> (<a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;opts, const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;roi=<a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a>())</td></tr>
+<tr class="memdesc:a223c909da27109eecd3813a62aba8ed0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get auto 2d exposure time automatically.  <a href="struct_r_v_c_1_1_x2.html#a223c909da27109eecd3813a62aba8ed0">More...</a><br /></td></tr>
+<tr class="separator:a223c909da27109eecd3813a62aba8ed0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8a419e28faddcd8f32906b2d97d080dc"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a8a419e28faddcd8f32906b2d97d080dc">SetCurrentUserSet</a> (const int &amp;id)</td></tr>
+<tr class="memdesc:a8a419e28faddcd8f32906b2d97d080dc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set Current User Set by id. The user can utilize a total of 10 parameters groups to quickly adjust camera settings for different 3d imaging scenarios.  <a href="struct_r_v_c_1_1_x2.html#a8a419e28faddcd8f32906b2d97d080dc">More...</a><br /></td></tr>
+<tr class="separator:a8a419e28faddcd8f32906b2d97d080dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a71db6728701308d166084790ed911f77"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a71db6728701308d166084790ed911f77">GetCurrentUserSet</a> (int &amp;id)</td></tr>
+<tr class="memdesc:a71db6728701308d166084790ed911f77"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get Current User Set's id.  <a href="struct_r_v_c_1_1_x2.html#a71db6728701308d166084790ed911f77">More...</a><br /></td></tr>
+<tr class="separator:a71db6728701308d166084790ed911f77"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a224f002e54982ea8a1f98f38887e8a13"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a224f002e54982ea8a1f98f38887e8a13">SetUserSetName</a> (const int &amp;id, const char *name)</td></tr>
+<tr class="memdesc:a224f002e54982ea8a1f98f38887e8a13"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set User Set's name with id. The user can briefly describe the usage scenario of this parameters groups by using a name.  <a href="struct_r_v_c_1_1_x2.html#a224f002e54982ea8a1f98f38887e8a13">More...</a><br /></td></tr>
+<tr class="separator:a224f002e54982ea8a1f98f38887e8a13"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a58069f6d3cb505d59c20ad86251201c5"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a58069f6d3cb505d59c20ad86251201c5">GetUserSetName</a> (const int &amp;id, char *name)</td></tr>
+<tr class="memdesc:a58069f6d3cb505d59c20ad86251201c5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get Current User Set's name with id.  <a href="struct_r_v_c_1_1_x2.html#a58069f6d3cb505d59c20ad86251201c5">More...</a><br /></td></tr>
+<tr class="separator:a58069f6d3cb505d59c20ad86251201c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-static-methods"></a>
+Static Public Member Functions</h2></td></tr>
+<tr class="memitem:a00b7a6605af2c815713b1678fd41ff55"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="struct_r_v_c_1_1_x2.html">X2</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#a00b7a6605af2c815713b1678fd41ff55">Create</a> (const <a class="el" href="struct_r_v_c_1_1_device.html">Device</a> &amp;d)</td></tr>
+<tr class="memdesc:a00b7a6605af2c815713b1678fd41ff55"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> X Camera before you use x2.  <a href="struct_r_v_c_1_1_x2.html#a00b7a6605af2c815713b1678fd41ff55">More...</a><br /></td></tr>
+<tr class="separator:a00b7a6605af2c815713b1678fd41ff55"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae672010b55a304c56aad605ac9a03ab8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html#ae672010b55a304c56aad605ac9a03ab8">Destroy</a> (<a class="el" href="struct_r_v_c_1_1_x2.html">X2</a> &amp;x)</td></tr>
+<tr class="memdesc:ae672010b55a304c56aad605ac9a03ab8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Release all <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> resources after you use <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a>.  <a href="struct_r_v_c_1_1_x2.html#ae672010b55a304c56aad605ac9a03ab8">More...</a><br /></td></tr>
+<tr class="separator:ae672010b55a304c56aad605ac9a03ab8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
+Public Attributes</h2></td></tr>
+<tr class="memitem:afbca9a02e4a2e55520f52cee2bae4775"><td class="memItemLeft" align="right" valign="top"><a id="afbca9a02e4a2e55520f52cee2bae4775"></a>
+<a class="el" href="struct_r_v_c_1_1_handle.html">Handle</a>&#160;</td><td class="memItemRight" valign="bottom"><b>m_handle</b></td></tr>
+<tr class="separator:afbca9a02e4a2e55520f52cee2bae4775"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p><a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> struct. </p>
+</div><h2 class="groupheader">Member Function Documentation</h2>
+<a id="ac78286663d840f3acd9de0e6e5b9ac30"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac78286663d840f3acd9de0e6e5b9ac30">&#9670;&nbsp;</a></span>AutoAdjustRoi()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> RVC::X2::AutoAdjustRoi </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a>&#160;</td>
+          <td class="paramname"><em>roi</em> = <code><a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a>()</code></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Automatically correct the parameters of <a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a>. You need to correct <a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a> before Capture/Captrue2D. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">roi</td><td>[in] If you want to get a maximum <a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a>, you can pass in the default value. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a> Corrected <a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a>. </dd></dl>
+
+</div>
+</div>
+<a id="ad2aa34b7b31cde9e5fcaa2b13e10f873"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad2aa34b7b31cde9e5fcaa2b13e10f873">&#9670;&nbsp;</a></span>AutoWhiteBalance()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::AutoWhiteBalance </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>wb_times</em> = <code>10</code>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;&#160;</td>
+          <td class="paramname"><em>opts</em> = <code><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a>()</code>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">RVC::ROI</a> &amp;&#160;</td>
+          <td class="paramname"><em>roi</em> = <code><a class="el" href="struct_r_v_c_1_1_r_o_i.html">RVC::ROI</a>()</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Only Color Camera can use this function. This function can get suitable white balance paramters. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">wb_times</td><td>how many images used for calculate the white balance paramters </td></tr>
+    <tr><td class="paramname">opts</td><td>capture options. exposure_time_2d, gain_2d, gamma_2d will be used. use_projector_capturing_2d_image == true, brightness will be used too. </td></tr>
+    <tr><td class="paramname">roi</td><td>auto white balance will be operated here </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="a8ec803244e3c9fa485ac515239e677cc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8ec803244e3c9fa485ac515239e677cc">&#9670;&nbsp;</a></span>Capture() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::Capture </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Capture one point map and one image.This function will load capture options from camera. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="af7f696060a6fe5b4b8248b73609dbe67"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af7f696060a6fe5b4b8248b73609dbe67">&#9670;&nbsp;</a></span>Capture() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::Capture </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;&#160;</td>
+          <td class="paramname"><em>opts</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Capture one point map and one image.This function will save capture options into camera. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">opts</td><td><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html" title="Capture options.">CaptureOptions</a> </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a8f026ed23fa05fe2682f086625b5506e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8f026ed23fa05fe2682f086625b5506e">&#9670;&nbsp;</a></span>Capture2D() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::Capture2D </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a>&#160;</td>
+          <td class="paramname"><em>cid</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">cid</td><td>Capture one image. This function will load capture options from camera. You can use <a class="el" href="struct_r_v_c_1_1_x2.html#ab71a809ec745620668e8101deda300b3" title="Get the Image object.">GetImage()</a> to obtain 2D imgae </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a0758ec8ef6b48c52402649027fad7547"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0758ec8ef6b48c52402649027fad7547">&#9670;&nbsp;</a></span>Capture2D() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::Capture2D </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a>&#160;</td>
+          <td class="paramname"><em>cid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;&#160;</td>
+          <td class="paramname"><em>opts</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">cid</td><td>Capture one image. This function will save capture options into camera. You can use <a class="el" href="struct_r_v_c_1_1_x2.html#ab71a809ec745620668e8101deda300b3" title="Get the Image object.">GetImage()</a> to obtain 2D imgae </td></tr>
+    <tr><td class="paramname">opts</td><td><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html" title="Capture options.">CaptureOptions</a> </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a4b4cf070606a4a6362c32ad32ff878e2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4b4cf070606a4a6362c32ad32ff878e2">&#9670;&nbsp;</a></span>CheckRoi()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::CheckRoi </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a>&#160;</td>
+          <td class="paramname"><em>roi</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Check whether the parameters of <a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a> meet the requirements. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">roi</td><td>[in] . </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="a92b95519b5a956642929cf4281240e8e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a92b95519b5a956642929cf4281240e8e">&#9670;&nbsp;</a></span>CloseProtectiveCover()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::CloseProtectiveCover </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Close ProtectiveCover. </p>
+<dl class="section return"><dt>Returns</dt><dd>true if success </dd>
+<dd>
+false if failed </dd></dl>
+
+</div>
+</div>
+<a id="aa0b4b993e1b32cb55df69cbd5d3dea70"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa0b4b993e1b32cb55df69cbd5d3dea70">&#9670;&nbsp;</a></span>CloseProtectiveCoverAsync()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::CloseProtectiveCoverAsync </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Close ProtectiveCover Async. </p>
+<dl class="section return"><dt>Returns</dt><dd>true if success </dd>
+<dd>
+false if failed </dd></dl>
+
+</div>
+</div>
+<a id="a00b7a6605af2c815713b1678fd41ff55"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a00b7a6605af2c815713b1678fd41ff55">&#9670;&nbsp;</a></span>Create()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="struct_r_v_c_1_1_x2.html">X2</a> RVC::X2::Create </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_device.html">Device</a> &amp;&#160;</td>
+          <td class="paramname"><em>d</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Create a <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> X Camera before you use x2. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">d</td><td>One <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> X Camera </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> X object </dd></dl>
+
+</div>
+</div>
+<a id="ae672010b55a304c56aad605ac9a03ab8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae672010b55a304c56aad605ac9a03ab8">&#9670;&nbsp;</a></span>Destroy()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void RVC::X2::Destroy </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_x2.html">X2</a> &amp;&#160;</td>
+          <td class="paramname"><em>x</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Release all <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> resources after you use <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a>. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">x</td><td><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> object to be released </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a223c909da27109eecd3813a62aba8ed0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a223c909da27109eecd3813a62aba8ed0">&#9670;&nbsp;</a></span>GetAuto2DExposureTime()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetAuto2DExposureTime </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;&#160;</td>
+          <td class="paramname"><em>opts</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;&#160;</td>
+          <td class="paramname"><em>roi</em> = <code><a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a>()</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get auto 2d exposure time automatically. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">opts</td><td>[in] </td></tr>
+    <tr><td class="paramname">roi</td><td>[in] </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="a4d9bc5a2f6f26e6b1ee5b279eb7deab3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4d9bc5a2f6f26e6b1ee5b279eb7deab3">&#9670;&nbsp;</a></span>GetAutoCaptureSetting()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetAutoCaptureSetting </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;&#160;</td>
+          <td class="paramname"><em>opts</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;&#160;</td>
+          <td class="paramname"><em>roi</em> = <code><a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a>()</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get auto capture setting. Exposure_time_2d, exposure_time_3d, projector_brightness, light_contrast_threshold will be adjusted automatically. automatically. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">opts</td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html" title="Capture options.">CaptureOptions</a> </dd></dl>
+
+</div>
+</div>
+<a id="a323720dc81744173dcdb4d57eb804cc0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a323720dc81744173dcdb4d57eb804cc0">&#9670;&nbsp;</a></span>GetAutoHdrCaptureSetting()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetAutoHdrCaptureSetting </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;&#160;</td>
+          <td class="paramname"><em>opts</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;&#160;</td>
+          <td class="paramname"><em>roi</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>adjust 3D capturing parameters </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">opts</td><td>[in,out] capture options. if hdr_exposure_times &gt; 1, hdr_exposure_times and hdr_exposuretime_content will be adjusted. If hdr_exposure_times equals to 1, exposure_time_3d will be adjusted. </td></tr>
+    <tr><td class="paramname">roi</td><td>[in] if width or height equal to 0, all image will be used. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="ae6e763669d5a01abceeecffc1b871801"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae6e763669d5a01abceeecffc1b871801">&#9670;&nbsp;</a></span>GetAutoNoiseRemovalSetting()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetAutoNoiseRemovalSetting </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;&#160;</td>
+          <td class="paramname"><em>opts</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Automatically calculates and applies the optimal point cloud noise removal parameters. </p>
+<p>WARNING: This is a time-consuming operation as it triggers actual camera captures. This function evaluates the current scene to determine the best cluster-based noise removal settings and applies them to the current point cloud.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">opts</td><td>Capture options. Upon successful execution, the following parameters inside this struct will be modified and overwritten:<ul>
+<li><code>opts.noise_removal_distance</code></li>
+<li><code>opts.noise_removal_point_number</code> </li>
+</ul>
+</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true The automatic noise removal parameters were successfully calculated and applied. </dd>
+<dd>
+false The operation failed (e.g., camera not ready or capture failed). </dd></dl>
+
+</div>
+</div>
+<a id="a5f7c39114c7c9f650748c9977350101f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5f7c39114c7c9f650748c9977350101f">&#9670;&nbsp;</a></span>GetBandwidth()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetBandwidth </td>
+          <td>(</td>
+          <td class="paramtype">float &amp;&#160;</td>
+          <td class="paramname"><em>percent</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the camera band width ratio. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">percent</td><td>Band width ratio </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="affe95dbcc553a7bbc2b9f49e3e0fdaf4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#affe95dbcc553a7bbc2b9f49e3e0fdaf4">&#9670;&nbsp;</a></span>GetCameraResolution()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetCameraResolution </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_size.html">Size</a> &amp;&#160;</td>
+          <td class="paramname"><em>resolution</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get Camera Resolution. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">resolution</td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="a4267e13d7dc37de23311e656a7c8c67e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4267e13d7dc37de23311e656a7c8c67e">&#9670;&nbsp;</a></span>GetCameraTemperature()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetCameraTemperature </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a>&#160;</td>
+          <td class="paramname"><em>cid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">CameraTempSelector&#160;</td>
+          <td class="paramname"><em>seletor</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float &amp;&#160;</td>
+          <td class="paramname"><em>temperature</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>GetCameraTemperature. </p>
+<dl class="section note"><dt>Note</dt><dd>TODO: </dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">cid</td><td></td></tr>
+    <tr><td class="paramname">seletor</td><td></td></tr>
+    <tr><td class="paramname">&amp;temperature</td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname"></td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a1a0035f4cd30b98563fb4fc864f396e5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1a0035f4cd30b98563fb4fc864f396e5">&#9670;&nbsp;</a></span>GetConfidenceMap()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_confidence_map.html">ConfidenceMap</a> RVC::X2::GetConfidenceMap </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Confidence Map object. </p>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_confidence_map.html">ConfidenceMap</a> </dd></dl>
+
+</div>
+</div>
+<a id="a0870b2e1fb76e4a6658535daf785e8e5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0870b2e1fb76e4a6658535daf785e8e5">&#9670;&nbsp;</a></span>GetCorrespondMap()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_correspond_map.html">CorrespondMap</a> RVC::X2::GetCorrespondMap </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Correspond Map object. </p>
+<dl class="section return"><dt>Returns</dt><dd>Correspond </dd></dl>
+
+</div>
+</div>
+<a id="a71db6728701308d166084790ed911f77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a71db6728701308d166084790ed911f77">&#9670;&nbsp;</a></span>GetCurrentUserSet()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetCurrentUserSet </td>
+          <td>(</td>
+          <td class="paramtype">int &amp;&#160;</td>
+          <td class="paramname"><em>id</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get Current User Set's id. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">id</td><td>[out] 0~9 </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="af27236f9f4e56efb11f5b451b7d0a521"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af27236f9f4e56efb11f5b451b7d0a521">&#9670;&nbsp;</a></span>GetCustomTransformation()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetCustomTransformation </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_x2_1_1_custom_transform_options.html">CustomTransformOptions</a> &amp;&#160;</td>
+          <td class="paramname"><em>opts</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Custom Transformation object. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">opts</td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="a3d173b1e339bdddfb59a6fa6d5c06099"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3d173b1e339bdddfb59a6fa6d5c06099">&#9670;&nbsp;</a></span>GetDepthMap()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_depth_map.html">DepthMap</a> RVC::X2::GetDepthMap </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the <a class="el" href="struct_r_v_c_1_1_depth_map.html" title="RVC X DepthMap.">DepthMap</a> object. </p>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_depth_map.html" title="RVC X DepthMap.">DepthMap</a> A <a class="el" href="struct_r_v_c_1_1_depth_map.html" title="RVC X DepthMap.">DepthMap</a> </dd></dl>
+
+</div>
+</div>
+<a id="a8bf8a10027177cc6ec9fa5dfd103aab6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8bf8a10027177cc6ec9fa5dfd103aab6">&#9670;&nbsp;</a></span>GetExposureTimeRange()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetExposureTimeRange </td>
+          <td>(</td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>min_value</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>max_value</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Exposure Time Range. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">min_value</td><td>exposure time minimum value </td></tr>
+    <tr><td class="paramname">max_value</td><td>exposure time maxinum value </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a69996ceb2250750c7f8bd050d1948236"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a69996ceb2250750c7f8bd050d1948236">&#9670;&nbsp;</a></span>GetExtrinsicMatrix()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetExtrinsicMatrix </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a>&#160;</td>
+          <td class="paramname"><em>cid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float *&#160;</td>
+          <td class="paramname"><em>matrix</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the extrinsic matrix (transformation from calibration board to specified camera) </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">cid</td><td>[in] Camera selection option. Available values: {CameraID_Left, CameraID_Right, CameraID_Extra} </td></tr>
+    <tr><td class="paramname">matrix</td><td>[out] 4x4 transformation matrix stored as a 16-element array in row-major order. The matrix represents the transformation from the calibration board coordinate system to the specified camera coordinate system. Format: [R11, R12, R13, T1, R21, R22, R23, T2, R31, R32, R33, T3, 0, 0, 0, 1] Where R is the 3x3 rotation matrix and T is the 3x1 translation vector. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a22c546f56eb956f390a9e5ca5d940142"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a22c546f56eb956f390a9e5ca5d940142">&#9670;&nbsp;</a></span>GetFixedLineScanPointMap() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a> RVC::X2::GetFixedLineScanPointMap </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get fixed line scan point map. </p>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> </dd></dl>
+
+</div>
+</div>
+<a id="a3d193f30af9d6dcf1b43df1075ac8b13"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3d193f30af9d6dcf1b43df1075ac8b13">&#9670;&nbsp;</a></span>GetFixedLineScanPointMap() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetFixedLineScanPointMap </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a> &amp;&#160;</td>
+          <td class="paramname"><em>point_map</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get fixed line scan point map. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a54109481063d8b67d9f8e767d5965b14"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a54109481063d8b67d9f8e767d5965b14">&#9670;&nbsp;</a></span>GetGainRange()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetGainRange </td>
+          <td>(</td>
+          <td class="paramtype">float *&#160;</td>
+          <td class="paramname"><em>min_value</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float *&#160;</td>
+          <td class="paramname"><em>max_value</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Gain Range. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">min_value</td><td>gain minimum value </td></tr>
+    <tr><td class="paramname">max_value</td><td>gain minimum value </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a5f3227f78a88a7936ea72fa9569bca75"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5f3227f78a88a7936ea72fa9569bca75">&#9670;&nbsp;</a></span>GetGammaRange()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetGammaRange </td>
+          <td>(</td>
+          <td class="paramtype">float *&#160;</td>
+          <td class="paramname"><em>min_value</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float *&#160;</td>
+          <td class="paramname"><em>max_value</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Gamma Range. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">min_value</td><td>gamma minimum value </td></tr>
+    <tr><td class="paramname">max_value</td><td>gamma minimum value </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="ab71a809ec745620668e8101deda300b3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab71a809ec745620668e8101deda300b3">&#9670;&nbsp;</a></span>GetImage()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_image.html">Image</a> RVC::X2::GetImage </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a>&#160;</td>
+          <td class="paramname"><em>cid</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> object. </p>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> </dd></dl>
+
+</div>
+</div>
+<a id="a2dd51ceb4fe11c8cc41822d144fa6a6d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2dd51ceb4fe11c8cc41822d144fa6a6d">&#9670;&nbsp;</a></span>GetIntrinsicParameters()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetIntrinsicParameters </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a>&#160;</td>
+          <td class="paramname"><em>cid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float *&#160;</td>
+          <td class="paramname"><em>instrinsicMatrix</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float *&#160;</td>
+          <td class="paramname"><em>distortion</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get intrinsic and distortion parameters of the specified camera. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">cid</td><td>[in] Camera selection option. Available values: {CameraID_Left, CameraID_Right, CameraID_Extra} </td></tr>
+    <tr><td class="paramname">instrinsicMatrix</td><td>[out] Output intrinsic matrix. This is a 9-element array storing a 3x3 matrix in row-major order: [fx, 0, cx, 0, fy, cy, 0, 0, 1]<ul>
+<li>fx, fy: Focal lengths in x and y directions (in pixels)</li>
+<li>cx, cy: Principal point coordinates (in pixels) </li>
+</ul>
+</td></tr>
+    <tr><td class="paramname">distortion</td><td>[out] Output distortion coefficients. This is a 5-element array containing: [k1, k2, k3, p1, p2]<ul>
+<li>k1, k2, k3: Radial distortion coefficients</li>
+<li>p1, p2: Tangential distortion coefficients Note: This order is different from OpenCV's default order (k1,k2,p1,p2,k3). </li>
+</ul>
+</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true if successful </dd>
+<dd>
+false if failed </dd></dl>
+
+</div>
+</div>
+<a id="a2c9dd6bb3d96eb5dbf8205a9b29b81f6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2c9dd6bb3d96eb5dbf8205a9b29b81f6">&#9670;&nbsp;</a></span>GetMesh()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_mesh.html">Mesh</a> RVC::X2::GetMesh </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the <a class="el" href="struct_r_v_c_1_1_mesh.html">Mesh</a> object. </p>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_mesh.html">Mesh</a> A <a class="el" href="struct_r_v_c_1_1_mesh.html">Mesh</a> </dd></dl>
+
+</div>
+</div>
+<a id="a83a5c69c670df3f6e9951c04b8e34b3c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a83a5c69c670df3f6e9951c04b8e34b3c">&#9670;&nbsp;</a></span>GetPointMap()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a> RVC::X2::GetPointMap </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Point Map object. </p>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> </dd></dl>
+
+</div>
+</div>
+<a id="af3590d5d23af8b5ccc04655f2d4e3872"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af3590d5d23af8b5ccc04655f2d4e3872">&#9670;&nbsp;</a></span>GetProjectorTemperature()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetProjectorTemperature </td>
+          <td>(</td>
+          <td class="paramtype">float &amp;&#160;</td>
+          <td class="paramname"><em>temperature</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>GetProjectorTemperature. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">&amp;temperature</td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a901159c44e282ea1afe9fbb712c607d1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a901159c44e282ea1afe9fbb712c607d1">&#9670;&nbsp;</a></span>GetProtectiveCoverStatus()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetProtectiveCoverStatus </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="namespace_r_v_c.html#ab8d0448e7d1243c2712167c6f3b8e189">ProtectiveCoverStatus</a> &amp;&#160;</td>
+          <td class="paramname"><em>status</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get Status of ProtectiveCover. </p>
+<dl class="section return"><dt>Returns</dt><dd>ProtectiveCoverStatus </dd></dl>
+
+</div>
+</div>
+<a id="a68de38f977fbc27e8fa1248d45b7527c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a68de38f977fbc27e8fa1248d45b7527c">&#9670;&nbsp;</a></span>GetTimestamp()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetTimestamp </td>
+          <td>(</td>
+          <td class="paramtype">uint64_t &amp;&#160;</td>
+          <td class="paramname"><em>timestamp</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Retrieves the camera timestamp in microseconds (us) </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[out]</td><td class="paramname">timestamp</td><td>Reference to store the retrieved timestamp value in microseconds (us) </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>bool True if the timestamp was successfully retrieved, false otherwise </dd></dl>
+
+</div>
+</div>
+<a id="a58069f6d3cb505d59c20ad86251201c5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a58069f6d3cb505d59c20ad86251201c5">&#9670;&nbsp;</a></span>GetUserSetName()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::GetUserSetName </td>
+          <td>(</td>
+          <td class="paramtype">const int &amp;&#160;</td>
+          <td class="paramname"><em>id</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>name</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get Current User Set's name with id. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">id</td><td>[in] </td></tr>
+    <tr><td class="paramname">name</td><td>[out] </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="ac399e8c8c2ac0c87bab365f109d3e363"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac399e8c8c2ac0c87bab365f109d3e363">&#9670;&nbsp;</a></span>IsOpen()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::IsOpen </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Check <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> is open or not. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Is open </dd>
+<dd>
+false Not open </dd></dl>
+
+</div>
+</div>
+<a id="a01d293fa0bc7087e05f43bb55a9e0364"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a01d293fa0bc7087e05f43bb55a9e0364">&#9670;&nbsp;</a></span>IsPhysicallyConnected()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::IsPhysicallyConnected </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Check <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> is physically connected or not. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Is physically connected </dd>
+<dd>
+false Not physically connected </dd></dl>
+
+</div>
+</div>
+<a id="a1ae7678e58414e758b6a3e1ef2237d24"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1ae7678e58414e758b6a3e1ef2237d24">&#9670;&nbsp;</a></span>IsValid()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::IsValid </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Check <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> is valid or not before use <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a>. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Available </dd>
+<dd>
+false Not available </dd></dl>
+
+</div>
+</div>
+<a id="aa83bd44b81819ede5ffce9b8ab235582"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa83bd44b81819ede5ffce9b8ab235582">&#9670;&nbsp;</a></span>LoadCaptureOptionParameters()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::LoadCaptureOptionParameters </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">X2::CaptureOptions</a> &amp;&#160;</td>
+          <td class="paramname"><em>opts</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get capture option parameters. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">opts</td><td><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html" title="Capture options.">CaptureOptions</a> </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a5ba1cb03a875a6bafbbbfc0ca6d21a99"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5ba1cb03a875a6bafbbbfc0ca6d21a99">&#9670;&nbsp;</a></span>LoadSettingFromFile()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::LoadSettingFromFile </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>filename</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Load camera setting from local file . </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">filename</td><td>[in] </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true the content of file is correctly . </dd>
+<dd>
+false the content of file is not correctly . </dd></dl>
+
+</div>
+</div>
+<a id="af5eb5b9bcaf2e65feac44839f1f4ae50"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af5eb5b9bcaf2e65feac44839f1f4ae50">&#9670;&nbsp;</a></span>Open()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::Open </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Open <a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> before you use it. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a75201080879faffbb624a54856c6e924"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a75201080879faffbb624a54856c6e924">&#9670;&nbsp;</a></span>OpenProtectiveCover()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::OpenProtectiveCover </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Open ProtectiveCover. </p>
+<dl class="section return"><dt>Returns</dt><dd>true if success </dd>
+<dd>
+false if failed </dd></dl>
+
+</div>
+</div>
+<a id="a88c9d53f508863c96d969c4957570b66"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a88c9d53f508863c96d969c4957570b66">&#9670;&nbsp;</a></span>OpenProtectiveCoverAsync()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::OpenProtectiveCoverAsync </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Open ProtectiveCover Async. </p>
+<dl class="section return"><dt>Returns</dt><dd>true if success </dd>
+<dd>
+false if failed </dd></dl>
+
+</div>
+</div>
+<a id="ac66ae1d3e26ea745dc2367270319282b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac66ae1d3e26ea745dc2367270319282b">&#9670;&nbsp;</a></span>ResetProtectiveCover()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::ResetProtectiveCover </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Reset ProtectiveCover. </p>
+<dl class="section return"><dt>Returns</dt><dd>true if success </dd>
+<dd>
+false if failed </dd></dl>
+
+</div>
+</div>
+<a id="a87dc2d1c2f76b7c4ac8f3ace02701886"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a87dc2d1c2f76b7c4ac8f3ace02701886">&#9670;&nbsp;</a></span>ResetTimestamp()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::ResetTimestamp </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Resets the camera timestamp to zero. </p>
+<p>Resets the internal camera timestamp value to 0 microseconds(us). This function is primarily used for synchronization with user clocks or external timing references, allowing the camera's internal time base to be aligned with user-defined timing requirements or to initiate a new timing cycle based on user control.</p>
+<dl class="section return"><dt>Returns</dt><dd>bool True if the timestamp was successfully reset to zero, false otherwise </dd></dl>
+
+</div>
+</div>
+<a id="a535c05f05a6d4d4a812c906fde561e78"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a535c05f05a6d4d4a812c906fde561e78">&#9670;&nbsp;</a></span>SaveCaptureOptionParameters()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::SaveCaptureOptionParameters </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">X2::CaptureOptions</a> &amp;&#160;</td>
+          <td class="paramname"><em>opts</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Save capture option parameters. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">opts</td><td><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html" title="Capture options.">CaptureOptions</a> </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="aea2d31ca5300c909d05509a09069fcf7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aea2d31ca5300c909d05509a09069fcf7">&#9670;&nbsp;</a></span>SaveEncodedImagesData()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::SaveEncodedImagesData </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>addr</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Save encoded map in txt. </p>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="abc2fd5c150573d0a78df750258b48975"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abc2fd5c150573d0a78df750258b48975">&#9670;&nbsp;</a></span>SaveSettingToFile()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::SaveSettingToFile </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>filename</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Save camera setting to local file. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">filename</td><td>[in] </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Successfully written to the file. </dd>
+<dd>
+false Failed write to file. </dd></dl>
+
+</div>
+</div>
+<a id="a9b58d50be15a7fb4344d1d760f4c3909"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9b58d50be15a7fb4344d1d760f4c3909">&#9670;&nbsp;</a></span>SetBandwidth()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::SetBandwidth </td>
+          <td>(</td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>percent</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set the camera band width ratio. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">percent</td><td>Band width ratio </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a521aebe6a7b4767a5f39672b84e34a7b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a521aebe6a7b4767a5f39672b84e34a7b">&#9670;&nbsp;</a></span>SetCalculationCallBack()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::SetCalculationCallBack </td>
+          <td>(</td>
+          <td class="paramtype">X2::CalculationCallBackPtr&#160;</td>
+          <td class="paramname"><em>cb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">UserPtr&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Provide a callback to <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> system and it will be called when calculation finished. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">cb</td><td>The callback </td></tr>
+    <tr><td class="paramname">ctx</td><td>The user-pointer</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true when succeed to set </dd>
+<dd>
+false when failed to set</dd></dl>
+<div class="fragment"></div><!-- fragment -->
+</div>
+</div>
+<a id="a27b692aa51820e38a677c2de31320bda"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a27b692aa51820e38a677c2de31320bda">&#9670;&nbsp;</a></span>SetCollectionCallBack()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::SetCollectionCallBack </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_x2.html#abbbfb3f52a8955553277ae2bea3c77bb">X2::CollectionCallBackPtr</a>&#160;</td>
+          <td class="paramname"><em>cb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">UserPtr&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Provide a callback to <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> system and it will be called when collection finished. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">cb</td><td>The callback </td></tr>
+    <tr><td class="paramname">ctx</td><td>The user-pointer</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true when succeed to set </dd>
+<dd>
+false when failed to set</dd></dl>
+<div class="fragment"></div><!-- fragment -->
+</div>
+</div>
+<a id="a8a419e28faddcd8f32906b2d97d080dc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8a419e28faddcd8f32906b2d97d080dc">&#9670;&nbsp;</a></span>SetCurrentUserSet()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::SetCurrentUserSet </td>
+          <td>(</td>
+          <td class="paramtype">const int &amp;&#160;</td>
+          <td class="paramname"><em>id</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set Current User Set by id. The user can utilize a total of 10 parameters groups to quickly adjust camera settings for different 3d imaging scenarios. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">id</td><td>[in] 0~9 </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="ad58304ba92bcf67bc4ee2a1579b2988d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad58304ba92bcf67bc4ee2a1579b2988d">&#9670;&nbsp;</a></span>SetCustomTransformation()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::SetCustomTransformation </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_x2_1_1_custom_transform_options.html">CustomTransformOptions</a> &amp;&#160;</td>
+          <td class="paramname"><em>opts</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set the Transformation of output point cloud. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">opts</td><td>Custom Transform Options </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="a96aba4c4c20cd29c603efbb4bb9e7bbd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a96aba4c4c20cd29c603efbb4bb9e7bbd">&#9670;&nbsp;</a></span>SetFixedLineScanCallback()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::SetFixedLineScanCallback </td>
+          <td>(</td>
+          <td class="paramtype">const X2::FixedLineScanCallBackPtr&#160;</td>
+          <td class="paramname"><em>cb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">UserPtr&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Registers callback for point cloud results in fixed line scan mode. </p>
+<p>Invoked for each completed line scan when using hardware-triggered or fixed-rate triggered mode.</p>
+<p>Must be called before <a class="el" href="struct_r_v_c_1_1_x2.html#a7fe9994d5773a6f090725e8fdae4140d" title="Start capture fixed line scan. Only support CaptureMode_FixedLineScan mode. Need to call the StopFixe...">StartFixedLineScan()</a>.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">cb</td><td>Callback function. </td></tr>
+    <tr><td class="paramname">ctx</td><td>User context pointer. Must remain valid during scanning.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true if registration succeeded, false otherwise.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>Use with CaptureMode_FixedLineScan and TriggerMode_HardWare or TriggerMode_FixedRate. </dd>
+<dd>
+Callback must be thread-safe (invoked from multiple threads). </dd></dl>
+
+</div>
+</div>
+<a id="a224f002e54982ea8a1f98f38887e8a13"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a224f002e54982ea8a1f98f38887e8a13">&#9670;&nbsp;</a></span>SetUserSetName()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::SetUserSetName </td>
+          <td>(</td>
+          <td class="paramtype">const int &amp;&#160;</td>
+          <td class="paramname"><em>id</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set User Set's name with id. The user can briefly describe the usage scenario of this parameters groups by using a name. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">id</td><td>[in] </td></tr>
+    <tr><td class="paramname">name</td><td>[in] </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="a7fe9994d5773a6f090725e8fdae4140d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7fe9994d5773a6f090725e8fdae4140d">&#9670;&nbsp;</a></span>StartFixedLineScan() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::StartFixedLineScan </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Start capture fixed line scan. Only support CaptureMode_FixedLineScan mode. Need to call the StopFixedLineScan interface to manually stop. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a1d2ccefe329faacafbe762b7ec3e93ab"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1d2ccefe329faacafbe762b7ec3e93ab">&#9670;&nbsp;</a></span>StartFixedLineScan() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::StartFixedLineScan </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">CaptureOptions</a> &amp;&#160;</td>
+          <td class="paramname"><em>opts</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Start capture fixed line scan. Only support CaptureMode_FixedLineScan mode. This function will save capture options into camera. Need to call the StopFixedLineScan interface to manually stop. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">opts</td><td><a class="el" href="struct_r_v_c_1_1_x2_1_1_capture_options.html" title="Capture options.">CaptureOptions</a> </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="a5d81a848c34408cf4ac6281b13cbe3f1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5d81a848c34408cf4ac6281b13cbe3f1">&#9670;&nbsp;</a></span>StopFixedLineScan()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::X2::StopFixedLineScan </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Stop capture fixed line scan. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<hr/>The documentation for this struct was generated from the following file:<ul>
+<li><a class="el" href="_r_v_c_8h_source.html">RVC.h</a></li>
+</ul>
+</div><!-- contents -->
+</div><!-- doc-content -->
+</body>
+</html>

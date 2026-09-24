@@ -1,0 +1,25 @@
+var searchData=
+[
+  ['x1_20get_20cali_20board_20pose_256',['X1 get cali board pose',['../_get_cali_board_pose_x1_cpp.html',1,'CppExamples']]],
+  ['x1_20get_20cali_20board_20pose_257',['X1 get cali board pose',['../_get_cali_board_pose_x1_py.html',1,'PythonExamples']]],
+  ['x2_20get_20cali_20board_20pose_258',['X2 get cali board pose',['../_get_cali_board_pose_x2_cpp.html',1,'CppExamples']]],
+  ['x2_20get_20cali_20board_20pose_259',['X2 get cali board pose',['../_get_cali_board_pose_x2_py.html',1,'PythonExamples']]],
+  ['x_260',['x',['../struct_r_v_c_1_1_r_o_i.html#a195750342d677bae42f2f8314e98a587',1,'RVC::ROI']]],
+  ['x1_261',['X1',['../struct_r_v_c_1_1_x1.html',1,'RVC']]],
+  ['x1_20get_20auto_20hdr_20capture_20setting_262',['X1 Get Auto hdr Capture Setting',['../_x1_auto_hdr_set_param_cpp.html',1,'CppExamples']]],
+  ['x1_20get_20auto_20hdr_20capture_20setting_263',['X1 Get Auto hdr Capture Setting',['../_x1_auto_hdr_set_param_py.html',1,'PythonExamples']]],
+  ['x1_20get_20auto_20capture_20setting_264',['X1 Get Auto Capture Setting',['../_x1_auto_set_param_cpp.html',1,'CppExamples']]],
+  ['x1_20get_20auto_20capture_20setting_265',['X1 Get Auto Capture Setting',['../_x1_auto_set_param_py.html',1,'PythonExamples']]],
+  ['x1_20set_20custom_20transformation_266',['X1 set custom transformation',['../_x1_set_transformation_cpp.html',1,'CppExamples']]],
+  ['x1_20set_20custom_20transformation_267',['X1 set custom transformation',['../_x1_set_transformation_py.html',1,'PythonExamples']]],
+  ['x1_20test_20accuracy_268',['X1 test accuracy',['../_x1_test_accuracy_py.html',1,'PythonExamples']]],
+  ['x2_269',['X2',['../struct_r_v_c_1_1_x2.html',1,'RVC']]],
+  ['x2_20get_20auto_20hdr_20capture_20setting_270',['X2 Get Auto hdr Capture Setting',['../_x2_auto_hdr_set_param_cpp.html',1,'CppExamples']]],
+  ['x2_20get_20auto_20hdr_20capture_20setting_271',['X2 Get Auto hdr Capture Setting',['../_x2_auto_hdr_set_param_py.html',1,'PythonExamples']]],
+  ['x2_20get_20auto_20capture_20setting_272',['X2 Get Auto Capture Setting',['../_x2_auto_set_param_cpp.html',1,'CppExamples']]],
+  ['x2_20get_20auto_20capture_20setting_273',['X2 Get Auto Capture Setting',['../_x2_auto_set_param_py.html',1,'PythonExamples']]],
+  ['x2_20set_20custom_20transformation_274',['X2 set custom transformation',['../_x2_set_transformation_cpp.html',1,'CppExamples']]],
+  ['x2_20set_20custom_20transformation_275',['X2 set custom transformation',['../_x2_set_transformation_py.html',1,'PythonExamples']]],
+  ['x2_20test_20accuracy_276',['X2 test accuracy',['../_x2_test_accuracy_py.html',1,'PythonExamples']]],
+  ['x_5fstep_277',['x_step',['../struct_r_v_c_1_1_r_o_i_range.html#a6f5256ea594eda43ba907fa5d219df88',1,'RVC::ROIRange']]]
+];

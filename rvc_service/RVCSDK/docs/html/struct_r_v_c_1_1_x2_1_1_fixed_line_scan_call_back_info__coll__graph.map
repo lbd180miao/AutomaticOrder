@@ -1,0 +1,5 @@
+<map id="RVC::X2::FixedLineScanCallBackInfo" name="RVC::X2::FixedLineScanCallBackInfo">
+<area shape="rect" id="node1" title="Callback information structure for fixed&#45;line scan mode." alt="" coords="5,184,192,225"/>
+<area shape="rect" id="node2" href="$struct_r_v_c_1_1_point_map.html" title="RVC X PointMap." alt="" coords="43,95,155,121"/>
+<area shape="rect" id="node3" href="$struct_r_v_c_1_1_handle.html" title="RVC Handle." alt="" coords="50,5,147,32"/>
+</map>

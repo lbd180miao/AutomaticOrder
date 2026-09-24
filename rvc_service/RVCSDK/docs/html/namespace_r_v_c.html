@@ -1,0 +1,1022 @@
+<!-- HTML header for doxygen 1.8.6-->
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=9" />
+  <meta name="generator" content="Doxygen 1.8.18" />
+  <title>RVC: RVC Namespace Reference</title>
+  <link href="tabs.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="jquery.js"></script>
+  <script type="text/javascript" src="dynsections.js"></script>
+  <link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+  <link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+  <link href="doxygen.css" rel="stylesheet" type="text/css" />
+  <link
+    href="https://fonts.googleapis.com/css?family=Roboto:300,400,400italic,500,500italic,700,700italic|Roboto+Mono:400,700"
+    rel="stylesheet">
+  <link href="style.css" rel="stylesheet" type="text/css"/>
+  <script>
+    /**
+     * Check if the browser rendering this page is being run on an Android device.
+     * It checks if the string 'android' is found in the browser's `userAgent`.
+     * @return {boolean} This returns `true` if the browser's `userAgent` contains
+     * the string 'android' (indicating that the browser is on an Android device).
+     * Otherwise, it returns `false`.
+     */
+    function isAndroidDevice() {
+      if (navigator && navigator.userAgent) {
+        return navigator.userAgent.toLowerCase().indexOf('android') != -1;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Check if an HTML `class` attribute is in the browser-specific format.
+     * @param {string} An HTML `class` attribute in the format 'browser-{device}'.
+     * @return {boolean} Returns `true` if `browserClass` was in the valid format,
+     * prefixed with 'browser-'. Otherwise, it returns false.
+     */
+    function isBrowserSpecificClassName(browserClass) {
+      if (browserClass && browserClass.substring(0, 8) == 'browser-' &&
+        browserClass.length > 8) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Get all the HTML Elements with browser-specific `class` attributes.
+     * @return {array} Returns an array of all the HTML Elements with a `class`
+     * attribute that is prefixed with `browser-`.
+     */
+    function getAllBrowserSpecificElements() {
+      if (document) {
+        var htmlElements = document.getElementsByTagName("*");
+        var browserSpecificElements = [];
+        for (var i = 0; i < htmlElements.length; i++) {
+          if (isBrowserSpecificClassName(htmlElements[i].className)) {
+            browserSpecificElements.push(htmlElements[i]);
+          }
+        }
+        return browserSpecificElements;
+      } else {
+        return null;
+      }
+    }
+    /**
+     * Given a browser-specific HTML `class` attribute, extract the device name.
+     * @param {string} browserClass The string name of an HTML `class` attribute,
+     * in the format `browser-{device}`.
+     * @return {string} Returns a string containing only the device portion of
+     * the class name. If the input was invalid, then it returns `null`.
+     */
+    function extractDeviceFromBrowserClass(browserClass) {
+      if (isBrowserSpecificClassName(browserClass)) {
+        return browserClass.substring(8);
+      }
+      else {
+        return null;
+      }
+    }
+    /**
+     * Hide device specific elements that do not apply to the current device.
+     */
+    function handleDeviceSpecificLoading() {
+      var browserSpecificElements = getAllBrowserSpecificElements();
+      for (var i = 0; i < browserSpecificElements.length; i++) {
+        var device = extractDeviceFromBrowserClass(browserSpecificElements[i].className);
+        if (device && !isAndroidDevice() && device == 'android') {
+          browserSpecificElements[i].innerHTML = '';
+        } else if (device && isAndroidDevice() && device == 'desktop') {
+          browserSpecificElements[i].innerHTML = '';
+        }
+      }
+    }
+    $(document).ready(handleDeviceSpecificLoading);
+  </script>
+</head>
+<body>
+  <div id="top">
+    <!-- do not remove this div, it is closed by doxygen! -->
+    <div id="titlearea">
+      <table cellspacing="0" cellpadding="0">
+        <tbody>
+          <tr style="height: 56px;">
+            <!-- <td id="projectlogo">
+    <img alt="Logo" width=100px src="documentation.png"/>
+  </td> -->
+            <!-- END PROJECT_LOGO -->
+            <td id="commonprojectlogo">
+              <img alt="Logo" width=150px src="documentation.png" />
+            </td>
+            <td style="padding-left: 0.5em;">
+              <div id="projectname">RVC
+                &#160;<span id="projectnumber">1.15.1</span>
+              </div>
+              <div style="font-size:12px;">
+                a product by
+                <a href="https://www.rvbust.com">RVBUST</a>.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- end header part --><!-- Generated by Doxygen 1.8.18 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+var searchBox = new SearchBox("searchBox", "search",false,'Search');
+/* @license-end */
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(function() {
+  initMenu('',true,false,'search.php','Search');
+  $(document).ready(function() { init_search(); });
+});
+/* @license-end */</script>
+<div id="main-nav"></div>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(document).ready(function(){initNavTree('namespace_r_v_c.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<iframe src="javascript:void(0)" frameborder="0" 
+        name="MSearchResults" id="MSearchResults">
+</iframe>
+</div>
+
+<div class="header">
+  <div class="summary">
+<a href="#nested-classes">Classes</a> &#124;
+<a href="#typedef-members">Typedefs</a> &#124;
+<a href="#enum-members">Enumerations</a> &#124;
+<a href="#func-members">Functions</a>  </div>
+  <div class="headertitle">
+<div class="title">RVC Namespace Reference</div>  </div>
+</div><!--header-->
+<div class="contents">
+
+<p><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> namespace.  
+<a href="namespace_r_v_c.html#details">More...</a></p>
+<table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="nested-classes"></a>
+Classes</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_confidence_map.html">ConfidenceMap</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_correspond_map.html">CorrespondMap</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_depth_map.html">DepthMap</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> X <a class="el" href="struct_r_v_c_1_1_depth_map.html" title="RVC X DepthMap.">DepthMap</a>.  <a href="struct_r_v_c_1_1_depth_map.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_device.html">Device</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> struct.  <a href="struct_r_v_c_1_1_device.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_device_info.html">DeviceInfo</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> X <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> info.  <a href="struct_r_v_c_1_1_device_info.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_handle.html">Handle</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> <a class="el" href="struct_r_v_c_1_1_handle.html" title="RVC Handle.">Handle</a>.  <a href="struct_r_v_c_1_1_handle.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_image.html">Image</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> X <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> object.  <a href="struct_r_v_c_1_1_image.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_image_type.html">ImageType</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> Type.  <a href="struct_r_v_c_1_1_image_type.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_mesh.html">Mesh</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> X <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a>.  <a href="struct_r_v_c_1_1_point_map.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map_type.html">PointMapType</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> X <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> Type.  <a href="struct_r_v_c_1_1_point_map_type.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map_unit.html">PointMapUnit</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> <a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a>.  <a href="struct_r_v_c_1_1_r_o_i.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_r_o_i_range.html">ROIRange</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> <a class="el" href="struct_r_v_c_1_1_r_o_i_range.html" title="Device ROIRange.">ROIRange</a>.  <a href="struct_r_v_c_1_1_r_o_i_range.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_size.html">Size</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Image/PointMap <a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a>.  <a href="struct_r_v_c_1_1_size.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_system_list_device_type.html">SystemListDeviceType</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">System list <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> type.  <a href="struct_r_v_c_1_1_system_list_device_type.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x1.html">X1</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="struct_r_v_c_1_1_x1.html" title="X1 struct.">X1</a> struct.  <a href="struct_r_v_c_1_1_x1.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_x2.html">X2</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="struct_r_v_c_1_1_x2.html" title="X2 struct.">X2</a> struct.  <a href="struct_r_v_c_1_1_x2.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="typedef-members"></a>
+Typedefs</h2></td></tr>
+<tr class="memitem:aea9c365d7ffb23c5f7ee1203246c668b"><td class="memItemLeft" align="right" valign="top">typedef uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#aea9c365d7ffb23c5f7ee1203246c668b">HandleID</a></td></tr>
+<tr class="memdesc:aea9c365d7ffb23c5f7ee1203246c668b"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="struct_r_v_c_1_1_handle.html" title="RVC Handle.">Handle</a> id 4 bytes long.  <a href="namespace_r_v_c.html#aea9c365d7ffb23c5f7ee1203246c668b">More...</a><br /></td></tr>
+<tr class="separator:aea9c365d7ffb23c5f7ee1203246c668b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a939b8012c8a01b5ac4e1e9884ac19182"><td class="memItemLeft" align="right" valign="top"><a id="a939b8012c8a01b5ac4e1e9884ac19182"></a>
+typedef void *&#160;</td><td class="memItemRight" valign="bottom"><b>UserPtr</b></td></tr>
+<tr class="separator:a939b8012c8a01b5ac4e1e9884ac19182"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="enum-members"></a>
+Enumerations</h2></td></tr>
+<tr class="memitem:adf5057625a1487c09643b07ec5578e78"><td class="memItemLeft" align="right" valign="top"><a id="adf5057625a1487c09643b07ec5578e78"></a>enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">CameraID</a> { <br />
+&#160;&#160;<b>CameraID_NONE</b> = 0, 
+<b>CameraID_0</b> = 1 &lt;&lt; 0, 
+<b>CameraID_1</b> = 1 &lt;&lt; 1, 
+<b>CameraID_2</b> = 1 &lt;&lt; 2, 
+<br />
+&#160;&#160;<b>CameraID_3</b> = 1 &lt;&lt; 3, 
+<b>CameraID_Left</b> = CameraID_0, 
+<b>CameraID_Right</b> = CameraID_1, 
+<b>CameraID_Both</b> = CameraID_Left | CameraID_Right, 
+<br />
+&#160;&#160;<b>CameraID_Extra</b> = CameraID_2
+<br />
+ }</td></tr>
+<tr class="memdesc:adf5057625a1487c09643b07ec5578e78"><td class="mdescLeft">&#160;</td><td class="mdescRight">CameraID, support <em>CameraID_Left</em> and <em>CameraID_Right</em> <br /></td></tr>
+<tr class="separator:adf5057625a1487c09643b07ec5578e78"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8d7d1f1674faefb5e4e794281a968b91"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a8d7d1f1674faefb5e4e794281a968b91">PortType</a> { <b>PortType_NONE</b> = 0, 
+<b>PortType_USB</b> = 1, 
+<b>PortType_GIGE</b> = 2
+ }</td></tr>
+<tr class="memdesc:a8d7d1f1674faefb5e4e794281a968b91"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> supported Camera Port type.  <a href="namespace_r_v_c.html#a8d7d1f1674faefb5e4e794281a968b91">More...</a><br /></td></tr>
+<tr class="separator:a8d7d1f1674faefb5e4e794281a968b91"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2345e06c5ee95e12b6fa56ab07176237"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a2345e06c5ee95e12b6fa56ab07176237">NetworkType</a> { <b>NetworkType_DHCP</b> = 0, 
+<b>NetworkType_STATIC</b> = 1
+ }</td></tr>
+<tr class="memdesc:a2345e06c5ee95e12b6fa56ab07176237"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> supported Camera Network type.  <a href="namespace_r_v_c.html#a2345e06c5ee95e12b6fa56ab07176237">More...</a><br /></td></tr>
+<tr class="separator:a2345e06c5ee95e12b6fa56ab07176237"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a155d5d1c16539d4c36280adee0d0b7d9"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a155d5d1c16539d4c36280adee0d0b7d9">ProjectorColor</a> { <br />
+&#160;&#160;<b>ProjectorColor_None</b> = 0, 
+<b>ProjectorColor_Red</b> = 1, 
+<b>ProjectorColor_Green</b> = 2, 
+<b>ProjectorColor_Blue</b> = 4, 
+<br />
+&#160;&#160;<b>ProjectorColor_White</b> = 8, 
+<b>ProjectorColor_ALL</b> = ProjectorColor_Red | ProjectorColor_Green | ProjectorColor_Blue | ProjectorColor_White
+<br />
+ }</td></tr>
+<tr class="memdesc:a155d5d1c16539d4c36280adee0d0b7d9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Projector color, support <em>ProjectorColor_Red</em>, <em>ProjectorColor_Green</em>, <em>ProjectorColor_Blue</em>, <em>ProjectorColor_White</em> and <em>ProjectorColor_ALL</em>  <a href="namespace_r_v_c.html#a155d5d1c16539d4c36280adee0d0b7d9">More...</a><br /></td></tr>
+<tr class="separator:a155d5d1c16539d4c36280adee0d0b7d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab8d0448e7d1243c2712167c6f3b8e189"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#ab8d0448e7d1243c2712167c6f3b8e189">ProtectiveCoverStatus</a> { <br />
+&#160;&#160;<b>ProtectiveCoverStatus_Unknown</b> = 0, 
+<b>ProtectiveCoverStatus_Closed</b> = 1, 
+<b>ProtectiveCoverStatus_Closing</b> = 2, 
+<b>ProtectiveCoverStatus_Open</b> = 3, 
+<br />
+&#160;&#160;<b>ProtectiveCoverStatus_Opening</b> = 4
+<br />
+ }</td></tr>
+<tr class="memdesc:ab8d0448e7d1243c2712167c6f3b8e189"><td class="mdescLeft">&#160;</td><td class="mdescRight">Protective Cover Status.  <a href="namespace_r_v_c.html#ab8d0448e7d1243c2712167c6f3b8e189">More...</a><br /></td></tr>
+<tr class="separator:ab8d0448e7d1243c2712167c6f3b8e189"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acc724bf6da9945fde211755c84922400"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#acc724bf6da9945fde211755c84922400">BalanceSelector</a> { <b>BalanceSelector_None</b> = 0, 
+<b>BalanceSelector_Red</b>, 
+<b>BalanceSelector_Green</b>, 
+<b>BalanceSelector_Blue</b>
+ }</td></tr>
+<tr class="memdesc:acc724bf6da9945fde211755c84922400"><td class="mdescLeft">&#160;</td><td class="mdescRight">White balance ratio selector, suport <em>BalanceSelector_Red</em>, <em>BalanceSelector_Green</em> and <em>BalanceSelector_Blue</em>  <a href="namespace_r_v_c.html#acc724bf6da9945fde211755c84922400">More...</a><br /></td></tr>
+<tr class="separator:acc724bf6da9945fde211755c84922400"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a430a7044e1b511a70857607b700e1683"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a430a7044e1b511a70857607b700e1683">NetworkDevice</a> { <b>NetworkDevice_LightMachine</b> = 0, 
+<b>NetworkDevice_LeftCamera</b> = 1, 
+<b>NetworkDevice_RightCamera</b> = 2, 
+<b>NetworkDevice_ExtraCamera</b> = 3
+ }</td></tr>
+<tr class="memdesc:a430a7044e1b511a70857607b700e1683"><td class="mdescLeft">&#160;</td><td class="mdescRight">NetworkDevie, support <em>NetworkDevice_LightMachine</em>, <em>NetworkDevice_LeftCamera</em> and <em>NetworkDevice_RightCamera</em>  <a href="namespace_r_v_c.html#a430a7044e1b511a70857607b700e1683">More...</a><br /></td></tr>
+<tr class="separator:a430a7044e1b511a70857607b700e1683"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4a56f3bae0c1c8ae674b204610aab172"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a4a56f3bae0c1c8ae674b204610aab172">NetworkDeviceStatus_</a> { <b>NetworkDeviceStatus_OK</b>, 
+<b>NetworkDeviceStatus_Not_Reachable</b>, 
+<b>NetworkDeviceStatus_In_Use</b>, 
+<b>NetworkDeviceStatus_Conflict</b>
+ }</td></tr>
+<tr class="memdesc:a4a56f3bae0c1c8ae674b204610aab172"><td class="mdescLeft">&#160;</td><td class="mdescRight">NetworkDevieStatus, support <em>NetworkDeviceStatus_OK</em>, <em>NetworkDeviceStatus_Not_Reachable</em>, <em>NetworkDeviceStatus_In_Use</em> and <em>NetworkDeviceStatus_Conflict</em>  <a href="namespace_r_v_c.html#a4a56f3bae0c1c8ae674b204610aab172">More...</a><br /></td></tr>
+<tr class="separator:a4a56f3bae0c1c8ae674b204610aab172"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac331383f6ea8e291540955a1a98fffc8"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#ac331383f6ea8e291540955a1a98fffc8">CaptureMode</a> { <br />
+&#160;&#160;<b>CaptureMode_Fast</b> = 1 &lt;&lt; 0, 
+<b>CaptureMode_Normal</b> = 1 &lt;&lt; 1, 
+<b>CaptureMode_Ultra</b> = 1 &lt;&lt; 2, 
+<b>CaptureMode_Robust</b> = 1 &lt;&lt; 3, 
+<br />
+&#160;&#160;<b>CaptureMode_AntiInterReflection</b> = 1 &lt;&lt; 4, 
+<b>CaptureMode_SwingLineScan</b> = 1 &lt;&lt; 5, 
+<b>CaptureMode_FixedLineScan</b> = 1 &lt;&lt; 6, 
+<b>CaptureMode_LineArrayShift</b> = 1 &lt;&lt; 7, 
+<br />
+&#160;&#160;<b>CaptureMode_All</b>
+<br />
+ }</td></tr>
+<tr class="memdesc:ac331383f6ea8e291540955a1a98fffc8"><td class="mdescLeft">&#160;</td><td class="mdescRight">CaptureMode, support <em>CaptureMode_Fast</em>, <em>CaptureMode_Normal</em>, <em>CaptureMode_Ultra</em>, <em>CaptureMode_Robust</em>, <em>CaptureMode_AntiInterReflection</em> and <em>CaptureMode_SwingLineScan</em>  <a href="namespace_r_v_c.html#ac331383f6ea8e291540955a1a98fffc8">More...</a><br /></td></tr>
+<tr class="separator:ac331383f6ea8e291540955a1a98fffc8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae50597f664acd39bb4ab0122809c18b0"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#ae50597f664acd39bb4ab0122809c18b0">TriggerMode</a> { <a class="el" href="namespace_r_v_c.html#ae50597f664acd39bb4ab0122809c18b0aa0983797be471cf97827a1cd4c189705">TriggerMode_SoftWare</a> = 0, 
+<a class="el" href="namespace_r_v_c.html#ae50597f664acd39bb4ab0122809c18b0a8b8d4dd86c4e1c03af505a2497cc948a">TriggerMode_HardWare</a> = 1, 
+<a class="el" href="namespace_r_v_c.html#ae50597f664acd39bb4ab0122809c18b0a8c8b74af8018271dff048aa330c0e08a">TriggerMode_FixedRate</a> = 2
+ }</td></tr>
+<tr class="memdesc:ae50597f664acd39bb4ab0122809c18b0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Defines the trigger source for point cloud acquisition.  <a href="namespace_r_v_c.html#ae50597f664acd39bb4ab0122809c18b0">More...</a><br /></td></tr>
+<tr class="separator:ae50597f664acd39bb4ab0122809c18b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a911619e33264adb5641543c10cebd17a"><td class="memItemLeft" align="right" valign="top"><a id="a911619e33264adb5641543c10cebd17a"></a>enum &#160;</td><td class="memItemRight" valign="bottom"><b>CameraTempSelector</b> { <br />
+&#160;&#160;<b>CameraTempSelector_Camera</b>, 
+<b>CameraTempSelector_CoreBoard</b>, 
+<b>CameraTempSelector_FpgaCore</b>, 
+<b>CameraTempSelector_Framegrabberboard</b>, 
+<br />
+&#160;&#160;<b>CameraTempSelector_Sensor</b>, 
+<b>CameraTempSelector_SensorBoard</b>
+<br />
+ }</td></tr>
+<tr class="separator:a911619e33264adb5641543c10cebd17a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad68805da625877f4cfc61c069bffe88d"><td class="memItemLeft" align="right" valign="top"><a id="ad68805da625877f4cfc61c069bffe88d"></a>enum &#160;</td><td class="memItemRight" valign="bottom"><b>SmoothnessLevel</b> { <b>SmoothnessLevel_Off</b>, 
+<b>SmoothnessLevel_Weak</b>, 
+<b>SmoothnessLevel_Normal</b>, 
+<b>SmoothnessLevel_Strong</b>
+ }</td></tr>
+<tr class="separator:ad68805da625877f4cfc61c069bffe88d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
+Functions</h2></td></tr>
+<tr class="memitem:a60de4946ed36ead9f77cc5282c15232c"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a60de4946ed36ead9f77cc5282c15232c">operator==</a> (const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a> &amp;lhs, const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a> &amp;rhs)</td></tr>
+<tr class="memdesc:a60de4946ed36ead9f77cc5282c15232c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compare two <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> size.  <a href="namespace_r_v_c.html#a60de4946ed36ead9f77cc5282c15232c">More...</a><br /></td></tr>
+<tr class="separator:a60de4946ed36ead9f77cc5282c15232c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af979e7ffe42d0329b9e952f7b3b9f59a"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#af979e7ffe42d0329b9e952f7b3b9f59a">operator!=</a> (const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a> &amp;lhs, const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a> &amp;rhs)</td></tr>
+<tr class="memdesc:af979e7ffe42d0329b9e952f7b3b9f59a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compare two <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> size.  <a href="namespace_r_v_c.html#af979e7ffe42d0329b9e952f7b3b9f59a">More...</a><br /></td></tr>
+<tr class="separator:af979e7ffe42d0329b9e952f7b3b9f59a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1ab24e0e891fab26972a7358c59057a9"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a1ab24e0e891fab26972a7358c59057a9">operator==</a> (const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;lhs, const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;rhs)</td></tr>
+<tr class="memdesc:a1ab24e0e891fab26972a7358c59057a9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compare two <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> <a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a>.  <a href="namespace_r_v_c.html#a1ab24e0e891fab26972a7358c59057a9">More...</a><br /></td></tr>
+<tr class="separator:a1ab24e0e891fab26972a7358c59057a9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a524a11a381cd546060cec8aa300191a8"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a524a11a381cd546060cec8aa300191a8">operator!=</a> (const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;lhs, const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;rhs)</td></tr>
+<tr class="memdesc:a524a11a381cd546060cec8aa300191a8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compare two <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> roi.  <a href="namespace_r_v_c.html#a524a11a381cd546060cec8aa300191a8">More...</a><br /></td></tr>
+<tr class="separator:a524a11a381cd546060cec8aa300191a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6c8a9dffd2addd42638f8485dc12309b"><td class="memItemLeft" align="right" valign="top">RVC_EXPORT int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a6c8a9dffd2addd42638f8485dc12309b">GetLastError</a> ()</td></tr>
+<tr class="memdesc:a6c8a9dffd2addd42638f8485dc12309b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get last error of <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> SDK.  <a href="namespace_r_v_c.html#a6c8a9dffd2addd42638f8485dc12309b">More...</a><br /></td></tr>
+<tr class="separator:a6c8a9dffd2addd42638f8485dc12309b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acd89dfd86e9e317fb9cda971d8648706"><td class="memItemLeft" align="right" valign="top">RVC_EXPORT const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#acd89dfd86e9e317fb9cda971d8648706">GetVersion</a> ()</td></tr>
+<tr class="memdesc:acd89dfd86e9e317fb9cda971d8648706"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Version of <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> SDK.  <a href="namespace_r_v_c.html#acd89dfd86e9e317fb9cda971d8648706">More...</a><br /></td></tr>
+<tr class="separator:acd89dfd86e9e317fb9cda971d8648706"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a02779b50f9e7e758b8ab4a4566efb85c"><td class="memItemLeft" align="right" valign="top">RVC_EXPORT const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a02779b50f9e7e758b8ab4a4566efb85c">GetLastErrorMessage</a> ()</td></tr>
+<tr class="memdesc:a02779b50f9e7e758b8ab4a4566efb85c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the lastest error message. The pointer to string is temporary, you need to copy data from its buffer to your buffer to prevent dangling pointer.  <a href="namespace_r_v_c.html#a02779b50f9e7e758b8ab4a4566efb85c">More...</a><br /></td></tr>
+<tr class="separator:a02779b50f9e7e758b8ab4a4566efb85c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a323593973d7de52708fae81cc20db39c"><td class="memItemLeft" align="right" valign="top">RVC_EXPORT bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a323593973d7de52708fae81cc20db39c">SystemInit</a> ()</td></tr>
+<tr class="memdesc:a323593973d7de52708fae81cc20db39c"><td class="mdescLeft">&#160;</td><td class="mdescRight">SystemInit.  <a href="namespace_r_v_c.html#a323593973d7de52708fae81cc20db39c">More...</a><br /></td></tr>
+<tr class="separator:a323593973d7de52708fae81cc20db39c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adf486ed0192603f9b1fd5a4d1aef2f12"><td class="memItemLeft" align="right" valign="top">RVC_EXPORT bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#adf486ed0192603f9b1fd5a4d1aef2f12">SystemIsInited</a> ()</td></tr>
+<tr class="memdesc:adf486ed0192603f9b1fd5a4d1aef2f12"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check system is inited or not.  <a href="namespace_r_v_c.html#adf486ed0192603f9b1fd5a4d1aef2f12">More...</a><br /></td></tr>
+<tr class="separator:adf486ed0192603f9b1fd5a4d1aef2f12"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7c616a5d26f42991a8fbe38176a46c69"><td class="memItemLeft" align="right" valign="top">RVC_EXPORT void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">SystemShutdown</a> ()</td></tr>
+<tr class="memdesc:a7c616a5d26f42991a8fbe38176a46c69"><td class="mdescLeft">&#160;</td><td class="mdescRight">SystemShutdown.  <a href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">More...</a><br /></td></tr>
+<tr class="separator:a7c616a5d26f42991a8fbe38176a46c69"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3ee199b906497d6b03fbb3139e74cb71"><td class="memItemLeft" align="right" valign="top">RVC_EXPORT int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a3ee199b906497d6b03fbb3139e74cb71">SystemListDevices</a> (<a class="el" href="struct_r_v_c_1_1_device.html">Device</a> *pdevices, size_t size, size_t *actual_size, <a class="el" href="struct_r_v_c_1_1_system_list_device_type.html#a652059b18af2af92c5ef449eee4cf48f">SystemListDeviceType::Enum</a> opt=SystemListDeviceType::All)</td></tr>
+<tr class="memdesc:a3ee199b906497d6b03fbb3139e74cb71"><td class="mdescLeft">&#160;</td><td class="mdescRight">List the fix number devices.  <a href="namespace_r_v_c.html#a3ee199b906497d6b03fbb3139e74cb71">More...</a><br /></td></tr>
+<tr class="separator:a3ee199b906497d6b03fbb3139e74cb71"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa8adb39f051748fd55d267007c561a17"><td class="memItemLeft" align="right" valign="top">RVC_EXPORT <a class="el" href="struct_r_v_c_1_1_device.html">Device</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#aa8adb39f051748fd55d267007c561a17">SystemFindDevice</a> (const char *serialNumber)</td></tr>
+<tr class="memdesc:aa8adb39f051748fd55d267007c561a17"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the device according to the serialNumber, if the device is valid.  <a href="namespace_r_v_c.html#aa8adb39f051748fd55d267007c561a17">More...</a><br /></td></tr>
+<tr class="separator:aa8adb39f051748fd55d267007c561a17"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8f80457a4f3106a08b442bdb711a5ef1"><td class="memItemLeft" align="right" valign="top">RVC_EXPORT void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespace_r_v_c.html#a8f80457a4f3106a08b442bdb711a5ef1">SystemSetLoggerName</a> (const char *loggerName)</td></tr>
+<tr class="memdesc:a8f80457a4f3106a08b442bdb711a5ef1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the name of logger.  <a href="namespace_r_v_c.html#a8f80457a4f3106a08b442bdb711a5ef1">More...</a><br /></td></tr>
+<tr class="separator:a8f80457a4f3106a08b442bdb711a5ef1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> namespace. </p>
+</div><h2 class="groupheader">Typedef Documentation</h2>
+<a id="aea9c365d7ffb23c5f7ee1203246c668b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aea9c365d7ffb23c5f7ee1203246c668b">&#9670;&nbsp;</a></span>HandleID</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">typedef uint32_t <a class="el" href="namespace_r_v_c.html#aea9c365d7ffb23c5f7ee1203246c668b">RVC::HandleID</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p><a class="el" href="struct_r_v_c_1_1_handle.html" title="RVC Handle.">Handle</a> id 4 bytes long. </p>
+
+</div>
+</div>
+<h2 class="groupheader">Enumeration Type Documentation</h2>
+<a id="acc724bf6da9945fde211755c84922400"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acc724bf6da9945fde211755c84922400">&#9670;&nbsp;</a></span>BalanceSelector</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="namespace_r_v_c.html#acc724bf6da9945fde211755c84922400">RVC::BalanceSelector</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>White balance ratio selector, suport <em>BalanceSelector_Red</em>, <em>BalanceSelector_Green</em> and <em>BalanceSelector_Blue</em> </p>
+
+</div>
+</div>
+<a id="ac331383f6ea8e291540955a1a98fffc8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac331383f6ea8e291540955a1a98fffc8">&#9670;&nbsp;</a></span>CaptureMode</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="namespace_r_v_c.html#ac331383f6ea8e291540955a1a98fffc8">RVC::CaptureMode</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>CaptureMode, support <em>CaptureMode_Fast</em>, <em>CaptureMode_Normal</em>, <em>CaptureMode_Ultra</em>, <em>CaptureMode_Robust</em>, <em>CaptureMode_AntiInterReflection</em> and <em>CaptureMode_SwingLineScan</em> </p>
+
+</div>
+</div>
+<a id="a430a7044e1b511a70857607b700e1683"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a430a7044e1b511a70857607b700e1683">&#9670;&nbsp;</a></span>NetworkDevice</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="namespace_r_v_c.html#a430a7044e1b511a70857607b700e1683">RVC::NetworkDevice</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>NetworkDevie, support <em>NetworkDevice_LightMachine</em>, <em>NetworkDevice_LeftCamera</em> and <em>NetworkDevice_RightCamera</em> </p>
+
+</div>
+</div>
+<a id="a4a56f3bae0c1c8ae674b204610aab172"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4a56f3bae0c1c8ae674b204610aab172">&#9670;&nbsp;</a></span>NetworkDeviceStatus_</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="namespace_r_v_c.html#a4a56f3bae0c1c8ae674b204610aab172">RVC::NetworkDeviceStatus_</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>NetworkDevieStatus, support <em>NetworkDeviceStatus_OK</em>, <em>NetworkDeviceStatus_Not_Reachable</em>, <em>NetworkDeviceStatus_In_Use</em> and <em>NetworkDeviceStatus_Conflict</em> </p>
+
+</div>
+</div>
+<a id="a2345e06c5ee95e12b6fa56ab07176237"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2345e06c5ee95e12b6fa56ab07176237">&#9670;&nbsp;</a></span>NetworkType</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="namespace_r_v_c.html#a2345e06c5ee95e12b6fa56ab07176237">RVC::NetworkType</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> supported Camera Network type. </p>
+<p>Only valid when Camera PortType is <em>PortType_GIGE</em></p>
+<p>All support type is <em>NetworkType_DHCP</em>, <em>NetworkType_STATIC</em> </p>
+
+</div>
+</div>
+<a id="a8d7d1f1674faefb5e4e794281a968b91"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8d7d1f1674faefb5e4e794281a968b91">&#9670;&nbsp;</a></span>PortType</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="namespace_r_v_c.html#a8d7d1f1674faefb5e4e794281a968b91">RVC::PortType</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> supported Camera Port type. </p>
+<p>All support type is <em>PortType_USB</em>, <em>PortType_GIGE</em> </p>
+
+</div>
+</div>
+<a id="a155d5d1c16539d4c36280adee0d0b7d9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a155d5d1c16539d4c36280adee0d0b7d9">&#9670;&nbsp;</a></span>ProjectorColor</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="namespace_r_v_c.html#a155d5d1c16539d4c36280adee0d0b7d9">RVC::ProjectorColor</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Projector color, support <em>ProjectorColor_Red</em>, <em>ProjectorColor_Green</em>, <em>ProjectorColor_Blue</em>, <em>ProjectorColor_White</em> and <em>ProjectorColor_ALL</em> </p>
+
+</div>
+</div>
+<a id="ab8d0448e7d1243c2712167c6f3b8e189"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab8d0448e7d1243c2712167c6f3b8e189">&#9670;&nbsp;</a></span>ProtectiveCoverStatus</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="namespace_r_v_c.html#ab8d0448e7d1243c2712167c6f3b8e189">RVC::ProtectiveCoverStatus</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Protective Cover Status. </p>
+
+</div>
+</div>
+<a id="ae50597f664acd39bb4ab0122809c18b0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae50597f664acd39bb4ab0122809c18b0">&#9670;&nbsp;</a></span>TriggerMode</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="namespace_r_v_c.html#ae50597f664acd39bb4ab0122809c18b0">RVC::TriggerMode</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Defines the trigger source for point cloud acquisition. </p>
+<p>This enumeration specifies how the 3D camera initiates point cloud generation, determining whether acquisition is triggered by software (explicit function calls) or by external hardware signals. </p>
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="ae50597f664acd39bb4ab0122809c18b0aa0983797be471cf97827a1cd4c189705"></a>TriggerMode_SoftWare&#160;</td><td class="fielddoc"><p>Software trigger mode. </p>
+<p>In this mode, point clouds are generated only when explicitly requested by calling the SDK's capture functions. The application has full control over the timing of acquisition by calling either:</p><ul>
+<li>Capture()</li>
+<li>GetFixedLineScanPointMap()</li>
+</ul>
+<dl class="section note"><dt>Note</dt><dd>This mode is supported by all acquisition modes. </dd></dl>
+</td></tr>
+<tr><td class="fieldname"><a id="ae50597f664acd39bb4ab0122809c18b0a8b8d4dd86c4e1c03af505a2497cc948a"></a>TriggerMode_HardWare&#160;</td><td class="fielddoc"><p>Hardware trigger mode. </p>
+<p>Point clouds are generated automatically in response to external hardware signals (e.g., encoder pulses, PLC outputs, or GPIO signals). The application must register a callback function to receive point cloud data asynchronously when hardware triggers occur. The fixed line scan mode should be initiated before the hardware signals begin and terminated after they cease.</p>
+<dl class="section note"><dt>Note</dt><dd>Hardware trigger is only supported when using FixedLineScan acquisition mode. Other modes require software trigger. </dd></dl>
+<dl class="section see"><dt>See also</dt><dd>SetFixedLineScanCallback </dd></dl>
+</td></tr>
+<tr><td class="fieldname"><a id="ae50597f664acd39bb4ab0122809c18b0a8c8b74af8018271dff048aa330c0e08a"></a>TriggerMode_FixedRate&#160;</td><td class="fielddoc"><p>Fixed-rate automatic trigger mode. </p>
+<p>In this mode, the camera automatically generates point clouds at a fixed internal frequency, without requiring external hardware signals or explicit software calls for each acquisition.</p>
+<p>The application must register a callback function to receive point cloud data asynchronously as it is generated at the predefined rate.</p>
+<dl class="section note"><dt>Note</dt><dd>This mode requires registration of a callback function to receive data. </dd></dl>
+<dl class="section see"><dt>See also</dt><dd>SetFixedLineScanCallback </dd></dl>
+</td></tr>
+</table>
+
+</div>
+</div>
+<h2 class="groupheader">Function Documentation</h2>
+<a id="a6c8a9dffd2addd42638f8485dc12309b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6c8a9dffd2addd42638f8485dc12309b">&#9670;&nbsp;</a></span>GetLastError()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">RVC_EXPORT int RVC::GetLastError </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get last error of <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> SDK. </p>
+<dl class="section return"><dt>Returns</dt><dd>int </dd></dl>
+
+</div>
+</div>
+<a id="a02779b50f9e7e758b8ab4a4566efb85c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a02779b50f9e7e758b8ab4a4566efb85c">&#9670;&nbsp;</a></span>GetLastErrorMessage()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">RVC_EXPORT const char* RVC::GetLastErrorMessage </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the lastest error message. The pointer to string is temporary, you need to copy data from its buffer to your buffer to prevent dangling pointer. </p>
+<dl class="section return"><dt>Returns</dt><dd>string of error message </dd></dl>
+
+</div>
+</div>
+<a id="acd89dfd86e9e317fb9cda971d8648706"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acd89dfd86e9e317fb9cda971d8648706">&#9670;&nbsp;</a></span>GetVersion()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">RVC_EXPORT const char* RVC::GetVersion </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Version of <a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> SDK. </p>
+<dl class="section return"><dt>Returns</dt><dd>string of version </dd></dl>
+
+</div>
+</div>
+<a id="a524a11a381cd546060cec8aa300191a8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a524a11a381cd546060cec8aa300191a8">&#9670;&nbsp;</a></span>operator!=() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::operator!= </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;&#160;</td>
+          <td class="paramname"><em>lhs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;&#160;</td>
+          <td class="paramname"><em>rhs</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Compare two <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> roi. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">lhs</td><td>one <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> roi </td></tr>
+    <tr><td class="paramname">rhs</td><td>another <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> roi </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true equal </dd>
+<dd>
+false not equal </dd></dl>
+
+</div>
+</div>
+<a id="af979e7ffe42d0329b9e952f7b3b9f59a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af979e7ffe42d0329b9e952f7b3b9f59a">&#9670;&nbsp;</a></span>operator!=() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::operator!= </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a> &amp;&#160;</td>
+          <td class="paramname"><em>lhs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a> &amp;&#160;</td>
+          <td class="paramname"><em>rhs</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Compare two <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> size. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">lhs</td><td>one <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> <a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> </td></tr>
+    <tr><td class="paramname">rhs</td><td>another <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> <a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true not equal </dd>
+<dd>
+false equal </dd></dl>
+
+</div>
+</div>
+<a id="a1ab24e0e891fab26972a7358c59057a9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1ab24e0e891fab26972a7358c59057a9">&#9670;&nbsp;</a></span>operator==() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::operator== </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;&#160;</td>
+          <td class="paramname"><em>lhs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_r_o_i.html">ROI</a> &amp;&#160;</td>
+          <td class="paramname"><em>rhs</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Compare two <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> <a class="el" href="struct_r_v_c_1_1_r_o_i.html" title="Image ROI.">ROI</a>. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">lhs</td><td>one <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> roi </td></tr>
+    <tr><td class="paramname">rhs</td><td>another <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> roi </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true equal </dd>
+<dd>
+false not equal </dd></dl>
+
+</div>
+</div>
+<a id="a60de4946ed36ead9f77cc5282c15232c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a60de4946ed36ead9f77cc5282c15232c">&#9670;&nbsp;</a></span>operator==() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::operator== </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a> &amp;&#160;</td>
+          <td class="paramname"><em>lhs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a> &amp;&#160;</td>
+          <td class="paramname"><em>rhs</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Compare two <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> size. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">lhs</td><td>one <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> <a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> </td></tr>
+    <tr><td class="paramname">rhs</td><td>another <a class="el" href="struct_r_v_c_1_1_image.html" title="RVC X Image object.">Image</a> <a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true equal </dd>
+<dd>
+false not equal </dd></dl>
+
+</div>
+</div>
+<a id="aa8adb39f051748fd55d267007c561a17"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa8adb39f051748fd55d267007c561a17">&#9670;&nbsp;</a></span>SystemFindDevice()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">RVC_EXPORT <a class="el" href="struct_r_v_c_1_1_device.html">Device</a> RVC::SystemFindDevice </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>serialNumber</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return the device according to the serialNumber, if the device is valid. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">serialNumber</td><td><a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> Struct serial number </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> The serialNumber corresponding <a class="el" href="struct_r_v_c_1_1_device.html" title="Device struct.">Device</a> Struct </dd></dl>
+
+</div>
+</div>
+<a id="a323593973d7de52708fae81cc20db39c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a323593973d7de52708fae81cc20db39c">&#9670;&nbsp;</a></span>SystemInit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">RVC_EXPORT bool RVC::SystemInit </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>SystemInit. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Success </dd>
+<dd>
+false Failed </dd></dl>
+
+</div>
+</div>
+<a id="adf486ed0192603f9b1fd5a4d1aef2f12"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adf486ed0192603f9b1fd5a4d1aef2f12">&#9670;&nbsp;</a></span>SystemIsInited()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">RVC_EXPORT bool RVC::SystemIsInited </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Check system is inited or not. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Inited </dd>
+<dd>
+false Not Inited </dd></dl>
+
+</div>
+</div>
+<a id="a3ee199b906497d6b03fbb3139e74cb71"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3ee199b906497d6b03fbb3139e74cb71">&#9670;&nbsp;</a></span>SystemListDevices()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">RVC_EXPORT int RVC::SystemListDevices </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_device.html">Device</a> *&#160;</td>
+          <td class="paramname"><em>pdevices</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>actual_size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_system_list_device_type.html#a652059b18af2af92c5ef449eee4cf48f">SystemListDeviceType::Enum</a>&#160;</td>
+          <td class="paramname"><em>opt</em> = <code>SystemListDeviceType::All</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>List the fix number devices. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">pdevices</td><td>device listed </td></tr>
+    <tr><td class="paramname">size</td><td>desire list devices number </td></tr>
+    <tr><td class="paramname">actual_size</td><td>actually list devices number </td></tr>
+    <tr><td class="paramname">opt</td><td>List DeviceType All/USB/GIGE optional </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>int Status code</dd></dl>
+<div class="fragment"></div><!-- fragment -->
+</div>
+</div>
+<a id="a8f80457a4f3106a08b442bdb711a5ef1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8f80457a4f3106a08b442bdb711a5ef1">&#9670;&nbsp;</a></span>SystemSetLoggerName()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">RVC_EXPORT void RVC::SystemSetLoggerName </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>loggerName</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set the name of logger. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">loggerName</td><td>The logger name </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a7c616a5d26f42991a8fbe38176a46c69"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7c616a5d26f42991a8fbe38176a46c69">&#9670;&nbsp;</a></span>SystemShutdown()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">RVC_EXPORT void RVC::SystemShutdown </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>SystemShutdown. </p>
+
+</div>
+</div>
+</div><!-- contents -->
+</div><!-- doc-content -->
+</body>
+</html>

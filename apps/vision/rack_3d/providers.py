@@ -304,34 +304,29 @@ class RealRobotPoseProvider(RobotPoseProvider):
 
 
 class RealDepthCameraProvider(DepthCameraProvider):
-    """真实深度相机：调用 dm_camera 服务采集点云帧。
+    """真实深度相机：调用 RVC 相机服务（独立进程 rvc_service）采集点云帧。
 
-    若未注入 dm_camera_service，则自动通过 apps.dm_camera.services.DMCameraService
-    获取并连接激活相机（与工作台 DMCameraRackFrameProvider 行为一致），
-    使 REAL 模式在现场无需额外接线即可运行。
+    现役机型为 RVC 3D 相机：Django 进程不直接 import PyRVC，而是通过
+    apps.rvc_camera.services.RvcCameraService 以 HTTP 调用独占相机的独立
+    进程。构造参数 ``dm_camera_service`` 仅为兼容旧测试/调用方的注入名，
+    任何实现了 capture_frame_data() 的对象都可注入。
     """
 
-    def __init__(self, dm_camera_service=None):
-        self.dm_camera_service = dm_camera_service
+    def __init__(self, dm_camera_service=None, camera_service=None):
+        self.camera_service = camera_service or dm_camera_service
 
     def _acquire_service(self):
-        if self.dm_camera_service is not None:
-            return self.dm_camera_service
+        if self.camera_service is not None:
+            return self.camera_service
         try:
-            from apps.dm_camera.services import DMCameraService
-            from apps.dm_camera.models import DMCameraConfig
-        except Exception as exc:  # pragma: no cover - dm_camera 缺失
-            raise PointCloudError(EC.CAMERA_NOT_CONNECTED, f"无法加载 dm_camera 服务: {exc}") from exc
+            from apps.rvc_camera.services import RvcCameraService
+        except Exception as exc:  # pragma: no cover - rvc_camera 缺失
+            raise PointCloudError(EC.CAMERA_NOT_CONNECTED, f"无法加载 RVC 相机服务: {exc}") from exc
 
-        service = DMCameraService()
+        service = RvcCameraService()
+        # 相机服务在启动时已自动连接；未连接时这里按需补连（对齐旧 DM 行为）
         if not getattr(service, 'is_connected', False):
-            active = DMCameraConfig.objects.filter(is_active=True).first()
-            service.connect(
-                device_sn=getattr(active, 'device_sn', None) or None,
-                config_id=getattr(active, 'id', None),
-            )
-        if not getattr(service, 'is_streaming', False):
-            service.start_stream()
+            service.ensure_connected()
         return service
 
     def capture_pointcloud(
@@ -355,7 +350,8 @@ class RealDepthCameraProvider(DepthCameraProvider):
             'data': data, 'width': width, 'height': height,
             'frame_index': frame.get('frame_index'), 'confidence': frame.get('confidence', 0.0),
             'raw_data_path': frame.get('raw_data_path') or frame.get('file_path') or '',
-            'result_image_path': frame.get('result_image_path') or '', 'source': 'dm_camera',
+            'result_image_path': frame.get('result_image_path') or '',
+            'source': frame.get('source', 'rvc_camera'),
         }
 
     @staticmethod

@@ -1,0 +1,238 @@
+\hypertarget{struct_r_v_c_1_1_device}{}\doxysection{R\+VC\+::Device Struct Reference}
+\label{struct_r_v_c_1_1_device}\index{RVC::Device@{RVC::Device}}
+
+
+\mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} struct.  
+
+
+
+
+{\ttfamily \#include $<$R\+V\+C.\+h$>$}
+
+
+
+Collaboration diagram for R\+VC\+::Device\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=163pt]{struct_r_v_c_1_1_device__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_device_a00602516d6f5fb3dfe64f5883c6ae75b}{Is\+Valid}} () const
+\begin{DoxyCompactList}\small\item\em Check device is valid or not. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{struct_r_v_c_1_1_device_a85fa5bef5760bfe8eaff10bd40dd232c}{Print}} () const
+\begin{DoxyCompactList}\small\item\em Print device info. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_device_ad5edfbbaf441b14d432fc609a71f1d89}{Get\+Device\+Info}} (\mbox{\hyperlink{struct_r_v_c_1_1_device_info}{Device\+Info}} $\ast$pinfo)
+\begin{DoxyCompactList}\small\item\em Get the \mbox{\hyperlink{struct_r_v_c_1_1_device_info}{Device\+Info}} object. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_device_adc92971e89e16e86bb1516a3fef5a5ee}{Set\+Network\+Config}} (enum \mbox{\hyperlink{namespace_r_v_c_a430a7044e1b511a70857607b700e1683}{Network\+Device}} d, \mbox{\hyperlink{namespace_r_v_c_a2345e06c5ee95e12b6fa56ab07176237}{Network\+Type}} type, const char $\ast$ip, const char $\ast$net\+Mask, const char $\ast$gateway)
+\begin{DoxyCompactList}\small\item\em Set the \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} network configuration. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_device_aba4133fb3df2e7c1d4a7c88b00e15012}{Get\+Network\+Config}} (enum \mbox{\hyperlink{namespace_r_v_c_a430a7044e1b511a70857607b700e1683}{Network\+Device}} d, \mbox{\hyperlink{namespace_r_v_c_a2345e06c5ee95e12b6fa56ab07176237}{Network\+Type}} $\ast$type, char $\ast$ip, char $\ast$net\+Mask, char $\ast$gateway, int $\ast$status)
+\begin{DoxyCompactList}\small\item\em Get the device network configuration. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{struct_r_v_c_1_1_device_a6948fac0c9f6f98aa8aac581db66af07}{Auto\+Configure\+Network}} ()
+\begin{DoxyCompactList}\small\item\em Automatically configure network IP addresses for all devices (Light\+Machine and cameras) This function automatically finds available IP addresses in the same network segment and configures them for devices that are not in OK status. This is equivalent to the \char`\"{}one-\/click configuration\char`\"{} feature in \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} Manager. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_device_a2f39d9a4c0fa75f0a57e0809c55a4a28}{Upgrade\+Firmware}} (const char $\ast$device\+\_\+firmware\+\_\+path, const char $\ast$config\+\_\+data\+\_\+path)
+\begin{DoxyCompactList}\small\item\em Upgrade \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} Firmware. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_device_a49659aa124927a586743d6e029a5d147}{Is\+Firmware\+Match}} (void)
+\begin{DoxyCompactList}\small\item\em Check if device firmware is match. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+static void \mbox{\hyperlink{struct_r_v_c_1_1_device_a671e2b02ff41389dfbd6a1647a17d8b4}{Destroy}} (\mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} d)
+\begin{DoxyCompactList}\small\item\em Destroy the device. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} \mbox{\hyperlink{struct_r_v_c_1_1_device_a7391d6f2e308315d6d63241abd5094e1}{m\+\_\+handle}}
+\begin{DoxyCompactList}\small\item\em \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}}. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+\mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} struct. 
+
+
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_device_a6948fac0c9f6f98aa8aac581db66af07}\label{struct_r_v_c_1_1_device_a6948fac0c9f6f98aa8aac581db66af07}} 
+\index{RVC::Device@{RVC::Device}!AutoConfigureNetwork@{AutoConfigureNetwork}}
+\index{AutoConfigureNetwork@{AutoConfigureNetwork}!RVC::Device@{RVC::Device}}
+\doxysubsubsection{\texorpdfstring{AutoConfigureNetwork()}{AutoConfigureNetwork()}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+Device\+::\+Auto\+Configure\+Network (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Automatically configure network IP addresses for all devices (Light\+Machine and cameras) This function automatically finds available IP addresses in the same network segment and configures them for devices that are not in OK status. This is equivalent to the \char`\"{}one-\/click configuration\char`\"{} feature in \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} Manager. 
+
+\begin{DoxyReturn}{Returns}
+int Status code (R\+V\+C\+\_\+\+N\+O\+\_\+\+E\+R\+R\+OR on success) 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_device_a671e2b02ff41389dfbd6a1647a17d8b4}\label{struct_r_v_c_1_1_device_a671e2b02ff41389dfbd6a1647a17d8b4}} 
+\index{RVC::Device@{RVC::Device}!Destroy@{Destroy}}
+\index{Destroy@{Destroy}!RVC::Device@{RVC::Device}}
+\doxysubsubsection{\texorpdfstring{Destroy()}{Destroy()}}
+{\footnotesize\ttfamily static void R\+V\+C\+::\+Device\+::\+Destroy (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}}}]{d }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Destroy the device. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em d} & \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} to be destroyed \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{struct_r_v_c_1_1_device_ad5edfbbaf441b14d432fc609a71f1d89}\label{struct_r_v_c_1_1_device_ad5edfbbaf441b14d432fc609a71f1d89}} 
+\index{RVC::Device@{RVC::Device}!GetDeviceInfo@{GetDeviceInfo}}
+\index{GetDeviceInfo@{GetDeviceInfo}!RVC::Device@{RVC::Device}}
+\doxysubsubsection{\texorpdfstring{GetDeviceInfo()}{GetDeviceInfo()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Device\+::\+Get\+Device\+Info (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_device_info}{Device\+Info}} $\ast$}]{pinfo }\end{DoxyParamCaption})}
+
+
+
+Get the \mbox{\hyperlink{struct_r_v_c_1_1_device_info}{Device\+Info}} object. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em pinfo} & Current \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} information \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_device_aba4133fb3df2e7c1d4a7c88b00e15012}\label{struct_r_v_c_1_1_device_aba4133fb3df2e7c1d4a7c88b00e15012}} 
+\index{RVC::Device@{RVC::Device}!GetNetworkConfig@{GetNetworkConfig}}
+\index{GetNetworkConfig@{GetNetworkConfig}!RVC::Device@{RVC::Device}}
+\doxysubsubsection{\texorpdfstring{GetNetworkConfig()}{GetNetworkConfig()}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+Device\+::\+Get\+Network\+Config (\begin{DoxyParamCaption}\item[{enum \mbox{\hyperlink{namespace_r_v_c_a430a7044e1b511a70857607b700e1683}{Network\+Device}}}]{d,  }\item[{\mbox{\hyperlink{namespace_r_v_c_a2345e06c5ee95e12b6fa56ab07176237}{Network\+Type}} $\ast$}]{type,  }\item[{char $\ast$}]{ip,  }\item[{char $\ast$}]{net\+Mask,  }\item[{char $\ast$}]{gateway,  }\item[{int $\ast$}]{status }\end{DoxyParamCaption})}
+
+
+
+Get the device network configuration. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em d} & Network\+Device \\
+\hline
+{\em type} & Network\+Type of \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} D\+H\+C\+P/\+Static \\
+\hline
+{\em ip} & Current ip of \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} \\
+\hline
+{\em net\+Mask} & Current netmask of \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} \\
+\hline
+{\em gateway} & Current gateway of \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} \\
+\hline
+{\em status} & Device\`{}s status \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+int Status code 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_device_a49659aa124927a586743d6e029a5d147}\label{struct_r_v_c_1_1_device_a49659aa124927a586743d6e029a5d147}} 
+\index{RVC::Device@{RVC::Device}!IsFirmwareMatch@{IsFirmwareMatch}}
+\index{IsFirmwareMatch@{IsFirmwareMatch}!RVC::Device@{RVC::Device}}
+\doxysubsubsection{\texorpdfstring{IsFirmwareMatch()}{IsFirmwareMatch()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Device\+::\+Is\+Firmware\+Match (\begin{DoxyParamCaption}\item[{void}]{ }\end{DoxyParamCaption})}
+
+
+
+Check if device firmware is match. 
+
+\begin{DoxyReturn}{Returns}
+true \+: firmware match 
+
+false \+: firmware mismatch, need to upgrade 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_device_a00602516d6f5fb3dfe64f5883c6ae75b}\label{struct_r_v_c_1_1_device_a00602516d6f5fb3dfe64f5883c6ae75b}} 
+\index{RVC::Device@{RVC::Device}!IsValid@{IsValid}}
+\index{IsValid@{IsValid}!RVC::Device@{RVC::Device}}
+\doxysubsubsection{\texorpdfstring{IsValid()}{IsValid()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Device\+::\+Is\+Valid (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Check device is valid or not. 
+
+\begin{DoxyReturn}{Returns}
+true Valid 
+
+false Not valid 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_device_a85fa5bef5760bfe8eaff10bd40dd232c}\label{struct_r_v_c_1_1_device_a85fa5bef5760bfe8eaff10bd40dd232c}} 
+\index{RVC::Device@{RVC::Device}!Print@{Print}}
+\index{Print@{Print}!RVC::Device@{RVC::Device}}
+\doxysubsubsection{\texorpdfstring{Print()}{Print()}}
+{\footnotesize\ttfamily void R\+V\+C\+::\+Device\+::\+Print (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Print device info. 
+
+\mbox{\Hypertarget{struct_r_v_c_1_1_device_adc92971e89e16e86bb1516a3fef5a5ee}\label{struct_r_v_c_1_1_device_adc92971e89e16e86bb1516a3fef5a5ee}} 
+\index{RVC::Device@{RVC::Device}!SetNetworkConfig@{SetNetworkConfig}}
+\index{SetNetworkConfig@{SetNetworkConfig}!RVC::Device@{RVC::Device}}
+\doxysubsubsection{\texorpdfstring{SetNetworkConfig()}{SetNetworkConfig()}}
+{\footnotesize\ttfamily int R\+V\+C\+::\+Device\+::\+Set\+Network\+Config (\begin{DoxyParamCaption}\item[{enum \mbox{\hyperlink{namespace_r_v_c_a430a7044e1b511a70857607b700e1683}{Network\+Device}}}]{d,  }\item[{\mbox{\hyperlink{namespace_r_v_c_a2345e06c5ee95e12b6fa56ab07176237}{Network\+Type}}}]{type,  }\item[{const char $\ast$}]{ip,  }\item[{const char $\ast$}]{net\+Mask,  }\item[{const char $\ast$}]{gateway }\end{DoxyParamCaption})}
+
+
+
+Set the \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} network configuration. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em d} & Network\+Device \\
+\hline
+{\em type} & Network\+Type of \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} D\+H\+C\+P/\+Static \\
+\hline
+{\em ip} & New ip for \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}}, valid if Network\+Type is {\itshape Network\+Type\+\_\+\+S\+T\+A\+T\+IC} \\
+\hline
+{\em net\+Mask} & New netmask for \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}}, valid if Network\+Type is {\itshape Network\+Type\+\_\+\+S\+T\+A\+T\+IC} \\
+\hline
+{\em gateway} & New gateway for \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}}, valid if Network\+Type is {\itshape Network\+Type\+\_\+\+S\+T\+A\+T\+IC} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+int status code 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_device_a2f39d9a4c0fa75f0a57e0809c55a4a28}\label{struct_r_v_c_1_1_device_a2f39d9a4c0fa75f0a57e0809c55a4a28}} 
+\index{RVC::Device@{RVC::Device}!UpgradeFirmware@{UpgradeFirmware}}
+\index{UpgradeFirmware@{UpgradeFirmware}!RVC::Device@{RVC::Device}}
+\doxysubsubsection{\texorpdfstring{UpgradeFirmware()}{UpgradeFirmware()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Device\+::\+Upgrade\+Firmware (\begin{DoxyParamCaption}\item[{const char $\ast$}]{device\+\_\+firmware\+\_\+path,  }\item[{const char $\ast$}]{config\+\_\+data\+\_\+path }\end{DoxyParamCaption})}
+
+
+
+Upgrade \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} Firmware. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em device\+\_\+firmware\+\_\+path} & device firmware path, rvbin \\
+\hline
+{\em config\+\_\+data\+\_\+path} & config data path, if set to nullptr, will ignore \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+bool Status 
+\end{DoxyReturn}
+
+
+\doxysubsection{Member Data Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_device_a7391d6f2e308315d6d63241abd5094e1}\label{struct_r_v_c_1_1_device_a7391d6f2e308315d6d63241abd5094e1}} 
+\index{RVC::Device@{RVC::Device}!m\_handle@{m\_handle}}
+\index{m\_handle@{m\_handle}!RVC::Device@{RVC::Device}}
+\doxysubsubsection{\texorpdfstring{m\_handle}{m\_handle}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} R\+V\+C\+::\+Device\+::m\+\_\+handle}
+
+
+
+\mbox{\hyperlink{namespace_r_v_c}{R\+VC}} \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}}. 
+
+
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+R\+V\+C.\+h\end{DoxyCompactItemize}

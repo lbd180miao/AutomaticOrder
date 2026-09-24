@@ -1052,7 +1052,7 @@
     <div class="rl-panel">
       <div class="rl-panel-head">
         <h2>3D 点云 · 拖拽绘制 ROI</h2>
-        <span class="badge badge-muted">深度伪彩</span>
+        <span class="badge badge-muted" id="rl-image-type-badge">深度伪彩</span>
       </div>
       <div class="rl-panel-body">
         <div class="rl-image-stage" id="rl-stage">
@@ -1535,6 +1535,6 @@
     offlinePackagesUrl: '{% url "vision:offline_packages" %}',
   };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=38" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=40" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
 <script src="{% static 'vision/js/offline_package_manager.js' %}?v=21"></script>
 {% endblock %}

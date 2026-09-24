@@ -1,0 +1,8 @@
+<map id="RVC::X1::CalculationCallBackInfo" name="RVC::X1::CalculationCallBackInfo">
+<area shape="rect" id="node1" title="X1 CalculationCallBackInfo." alt="" coords="212,184,377,225"/>
+<area shape="rect" id="node2" href="$struct_r_v_c_1_1_confidence_map.html" title=" " alt="" coords="5,95,152,121"/>
+<area shape="rect" id="node3" href="$struct_r_v_c_1_1_handle.html" title="RVC Handle." alt="" coords="237,5,334,32"/>
+<area shape="rect" id="node4" href="$struct_r_v_c_1_1_point_map.html" title="RVC X PointMap." alt="" coords="176,95,288,121"/>
+<area shape="rect" id="node5" href="$struct_r_v_c_1_1_image.html" title="RVC X Image object." alt="" coords="313,95,405,121"/>
+<area shape="rect" id="node6" href="$struct_r_v_c_1_1_depth_map.html" title="RVC X DepthMap." alt="" coords="429,95,545,121"/>
+</map>

@@ -1,0 +1,247 @@
+\hypertarget{struct_r_v_c_1_1_image}{}\doxysection{R\+VC\+::Image Struct Reference}
+\label{struct_r_v_c_1_1_image}\index{RVC::Image@{RVC::Image}}
+
+
+\mbox{\hyperlink{namespace_r_v_c}{R\+VC}} X \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object.  
+
+
+
+
+{\ttfamily \#include $<$R\+V\+C.\+h$>$}
+
+
+
+Collaboration diagram for R\+VC\+::Image\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=163pt]{struct_r_v_c_1_1_image__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_a1a35967e50ae3a7e21a9c1ec34308c93}\label{struct_r_v_c_1_1_image_a1a35967e50ae3a7e21a9c1ec34308c93}} 
+\mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} \mbox{\hyperlink{struct_r_v_c_1_1_image_a1a35967e50ae3a7e21a9c1ec34308c93}{Clone}} () const
+\begin{DoxyCompactList}\small\item\em Deep clone \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_image_a66eb25ecf5ff0904c1b3954f491fa024}{Is\+Valid}} () const
+\begin{DoxyCompactList}\small\item\em Check \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} obejct is Valid or not. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} \mbox{\hyperlink{struct_r_v_c_1_1_image_abe5c51321af14fddf954f741148a53f9}{Get\+Size}} () const
+\begin{DoxyCompactList}\small\item\em Get the \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} object. \end{DoxyCompactList}\item 
+Image\+Type\+::\+Enum \mbox{\hyperlink{struct_r_v_c_1_1_image_a6c9b3da6bae0d446e29e8383a54b7d5f}{Get\+Type}} () const
+\begin{DoxyCompactList}\small\item\em Get the \mbox{\hyperlink{struct_r_v_c_1_1_image_type}{Image\+Type}} object. \end{DoxyCompactList}\item 
+unsigned char $\ast$ \mbox{\hyperlink{struct_r_v_c_1_1_image_a8e97cd6f8a0f86897e11611b2b912f60}{Get\+Data\+Ptr}} () const
+\begin{DoxyCompactList}\small\item\em Get the Data Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object. \end{DoxyCompactList}\item 
+const unsigned char $\ast$ \mbox{\hyperlink{struct_r_v_c_1_1_image_aa91e61d11adcaeb924383db28a89b7d4}{Get\+Data\+Const\+Ptr}} () const
+\begin{DoxyCompactList}\small\item\em Get the Data Const Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_image_a0252adee2e031190a0526d6265070192}{Save\+Image}} (const char $\ast$addr) const
+\begin{DoxyCompactList}\small\item\em Save \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} to file. \end{DoxyCompactList}\item 
+uint64\+\_\+t \mbox{\hyperlink{struct_r_v_c_1_1_image_a1f790c52286f79ff00a2323e6e1c151d}{Get\+Timestamp}} () const
+\begin{DoxyCompactList}\small\item\em Retrieves the timestamp of the \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}}. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_image_a7fc4072b47f3e0f055c8f7eb840b545a}{Set\+Timestamp}} (const uint64\+\_\+t timestamp)
+\begin{DoxyCompactList}\small\item\em Sets the timestamp for the \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}}. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+static \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} \mbox{\hyperlink{struct_r_v_c_1_1_image_a1cbabd544bcdbe982b4a6d286e5a6965}{Create}} (Image\+Type\+::\+Enum it, const \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} sz, unsigned char $\ast$data=nullptr, bool own\+\_\+data=true)
+\begin{DoxyCompactList}\small\item\em Create \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_a34786b30aaf0095c2409474f5b381c43}\label{struct_r_v_c_1_1_image_a34786b30aaf0095c2409474f5b381c43}} 
+static \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} {\bfseries Create\+From\+File} (const char $\ast$addr)
+\item 
+static void \mbox{\hyperlink{struct_r_v_c_1_1_image_af1789059ba12282aad6fcc1b5a2d7f90}{Destroy}} (\mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} img, bool no\+\_\+reuse=true)
+\begin{DoxyCompactList}\small\item\em Destroy \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} \mbox{\hyperlink{struct_r_v_c_1_1_image_a624bb0f5d2b47bef80814724b6de5cbe}{m\+\_\+handle}}
+\begin{DoxyCompactList}\small\item\em \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}}. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+\mbox{\hyperlink{namespace_r_v_c}{R\+VC}} X \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object. 
+
+
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_a1cbabd544bcdbe982b4a6d286e5a6965}\label{struct_r_v_c_1_1_image_a1cbabd544bcdbe982b4a6d286e5a6965}} 
+\index{RVC::Image@{RVC::Image}!Create@{Create}}
+\index{Create@{Create}!RVC::Image@{RVC::Image}}
+\doxysubsubsection{\texorpdfstring{Create()}{Create()}}
+{\footnotesize\ttfamily static \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} R\+V\+C\+::\+Image\+::\+Create (\begin{DoxyParamCaption}\item[{Image\+Type\+::\+Enum}]{it,  }\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}}}]{sz,  }\item[{unsigned char $\ast$}]{data = {\ttfamily nullptr},  }\item[{bool}]{own\+\_\+data = {\ttfamily true} }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Create \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em it} & image type \\
+\hline
+{\em sz} & image size \\
+\hline
+{\em data} & image data \\
+\hline
+{\em own\+\_\+data} & \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} A \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object with given parameters 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_af1789059ba12282aad6fcc1b5a2d7f90}\label{struct_r_v_c_1_1_image_af1789059ba12282aad6fcc1b5a2d7f90}} 
+\index{RVC::Image@{RVC::Image}!Destroy@{Destroy}}
+\index{Destroy@{Destroy}!RVC::Image@{RVC::Image}}
+\doxysubsubsection{\texorpdfstring{Destroy()}{Destroy()}}
+{\footnotesize\ttfamily static void R\+V\+C\+::\+Image\+::\+Destroy (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}}}]{img,  }\item[{bool}]{no\+\_\+reuse = {\ttfamily true} }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Destroy \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em img} & \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object will be destroyed \\
+\hline
+{\em no\+\_\+reuse} & True for reuse current space of \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_aa91e61d11adcaeb924383db28a89b7d4}\label{struct_r_v_c_1_1_image_aa91e61d11adcaeb924383db28a89b7d4}} 
+\index{RVC::Image@{RVC::Image}!GetDataConstPtr@{GetDataConstPtr}}
+\index{GetDataConstPtr@{GetDataConstPtr}!RVC::Image@{RVC::Image}}
+\doxysubsubsection{\texorpdfstring{GetDataConstPtr()}{GetDataConstPtr()}}
+{\footnotesize\ttfamily const unsigned char$\ast$ R\+V\+C\+::\+Image\+::\+Get\+Data\+Const\+Ptr (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get the Data Const Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object. 
+
+\begin{DoxyReturn}{Returns}
+const unsigned$\ast$ Data Ptr 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_a8e97cd6f8a0f86897e11611b2b912f60}\label{struct_r_v_c_1_1_image_a8e97cd6f8a0f86897e11611b2b912f60}} 
+\index{RVC::Image@{RVC::Image}!GetDataPtr@{GetDataPtr}}
+\index{GetDataPtr@{GetDataPtr}!RVC::Image@{RVC::Image}}
+\doxysubsubsection{\texorpdfstring{GetDataPtr()}{GetDataPtr()}}
+{\footnotesize\ttfamily unsigned char$\ast$ R\+V\+C\+::\+Image\+::\+Get\+Data\+Ptr (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get the Data Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object. 
+
+\begin{DoxyReturn}{Returns}
+unsigned$\ast$ Data Ptr 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_abe5c51321af14fddf954f741148a53f9}\label{struct_r_v_c_1_1_image_abe5c51321af14fddf954f741148a53f9}} 
+\index{RVC::Image@{RVC::Image}!GetSize@{GetSize}}
+\index{GetSize@{GetSize}!RVC::Image@{RVC::Image}}
+\doxysubsubsection{\texorpdfstring{GetSize()}{GetSize()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} R\+V\+C\+::\+Image\+::\+Get\+Size (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get the \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} object. 
+
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} A \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} object 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_a1f790c52286f79ff00a2323e6e1c151d}\label{struct_r_v_c_1_1_image_a1f790c52286f79ff00a2323e6e1c151d}} 
+\index{RVC::Image@{RVC::Image}!GetTimestamp@{GetTimestamp}}
+\index{GetTimestamp@{GetTimestamp}!RVC::Image@{RVC::Image}}
+\doxysubsubsection{\texorpdfstring{GetTimestamp()}{GetTimestamp()}}
+{\footnotesize\ttfamily uint64\+\_\+t R\+V\+C\+::\+Image\+::\+Get\+Timestamp (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Retrieves the timestamp of the \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}}. 
+
+Returns the timestamp value representing the acquisition time of the image data. The timestamp is measured in microseconds (us).
+
+\begin{DoxyReturn}{Returns}
+uint64\+\_\+t Timestamp value in microseconds (us) 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_a6c9b3da6bae0d446e29e8383a54b7d5f}\label{struct_r_v_c_1_1_image_a6c9b3da6bae0d446e29e8383a54b7d5f}} 
+\index{RVC::Image@{RVC::Image}!GetType@{GetType}}
+\index{GetType@{GetType}!RVC::Image@{RVC::Image}}
+\doxysubsubsection{\texorpdfstring{GetType()}{GetType()}}
+{\footnotesize\ttfamily Image\+Type\+::\+Enum R\+V\+C\+::\+Image\+::\+Get\+Type (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get the \mbox{\hyperlink{struct_r_v_c_1_1_image_type}{Image\+Type}} object. 
+
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_image_type}{Image\+Type}} \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} type 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_a66eb25ecf5ff0904c1b3954f491fa024}\label{struct_r_v_c_1_1_image_a66eb25ecf5ff0904c1b3954f491fa024}} 
+\index{RVC::Image@{RVC::Image}!IsValid@{IsValid}}
+\index{IsValid@{IsValid}!RVC::Image@{RVC::Image}}
+\doxysubsubsection{\texorpdfstring{IsValid()}{IsValid()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Image\+::\+Is\+Valid (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Check \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} obejct is Valid or not. 
+
+\begin{DoxyReturn}{Returns}
+true Valid 
+
+false Not valid 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_a0252adee2e031190a0526d6265070192}\label{struct_r_v_c_1_1_image_a0252adee2e031190a0526d6265070192}} 
+\index{RVC::Image@{RVC::Image}!SaveImage@{SaveImage}}
+\index{SaveImage@{SaveImage}!RVC::Image@{RVC::Image}}
+\doxysubsubsection{\texorpdfstring{SaveImage()}{SaveImage()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Image\+::\+Save\+Image (\begin{DoxyParamCaption}\item[{const char $\ast$}]{addr }\end{DoxyParamCaption}) const}
+
+
+
+Save \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} to file. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em address} & save address\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_a7fc4072b47f3e0f055c8f7eb840b545a}\label{struct_r_v_c_1_1_image_a7fc4072b47f3e0f055c8f7eb840b545a}} 
+\index{RVC::Image@{RVC::Image}!SetTimestamp@{SetTimestamp}}
+\index{SetTimestamp@{SetTimestamp}!RVC::Image@{RVC::Image}}
+\doxysubsubsection{\texorpdfstring{SetTimestamp()}{SetTimestamp()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Image\+::\+Set\+Timestamp (\begin{DoxyParamCaption}\item[{const uint64\+\_\+t}]{timestamp }\end{DoxyParamCaption})}
+
+
+
+Sets the timestamp for the \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}}. 
+
+Updates the timestamp value associated with the \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} data. The timestamp should represent the acquisition time of the image data and must be provided in microseconds (us).
+
+
+\begin{DoxyParams}{Parameters}
+{\em timestamp} & Timestamp value in microseconds (us) to be set \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+bool True if the timestamp was successfully set, false otherwise 
+\end{DoxyReturn}
+
+
+\doxysubsection{Member Data Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_image_a624bb0f5d2b47bef80814724b6de5cbe}\label{struct_r_v_c_1_1_image_a624bb0f5d2b47bef80814724b6de5cbe}} 
+\index{RVC::Image@{RVC::Image}!m\_handle@{m\_handle}}
+\index{m\_handle@{m\_handle}!RVC::Image@{RVC::Image}}
+\doxysubsubsection{\texorpdfstring{m\_handle}{m\_handle}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} R\+V\+C\+::\+Image\+::m\+\_\+handle}
+
+
+
+\mbox{\hyperlink{namespace_r_v_c}{R\+VC}} \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}}. 
+
+
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+R\+V\+C.\+h\end{DoxyCompactItemize}

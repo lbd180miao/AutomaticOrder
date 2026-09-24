@@ -1,0 +1,1254 @@
+\hypertarget{struct_r_v_c_1_1_x1}{}\doxysection{R\+VC\+::X1 Struct Reference}
+\label{struct_r_v_c_1_1_x1}\index{RVC::X1@{RVC::X1}}
+
+
+\mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} struct.  
+
+
+
+
+{\ttfamily \#include $<$R\+V\+C.\+h$>$}
+
+
+
+Collaboration diagram for R\+VC\+::X1\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=163pt]{struct_r_v_c_1_1_x1__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsection*{Classes}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_calculation_call_back_info}{Calculation\+Call\+Back\+Info}}
+\begin{DoxyCompactList}\small\item\em \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_calculation_call_back_info}{Calculation\+Call\+Back\+Info}}. \end{DoxyCompactList}\item 
+struct \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}}
+\begin{DoxyCompactList}\small\item\em Capture options. \end{DoxyCompactList}\item 
+struct \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_collection_call_back_info}{Collection\+Call\+Back\+Info}}
+\begin{DoxyCompactList}\small\item\em \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_collection_call_back_info}{Collection\+Call\+Back\+Info}}. \end{DoxyCompactList}\item 
+struct \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_custom_transform_options}{Custom\+Transform\+Options}}
+\begin{DoxyCompactList}\small\item\em Options when setting custom transformation. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Public Types}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a15559b21676efd7be330eef5ddf57a4e}\label{struct_r_v_c_1_1_x1_a15559b21676efd7be330eef5ddf57a4e}} 
+typedef void($\ast$ \mbox{\hyperlink{struct_r_v_c_1_1_x1_a15559b21676efd7be330eef5ddf57a4e}{Collection\+Call\+Back\+Ptr}}) (\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_collection_call_back_info}{X1\+::\+Collection\+Call\+Back\+Info}}, \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{X1\+::\+Capture\+Options}}, User\+Ptr)
+\begin{DoxyCompactList}\small\item\em \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} Call\+Back\+Ptr. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a7249ea17606ec035dc72a3bea6456fb5}\label{struct_r_v_c_1_1_x1_a7249ea17606ec035dc72a3bea6456fb5}} 
+typedef void($\ast$ {\bfseries Calculation\+Call\+Back\+Ptr}) (\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_calculation_call_back_info}{X1\+::\+Calculation\+Call\+Back\+Info}}, \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{X1\+::\+Capture\+Options}}, User\+Ptr)
+\end{DoxyCompactItemize}
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a0778b6acc2f1280ba9406e7df5ab7eeb}{Is\+Valid}} ()
+\begin{DoxyCompactList}\small\item\em Check \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} is valid or not before use \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}}. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a4bbe435b7e01b138938eec1fdadf4fea}{Open}} ()
+\begin{DoxyCompactList}\small\item\em Open \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} before you use it. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{struct_r_v_c_1_1_x1_a82aa695ab6115b84be69033dc424cb10}{Close}} ()
+\begin{DoxyCompactList}\small\item\em Close \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} after you Open it. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_aaa71348d88a10f38cfb547f1a22ab143}{Is\+Open}} ()
+\begin{DoxyCompactList}\small\item\em Check \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} is open or not. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a6f2138272c3c1bd939c27baa72de8864}{Is\+Physically\+Connected}} ()
+\begin{DoxyCompactList}\small\item\em Check \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} is physically connected or not. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ab99a0b13fb3bcb81383beb3f5f3c884f}{Open\+Protective\+Cover}} ()
+\begin{DoxyCompactList}\small\item\em Open Protective\+Cover. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ae5b2d86313591d549ee90b446bac5fc2}{Open\+Protective\+Cover\+Async}} ()
+\begin{DoxyCompactList}\small\item\em Open Protective\+Cover Async. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ab320dc86a58bb0d01b110527dfd485b6}{Close\+Protective\+Cover}} ()
+\begin{DoxyCompactList}\small\item\em Close Protective\+Cover. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_abc62f93739acc09f93fa87e3dcdae950}{Close\+Protective\+Cover\+Async}} ()
+\begin{DoxyCompactList}\small\item\em Close Protective\+Cover Async. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ae4e4e0d73bc483ff77c4024b4a0e5b38}{Reset\+Protective\+Cover}} ()
+\begin{DoxyCompactList}\small\item\em Reset Protective\+Cover. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a9a0ce0fe4598bc036cd433c68e97751d}{Get\+Protective\+Cover\+Status}} (\mbox{\hyperlink{namespace_r_v_c_ab8d0448e7d1243c2712167c6f3b8e189}{Protective\+Cover\+Status}} \&status)
+\begin{DoxyCompactList}\small\item\em Get Status of Protective\+Cover. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a37e2d0ddfe49a85b0350ea0f37d9b517}{Set\+Collection\+Call\+Back}} (\mbox{\hyperlink{struct_r_v_c_1_1_x1_a15559b21676efd7be330eef5ddf57a4e}{X1\+::\+Collection\+Call\+Back\+Ptr}} cb, User\+Ptr ctx)
+\begin{DoxyCompactList}\small\item\em Provide a callback to \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} system and it will be called when collection finished. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_acc61284cdaca2c6c84df0eaec0a51e81}{Set\+Calculation\+Call\+Back}} (X1\+::\+Calculation\+Call\+Back\+Ptr cb, User\+Ptr ctx)
+\begin{DoxyCompactList}\small\item\em Provide a callback to \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} system and it will be called when calculation finished. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a39c4c419f586e4996557cf34f63be89d}{Capture}} (const \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&opts)
+\begin{DoxyCompactList}\small\item\em Capture one point map and one image. This function will save capture options into camera. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_aa15a1aa3f47f77385d076d6ee3a2c3ba}{Capture}} ()
+\begin{DoxyCompactList}\small\item\em Capture one point map and one image. This function will load capture options from camera. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a779965020381ef47d330bb065537f673}{Capture2D}} (const \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&opts)
+\begin{DoxyCompactList}\small\item\em Capture one image. This function will save capture options into camera. You can use \mbox{\hyperlink{struct_r_v_c_1_1_x1_a74ad979ea18b50808de1fa09621a900f}{Get\+Image()}} to obtain 2D imgae. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ad564bd80c571cfb4834621bd49b48663}{Capture2D}} ()
+\begin{DoxyCompactList}\small\item\em Capture one image. This function will load capture options from camera. You can use \mbox{\hyperlink{struct_r_v_c_1_1_x1_a74ad979ea18b50808de1fa09621a900f}{Get\+Image()}} to obtain 2D imgae. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a99a48ef7eace67fe846d38078912b8cf}{Set\+Bandwidth}} (float percent)
+\begin{DoxyCompactList}\small\item\em Set the camera band width ratio. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a4ac4853a5185a433c2765e40951630eb}{Get\+Bandwidth}} (float \&percent)
+\begin{DoxyCompactList}\small\item\em Get the camera band width ratio. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a43ebfa76b2622a8da96433186c61a005}{Set\+Custom\+Transformation}} (const \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_custom_transform_options}{Custom\+Transform\+Options}} \&opts)
+\begin{DoxyCompactList}\small\item\em Set the Transformation of output point cloud. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_abb2aff6be33da41fda409bedc23ef330}{Get\+Custom\+Transformation}} (\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_custom_transform_options}{Custom\+Transform\+Options}} \&opts)
+\begin{DoxyCompactList}\small\item\em Get the Custom Transformation object. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a5f57afd0027775a211240b5fbc44eea3}{Save\+Encoded\+Images\+Data}} (const char $\ast$addr)
+\begin{DoxyCompactList}\small\item\em Save encoded map in txt. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} \mbox{\hyperlink{struct_r_v_c_1_1_x1_a74ad979ea18b50808de1fa09621a900f}{Get\+Image}} ()
+\begin{DoxyCompactList}\small\item\em Get the \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_x1_a89c2482583eb89f9206bc22b8c9a8cf8}{Get\+Depth\+Map}} ()
+\begin{DoxyCompactList}\small\item\em Get the \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} object. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_x1_a7353fec452ad86f65399e7175ba14a24}{Get\+Point\+Map}} ()
+\begin{DoxyCompactList}\small\item\em Get the Point Map object. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_confidence_map}{Confidence\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_x1_abcdab65b924be54ed1903f46cbb67891}{Get\+Confidence\+Map}} ()
+\begin{DoxyCompactList}\small\item\em Get the Confidence Map object. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a5df1516be24200816cb5a8568881663b}{Get\+Extrinsic\+Matrix}} (float $\ast$matrix)
+\begin{DoxyCompactList}\small\item\em Get the extrinsic matrix (transformation from calibration board to specified camera) \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ad027c5a69eecb314449b59dbc3ef5531}{Get\+Intrinsic\+Parameters}} (float $\ast$instrinsic\+\_\+matrix, float $\ast$distortion)
+\begin{DoxyCompactList}\small\item\em Get intrinsic and distortion parameters. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a9879179ef1968206ed3c49668992c1fc}{Get\+Projector\+Temperature}} (float \&temperature)
+\begin{DoxyCompactList}\small\item\em Get\+Projector\+Temperature. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a9b568d26822935305d8e5394c37f6137}{Get\+Camera\+Temperature}} (Camera\+Temp\+Selector seletor, float \&temperature)
+\begin{DoxyCompactList}\small\item\em Get\+Camera\+Temperature. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ac47d8be7bd2fcdc2675d0feb741eb9e5}{Set\+Balance\+Ratio}} (\mbox{\hyperlink{namespace_r_v_c_acc724bf6da9945fde211755c84922400}{Balance\+Selector}} selector, float value)
+\begin{DoxyCompactList}\small\item\em Set the white balance ratio value. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ae55cd46227118038b53d6c2b743ae3a0}{Get\+Balance\+Ratio}} (\mbox{\hyperlink{namespace_r_v_c_acc724bf6da9945fde211755c84922400}{Balance\+Selector}} selector, float $\ast$value)
+\begin{DoxyCompactList}\small\item\em Get the white balance ratio value. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_acb1492bb8453b303957f2003d5c522ed}{Get\+Balance\+Range}} (\mbox{\hyperlink{namespace_r_v_c_acc724bf6da9945fde211755c84922400}{Balance\+Selector}} selector, float $\ast$min\+\_\+value, float $\ast$max\+\_\+value)
+\begin{DoxyCompactList}\small\item\em Get the white balance ratio value range. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ab046405c3c27f3502572684dc1547990}{Auto\+White\+Balance}} (int wb\+\_\+times=10, const \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&opts=\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}}(), const \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+V\+C\+::\+R\+OI}} \&roi=\mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+V\+C\+::\+R\+OI}}())
+\begin{DoxyCompactList}\small\item\em Only Color Camera can use this function. This function can get suitable white balance paramters. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a8bc126739e79ea37427ac5c56d06984c}{Get\+Exposure\+Time\+Range}} (int $\ast$min\+\_\+value, int $\ast$max\+\_\+value)
+\begin{DoxyCompactList}\small\item\em Get the Exposure Time Range. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a8d62ba173cd5d8974be3eeae7eb2a727}{Get\+Gain\+Range}} (float $\ast$min\+\_\+value, float $\ast$max\+\_\+value)
+\begin{DoxyCompactList}\small\item\em Get the Gain Range. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_abf0933040aa80225a18c981dc0b6321a}{Get\+Gamma\+Range}} (float $\ast$min\+\_\+value, float $\ast$max\+\_\+value)
+\begin{DoxyCompactList}\small\item\em Get the Gamma Range. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ab4c167dee6985f140e702be2fca33a1e}{Save\+Capture\+Option\+Parameters}} (const \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{X1\+::\+Capture\+Options}} \&opts)
+\begin{DoxyCompactList}\small\item\em Save capture option parameters. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_aa1f35cdec05e6937e6294f1e29944a89}{Load\+Capture\+Option\+Parameters}} (\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{X1\+::\+Capture\+Options}} \&opts)
+\begin{DoxyCompactList}\small\item\em Get capture option parameters. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a7df65ec4e9546bb3ea12a0844c325a8b}{Get\+Auto\+Capture\+Setting}} (\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&opts, const \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} \&roi=\mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}())
+\begin{DoxyCompactList}\small\item\em Get auto capture setting. Exposure\+\_\+time\+\_\+2d, exposure\+\_\+time\+\_\+3d, projector\+\_\+brightness, light\+\_\+contrast\+\_\+threshold will be adjusted automatically. automatically. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ab9e750359005a9c445e28c43552e6d16}{Get\+Auto\+Hdr\+Capture\+Setting}} (\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&opts, const \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} \&roi)
+\begin{DoxyCompactList}\small\item\em adjust 3D capturing parameters \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a679194015fca33c27a6b1437727ca8dd}{Get\+Auto\+Noise\+Removal\+Setting}} (\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&opts)
+\begin{DoxyCompactList}\small\item\em Automatically calculates and applies the optimal point cloud noise removal parameters. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_aa263c7ef083230e11ef10d08ee99500b}{Load\+Setting\+From\+File}} (const char $\ast$filename)
+\begin{DoxyCompactList}\small\item\em Load camera setting from local file . \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ad014050e79fd19d0c5254d990fc126f0}{Save\+Setting\+To\+File}} (const char $\ast$filename)
+\begin{DoxyCompactList}\small\item\em Save camera setting to local file. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_add1e7b845285676e168d43ba9dd890a8}{Check\+Roi}} (\mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} roi)
+\begin{DoxyCompactList}\small\item\em Check whether the parameters of \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} comply with the rules of \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}}. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} \mbox{\hyperlink{struct_r_v_c_1_1_x1_a02359f78d65cdb284d55caa2acac77a8}{Auto\+Adjust\+Roi}} (\mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} roi=\mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}())
+\begin{DoxyCompactList}\small\item\em Automatically correct the parameters of \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}. You need to correct \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} before Capture/\+Captrue2D. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_aca2d62bff45b948fc10353bf5326c296}\label{struct_r_v_c_1_1_x1_aca2d62bff45b948fc10353bf5326c296}} 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_aca2d62bff45b948fc10353bf5326c296}{Get\+Roi\+Range}} (\mbox{\hyperlink{struct_r_v_c_1_1_r_o_i_range}{R\+O\+I\+Range}} \&range)
+\begin{DoxyCompactList}\small\item\em Get the range of \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_adc591e2106d574d032ded60a9b8b3b94}{Get\+Camera\+Resolution}} (\mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} \&resolution)
+\begin{DoxyCompactList}\small\item\em Get Camera Resolution. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ac71dbeea3ece541f5638e1c2c12e3977}{Get\+Auto2\+D\+Exposure\+Time}} (\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&opts, const \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} \&roi=\mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}())
+\begin{DoxyCompactList}\small\item\em Get auto 2d exposure time automatically. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_mesh}{Mesh}} \mbox{\hyperlink{struct_r_v_c_1_1_x1_a46e10c018dabc06b87c39ba82484cde7}{Get\+Mesh}} ()
+\begin{DoxyCompactList}\small\item\em Get the \mbox{\hyperlink{struct_r_v_c_1_1_mesh}{Mesh}} object. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a94b78b24bf383931dd9391547b518457}{Set\+Current\+User\+Set}} (const int \&id)
+\begin{DoxyCompactList}\small\item\em Set Current User Set by id. The user can utilize a total of 10 parameters groups to quickly adjust camera settings for different 3d imaging scenarios. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_ae669db91f88c9878bd64d110eda47bc3}{Get\+Current\+User\+Set}} (int \&id)
+\begin{DoxyCompactList}\small\item\em Get Current User Set\textquotesingle{}s id. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a6cfc4d80124ee3108aa23c5085f4dce6}{Set\+User\+Set\+Name}} (const int \&id, const char $\ast$name)
+\begin{DoxyCompactList}\small\item\em Set User Set\textquotesingle{}s name with id. The user can briefly describe the usage scenario of this parameters groups by using a name. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_x1_a7b6f29a20a7746bc8886b3a55bcbd928}{Get\+User\+Set\+Name}} (const int \&id, char $\ast$name)
+\begin{DoxyCompactList}\small\item\em Get Current User Set\textquotesingle{}s name with id. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+static \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} \mbox{\hyperlink{struct_r_v_c_1_1_x1_a65084b6120a5dde2cfdda7f63a509339}{Create}} (const \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} \&d, enum \mbox{\hyperlink{namespace_r_v_c_adf5057625a1487c09643b07ec5578e78}{Camera\+ID}} camid=Camera\+I\+D\+\_\+\+Left)
+\begin{DoxyCompactList}\small\item\em Create a \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} X Camera and choose the Camera\+ID which you desire before you use \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}}. \end{DoxyCompactList}\item 
+static void \mbox{\hyperlink{struct_r_v_c_1_1_x1_a92e6808e2b266f827c1079b677589adb}{Destroy}} (\mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} \&x)
+\begin{DoxyCompactList}\small\item\em Release all \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} resources after you use \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}}. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} \mbox{\hyperlink{struct_r_v_c_1_1_x1_a9a740d17f222965e114ed4710bf3bc91}{m\+\_\+handle}}
+\begin{DoxyCompactList}\small\item\em \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}}. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+\mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} struct. 
+
+
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a02359f78d65cdb284d55caa2acac77a8}\label{struct_r_v_c_1_1_x1_a02359f78d65cdb284d55caa2acac77a8}} 
+\index{RVC::X1@{RVC::X1}!AutoAdjustRoi@{AutoAdjustRoi}}
+\index{AutoAdjustRoi@{AutoAdjustRoi}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{AutoAdjustRoi()}{AutoAdjustRoi()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} R\+V\+C\+::\+X1\+::\+Auto\+Adjust\+Roi (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}}]{roi = {\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}()} }\end{DoxyParamCaption})}
+
+
+
+Automatically correct the parameters of \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}. You need to correct \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} before Capture/\+Captrue2D. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em roi} & \mbox{[}in\mbox{]} If you want to get a maximum \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}, you can pass in the default value. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} Corrected \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ab046405c3c27f3502572684dc1547990}\label{struct_r_v_c_1_1_x1_ab046405c3c27f3502572684dc1547990}} 
+\index{RVC::X1@{RVC::X1}!AutoWhiteBalance@{AutoWhiteBalance}}
+\index{AutoWhiteBalance@{AutoWhiteBalance}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{AutoWhiteBalance()}{AutoWhiteBalance()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Auto\+White\+Balance (\begin{DoxyParamCaption}\item[{int}]{wb\+\_\+times = {\ttfamily 10},  }\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&}]{opts = {\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}}()},  }\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+V\+C\+::\+R\+OI}} \&}]{roi = {\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+V\+C\+::\+R\+OI}}()} }\end{DoxyParamCaption})}
+
+
+
+Only Color Camera can use this function. This function can get suitable white balance paramters. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em wb\+\_\+times} & how many images used for calculate the white balance paramters \\
+\hline
+{\em opts} & capture options. exposure\+\_\+time\+\_\+2d, gain\+\_\+2d, gamma\+\_\+2d will be used. use\+\_\+projector\+\_\+capturing\+\_\+2d\+\_\+image == true, brightness will be used too. \\
+\hline
+{\em roi} & auto white balance will be operated here \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_aa15a1aa3f47f77385d076d6ee3a2c3ba}\label{struct_r_v_c_1_1_x1_aa15a1aa3f47f77385d076d6ee3a2c3ba}} 
+\index{RVC::X1@{RVC::X1}!Capture@{Capture}}
+\index{Capture@{Capture}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{Capture()}{Capture()}\hspace{0.1cm}{\footnotesize\ttfamily [1/2]}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Capture (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Capture one point map and one image. This function will load capture options from camera. 
+
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a39c4c419f586e4996557cf34f63be89d}\label{struct_r_v_c_1_1_x1_a39c4c419f586e4996557cf34f63be89d}} 
+\index{RVC::X1@{RVC::X1}!Capture@{Capture}}
+\index{Capture@{Capture}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{Capture()}{Capture()}\hspace{0.1cm}{\footnotesize\ttfamily [2/2]}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Capture (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&}]{opts }\end{DoxyParamCaption})}
+
+
+
+Capture one point map and one image. This function will save capture options into camera. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em opts} & \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed
+\end{DoxyReturn}
+
+\begin{DoxyCodeInclude}{0}
+\end{DoxyCodeInclude}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ad564bd80c571cfb4834621bd49b48663}\label{struct_r_v_c_1_1_x1_ad564bd80c571cfb4834621bd49b48663}} 
+\index{RVC::X1@{RVC::X1}!Capture2D@{Capture2D}}
+\index{Capture2D@{Capture2D}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{Capture2D()}{Capture2D()}\hspace{0.1cm}{\footnotesize\ttfamily [1/2]}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Capture2D (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Capture one image. This function will load capture options from camera. You can use \mbox{\hyperlink{struct_r_v_c_1_1_x1_a74ad979ea18b50808de1fa09621a900f}{Get\+Image()}} to obtain 2D imgae. 
+
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a779965020381ef47d330bb065537f673}\label{struct_r_v_c_1_1_x1_a779965020381ef47d330bb065537f673}} 
+\index{RVC::X1@{RVC::X1}!Capture2D@{Capture2D}}
+\index{Capture2D@{Capture2D}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{Capture2D()}{Capture2D()}\hspace{0.1cm}{\footnotesize\ttfamily [2/2]}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Capture2D (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&}]{opts }\end{DoxyParamCaption})}
+
+
+
+Capture one image. This function will save capture options into camera. You can use \mbox{\hyperlink{struct_r_v_c_1_1_x1_a74ad979ea18b50808de1fa09621a900f}{Get\+Image()}} to obtain 2D imgae. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em opts} & \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_add1e7b845285676e168d43ba9dd890a8}\label{struct_r_v_c_1_1_x1_add1e7b845285676e168d43ba9dd890a8}} 
+\index{RVC::X1@{RVC::X1}!CheckRoi@{CheckRoi}}
+\index{CheckRoi@{CheckRoi}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{CheckRoi()}{CheckRoi()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Check\+Roi (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}}]{roi }\end{DoxyParamCaption})}
+
+
+
+Check whether the parameters of \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} comply with the rules of \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}}. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em roi} & \mbox{[}in\mbox{]} . \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a82aa695ab6115b84be69033dc424cb10}\label{struct_r_v_c_1_1_x1_a82aa695ab6115b84be69033dc424cb10}} 
+\index{RVC::X1@{RVC::X1}!Close@{Close}}
+\index{Close@{Close}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{Close()}{Close()}}
+{\footnotesize\ttfamily void R\+V\+C\+::\+X1\+::\+Close (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Close \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} after you Open it. 
+
+
+\begin{DoxyCodeInclude}{0}
+\end{DoxyCodeInclude}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ab320dc86a58bb0d01b110527dfd485b6}\label{struct_r_v_c_1_1_x1_ab320dc86a58bb0d01b110527dfd485b6}} 
+\index{RVC::X1@{RVC::X1}!CloseProtectiveCover@{CloseProtectiveCover}}
+\index{CloseProtectiveCover@{CloseProtectiveCover}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{CloseProtectiveCover()}{CloseProtectiveCover()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Close\+Protective\+Cover (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Close Protective\+Cover. 
+
+\begin{DoxyReturn}{Returns}
+true if success 
+
+false if failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_abc62f93739acc09f93fa87e3dcdae950}\label{struct_r_v_c_1_1_x1_abc62f93739acc09f93fa87e3dcdae950}} 
+\index{RVC::X1@{RVC::X1}!CloseProtectiveCoverAsync@{CloseProtectiveCoverAsync}}
+\index{CloseProtectiveCoverAsync@{CloseProtectiveCoverAsync}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{CloseProtectiveCoverAsync()}{CloseProtectiveCoverAsync()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Close\+Protective\+Cover\+Async (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Close Protective\+Cover Async. 
+
+\begin{DoxyReturn}{Returns}
+true if success 
+
+false if failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a65084b6120a5dde2cfdda7f63a509339}\label{struct_r_v_c_1_1_x1_a65084b6120a5dde2cfdda7f63a509339}} 
+\index{RVC::X1@{RVC::X1}!Create@{Create}}
+\index{Create@{Create}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{Create()}{Create()}}
+{\footnotesize\ttfamily static \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} R\+V\+C\+::\+X1\+::\+Create (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_device}{Device}} \&}]{d,  }\item[{enum \mbox{\hyperlink{namespace_r_v_c_adf5057625a1487c09643b07ec5578e78}{Camera\+ID}}}]{camid = {\ttfamily CameraID\+\_\+Left} }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Create a \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} X Camera and choose the Camera\+ID which you desire before you use \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}}. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em d} & One \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} X Camera \\
+\hline
+{\em camid} & Choose {\itshape Camera\+I\+D\+\_\+\+Left} or {\itshape Camera\+I\+D\+\_\+\+Left} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} X object
+\end{DoxyReturn}
+
+\begin{DoxyCodeInclude}{0}
+\end{DoxyCodeInclude}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a92e6808e2b266f827c1079b677589adb}\label{struct_r_v_c_1_1_x1_a92e6808e2b266f827c1079b677589adb}} 
+\index{RVC::X1@{RVC::X1}!Destroy@{Destroy}}
+\index{Destroy@{Destroy}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{Destroy()}{Destroy()}}
+{\footnotesize\ttfamily static void R\+V\+C\+::\+X1\+::\+Destroy (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} \&}]{x }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Release all \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} resources after you use \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}}. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em x} & \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} X object to be released\\
+\hline
+\end{DoxyParams}
+
+\begin{DoxyCodeInclude}{0}
+\end{DoxyCodeInclude}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ac71dbeea3ece541f5638e1c2c12e3977}\label{struct_r_v_c_1_1_x1_ac71dbeea3ece541f5638e1c2c12e3977}} 
+\index{RVC::X1@{RVC::X1}!GetAuto2DExposureTime@{GetAuto2DExposureTime}}
+\index{GetAuto2DExposureTime@{GetAuto2DExposureTime}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetAuto2DExposureTime()}{GetAuto2DExposureTime()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Auto2\+D\+Exposure\+Time (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&}]{opts,  }\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} \&}]{roi = {\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}()} }\end{DoxyParamCaption})}
+
+
+
+Get auto 2d exposure time automatically. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em opts} & \mbox{[}in\mbox{]} \\
+\hline
+{\em roi} & \mbox{[}in\mbox{]} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a7df65ec4e9546bb3ea12a0844c325a8b}\label{struct_r_v_c_1_1_x1_a7df65ec4e9546bb3ea12a0844c325a8b}} 
+\index{RVC::X1@{RVC::X1}!GetAutoCaptureSetting@{GetAutoCaptureSetting}}
+\index{GetAutoCaptureSetting@{GetAutoCaptureSetting}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetAutoCaptureSetting()}{GetAutoCaptureSetting()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Auto\+Capture\+Setting (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&}]{opts,  }\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} \&}]{roi = {\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}}()} }\end{DoxyParamCaption})}
+
+
+
+Get auto capture setting. Exposure\+\_\+time\+\_\+2d, exposure\+\_\+time\+\_\+3d, projector\+\_\+brightness, light\+\_\+contrast\+\_\+threshold will be adjusted automatically. automatically. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em opts} & \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ab9e750359005a9c445e28c43552e6d16}\label{struct_r_v_c_1_1_x1_ab9e750359005a9c445e28c43552e6d16}} 
+\index{RVC::X1@{RVC::X1}!GetAutoHdrCaptureSetting@{GetAutoHdrCaptureSetting}}
+\index{GetAutoHdrCaptureSetting@{GetAutoHdrCaptureSetting}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetAutoHdrCaptureSetting()}{GetAutoHdrCaptureSetting()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Auto\+Hdr\+Capture\+Setting (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&}]{opts,  }\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_r_o_i}{R\+OI}} \&}]{roi }\end{DoxyParamCaption})}
+
+
+
+adjust 3D capturing parameters 
+
+
+\begin{DoxyParams}{Parameters}
+{\em opts} & \mbox{[}in,out\mbox{]} capture options. if hdr\+\_\+exposure\+\_\+times $>$ 1, hdr\+\_\+exposure\+\_\+times and hdr\+\_\+exposuretime\+\_\+content will be adjusted. If hdr\+\_\+exposure\+\_\+times equals to 1, exposure\+\_\+time\+\_\+3d will be adjusted. \\
+\hline
+{\em roi} & \mbox{[}in\mbox{]} if width or height equal to 0, all image will be used. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a679194015fca33c27a6b1437727ca8dd}\label{struct_r_v_c_1_1_x1_a679194015fca33c27a6b1437727ca8dd}} 
+\index{RVC::X1@{RVC::X1}!GetAutoNoiseRemovalSetting@{GetAutoNoiseRemovalSetting}}
+\index{GetAutoNoiseRemovalSetting@{GetAutoNoiseRemovalSetting}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetAutoNoiseRemovalSetting()}{GetAutoNoiseRemovalSetting()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Auto\+Noise\+Removal\+Setting (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \&}]{opts }\end{DoxyParamCaption})}
+
+
+
+Automatically calculates and applies the optimal point cloud noise removal parameters. 
+
+W\+A\+R\+N\+I\+NG\+: This is a time-\/consuming operation as it triggers actual camera captures. This function evaluates the current scene to determine the best cluster-\/based noise removal settings and applies them to the current point cloud.
+
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in,out}}  & {\em opts} & Capture options. Upon successful execution, the following parameters inside this struct will be modified and overwritten\+:
+\begin{DoxyItemize}
+\item {\ttfamily opts.\+noise\+\_\+removal\+\_\+distance}
+\item {\ttfamily opts.\+noise\+\_\+removal\+\_\+point\+\_\+number} 
+\end{DoxyItemize}\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true The automatic noise removal parameters were successfully calculated and applied. 
+
+false The operation failed (e.\+g., camera not ready or capture failed). 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_acb1492bb8453b303957f2003d5c522ed}\label{struct_r_v_c_1_1_x1_acb1492bb8453b303957f2003d5c522ed}} 
+\index{RVC::X1@{RVC::X1}!GetBalanceRange@{GetBalanceRange}}
+\index{GetBalanceRange@{GetBalanceRange}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetBalanceRange()}{GetBalanceRange()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Balance\+Range (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{namespace_r_v_c_acc724bf6da9945fde211755c84922400}{Balance\+Selector}}}]{selector,  }\item[{float $\ast$}]{min\+\_\+value,  }\item[{float $\ast$}]{max\+\_\+value }\end{DoxyParamCaption})}
+
+
+
+Get the white balance ratio value range. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em selector} & support Balance\+Selector\+\_\+\+Red, Balance\+Selector\+\_\+\+Green and Balance\+Selector\+\_\+\+Blue \\
+\hline
+{\em min\+\_\+value} & selector\textquotesingle{}s minimum value \\
+\hline
+{\em max\+\_\+value} & selector\textquotesingle{}s maximum value \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ae55cd46227118038b53d6c2b743ae3a0}\label{struct_r_v_c_1_1_x1_ae55cd46227118038b53d6c2b743ae3a0}} 
+\index{RVC::X1@{RVC::X1}!GetBalanceRatio@{GetBalanceRatio}}
+\index{GetBalanceRatio@{GetBalanceRatio}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetBalanceRatio()}{GetBalanceRatio()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Balance\+Ratio (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{namespace_r_v_c_acc724bf6da9945fde211755c84922400}{Balance\+Selector}}}]{selector,  }\item[{float $\ast$}]{value }\end{DoxyParamCaption})}
+
+
+
+Get the white balance ratio value. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em selector} & support Balance\+Selector\+\_\+\+Red, Balance\+Selector\+\_\+\+Green and Balance\+Selector\+\_\+\+Blue \\
+\hline
+{\em value} & balance ratio value \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a4ac4853a5185a433c2765e40951630eb}\label{struct_r_v_c_1_1_x1_a4ac4853a5185a433c2765e40951630eb}} 
+\index{RVC::X1@{RVC::X1}!GetBandwidth@{GetBandwidth}}
+\index{GetBandwidth@{GetBandwidth}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetBandwidth()}{GetBandwidth()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Bandwidth (\begin{DoxyParamCaption}\item[{float \&}]{percent }\end{DoxyParamCaption})}
+
+
+
+Get the camera band width ratio. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em percent} & Band width ratio \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_adc591e2106d574d032ded60a9b8b3b94}\label{struct_r_v_c_1_1_x1_adc591e2106d574d032ded60a9b8b3b94}} 
+\index{RVC::X1@{RVC::X1}!GetCameraResolution@{GetCameraResolution}}
+\index{GetCameraResolution@{GetCameraResolution}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetCameraResolution()}{GetCameraResolution()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Camera\+Resolution (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} \&}]{resolution }\end{DoxyParamCaption})}
+
+
+
+Get Camera Resolution. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em resolution} & \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a9b568d26822935305d8e5394c37f6137}\label{struct_r_v_c_1_1_x1_a9b568d26822935305d8e5394c37f6137}} 
+\index{RVC::X1@{RVC::X1}!GetCameraTemperature@{GetCameraTemperature}}
+\index{GetCameraTemperature@{GetCameraTemperature}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetCameraTemperature()}{GetCameraTemperature()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Camera\+Temperature (\begin{DoxyParamCaption}\item[{Camera\+Temp\+Selector}]{seletor,  }\item[{float \&}]{temperature }\end{DoxyParamCaption})}
+
+
+
+Get\+Camera\+Temperature. 
+
+\begin{DoxyNote}{Note}
+T\+O\+DO\+: 
+\end{DoxyNote}
+
+\begin{DoxyParams}{Parameters}
+{\em seletor} & \\
+\hline
+{\em \&temperature} & \\
+\hline
+\end{DoxyParams}
+
+\begin{DoxyRetVals}{Return values}
+{\em } & \\
+\hline
+\end{DoxyRetVals}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_abcdab65b924be54ed1903f46cbb67891}\label{struct_r_v_c_1_1_x1_abcdab65b924be54ed1903f46cbb67891}} 
+\index{RVC::X1@{RVC::X1}!GetConfidenceMap@{GetConfidenceMap}}
+\index{GetConfidenceMap@{GetConfidenceMap}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetConfidenceMap()}{GetConfidenceMap()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_confidence_map}{Confidence\+Map}} R\+V\+C\+::\+X1\+::\+Get\+Confidence\+Map (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the Confidence Map object. 
+
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_confidence_map}{Confidence\+Map}} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ae669db91f88c9878bd64d110eda47bc3}\label{struct_r_v_c_1_1_x1_ae669db91f88c9878bd64d110eda47bc3}} 
+\index{RVC::X1@{RVC::X1}!GetCurrentUserSet@{GetCurrentUserSet}}
+\index{GetCurrentUserSet@{GetCurrentUserSet}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetCurrentUserSet()}{GetCurrentUserSet()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Current\+User\+Set (\begin{DoxyParamCaption}\item[{int \&}]{id }\end{DoxyParamCaption})}
+
+
+
+Get Current User Set\textquotesingle{}s id. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em id} & \mbox{[}out\mbox{]} 0$\sim$9 \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_abb2aff6be33da41fda409bedc23ef330}\label{struct_r_v_c_1_1_x1_abb2aff6be33da41fda409bedc23ef330}} 
+\index{RVC::X1@{RVC::X1}!GetCustomTransformation@{GetCustomTransformation}}
+\index{GetCustomTransformation@{GetCustomTransformation}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetCustomTransformation()}{GetCustomTransformation()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Custom\+Transformation (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_custom_transform_options}{Custom\+Transform\+Options}} \&}]{opts }\end{DoxyParamCaption})}
+
+
+
+Get the Custom Transformation object. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em opts} & \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a89c2482583eb89f9206bc22b8c9a8cf8}\label{struct_r_v_c_1_1_x1_a89c2482583eb89f9206bc22b8c9a8cf8}} 
+\index{RVC::X1@{RVC::X1}!GetDepthMap@{GetDepthMap}}
+\index{GetDepthMap@{GetDepthMap}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetDepthMap()}{GetDepthMap()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} R\+V\+C\+::\+X1\+::\+Get\+Depth\+Map (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} object. 
+
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} A \mbox{\hyperlink{struct_r_v_c_1_1_depth_map}{Depth\+Map}} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a8bc126739e79ea37427ac5c56d06984c}\label{struct_r_v_c_1_1_x1_a8bc126739e79ea37427ac5c56d06984c}} 
+\index{RVC::X1@{RVC::X1}!GetExposureTimeRange@{GetExposureTimeRange}}
+\index{GetExposureTimeRange@{GetExposureTimeRange}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetExposureTimeRange()}{GetExposureTimeRange()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Exposure\+Time\+Range (\begin{DoxyParamCaption}\item[{int $\ast$}]{min\+\_\+value,  }\item[{int $\ast$}]{max\+\_\+value }\end{DoxyParamCaption})}
+
+
+
+Get the Exposure Time Range. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em min\+\_\+value} & exposure time minimum value \\
+\hline
+{\em max\+\_\+value} & exposure time maxinum value \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a5df1516be24200816cb5a8568881663b}\label{struct_r_v_c_1_1_x1_a5df1516be24200816cb5a8568881663b}} 
+\index{RVC::X1@{RVC::X1}!GetExtrinsicMatrix@{GetExtrinsicMatrix}}
+\index{GetExtrinsicMatrix@{GetExtrinsicMatrix}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetExtrinsicMatrix()}{GetExtrinsicMatrix()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Extrinsic\+Matrix (\begin{DoxyParamCaption}\item[{float $\ast$}]{matrix }\end{DoxyParamCaption})}
+
+
+
+Get the extrinsic matrix (transformation from calibration board to specified camera) 
+
+
+\begin{DoxyParams}{Parameters}
+{\em matrix} & \mbox{[}out\mbox{]} 4x4 transformation matrix stored as a 16-\/element array in row-\/major order. The matrix represents the transformation from the calibration board coordinate system to the specified camera coordinate system. Format\+: \mbox{[}R11, R12, R13, T1, R21, R22, R23, T2, R31, R32, R33, T3, 0, 0, 0, 1\mbox{]} Where R is the 3x3 rotation matrix and T is the 3x1 translation vector. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a8d62ba173cd5d8974be3eeae7eb2a727}\label{struct_r_v_c_1_1_x1_a8d62ba173cd5d8974be3eeae7eb2a727}} 
+\index{RVC::X1@{RVC::X1}!GetGainRange@{GetGainRange}}
+\index{GetGainRange@{GetGainRange}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetGainRange()}{GetGainRange()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Gain\+Range (\begin{DoxyParamCaption}\item[{float $\ast$}]{min\+\_\+value,  }\item[{float $\ast$}]{max\+\_\+value }\end{DoxyParamCaption})}
+
+
+
+Get the Gain Range. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em min\+\_\+value} & gain minimum value \\
+\hline
+{\em max\+\_\+value} & gain minimum value \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_abf0933040aa80225a18c981dc0b6321a}\label{struct_r_v_c_1_1_x1_abf0933040aa80225a18c981dc0b6321a}} 
+\index{RVC::X1@{RVC::X1}!GetGammaRange@{GetGammaRange}}
+\index{GetGammaRange@{GetGammaRange}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetGammaRange()}{GetGammaRange()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Gamma\+Range (\begin{DoxyParamCaption}\item[{float $\ast$}]{min\+\_\+value,  }\item[{float $\ast$}]{max\+\_\+value }\end{DoxyParamCaption})}
+
+
+
+Get the Gamma Range. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em min\+\_\+value} & gamma minimum value \\
+\hline
+{\em max\+\_\+value} & gamma minimum value \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a74ad979ea18b50808de1fa09621a900f}\label{struct_r_v_c_1_1_x1_a74ad979ea18b50808de1fa09621a900f}} 
+\index{RVC::X1@{RVC::X1}!GetImage@{GetImage}}
+\index{GetImage@{GetImage}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetImage()}{GetImage()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} R\+V\+C\+::\+X1\+::\+Get\+Image (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} object. 
+
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ad027c5a69eecb314449b59dbc3ef5531}\label{struct_r_v_c_1_1_x1_ad027c5a69eecb314449b59dbc3ef5531}} 
+\index{RVC::X1@{RVC::X1}!GetIntrinsicParameters@{GetIntrinsicParameters}}
+\index{GetIntrinsicParameters@{GetIntrinsicParameters}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetIntrinsicParameters()}{GetIntrinsicParameters()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Intrinsic\+Parameters (\begin{DoxyParamCaption}\item[{float $\ast$}]{instrinsic\+\_\+matrix,  }\item[{float $\ast$}]{distortion }\end{DoxyParamCaption})}
+
+
+
+Get intrinsic and distortion parameters. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em instrinsic\+Matrix} & \mbox{[}out\mbox{]} Output intrinsic matrix. This is a 9-\/element array storing a 3x3 matrix in row-\/major order\+: \mbox{[}fx, 0, cx, 0, fy, cy, 0, 0, 1\mbox{]}
+\begin{DoxyItemize}
+\item fx, fy\+: Focal lengths in x and y directions (in pixels)
+\item cx, cy\+: Principal point coordinates (in pixels) 
+\end{DoxyItemize}\\
+\hline
+{\em distortion} & \mbox{[}out\mbox{]} Output distortion coefficients. This is a 5-\/element array containing\+: \mbox{[}k1, k2, k3, p1, p2\mbox{]}
+\begin{DoxyItemize}
+\item k1, k2, k3\+: Radial distortion coefficients
+\item p1, p2\+: Tangential distortion coefficients Note\+: This order is different from Open\+CV\textquotesingle{}s default order (k1,k2,p1,p2,k3). 
+\end{DoxyItemize}\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true if successful 
+
+false if failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a46e10c018dabc06b87c39ba82484cde7}\label{struct_r_v_c_1_1_x1_a46e10c018dabc06b87c39ba82484cde7}} 
+\index{RVC::X1@{RVC::X1}!GetMesh@{GetMesh}}
+\index{GetMesh@{GetMesh}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetMesh()}{GetMesh()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_mesh}{Mesh}} R\+V\+C\+::\+X1\+::\+Get\+Mesh (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the \mbox{\hyperlink{struct_r_v_c_1_1_mesh}{Mesh}} object. 
+
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_mesh}{Mesh}} A \mbox{\hyperlink{struct_r_v_c_1_1_mesh}{Mesh}} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a7353fec452ad86f65399e7175ba14a24}\label{struct_r_v_c_1_1_x1_a7353fec452ad86f65399e7175ba14a24}} 
+\index{RVC::X1@{RVC::X1}!GetPointMap@{GetPointMap}}
+\index{GetPointMap@{GetPointMap}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetPointMap()}{GetPointMap()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} R\+V\+C\+::\+X1\+::\+Get\+Point\+Map (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the Point Map object. 
+
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a9879179ef1968206ed3c49668992c1fc}\label{struct_r_v_c_1_1_x1_a9879179ef1968206ed3c49668992c1fc}} 
+\index{RVC::X1@{RVC::X1}!GetProjectorTemperature@{GetProjectorTemperature}}
+\index{GetProjectorTemperature@{GetProjectorTemperature}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetProjectorTemperature()}{GetProjectorTemperature()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Projector\+Temperature (\begin{DoxyParamCaption}\item[{float \&}]{temperature }\end{DoxyParamCaption})}
+
+
+
+Get\+Projector\+Temperature. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em \&temperature} & \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a9a0ce0fe4598bc036cd433c68e97751d}\label{struct_r_v_c_1_1_x1_a9a0ce0fe4598bc036cd433c68e97751d}} 
+\index{RVC::X1@{RVC::X1}!GetProtectiveCoverStatus@{GetProtectiveCoverStatus}}
+\index{GetProtectiveCoverStatus@{GetProtectiveCoverStatus}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetProtectiveCoverStatus()}{GetProtectiveCoverStatus()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+Protective\+Cover\+Status (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{namespace_r_v_c_ab8d0448e7d1243c2712167c6f3b8e189}{Protective\+Cover\+Status}} \&}]{status }\end{DoxyParamCaption})}
+
+
+
+Get Status of Protective\+Cover. 
+
+\begin{DoxyReturn}{Returns}
+Protective\+Cover\+Status 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a7b6f29a20a7746bc8886b3a55bcbd928}\label{struct_r_v_c_1_1_x1_a7b6f29a20a7746bc8886b3a55bcbd928}} 
+\index{RVC::X1@{RVC::X1}!GetUserSetName@{GetUserSetName}}
+\index{GetUserSetName@{GetUserSetName}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{GetUserSetName()}{GetUserSetName()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Get\+User\+Set\+Name (\begin{DoxyParamCaption}\item[{const int \&}]{id,  }\item[{char $\ast$}]{name }\end{DoxyParamCaption})}
+
+
+
+Get Current User Set\textquotesingle{}s name with id. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em id} & \mbox{[}in\mbox{]} \\
+\hline
+{\em name} & \mbox{[}out\mbox{]} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_aaa71348d88a10f38cfb547f1a22ab143}\label{struct_r_v_c_1_1_x1_aaa71348d88a10f38cfb547f1a22ab143}} 
+\index{RVC::X1@{RVC::X1}!IsOpen@{IsOpen}}
+\index{IsOpen@{IsOpen}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{IsOpen()}{IsOpen()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Is\+Open (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Check \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} is open or not. 
+
+\begin{DoxyReturn}{Returns}
+true Is open 
+
+false Not open
+\end{DoxyReturn}
+
+\begin{DoxyCodeInclude}{0}
+\end{DoxyCodeInclude}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a6f2138272c3c1bd939c27baa72de8864}\label{struct_r_v_c_1_1_x1_a6f2138272c3c1bd939c27baa72de8864}} 
+\index{RVC::X1@{RVC::X1}!IsPhysicallyConnected@{IsPhysicallyConnected}}
+\index{IsPhysicallyConnected@{IsPhysicallyConnected}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{IsPhysicallyConnected()}{IsPhysicallyConnected()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Is\+Physically\+Connected (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Check \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} is physically connected or not. 
+
+\begin{DoxyReturn}{Returns}
+true Is physically connected 
+
+false Not physically connected
+\end{DoxyReturn}
+
+\begin{DoxyCodeInclude}{0}
+\end{DoxyCodeInclude}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a0778b6acc2f1280ba9406e7df5ab7eeb}\label{struct_r_v_c_1_1_x1_a0778b6acc2f1280ba9406e7df5ab7eeb}} 
+\index{RVC::X1@{RVC::X1}!IsValid@{IsValid}}
+\index{IsValid@{IsValid}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{IsValid()}{IsValid()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Is\+Valid (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Check \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} is valid or not before use \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}}. 
+
+\begin{DoxyReturn}{Returns}
+true Available 
+
+false Not available
+\end{DoxyReturn}
+
+\begin{DoxyCodeInclude}{0}
+\end{DoxyCodeInclude}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_aa1f35cdec05e6937e6294f1e29944a89}\label{struct_r_v_c_1_1_x1_aa1f35cdec05e6937e6294f1e29944a89}} 
+\index{RVC::X1@{RVC::X1}!LoadCaptureOptionParameters@{LoadCaptureOptionParameters}}
+\index{LoadCaptureOptionParameters@{LoadCaptureOptionParameters}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{LoadCaptureOptionParameters()}{LoadCaptureOptionParameters()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Load\+Capture\+Option\+Parameters (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{X1\+::\+Capture\+Options}} \&}]{opts }\end{DoxyParamCaption})}
+
+
+
+Get capture option parameters. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em opts} & \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_aa263c7ef083230e11ef10d08ee99500b}\label{struct_r_v_c_1_1_x1_aa263c7ef083230e11ef10d08ee99500b}} 
+\index{RVC::X1@{RVC::X1}!LoadSettingFromFile@{LoadSettingFromFile}}
+\index{LoadSettingFromFile@{LoadSettingFromFile}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{LoadSettingFromFile()}{LoadSettingFromFile()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Load\+Setting\+From\+File (\begin{DoxyParamCaption}\item[{const char $\ast$}]{filename }\end{DoxyParamCaption})}
+
+
+
+Load camera setting from local file . 
+
+
+\begin{DoxyParams}{Parameters}
+{\em filename} & \mbox{[}in\mbox{]} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true the content of file is correctly . 
+
+false the content of file is not correctly . 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a4bbe435b7e01b138938eec1fdadf4fea}\label{struct_r_v_c_1_1_x1_a4bbe435b7e01b138938eec1fdadf4fea}} 
+\index{RVC::X1@{RVC::X1}!Open@{Open}}
+\index{Open@{Open}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{Open()}{Open()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Open (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Open \mbox{\hyperlink{struct_r_v_c_1_1_x1}{X1}} before you use it. 
+
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed
+\end{DoxyReturn}
+
+\begin{DoxyCodeInclude}{0}
+\end{DoxyCodeInclude}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ab99a0b13fb3bcb81383beb3f5f3c884f}\label{struct_r_v_c_1_1_x1_ab99a0b13fb3bcb81383beb3f5f3c884f}} 
+\index{RVC::X1@{RVC::X1}!OpenProtectiveCover@{OpenProtectiveCover}}
+\index{OpenProtectiveCover@{OpenProtectiveCover}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{OpenProtectiveCover()}{OpenProtectiveCover()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Open\+Protective\+Cover (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Open Protective\+Cover. 
+
+\begin{DoxyReturn}{Returns}
+true if success 
+
+false if failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ae5b2d86313591d549ee90b446bac5fc2}\label{struct_r_v_c_1_1_x1_ae5b2d86313591d549ee90b446bac5fc2}} 
+\index{RVC::X1@{RVC::X1}!OpenProtectiveCoverAsync@{OpenProtectiveCoverAsync}}
+\index{OpenProtectiveCoverAsync@{OpenProtectiveCoverAsync}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{OpenProtectiveCoverAsync()}{OpenProtectiveCoverAsync()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Open\+Protective\+Cover\+Async (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Open Protective\+Cover Async. 
+
+\begin{DoxyReturn}{Returns}
+true if success 
+
+false if failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ae4e4e0d73bc483ff77c4024b4a0e5b38}\label{struct_r_v_c_1_1_x1_ae4e4e0d73bc483ff77c4024b4a0e5b38}} 
+\index{RVC::X1@{RVC::X1}!ResetProtectiveCover@{ResetProtectiveCover}}
+\index{ResetProtectiveCover@{ResetProtectiveCover}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{ResetProtectiveCover()}{ResetProtectiveCover()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Reset\+Protective\+Cover (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Reset Protective\+Cover. 
+
+\begin{DoxyReturn}{Returns}
+true if success 
+
+false if failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ab4c167dee6985f140e702be2fca33a1e}\label{struct_r_v_c_1_1_x1_ab4c167dee6985f140e702be2fca33a1e}} 
+\index{RVC::X1@{RVC::X1}!SaveCaptureOptionParameters@{SaveCaptureOptionParameters}}
+\index{SaveCaptureOptionParameters@{SaveCaptureOptionParameters}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{SaveCaptureOptionParameters()}{SaveCaptureOptionParameters()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Save\+Capture\+Option\+Parameters (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{X1\+::\+Capture\+Options}} \&}]{opts }\end{DoxyParamCaption})}
+
+
+
+Save capture option parameters. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em opts} & \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_capture_options}{Capture\+Options}} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a5f57afd0027775a211240b5fbc44eea3}\label{struct_r_v_c_1_1_x1_a5f57afd0027775a211240b5fbc44eea3}} 
+\index{RVC::X1@{RVC::X1}!SaveEncodedImagesData@{SaveEncodedImagesData}}
+\index{SaveEncodedImagesData@{SaveEncodedImagesData}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{SaveEncodedImagesData()}{SaveEncodedImagesData()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Save\+Encoded\+Images\+Data (\begin{DoxyParamCaption}\item[{const char $\ast$}]{addr }\end{DoxyParamCaption})}
+
+
+
+Save encoded map in txt. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em addr} & save encoded images address \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+int num 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ad014050e79fd19d0c5254d990fc126f0}\label{struct_r_v_c_1_1_x1_ad014050e79fd19d0c5254d990fc126f0}} 
+\index{RVC::X1@{RVC::X1}!SaveSettingToFile@{SaveSettingToFile}}
+\index{SaveSettingToFile@{SaveSettingToFile}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{SaveSettingToFile()}{SaveSettingToFile()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Save\+Setting\+To\+File (\begin{DoxyParamCaption}\item[{const char $\ast$}]{filename }\end{DoxyParamCaption})}
+
+
+
+Save camera setting to local file. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em filename} & \mbox{[}in\mbox{]} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Successfully written to the file. 
+
+false Failed write to file. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_ac47d8be7bd2fcdc2675d0feb741eb9e5}\label{struct_r_v_c_1_1_x1_ac47d8be7bd2fcdc2675d0feb741eb9e5}} 
+\index{RVC::X1@{RVC::X1}!SetBalanceRatio@{SetBalanceRatio}}
+\index{SetBalanceRatio@{SetBalanceRatio}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{SetBalanceRatio()}{SetBalanceRatio()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Set\+Balance\+Ratio (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{namespace_r_v_c_acc724bf6da9945fde211755c84922400}{Balance\+Selector}}}]{selector,  }\item[{float}]{value }\end{DoxyParamCaption})}
+
+
+
+Set the white balance ratio value. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em selector} & support Balance\+Selector\+\_\+\+Red, Balance\+Selector\+\_\+\+Green and Balance\+Selector\+\_\+\+Blue \\
+\hline
+{\em value} & balance ratio value \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a99a48ef7eace67fe846d38078912b8cf}\label{struct_r_v_c_1_1_x1_a99a48ef7eace67fe846d38078912b8cf}} 
+\index{RVC::X1@{RVC::X1}!SetBandwidth@{SetBandwidth}}
+\index{SetBandwidth@{SetBandwidth}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{SetBandwidth()}{SetBandwidth()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Set\+Bandwidth (\begin{DoxyParamCaption}\item[{float}]{percent }\end{DoxyParamCaption})}
+
+
+
+Set the camera band width ratio. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em percent} & Band width ratio \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true Success 
+
+false Failed 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_acc61284cdaca2c6c84df0eaec0a51e81}\label{struct_r_v_c_1_1_x1_acc61284cdaca2c6c84df0eaec0a51e81}} 
+\index{RVC::X1@{RVC::X1}!SetCalculationCallBack@{SetCalculationCallBack}}
+\index{SetCalculationCallBack@{SetCalculationCallBack}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{SetCalculationCallBack()}{SetCalculationCallBack()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Set\+Calculation\+Call\+Back (\begin{DoxyParamCaption}\item[{X1\+::\+Calculation\+Call\+Back\+Ptr}]{cb,  }\item[{User\+Ptr}]{ctx }\end{DoxyParamCaption})}
+
+
+
+Provide a callback to \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} system and it will be called when calculation finished. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em cb} & The callback \\
+\hline
+{\em ctx} & The user-\/pointer\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true when succeed to set 
+
+false when failed to set
+\end{DoxyReturn}
+
+\begin{DoxyCodeInclude}{0}
+\end{DoxyCodeInclude}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a37e2d0ddfe49a85b0350ea0f37d9b517}\label{struct_r_v_c_1_1_x1_a37e2d0ddfe49a85b0350ea0f37d9b517}} 
+\index{RVC::X1@{RVC::X1}!SetCollectionCallBack@{SetCollectionCallBack}}
+\index{SetCollectionCallBack@{SetCollectionCallBack}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{SetCollectionCallBack()}{SetCollectionCallBack()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Set\+Collection\+Call\+Back (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_x1_a15559b21676efd7be330eef5ddf57a4e}{X1\+::\+Collection\+Call\+Back\+Ptr}}}]{cb,  }\item[{User\+Ptr}]{ctx }\end{DoxyParamCaption})}
+
+
+
+Provide a callback to \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} system and it will be called when collection finished. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em cb} & The callback \\
+\hline
+{\em ctx} & The user-\/pointer\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true when succeed to set 
+
+false when failed to set
+\end{DoxyReturn}
+
+\begin{DoxyCodeInclude}{0}
+\end{DoxyCodeInclude}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a94b78b24bf383931dd9391547b518457}\label{struct_r_v_c_1_1_x1_a94b78b24bf383931dd9391547b518457}} 
+\index{RVC::X1@{RVC::X1}!SetCurrentUserSet@{SetCurrentUserSet}}
+\index{SetCurrentUserSet@{SetCurrentUserSet}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{SetCurrentUserSet()}{SetCurrentUserSet()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Set\+Current\+User\+Set (\begin{DoxyParamCaption}\item[{const int \&}]{id }\end{DoxyParamCaption})}
+
+
+
+Set Current User Set by id. The user can utilize a total of 10 parameters groups to quickly adjust camera settings for different 3d imaging scenarios. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em id} & \mbox{[}in\mbox{]} 0$\sim$9 \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a43ebfa76b2622a8da96433186c61a005}\label{struct_r_v_c_1_1_x1_a43ebfa76b2622a8da96433186c61a005}} 
+\index{RVC::X1@{RVC::X1}!SetCustomTransformation@{SetCustomTransformation}}
+\index{SetCustomTransformation@{SetCustomTransformation}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{SetCustomTransformation()}{SetCustomTransformation()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Set\+Custom\+Transformation (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_x1_1_1_custom_transform_options}{Custom\+Transform\+Options}} \&}]{opts }\end{DoxyParamCaption})}
+
+
+
+Set the Transformation of output point cloud. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em opts} & Custom Transform Options \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a6cfc4d80124ee3108aa23c5085f4dce6}\label{struct_r_v_c_1_1_x1_a6cfc4d80124ee3108aa23c5085f4dce6}} 
+\index{RVC::X1@{RVC::X1}!SetUserSetName@{SetUserSetName}}
+\index{SetUserSetName@{SetUserSetName}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{SetUserSetName()}{SetUserSetName()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+X1\+::\+Set\+User\+Set\+Name (\begin{DoxyParamCaption}\item[{const int \&}]{id,  }\item[{const char $\ast$}]{name }\end{DoxyParamCaption})}
+
+
+
+Set User Set\textquotesingle{}s name with id. The user can briefly describe the usage scenario of this parameters groups by using a name. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em id} & \mbox{[}in\mbox{]} \\
+\hline
+{\em name} & \mbox{[}in\mbox{]} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+
+
+\doxysubsection{Member Data Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_x1_a9a740d17f222965e114ed4710bf3bc91}\label{struct_r_v_c_1_1_x1_a9a740d17f222965e114ed4710bf3bc91}} 
+\index{RVC::X1@{RVC::X1}!m\_handle@{m\_handle}}
+\index{m\_handle@{m\_handle}!RVC::X1@{RVC::X1}}
+\doxysubsubsection{\texorpdfstring{m\_handle}{m\_handle}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} R\+V\+C\+::\+X1\+::m\+\_\+handle}
+
+
+
+\mbox{\hyperlink{namespace_r_v_c}{R\+VC}} \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}}. 
+
+
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+R\+V\+C.\+h\end{DoxyCompactItemize}

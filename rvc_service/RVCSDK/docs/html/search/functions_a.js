@@ -1,0 +1,28 @@
+var searchData=
+[
+  ['save_379',['Save',['../struct_r_v_c_1_1_point_map.html#aa623644e8ec081625549da3294669449',1,'RVC::PointMap']]],
+  ['savecaptureoptionparameters_380',['SaveCaptureOptionParameters',['../struct_r_v_c_1_1_x1.html#ab4c167dee6985f140e702be2fca33a1e',1,'RVC::X1::SaveCaptureOptionParameters()'],['../struct_r_v_c_1_1_x2.html#a535c05f05a6d4d4a812c906fde561e78',1,'RVC::X2::SaveCaptureOptionParameters()']]],
+  ['savedepthmap_381',['SaveDepthMap',['../struct_r_v_c_1_1_depth_map.html#ae3ed435a8474c08f52c24ef6a3ceb427',1,'RVC::DepthMap']]],
+  ['saveencodedimagesdata_382',['SaveEncodedImagesData',['../struct_r_v_c_1_1_x1.html#a5f57afd0027775a211240b5fbc44eea3',1,'RVC::X1::SaveEncodedImagesData()'],['../struct_r_v_c_1_1_x2.html#aea2d31ca5300c909d05509a09069fcf7',1,'RVC::X2::SaveEncodedImagesData()']]],
+  ['saveimage_383',['SaveImage',['../struct_r_v_c_1_1_image.html#a0252adee2e031190a0526d6265070192',1,'RVC::Image']]],
+  ['savesettingtofile_384',['SaveSettingToFile',['../struct_r_v_c_1_1_x1.html#ad014050e79fd19d0c5254d990fc126f0',1,'RVC::X1::SaveSettingToFile()'],['../struct_r_v_c_1_1_x2.html#abc2fd5c150573d0a78df750258b48975',1,'RVC::X2::SaveSettingToFile()']]],
+  ['setbalanceratio_385',['SetBalanceRatio',['../struct_r_v_c_1_1_x1.html#ac47d8be7bd2fcdc2675d0feb741eb9e5',1,'RVC::X1']]],
+  ['setbandwidth_386',['SetBandwidth',['../struct_r_v_c_1_1_x1.html#a99a48ef7eace67fe846d38078912b8cf',1,'RVC::X1::SetBandwidth()'],['../struct_r_v_c_1_1_x2.html#a9b58d50be15a7fb4344d1d760f4c3909',1,'RVC::X2::SetBandwidth()']]],
+  ['setcalculationcallback_387',['SetCalculationCallBack',['../struct_r_v_c_1_1_x1.html#acc61284cdaca2c6c84df0eaec0a51e81',1,'RVC::X1::SetCalculationCallBack()'],['../struct_r_v_c_1_1_x2.html#a521aebe6a7b4767a5f39672b84e34a7b',1,'RVC::X2::SetCalculationCallBack()']]],
+  ['setcollectioncallback_388',['SetCollectionCallBack',['../struct_r_v_c_1_1_x1.html#a37e2d0ddfe49a85b0350ea0f37d9b517',1,'RVC::X1::SetCollectionCallBack()'],['../struct_r_v_c_1_1_x2.html#a27b692aa51820e38a677c2de31320bda',1,'RVC::X2::SetCollectionCallBack()']]],
+  ['setcurrentuserset_389',['SetCurrentUserSet',['../struct_r_v_c_1_1_x1.html#a94b78b24bf383931dd9391547b518457',1,'RVC::X1::SetCurrentUserSet()'],['../struct_r_v_c_1_1_x2.html#a8a419e28faddcd8f32906b2d97d080dc',1,'RVC::X2::SetCurrentUserSet()']]],
+  ['setcustomtransformation_390',['SetCustomTransformation',['../struct_r_v_c_1_1_x1.html#a43ebfa76b2622a8da96433186c61a005',1,'RVC::X1::SetCustomTransformation()'],['../struct_r_v_c_1_1_x2.html#ad58304ba92bcf67bc4ee2a1579b2988d',1,'RVC::X2::SetCustomTransformation()']]],
+  ['setfixedlinescancallback_391',['SetFixedLineScanCallback',['../struct_r_v_c_1_1_x2.html#a96aba4c4c20cd29c603efbb4bb9e7bbd',1,'RVC::X2']]],
+  ['setnetworkconfig_392',['SetNetworkConfig',['../struct_r_v_c_1_1_device.html#adc92971e89e16e86bb1516a3fef5a5ee',1,'RVC::Device']]],
+  ['settimestamp_393',['SetTimestamp',['../struct_r_v_c_1_1_image.html#a7fc4072b47f3e0f055c8f7eb840b545a',1,'RVC::Image::SetTimestamp()'],['../struct_r_v_c_1_1_point_map.html#ad0b130cbbab9387cfec3447a96f740b0',1,'RVC::PointMap::SetTimestamp()']]],
+  ['setusersetname_394',['SetUserSetName',['../struct_r_v_c_1_1_x1.html#a6cfc4d80124ee3108aa23c5085f4dce6',1,'RVC::X1::SetUserSetName()'],['../struct_r_v_c_1_1_x2.html#a224f002e54982ea8a1f98f38887e8a13',1,'RVC::X2::SetUserSetName()']]],
+  ['size_395',['Size',['../struct_r_v_c_1_1_size.html#a9a5ab12417ff8df6880e9536bd3457ea',1,'RVC::Size::Size()'],['../struct_r_v_c_1_1_size.html#abb1ef470d1642168bd42fae788d55a00',1,'RVC::Size::Size(int w, int h)']]],
+  ['startfixedlinescan_396',['StartFixedLineScan',['../struct_r_v_c_1_1_x2.html#a1d2ccefe329faacafbe762b7ec3e93ab',1,'RVC::X2::StartFixedLineScan(const CaptureOptions &amp;opts)'],['../struct_r_v_c_1_1_x2.html#a7fe9994d5773a6f090725e8fdae4140d',1,'RVC::X2::StartFixedLineScan()']]],
+  ['stopfixedlinescan_397',['StopFixedLineScan',['../struct_r_v_c_1_1_x2.html#a5d81a848c34408cf4ac6281b13cbe3f1',1,'RVC::X2']]],
+  ['systemfinddevice_398',['SystemFindDevice',['../namespace_r_v_c.html#aa8adb39f051748fd55d267007c561a17',1,'RVC']]],
+  ['systeminit_399',['SystemInit',['../namespace_r_v_c.html#a323593973d7de52708fae81cc20db39c',1,'RVC']]],
+  ['systemisinited_400',['SystemIsInited',['../namespace_r_v_c.html#adf486ed0192603f9b1fd5a4d1aef2f12',1,'RVC']]],
+  ['systemlistdevices_401',['SystemListDevices',['../namespace_r_v_c.html#a3ee199b906497d6b03fbb3139e74cb71',1,'RVC']]],
+  ['systemsetloggername_402',['SystemSetLoggerName',['../namespace_r_v_c.html#a8f80457a4f3106a08b442bdb711a5ef1',1,'RVC']]],
+  ['systemshutdown_403',['SystemShutdown',['../namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69',1,'RVC']]]
+];

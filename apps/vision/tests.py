@@ -3222,7 +3222,7 @@ class RackLocationROI3DModelTests(TestCase):
         self.assertIsNone(global_roi.layer_no)
 
 
-class DMCameraRackFrameProviderTests(TestCase):
+class RVCCameraRackFrameProviderTests(TestCase):
     def _recipe(self, name='Provider-POS-01-L1'):
         Recipe = apps.get_model('vision', 'RackLocationRecipe')
         return Recipe.objects.create(
@@ -3234,34 +3234,26 @@ class DMCameraRackFrameProviderTests(TestCase):
             hand_eye_config={'matrix': 'identity'},
         )
 
-    def test_provider_captures_pointcloud_without_dm_capture_record_side_effects(self):
-        from apps.vision.rack_location import DMCameraRackFrameProvider
-        Config = apps.get_model('dm_camera', 'DMCameraConfig')
+    def test_provider_captures_pointcloud_from_rvc_service(self):
+        from apps.vision.rack_location import RVCCameraRackFrameProvider
 
         recipe = self._recipe()
-        active_config = Config.objects.create(
-            name='Rack Locator SDK',
-            device_sn='SDK-SN-001',
-            frame_rate=12,
-            exposure_time=1500,
-            is_active=True,
-        )
 
-        class FakeDMCameraService:
+        class FakeRvcCameraService:
             calls = []
 
             def __init__(self):
-                self.is_connected = False
-                self.is_streaming = False
+                self._connected = False
 
-            def connect(self, device_sn=None, config_id=None):
-                self.calls.append(('connect', device_sn, config_id))
-                self.is_connected = True
+            @property
+            def is_connected(self):
+                return self._connected
 
-            def start_stream(self):
-                self.is_streaming = True
+            def ensure_connected(self):
+                self.calls.append('ensure_connected')
+                self._connected = True
 
-            def capture_frame_data(self, frame_type='DEPTH', save_record=True):
+            def capture_frame_data(self, frame_type='POINTCLOUD', save_record=True, **kwargs):
                 self.calls.append((frame_type, save_record))
                 return {
                     'frame_type': frame_type,
@@ -3270,60 +3262,69 @@ class DMCameraRackFrameProviderTests(TestCase):
                     'height': 2,
                 }
 
-        with patch('apps.dm_camera.services.DMCameraService', FakeDMCameraService):
-            payload = DMCameraRackFrameProvider().capture(recipe, position_no=1, layer_no=1)
+        with patch('apps.rvc_camera.services.RvcCameraService', FakeRvcCameraService):
+            payload = RVCCameraRackFrameProvider().capture(recipe, position_no=1, layer_no=1)
 
-        self.assertEqual(FakeDMCameraService.calls, [
-            ('connect', 'SDK-SN-001', active_config.id),
+        self.assertEqual(FakeRvcCameraService.calls, [
+            'ensure_connected',
             ('POINTCLOUD', False),
         ])
-        self.assertEqual(payload['source'], 'dm_camera')
+        self.assertEqual(payload['source'], 'rvc_camera')
         self.assertEqual(payload['organized_pointcloud'].shape, (2, 2, 3))
 
     @override_settings(VISION_RACK_LOCATION_FORCE_SAMPLE=True)
-    def test_provider_can_force_sample_without_touching_dm_service(self):
-        from apps.vision.rack_location import DMCameraRackFrameProvider
+    def test_provider_can_force_sample_without_touching_rvc_service(self):
+        from apps.vision.rack_location import RVCCameraRackFrameProvider
 
-        class UnexpectedDMCameraService:
+        class UnexpectedRvcCameraService:
             def __init__(self):
-                raise AssertionError('DM service should not be instantiated')
+                raise AssertionError('RVC service should not be instantiated')
 
-        with patch('apps.dm_camera.services.DMCameraService', UnexpectedDMCameraService):
-            payload = DMCameraRackFrameProvider().capture(self._recipe('Forced-Sample'), 1, 1)
+        with patch('apps.rvc_camera.services.RvcCameraService', UnexpectedRvcCameraService):
+            payload = RVCCameraRackFrameProvider().capture(self._recipe('Forced-Sample'), 1, 1)
 
         self.assertEqual(payload['source'], 'sample_forced')
         self.assertIn('raw_data_path', payload)
 
-    def test_provider_propagates_dm_camera_configuration_error(self):
-        from apps.dm_camera.sdk_wrapper import DMCameraConfigurationError
-        from apps.vision.rack_location import DMCameraRackFrameProvider
+    def test_provider_propagates_rvc_configuration_error(self):
+        from apps.rvc_camera.client import RvcCameraConfigurationError
+        from apps.vision.rack_location import RVCCameraRackFrameProvider
 
-        class MisconfiguredDMCameraService:
-            is_connected = False
-            is_streaming = False
+        class MisconfiguredRvcCameraService:
+            @property
+            def is_connected(self):
+                return False
 
-            def connect(self, device_sn=None, config_id=None):
-                raise DMCameraConfigurationError('tofconfig JSON error')
+            def ensure_connected(self):
+                raise RvcCameraConfigurationError('unsupported capture mode')
 
-        with patch('apps.dm_camera.services.DMCameraService', MisconfiguredDMCameraService):
-            with self.assertRaisesRegex(DMCameraConfigurationError, 'tofconfig JSON error'):
-                DMCameraRackFrameProvider().capture(self._recipe('Bad-Config'), 1, 1)
+        with patch('apps.rvc_camera.services.RvcCameraService', MisconfiguredRvcCameraService):
+            with self.assertRaisesRegex(RvcCameraConfigurationError, 'unsupported capture mode'):
+                RVCCameraRackFrameProvider().capture(self._recipe('Bad-Mode'), 1, 1)
 
     def test_provider_still_falls_back_for_non_configuration_error(self):
-        from apps.vision.rack_location import DMCameraRackFrameProvider
+        from apps.vision.rack_location import RVCCameraRackFrameProvider
 
-        class OfflineDMCameraService:
-            is_connected = False
-            is_streaming = False
+        class OfflineRvcCameraService:
+            @property
+            def is_connected(self):
+                return False
 
-            def connect(self, device_sn=None, config_id=None):
+            def ensure_connected(self):
                 raise RuntimeError('camera offline')
 
-        with patch('apps.dm_camera.services.DMCameraService', OfflineDMCameraService):
-            payload = DMCameraRackFrameProvider().capture(self._recipe('Offline'), 1, 1)
+        with patch('apps.rvc_camera.services.RvcCameraService', OfflineRvcCameraService):
+            payload = RVCCameraRackFrameProvider().capture(self._recipe('Offline'), 1, 1)
 
         self.assertEqual(payload['source'], 'sample_fallback')
         self.assertEqual(payload['fallback_reason'], 'camera offline')
+
+    def test_dm_provider_name_is_backward_compatible_alias(self):
+        from apps.vision.rack_location import (
+            DMCameraRackFrameProvider,
+            RVCCameraRackFrameProvider,
+        )
+        self.assertIs(DMCameraRackFrameProvider, RVCCameraRackFrameProvider)
 
 
 class RackLocationRecipe3DModelTests(TestCase):

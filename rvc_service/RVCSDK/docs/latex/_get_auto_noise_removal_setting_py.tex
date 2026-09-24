@@ -1,0 +1,116 @@
+
+\begin{DoxyCodeInclude}{0}
+\DoxyCodeLine{\textcolor{comment}{\# Copyright (c) RVBUST, Inc -\/ All rights reserved.}}
+\DoxyCodeLine{\textcolor{keyword}{import} PyRVC \textcolor{keyword}{as} RVC}
+\DoxyCodeLine{\textcolor{keyword}{import} os}
+\DoxyCodeLine{\textcolor{keyword}{import} numpy \textcolor{keyword}{as} np}
+\DoxyCodeLine{\textcolor{keyword}{import} cv2}
+\DoxyCodeLine{\textcolor{keyword}{from} Utils.Tools \textcolor{keyword}{import} *}
+\DoxyCodeLine{}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{keyword}{def }App():}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\# Initialize RVC system.}}
+\DoxyCodeLine{    \mbox{\hyperlink{namespace_r_v_c_a323593973d7de52708fae81cc20db39c}{RVC.SystemInit}}()}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\# Choose RVC Camera type (USB, GigE or All)}}
+\DoxyCodeLine{    opt = RVC.SystemListDeviceTypeEnum.All}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\# Scan all RVC GigE Camera devices.}}
+\DoxyCodeLine{    ret, devices = \mbox{\hyperlink{namespace_r_v_c_a3ee199b906497d6b03fbb3139e74cb71}{RVC.SystemListDevices}}(opt)}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\#  Find whether any RVC GigE Camera is connected or not.}}
+\DoxyCodeLine{    \textcolor{keywordflow}{if} len(devices) == 0:}
+\DoxyCodeLine{        print(\textcolor{stringliteral}{"Can not find any RVC Camera!"})}
+\DoxyCodeLine{        \mbox{\hyperlink{namespace_r_v_c_a7c616a5d26f42991a8fbe38176a46c69}{RVC.SystemShutdown}}()}
+\DoxyCodeLine{        \textcolor{keywordflow}{return} 1}
+\DoxyCodeLine{    \textcolor{keywordflow}{if} devices[0].IsFirmwareMatch() == \textcolor{keyword}{False}:}
+\DoxyCodeLine{        print(\textcolor{stringliteral}{"device firmware mismatch, Please use RVCManager to upgrade the firmware"})}
+\DoxyCodeLine{        \mbox{\hyperlink{namespace_r_v_c_a7c616a5d26f42991a8fbe38176a46c69}{RVC.SystemShutdown}}()}
+\DoxyCodeLine{        \textcolor{keywordflow}{return} 1}
+\DoxyCodeLine{    \textcolor{comment}{\# Create a RVC Camera and choose use left side camera.}}
+\DoxyCodeLine{    x = \mbox{\hyperlink{struct_r_v_c_1_1_x1_a65084b6120a5dde2cfdda7f63a509339}{RVC.X1.Create}}(devices[0], RVC.CameraID\_Left)}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\# Test RVC Camera is valid or not.}}
+\DoxyCodeLine{    \textcolor{keywordflow}{if} x.IsValid() \textcolor{keywordflow}{is} \textcolor{keywordflow}{not} \textcolor{keyword}{True}:}
+\DoxyCodeLine{        print(\textcolor{stringliteral}{"RVC Camera is not valid!"})}
+\DoxyCodeLine{        \mbox{\hyperlink{struct_r_v_c_1_1_x1_a92e6808e2b266f827c1079b677589adb}{RVC.X1.Destroy}}(x)}
+\DoxyCodeLine{        \mbox{\hyperlink{namespace_r_v_c_a7c616a5d26f42991a8fbe38176a46c69}{RVC.SystemShutdown}}()}
+\DoxyCodeLine{        \textcolor{keywordflow}{return} 1}
+\DoxyCodeLine{    \textcolor{comment}{\#PrintCaptureMode(devices[0])}}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\# Open RVC Camera.}}
+\DoxyCodeLine{    ret1 = x.Open()}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\# Test RVC Camera is opened or not.}}
+\DoxyCodeLine{    \textcolor{keywordflow}{if} \textcolor{keywordflow}{not} ret1:}
+\DoxyCodeLine{        print(\textcolor{stringliteral}{"Failed to open camera! Please check whether the camera is connected and make sure it is not occupied and supports X1."})}
+\DoxyCodeLine{        \mbox{\hyperlink{struct_r_v_c_1_1_x1_a92e6808e2b266f827c1079b677589adb}{RVC.X1.Destroy}}(x)}
+\DoxyCodeLine{        \mbox{\hyperlink{namespace_r_v_c_a7c616a5d26f42991a8fbe38176a46c69}{RVC.SystemShutdown}}()}
+\DoxyCodeLine{        \textcolor{keywordflow}{return} 1}
+\DoxyCodeLine{    }
+\DoxyCodeLine{    \textcolor{comment}{\# Print ExposureTime Range}}
+\DoxyCodeLine{    \_, exp\_range\_min, exp\_range\_max = x.GetExposureTimeRange()}
+\DoxyCodeLine{    print(\textcolor{stringliteral}{"ExposureTime Range:[\{\}, \{\}]"}.format(exp\_range\_min, exp\_range\_max))}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\# Set capture parameters}}
+\DoxyCodeLine{    cap\_opt = RVC.X1\_CaptureOptions()}
+\DoxyCodeLine{    ret,cap\_opt = x.LoadCaptureOptionParameters()}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{stringliteral}{'''}}
+\DoxyCodeLine{\textcolor{stringliteral}{     We can use GetAutoNoiseRemovalSetting() function to automatically set noise\_removal\_distance and}}
+\DoxyCodeLine{\textcolor{stringliteral}{     noise\_removal\_point\_number.}}
+\DoxyCodeLine{\textcolor{stringliteral}{     However, the recommended practice is to use the auto noise removal function on the RVCManager.exe}}
+\DoxyCodeLine{\textcolor{stringliteral}{     to automatically obtain the parameters, then adjust them on the RVCManager.exe, and then set them}}
+\DoxyCodeLine{\textcolor{stringliteral}{     here directly by number like the above.}}
+\DoxyCodeLine{\textcolor{stringliteral}{     '''}}
+\DoxyCodeLine{    x.GetAutoNoiseRemovalSetting(cap\_opt)}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\# Capture a point map and a image.}}
+\DoxyCodeLine{    ret2 = x.Capture(cap\_opt)}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\# Create saving address of image and point map.}}
+\DoxyCodeLine{    save\_address = \textcolor{stringliteral}{"Data"}}
+\DoxyCodeLine{    TryCreateDir(save\_address)}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{keywordflow}{if} ret2 == \textcolor{keyword}{True}:}
+\DoxyCodeLine{        print(\textcolor{stringliteral}{"RVC Camera capture successed!"})}
+\DoxyCodeLine{}
+\DoxyCodeLine{        \textcolor{comment}{\# Get image data and image size.}}
+\DoxyCodeLine{        img = x.GetImage()}
+\DoxyCodeLine{}
+\DoxyCodeLine{        \textcolor{comment}{\# Save image}}
+\DoxyCodeLine{        \textcolor{keywordflow}{if} img.SaveImage(save\_address + \textcolor{stringliteral}{"/image.png"}):}
+\DoxyCodeLine{            print(\textcolor{stringliteral}{"Save image successed!"})}
+\DoxyCodeLine{        \textcolor{keywordflow}{else}:}
+\DoxyCodeLine{            print(\textcolor{stringliteral}{"Save image failed!"})}
+\DoxyCodeLine{}
+\DoxyCodeLine{        \textcolor{comment}{\# Save point map (m) to file.}}
+\DoxyCodeLine{        \textcolor{keywordflow}{if} x.GetPointMap().Save(\textcolor{stringliteral}{"Data/test.ply"}, RVC.PointMapUnitEnum.Meter):}
+\DoxyCodeLine{            print(\textcolor{stringliteral}{"Save point map successed!"})}
+\DoxyCodeLine{        \textcolor{keywordflow}{else}:}
+\DoxyCodeLine{            print(\textcolor{stringliteral}{"Save point map failed!"})}
+\DoxyCodeLine{    \textcolor{keywordflow}{else}:}
+\DoxyCodeLine{        print(\textcolor{stringliteral}{"RVC Camera capture failed!"})}
+\DoxyCodeLine{        print(\mbox{\hyperlink{namespace_r_v_c_a02779b50f9e7e758b8ab4a4566efb85c}{RVC.GetLastErrorMessage}}())}
+\DoxyCodeLine{        x.Close()}
+\DoxyCodeLine{        \mbox{\hyperlink{struct_r_v_c_1_1_x1_a92e6808e2b266f827c1079b677589adb}{RVC.X1.Destroy}}(x)}
+\DoxyCodeLine{        \mbox{\hyperlink{namespace_r_v_c_a7c616a5d26f42991a8fbe38176a46c69}{RVC.SystemShutdown}}()}
+\DoxyCodeLine{        \textcolor{keywordflow}{return} 1}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\# Close RVC Camera.}}
+\DoxyCodeLine{    x.Close()}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\# Destroy RVC Camera.}}
+\DoxyCodeLine{    \mbox{\hyperlink{struct_r_v_c_1_1_x1_a92e6808e2b266f827c1079b677589adb}{RVC.X1.Destroy}}(x)}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{comment}{\# Shutdown RVC System.}}
+\DoxyCodeLine{    \mbox{\hyperlink{namespace_r_v_c_a7c616a5d26f42991a8fbe38176a46c69}{RVC.SystemShutdown}}()}
+\DoxyCodeLine{}
+\DoxyCodeLine{    \textcolor{keywordflow}{return} 0}
+\DoxyCodeLine{}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{keywordflow}{if} \_\_name\_\_ == \textcolor{stringliteral}{"\_\_main\_\_"}:}
+\DoxyCodeLine{    App()}
+\end{DoxyCodeInclude}
+ 

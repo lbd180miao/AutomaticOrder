@@ -1,0 +1,717 @@
+<!-- HTML header for doxygen 1.8.6-->
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=9" />
+  <meta name="generator" content="Doxygen 1.8.18" />
+  <title>RVC: RVC::PointMap Struct Reference</title>
+  <link href="tabs.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="jquery.js"></script>
+  <script type="text/javascript" src="dynsections.js"></script>
+  <link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+  <link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+  <link href="doxygen.css" rel="stylesheet" type="text/css" />
+  <link
+    href="https://fonts.googleapis.com/css?family=Roboto:300,400,400italic,500,500italic,700,700italic|Roboto+Mono:400,700"
+    rel="stylesheet">
+  <link href="style.css" rel="stylesheet" type="text/css"/>
+  <script>
+    /**
+     * Check if the browser rendering this page is being run on an Android device.
+     * It checks if the string 'android' is found in the browser's `userAgent`.
+     * @return {boolean} This returns `true` if the browser's `userAgent` contains
+     * the string 'android' (indicating that the browser is on an Android device).
+     * Otherwise, it returns `false`.
+     */
+    function isAndroidDevice() {
+      if (navigator && navigator.userAgent) {
+        return navigator.userAgent.toLowerCase().indexOf('android') != -1;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Check if an HTML `class` attribute is in the browser-specific format.
+     * @param {string} An HTML `class` attribute in the format 'browser-{device}'.
+     * @return {boolean} Returns `true` if `browserClass` was in the valid format,
+     * prefixed with 'browser-'. Otherwise, it returns false.
+     */
+    function isBrowserSpecificClassName(browserClass) {
+      if (browserClass && browserClass.substring(0, 8) == 'browser-' &&
+        browserClass.length > 8) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Get all the HTML Elements with browser-specific `class` attributes.
+     * @return {array} Returns an array of all the HTML Elements with a `class`
+     * attribute that is prefixed with `browser-`.
+     */
+    function getAllBrowserSpecificElements() {
+      if (document) {
+        var htmlElements = document.getElementsByTagName("*");
+        var browserSpecificElements = [];
+        for (var i = 0; i < htmlElements.length; i++) {
+          if (isBrowserSpecificClassName(htmlElements[i].className)) {
+            browserSpecificElements.push(htmlElements[i]);
+          }
+        }
+        return browserSpecificElements;
+      } else {
+        return null;
+      }
+    }
+    /**
+     * Given a browser-specific HTML `class` attribute, extract the device name.
+     * @param {string} browserClass The string name of an HTML `class` attribute,
+     * in the format `browser-{device}`.
+     * @return {string} Returns a string containing only the device portion of
+     * the class name. If the input was invalid, then it returns `null`.
+     */
+    function extractDeviceFromBrowserClass(browserClass) {
+      if (isBrowserSpecificClassName(browserClass)) {
+        return browserClass.substring(8);
+      }
+      else {
+        return null;
+      }
+    }
+    /**
+     * Hide device specific elements that do not apply to the current device.
+     */
+    function handleDeviceSpecificLoading() {
+      var browserSpecificElements = getAllBrowserSpecificElements();
+      for (var i = 0; i < browserSpecificElements.length; i++) {
+        var device = extractDeviceFromBrowserClass(browserSpecificElements[i].className);
+        if (device && !isAndroidDevice() && device == 'android') {
+          browserSpecificElements[i].innerHTML = '';
+        } else if (device && isAndroidDevice() && device == 'desktop') {
+          browserSpecificElements[i].innerHTML = '';
+        }
+      }
+    }
+    $(document).ready(handleDeviceSpecificLoading);
+  </script>
+</head>
+<body>
+  <div id="top">
+    <!-- do not remove this div, it is closed by doxygen! -->
+    <div id="titlearea">
+      <table cellspacing="0" cellpadding="0">
+        <tbody>
+          <tr style="height: 56px;">
+            <!-- <td id="projectlogo">
+    <img alt="Logo" width=100px src="documentation.png"/>
+  </td> -->
+            <!-- END PROJECT_LOGO -->
+            <td id="commonprojectlogo">
+              <img alt="Logo" width=150px src="documentation.png" />
+            </td>
+            <td style="padding-left: 0.5em;">
+              <div id="projectname">RVC
+                &#160;<span id="projectnumber">1.15.1</span>
+              </div>
+              <div style="font-size:12px;">
+                a product by
+                <a href="https://www.rvbust.com">RVBUST</a>.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- end header part --><!-- Generated by Doxygen 1.8.18 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+var searchBox = new SearchBox("searchBox", "search",false,'Search');
+/* @license-end */
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(function() {
+  initMenu('',true,false,'search.php','Search');
+  $(document).ready(function() { init_search(); });
+});
+/* @license-end */</script>
+<div id="main-nav"></div>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(document).ready(function(){initNavTree('struct_r_v_c_1_1_point_map.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<iframe src="javascript:void(0)" frameborder="0" 
+        name="MSearchResults" id="MSearchResults">
+</iframe>
+</div>
+
+<div class="header">
+  <div class="summary">
+<a href="#pub-methods">Public Member Functions</a> &#124;
+<a href="#pub-static-methods">Static Public Member Functions</a> &#124;
+<a href="#pub-attribs">Public Attributes</a> &#124;
+<a href="struct_r_v_c_1_1_point_map-members.html">List of all members</a>  </div>
+  <div class="headertitle">
+<div class="title">RVC::PointMap Struct Reference</div>  </div>
+</div><!--header-->
+<div class="contents">
+
+<p><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> X <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a>.  
+ <a href="struct_r_v_c_1_1_point_map.html#details">More...</a></p>
+
+<p><code>#include &lt;<a class="el" href="_r_v_c_8h_source.html">RVC.h</a>&gt;</code></p>
+<div class="dynheader">
+Collaboration diagram for RVC::PointMap:</div>
+<div class="dyncontent">
+<div class="center"><img src="struct_r_v_c_1_1_point_map__coll__graph.png" border="0" usemap="#_r_v_c_1_1_point_map_coll__map" alt="Collaboration graph"/></div>
+<map name="_r_v_c_1_1_point_map_coll__map" id="_r_v_c_1_1_point_map_coll__map">
+<area shape="rect" title="RVC X PointMap." alt="" coords="5,95,117,121"/>
+<area shape="rect" href="struct_r_v_c_1_1_handle.html" title="RVC Handle." alt="" coords="13,5,110,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
+<table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
+Public Member Functions</h2></td></tr>
+<tr class="memitem:aa623644e8ec081625549da3294669449"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#aa623644e8ec081625549da3294669449">Save</a> (const char *fileName, const <a class="el" href="struct_r_v_c_1_1_point_map_unit.html#aa0ced57a0947829c94ea7b40d747f0e5">PointMapUnit::Enum</a> unit, const bool isBinary, const <a class="el" href="struct_r_v_c_1_1_image.html">Image</a> &amp;rawImage=<a class="el" href="struct_r_v_c_1_1_image.html">Image</a>())</td></tr>
+<tr class="memdesc:aa623644e8ec081625549da3294669449"><td class="mdescLeft">&#160;</td><td class="mdescRight">export <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a>'s data to local file. Only support the *.ply* format.  <a href="struct_r_v_c_1_1_point_map.html#aa623644e8ec081625549da3294669449">More...</a><br /></td></tr>
+<tr class="separator:aa623644e8ec081625549da3294669449"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab6eae42dacb2f02ddb51fa4d52227820"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#ab6eae42dacb2f02ddb51fa4d52227820">IsValid</a> () const</td></tr>
+<tr class="memdesc:ab6eae42dacb2f02ddb51fa4d52227820"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> is Valid or not.  <a href="struct_r_v_c_1_1_point_map.html#ab6eae42dacb2f02ddb51fa4d52227820">More...</a><br /></td></tr>
+<tr class="separator:ab6eae42dacb2f02ddb51fa4d52227820"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a099e6e81efa12be4f4b650375374a07f"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_size.html">Size</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#a099e6e81efa12be4f4b650375374a07f">GetSize</a> () const</td></tr>
+<tr class="memdesc:a099e6e81efa12be4f4b650375374a07f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> <a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> object.  <a href="struct_r_v_c_1_1_point_map.html#a099e6e81efa12be4f4b650375374a07f">More...</a><br /></td></tr>
+<tr class="separator:a099e6e81efa12be4f4b650375374a07f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aac42fb0bd7985ea4758f05389bf6c967"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#aac42fb0bd7985ea4758f05389bf6c967">GetPointDataPtr</a> ()</td></tr>
+<tr class="memdesc:aac42fb0bd7985ea4758f05389bf6c967"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Point Data Ptr of <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object.  <a href="struct_r_v_c_1_1_point_map.html#aac42fb0bd7985ea4758f05389bf6c967">More...</a><br /></td></tr>
+<tr class="separator:aac42fb0bd7985ea4758f05389bf6c967"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a511fd29c68607dd4004c3edd7a0b9a7a"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#a511fd29c68607dd4004c3edd7a0b9a7a">GetNormalDataPtr</a> ()</td></tr>
+<tr class="memdesc:a511fd29c68607dd4004c3edd7a0b9a7a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Normal Data Ptr of <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object.  <a href="struct_r_v_c_1_1_point_map.html#a511fd29c68607dd4004c3edd7a0b9a7a">More...</a><br /></td></tr>
+<tr class="separator:a511fd29c68607dd4004c3edd7a0b9a7a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5e3e3b13728d8d5e0fadab2530960e15"><td class="memItemLeft" align="right" valign="top">const double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#a5e3e3b13728d8d5e0fadab2530960e15">GetPointDataConstPtr</a> () const</td></tr>
+<tr class="memdesc:a5e3e3b13728d8d5e0fadab2530960e15"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Point Data Const Ptr of <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object.  <a href="struct_r_v_c_1_1_point_map.html#a5e3e3b13728d8d5e0fadab2530960e15">More...</a><br /></td></tr>
+<tr class="separator:a5e3e3b13728d8d5e0fadab2530960e15"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a56f6c2f207f77a770193ea055ffeb2eb"><td class="memItemLeft" align="right" valign="top">const double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#a56f6c2f207f77a770193ea055ffeb2eb">GetNormalDataConstPtr</a> () const</td></tr>
+<tr class="memdesc:a56f6c2f207f77a770193ea055ffeb2eb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Normal Const Data Ptr of <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object.  <a href="struct_r_v_c_1_1_point_map.html#a56f6c2f207f77a770193ea055ffeb2eb">More...</a><br /></td></tr>
+<tr class="separator:a56f6c2f207f77a770193ea055ffeb2eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0ade7a2e351aa214bb599a569b06b85c"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#a0ade7a2e351aa214bb599a569b06b85c">GetPointMapSeperated</a> (double *x, double *y, double *z, const double scale=1.0)</td></tr>
+<tr class="memdesc:a0ade7a2e351aa214bb599a569b06b85c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the Point Data Seperated.  <a href="struct_r_v_c_1_1_point_map.html#a0ade7a2e351aa214bb599a569b06b85c">More...</a><br /></td></tr>
+<tr class="separator:a0ade7a2e351aa214bb599a569b06b85c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab1e863418e2829d4c299e62c45819bb7"><td class="memItemLeft" align="right" valign="top"><a id="ab1e863418e2829d4c299e62c45819bb7"></a>
+<a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a>&#160;</td><td class="memItemRight" valign="bottom"><b>Clone</b> () const</td></tr>
+<tr class="separator:ab1e863418e2829d4c299e62c45819bb7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abbcd1aa62daa1b1c83a56b7bdeb11571"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#abbcd1aa62daa1b1c83a56b7bdeb11571">GetTimestamp</a> () const</td></tr>
+<tr class="memdesc:abbcd1aa62daa1b1c83a56b7bdeb11571"><td class="mdescLeft">&#160;</td><td class="mdescRight">Retrieves the timestamp of the <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a>.  <a href="struct_r_v_c_1_1_point_map.html#abbcd1aa62daa1b1c83a56b7bdeb11571">More...</a><br /></td></tr>
+<tr class="separator:abbcd1aa62daa1b1c83a56b7bdeb11571"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad0b130cbbab9387cfec3447a96f740b0"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#ad0b130cbbab9387cfec3447a96f740b0">SetTimestamp</a> (const uint64_t timestamp)</td></tr>
+<tr class="memdesc:ad0b130cbbab9387cfec3447a96f740b0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Sets the timestamp for the <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a>.  <a href="struct_r_v_c_1_1_point_map.html#ad0b130cbbab9387cfec3447a96f740b0">More...</a><br /></td></tr>
+<tr class="separator:ad0b130cbbab9387cfec3447a96f740b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-static-methods"></a>
+Static Public Member Functions</h2></td></tr>
+<tr class="memitem:a4acdaaea3fd07d7e1746b17d038df4cf"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#a4acdaaea3fd07d7e1746b17d038df4cf">Create</a> (<a class="el" href="struct_r_v_c_1_1_point_map_type.html#ab1013ca999d69b50732c7e99d9304dfc">PointMapType::Enum</a> pmt, const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a> size, double *data=nullptr, bool owndata=true)</td></tr>
+<tr class="memdesc:a4acdaaea3fd07d7e1746b17d038df4cf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object.  <a href="struct_r_v_c_1_1_point_map.html#a4acdaaea3fd07d7e1746b17d038df4cf">More...</a><br /></td></tr>
+<tr class="separator:a4acdaaea3fd07d7e1746b17d038df4cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8550a9ccbede7758925ab8b2a6332e8b"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#a8550a9ccbede7758925ab8b2a6332e8b">CreateFromFile</a> (const char *fileName, const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a> sz, const <a class="el" href="struct_r_v_c_1_1_point_map_unit.html#aa0ced57a0947829c94ea7b40d747f0e5">PointMapUnit::Enum</a> unit)</td></tr>
+<tr class="memdesc:a8550a9ccbede7758925ab8b2a6332e8b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object from file. Only support the *.ply* format. If actual number of points in the point cloud is not equal to sz.width * sz.height, the function will return an invalid pointmap. If point cloud unit in the file is millimeter, the point cloud data will be divided by 1000.  <a href="struct_r_v_c_1_1_point_map.html#a8550a9ccbede7758925ab8b2a6332e8b">More...</a><br /></td></tr>
+<tr class="separator:a8550a9ccbede7758925ab8b2a6332e8b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a630aad8e9f82e49c0c375d515b6ecf39"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#a630aad8e9f82e49c0c375d515b6ecf39">Destroy</a> (<a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a> pm, bool no_reuse=true)</td></tr>
+<tr class="memdesc:a630aad8e9f82e49c0c375d515b6ecf39"><td class="mdescLeft">&#160;</td><td class="mdescRight">Destroy a <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object.  <a href="struct_r_v_c_1_1_point_map.html#a630aad8e9f82e49c0c375d515b6ecf39">More...</a><br /></td></tr>
+<tr class="separator:a630aad8e9f82e49c0c375d515b6ecf39"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
+Public Attributes</h2></td></tr>
+<tr class="memitem:a994ac9ed3ad6351ca3689a0a39497b18"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_r_v_c_1_1_handle.html">Handle</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="struct_r_v_c_1_1_point_map.html#a994ac9ed3ad6351ca3689a0a39497b18">m_handle</a></td></tr>
+<tr class="memdesc:a994ac9ed3ad6351ca3689a0a39497b18"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> <a class="el" href="struct_r_v_c_1_1_handle.html" title="RVC Handle.">Handle</a>.  <a href="struct_r_v_c_1_1_point_map.html#a994ac9ed3ad6351ca3689a0a39497b18">More...</a><br /></td></tr>
+<tr class="separator:a994ac9ed3ad6351ca3689a0a39497b18"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> X <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a>. </p>
+</div><h2 class="groupheader">Member Function Documentation</h2>
+<a id="a4acdaaea3fd07d7e1746b17d038df4cf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4acdaaea3fd07d7e1746b17d038df4cf">&#9670;&nbsp;</a></span>Create()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a> RVC::PointMap::Create </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_point_map_type.html#ab1013ca999d69b50732c7e99d9304dfc">PointMapType::Enum</a>&#160;</td>
+          <td class="paramname"><em>pmt</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a>&#160;</td>
+          <td class="paramname"><em>size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double *&#160;</td>
+          <td class="paramname"><em>data</em> = <code>nullptr</code>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>owndata</em> = <code>true</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Create <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">pmt</td><td><a class="el" href="struct_r_v_c_1_1_point_map_type.html" title="RVC X PointMap Type.">PointMapType</a> </td></tr>
+    <tr><td class="paramname">size</td><td><a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> <a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> </td></tr>
+    <tr><td class="paramname">data</td><td><a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> data (m) </td></tr>
+    <tr><td class="paramname">owndata</td><td>True for malloc a new space for <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> A <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object </dd></dl>
+
+</div>
+</div>
+<a id="a8550a9ccbede7758925ab8b2a6332e8b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8550a9ccbede7758925ab8b2a6332e8b">&#9670;&nbsp;</a></span>CreateFromFile()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a> RVC::PointMap::CreateFromFile </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>fileName</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_size.html">Size</a>&#160;</td>
+          <td class="paramname"><em>sz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_point_map_unit.html#aa0ced57a0947829c94ea7b40d747f0e5">PointMapUnit::Enum</a>&#160;</td>
+          <td class="paramname"><em>unit</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Create <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object from file. Only support the *.ply* format. If actual number of points in the point cloud is not equal to sz.width * sz.height, the function will return an invalid pointmap. If point cloud unit in the file is millimeter, the point cloud data will be divided by 1000. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">fileName</td><td>Name of file to be loaded. </td></tr>
+    <tr><td class="paramname">sz</td><td><a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> of the point cloud. </td></tr>
+    <tr><td class="paramname">unit</td><td>The unit of the point cloud data in the file. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a630aad8e9f82e49c0c375d515b6ecf39"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a630aad8e9f82e49c0c375d515b6ecf39">&#9670;&nbsp;</a></span>Destroy()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void RVC::PointMap::Destroy </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="struct_r_v_c_1_1_point_map.html">PointMap</a>&#160;</td>
+          <td class="paramname"><em>pm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>no_reuse</em> = <code>true</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Destroy a <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">pm</td><td><a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object will be destroyed </td></tr>
+    <tr><td class="paramname">no_reuse</td><td>True for reuse current space of <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a56f6c2f207f77a770193ea055ffeb2eb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a56f6c2f207f77a770193ea055ffeb2eb">&#9670;&nbsp;</a></span>GetNormalDataConstPtr()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const double* RVC::PointMap::GetNormalDataConstPtr </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Normal Const Data Ptr of <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object. </p>
+<dl class="section return"><dt>Returns</dt><dd>const double* Normal Data Ptr </dd></dl>
+
+</div>
+</div>
+<a id="a511fd29c68607dd4004c3edd7a0b9a7a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a511fd29c68607dd4004c3edd7a0b9a7a">&#9670;&nbsp;</a></span>GetNormalDataPtr()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double* RVC::PointMap::GetNormalDataPtr </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Normal Data Ptr of <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object. </p>
+<dl class="section return"><dt>Returns</dt><dd>double* Normal Data Ptr </dd></dl>
+
+</div>
+</div>
+<a id="a5e3e3b13728d8d5e0fadab2530960e15"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5e3e3b13728d8d5e0fadab2530960e15">&#9670;&nbsp;</a></span>GetPointDataConstPtr()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const double* RVC::PointMap::GetPointDataConstPtr </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Point Data Const Ptr of <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object. </p>
+<dl class="section return"><dt>Returns</dt><dd>const double* Point Data Ptr (m) </dd></dl>
+
+</div>
+</div>
+<a id="aac42fb0bd7985ea4758f05389bf6c967"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aac42fb0bd7985ea4758f05389bf6c967">&#9670;&nbsp;</a></span>GetPointDataPtr()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double* RVC::PointMap::GetPointDataPtr </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Point Data Ptr of <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> object. </p>
+<dl class="section return"><dt>Returns</dt><dd>double* Point Data Ptr (m) </dd></dl>
+
+</div>
+</div>
+<a id="a0ade7a2e351aa214bb599a569b06b85c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0ade7a2e351aa214bb599a569b06b85c">&#9670;&nbsp;</a></span>GetPointMapSeperated()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::PointMap::GetPointMapSeperated </td>
+          <td>(</td>
+          <td class="paramtype">double *&#160;</td>
+          <td class="paramname"><em>x</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double *&#160;</td>
+          <td class="paramname"><em>y</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double *&#160;</td>
+          <td class="paramname"><em>z</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const double&#160;</td>
+          <td class="paramname"><em>scale</em> = <code>1.0</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the Point Data Seperated. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">x</td><td></td></tr>
+    <tr><td class="paramname">y</td><td></td></tr>
+    <tr><td class="paramname">z</td><td></td></tr>
+    <tr><td class="paramname">scale</td><td>default set to 1 </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true </dd>
+<dd>
+false </dd></dl>
+
+</div>
+</div>
+<a id="a099e6e81efa12be4f4b650375374a07f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a099e6e81efa12be4f4b650375374a07f">&#9670;&nbsp;</a></span>GetSize()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_size.html">Size</a> RVC::PointMap::GetSize </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> <a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> object. </p>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> <a class="el" href="struct_r_v_c_1_1_size.html" title="Image/PointMap Size.">Size</a> </dd></dl>
+
+</div>
+</div>
+<a id="abbcd1aa62daa1b1c83a56b7bdeb11571"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abbcd1aa62daa1b1c83a56b7bdeb11571">&#9670;&nbsp;</a></span>GetTimestamp()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint64_t RVC::PointMap::GetTimestamp </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Retrieves the timestamp of the <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a>. </p>
+<p>Returns the timestamp value representing the acquisition time of the point cloud data. The timestamp is measured in microseconds (us).</p>
+<dl class="section return"><dt>Returns</dt><dd>uint64_t Timestamp value in microseconds (us) </dd></dl>
+
+</div>
+</div>
+<a id="ab6eae42dacb2f02ddb51fa4d52227820"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab6eae42dacb2f02ddb51fa4d52227820">&#9670;&nbsp;</a></span>IsValid()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::PointMap::IsValid </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Check <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> is Valid or not. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Valid </dd>
+<dd>
+false Not valid </dd></dl>
+
+</div>
+</div>
+<a id="aa623644e8ec081625549da3294669449"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa623644e8ec081625549da3294669449">&#9670;&nbsp;</a></span>Save()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::PointMap::Save </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>fileName</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_point_map_unit.html#aa0ced57a0947829c94ea7b40d747f0e5">PointMapUnit::Enum</a>&#160;</td>
+          <td class="paramname"><em>unit</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const bool&#160;</td>
+          <td class="paramname"><em>isBinary</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="struct_r_v_c_1_1_image.html">Image</a> &amp;&#160;</td>
+          <td class="paramname"><em>rawImage</em> = <code><a class="el" href="struct_r_v_c_1_1_image.html">Image</a>()</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>export <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a>'s data to local file. Only support the *.ply* format. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">fileName</td><td>Name of file to be created. </td></tr>
+    <tr><td class="paramname">unit</td><td>The unit of exported data. If save unit is millimeter, the point cloud data will be multiplied by 1000. </td></tr>
+    <tr><td class="paramname">isBinary</td><td>Whether to export to binary format. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>bool. </dd></dl>
+
+</div>
+</div>
+<a id="ad0b130cbbab9387cfec3447a96f740b0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad0b130cbbab9387cfec3447a96f740b0">&#9670;&nbsp;</a></span>SetTimestamp()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool RVC::PointMap::SetTimestamp </td>
+          <td>(</td>
+          <td class="paramtype">const uint64_t&#160;</td>
+          <td class="paramname"><em>timestamp</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Sets the timestamp for the <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a>. </p>
+<p>Updates the timestamp value associated with the <a class="el" href="struct_r_v_c_1_1_point_map.html" title="RVC X PointMap.">PointMap</a> data. The timestamp should represent the acquisition time of the point cloud data and must be provided in microseconds (us).</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">timestamp</td><td>Timestamp value in microseconds (us) to be set </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>bool True if the timestamp was successfully set, false otherwise </dd></dl>
+
+</div>
+</div>
+<h2 class="groupheader">Member Data Documentation</h2>
+<a id="a994ac9ed3ad6351ca3689a0a39497b18"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a994ac9ed3ad6351ca3689a0a39497b18">&#9670;&nbsp;</a></span>m_handle</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="struct_r_v_c_1_1_handle.html">Handle</a> RVC::PointMap::m_handle</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p><a class="el" href="namespace_r_v_c.html" title="RVC namespace.">RVC</a> <a class="el" href="struct_r_v_c_1_1_handle.html" title="RVC Handle.">Handle</a>. </p>
+
+</div>
+</div>
+<hr/>The documentation for this struct was generated from the following file:<ul>
+<li><a class="el" href="_r_v_c_8h_source.html">RVC.h</a></li>
+</ul>
+</div><!-- contents -->
+</div><!-- doc-content -->
+</body>
+</html>

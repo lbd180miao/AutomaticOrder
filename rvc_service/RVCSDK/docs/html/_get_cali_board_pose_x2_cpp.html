@@ -1,0 +1,358 @@
+<!-- HTML header for doxygen 1.8.6-->
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=9" />
+  <meta name="generator" content="Doxygen 1.8.18" />
+  <title>RVC: X2 get cali board pose</title>
+  <link href="tabs.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="jquery.js"></script>
+  <script type="text/javascript" src="dynsections.js"></script>
+  <link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+  <link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+  <link href="doxygen.css" rel="stylesheet" type="text/css" />
+  <link
+    href="https://fonts.googleapis.com/css?family=Roboto:300,400,400italic,500,500italic,700,700italic|Roboto+Mono:400,700"
+    rel="stylesheet">
+  <link href="style.css" rel="stylesheet" type="text/css"/>
+  <script>
+    /**
+     * Check if the browser rendering this page is being run on an Android device.
+     * It checks if the string 'android' is found in the browser's `userAgent`.
+     * @return {boolean} This returns `true` if the browser's `userAgent` contains
+     * the string 'android' (indicating that the browser is on an Android device).
+     * Otherwise, it returns `false`.
+     */
+    function isAndroidDevice() {
+      if (navigator && navigator.userAgent) {
+        return navigator.userAgent.toLowerCase().indexOf('android') != -1;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Check if an HTML `class` attribute is in the browser-specific format.
+     * @param {string} An HTML `class` attribute in the format 'browser-{device}'.
+     * @return {boolean} Returns `true` if `browserClass` was in the valid format,
+     * prefixed with 'browser-'. Otherwise, it returns false.
+     */
+    function isBrowserSpecificClassName(browserClass) {
+      if (browserClass && browserClass.substring(0, 8) == 'browser-' &&
+        browserClass.length > 8) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    /**
+     * Get all the HTML Elements with browser-specific `class` attributes.
+     * @return {array} Returns an array of all the HTML Elements with a `class`
+     * attribute that is prefixed with `browser-`.
+     */
+    function getAllBrowserSpecificElements() {
+      if (document) {
+        var htmlElements = document.getElementsByTagName("*");
+        var browserSpecificElements = [];
+        for (var i = 0; i < htmlElements.length; i++) {
+          if (isBrowserSpecificClassName(htmlElements[i].className)) {
+            browserSpecificElements.push(htmlElements[i]);
+          }
+        }
+        return browserSpecificElements;
+      } else {
+        return null;
+      }
+    }
+    /**
+     * Given a browser-specific HTML `class` attribute, extract the device name.
+     * @param {string} browserClass The string name of an HTML `class` attribute,
+     * in the format `browser-{device}`.
+     * @return {string} Returns a string containing only the device portion of
+     * the class name. If the input was invalid, then it returns `null`.
+     */
+    function extractDeviceFromBrowserClass(browserClass) {
+      if (isBrowserSpecificClassName(browserClass)) {
+        return browserClass.substring(8);
+      }
+      else {
+        return null;
+      }
+    }
+    /**
+     * Hide device specific elements that do not apply to the current device.
+     */
+    function handleDeviceSpecificLoading() {
+      var browserSpecificElements = getAllBrowserSpecificElements();
+      for (var i = 0; i < browserSpecificElements.length; i++) {
+        var device = extractDeviceFromBrowserClass(browserSpecificElements[i].className);
+        if (device && !isAndroidDevice() && device == 'android') {
+          browserSpecificElements[i].innerHTML = '';
+        } else if (device && isAndroidDevice() && device == 'desktop') {
+          browserSpecificElements[i].innerHTML = '';
+        }
+      }
+    }
+    $(document).ready(handleDeviceSpecificLoading);
+  </script>
+</head>
+<body>
+  <div id="top">
+    <!-- do not remove this div, it is closed by doxygen! -->
+    <div id="titlearea">
+      <table cellspacing="0" cellpadding="0">
+        <tbody>
+          <tr style="height: 56px;">
+            <!-- <td id="projectlogo">
+    <img alt="Logo" width=100px src="documentation.png"/>
+  </td> -->
+            <!-- END PROJECT_LOGO -->
+            <td id="commonprojectlogo">
+              <img alt="Logo" width=150px src="documentation.png" />
+            </td>
+            <td style="padding-left: 0.5em;">
+              <div id="projectname">RVC
+                &#160;<span id="projectnumber">1.15.1</span>
+              </div>
+              <div style="font-size:12px;">
+                a product by
+                <a href="https://www.rvbust.com">RVBUST</a>.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- end header part --><!-- Generated by Doxygen 1.8.18 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+var searchBox = new SearchBox("searchBox", "search",false,'Search');
+/* @license-end */
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(function() {
+  initMenu('',true,false,'search.php','Search');
+  $(document).ready(function() { init_search(); });
+});
+/* @license-end */</script>
+<div id="main-nav"></div>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:cf05388f2679ee054f2beb29a391d25f4e673ac3&amp;dn=gpl-2.0.txt GPL-v2 */
+$(document).ready(function(){initNavTree('_get_cali_board_pose_x2_cpp.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<iframe src="javascript:void(0)" frameborder="0" 
+        name="MSearchResults" id="MSearchResults">
+</iframe>
+</div>
+
+<div class="PageDoc"><div class="header">
+  <div class="headertitle">
+<div class="title">X2 get cali board pose </div>  </div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><div class="fragment"><div class="line"><span class="preprocessor">#include &lt;RVC/RVC.h&gt;</span></div>
+<div class="line"> </div>
+<div class="line"><span class="preprocessor">#include &lt;iostream&gt;</span></div>
+<div class="line"><span class="preprocessor">#include &lt;opencv2/imgcodecs.hpp&gt;</span></div>
+<div class="line"> </div>
+<div class="line"><span class="preprocessor">#include &quot;IO/FileIO.h&quot;</span></div>
+<div class="line"><span class="preprocessor">#include &quot;IO/SavePointMap.h&quot;</span></div>
+<div class="line"><span class="preprocessor">#include &quot;Utils/CaliBoardUtils.h&quot;</span></div>
+<div class="line"> </div>
+<div class="line"><span class="keywordtype">void</span> Help() {</div>
+<div class="line">    printf(</div>
+<div class="line">        <span class="stringliteral">&quot;usage: ./GetCaliBoardPoseX2 exposure_time_ms cicle_center_distance_m circle_radius_m\n\ncircle &quot;</span></div>
+<div class="line">        <span class="stringliteral">&quot;center distance(circle step) and circle radius can be found in calibration board\n\n&quot;</span>);</div>
+<div class="line">}</div>
+<div class="line"> </div>
+<div class="line"><span class="keywordtype">int</span> main(<span class="keywordtype">int</span> argc, <span class="keywordtype">char</span> *argv[]) {</div>
+<div class="line">    <span class="keywordflow">if</span> (argc != 4) {</div>
+<div class="line">        Help();</div>
+<div class="line">        exit(0);</div>
+<div class="line">    }</div>
+<div class="line">    <span class="comment">// Initialize RVC system.</span></div>
+<div class="line">    <a class="code" href="namespace_r_v_c.html#a323593973d7de52708fae81cc20db39c">RVC::SystemInit</a>();</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Choose RVC Camera type (USB, GigE or All)</span></div>
+<div class="line">    <a class="code" href="struct_r_v_c_1_1_device.html">RVC::Device</a> devices[10];</div>
+<div class="line">    <span class="keywordtype">size_t</span> actual_size = 0;</div>
+<div class="line">    <a class="code" href="namespace_r_v_c.html#a3ee199b906497d6b03fbb3139e74cb71">SystemListDevices</a>(devices, 10, &amp;actual_size, RVC::SystemListDeviceType::All);</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Find whether any Camera is connected or not.</span></div>
+<div class="line">    <span class="keywordflow">if</span> (actual_size == 0) {</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;Can not find any Camera!&quot;</span> &lt;&lt; std::endl;</div>
+<div class="line">        <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC::SystemShutdown</a>();</div>
+<div class="line">        <span class="keywordflow">return</span> -1;</div>
+<div class="line">    }</div>
+<div class="line">    <span class="keywordflow">if</span>(devices[0].IsFirmwareMatch() == <span class="keyword">false</span>){</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;device firmware mismatch, Please use RVCManager to upgrade the firmware&quot;</span> &lt;&lt; std::endl;</div>
+<div class="line">        <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC::SystemShutdown</a>();</div>
+<div class="line">        <span class="keywordflow">return</span> -1;</div>
+<div class="line">    }</div>
+<div class="line">    <span class="comment">// Create and open RVC Camera.</span></div>
+<div class="line">    <a class="code" href="struct_r_v_c_1_1_device.html">RVC::Device</a> device = devices[0];</div>
+<div class="line">    <a class="code" href="struct_r_v_c_1_1_x2.html">RVC::X2</a> x2 = <a class="code" href="struct_r_v_c_1_1_x2.html#a00b7a6605af2c815713b1678fd41ff55">RVC::X2::Create</a>(device);</div>
+<div class="line">    x2.<a class="code" href="struct_r_v_c_1_1_x2.html#af5eb5b9bcaf2e65feac44839f1f4ae50">Open</a>();</div>
+<div class="line">    <span class="keywordflow">if</span> (!x2.<a class="code" href="struct_r_v_c_1_1_x2.html#ac399e8c8c2ac0c87bab365f109d3e363">IsOpen</a>()) {</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;Failed to open camera! Please check whether the camera is connected and make sure it is not occupied and supports X2.&quot;</span> &lt;&lt; std::endl;</div>
+<div class="line">        <a class="code" href="struct_r_v_c_1_1_x2.html#ae672010b55a304c56aad605ac9a03ab8">RVC::X2::Destroy</a>(x2);</div>
+<div class="line">        <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC::SystemShutdown</a>();</div>
+<div class="line">        <span class="keywordflow">return</span> -1;</div>
+<div class="line">    }</div>
+<div class="line"> </div>
+<div class="line">    <a class="code" href="struct_r_v_c_1_1_device_info.html">RVC::DeviceInfo</a> info;</div>
+<div class="line">    device.<a class="code" href="struct_r_v_c_1_1_device.html#ad5edfbbaf441b14d432fc609a71f1d89">GetDeviceInfo</a>(&amp;info);</div>
+<div class="line">    <a class="code" href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">RVC::CameraID</a> camera_id = RVC::CameraID_Left;</div>
+<div class="line">    <span class="keywordflow">if</span> (info.support_extra) {</div>
+<div class="line">        camera_id = RVC::CameraID_Extra;</div>
+<div class="line">    }</div>
+<div class="line"> </div>
+<div class="line">    <span class="keyword">const</span> std::string save_directory = <span class="stringliteral">&quot;./Data/&quot;</span>;</div>
+<div class="line">    MakeDirectories(save_directory);</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// set capture option parameter</span></div>
+<div class="line">    <a class="code" href="struct_r_v_c_1_1_x2_1_1_capture_options.html">RVC::X2::CaptureOptions</a> cap_opts;</div>
+<div class="line">    x2.<a class="code" href="struct_r_v_c_1_1_x2.html#aa83bd44b81819ede5ffce9b8ab235582">LoadCaptureOptionParameters</a>(cap_opts);</div>
+<div class="line">    cap_opts.<a class="code" href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a7c8a6be8a69f08b06719f2c26cd96242">transform_to_camera</a> = camera_id;</div>
+<div class="line">    cap_opts.<a class="code" href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a182637624d485019887829439c53a3d1">exposure_time_2d</a> = std::atoi(argv[1]);</div>
+<div class="line">    cap_opts.<a class="code" href="struct_r_v_c_1_1_x2_1_1_capture_options.html#ae7e7fb4668e73846a2766d2509d931f2">exposure_time_3d</a> = std::atoi(argv[1]);</div>
+<div class="line">    cap_opts.<a class="code" href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a12d14e53dde0452be851c6c24352a960">use_projector_capturing_2d_image</a> = <span class="keyword">true</span>;</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// set calibration board detection parameter</span></div>
+<div class="line">    <span class="keywordtype">float</span> extrinsic_matrix[16], intrinsic_matrix[9], distortion[5];</div>
+<div class="line">    x2.<a class="code" href="struct_r_v_c_1_1_x2.html#a69996ceb2250750c7f8bd050d1948236">GetExtrinsicMatrix</a>(camera_id, extrinsic_matrix);</div>
+<div class="line">    x2.<a class="code" href="struct_r_v_c_1_1_x2.html#a2dd51ceb4fe11c8cc41822d144fa6a6d">GetIntrinsicParameters</a>(camera_id, intrinsic_matrix, distortion);</div>
+<div class="line">    <span class="comment">// pixel distance in Z plane where Z equals to calibration board position Z.</span></div>
+<div class="line">    <span class="keyword">const</span> <span class="keywordtype">double</span> pixel_dist_m = extrinsic_matrix[11] / intrinsic_matrix[0];</div>
+<div class="line">    <span class="keyword">const</span> <span class="keywordtype">double</span> circle_radius_m = std::atof(argv[3]), circle_radius_pixel = circle_radius_m / pixel_dist_m;</div>
+<div class="line"> </div>
+<div class="line">    <span class="keyword">const</span> <span class="keywordtype">int</span> calib_board_size[2] = {4, 11};            <span class="comment">// {points_per_row, points_per_colum}</span></div>
+<div class="line">    <span class="keyword">const</span> <span class="keywordtype">double</span> center_distance = std::atof(argv[2]);  <span class="comment">// unit: m</span></div>
+<div class="line"> </div>
+<div class="line">    cv::SimpleBlobDetector::Params blob_detector_param;</div>
+<div class="line">    blob_detector_param.filterByColor = <span class="keyword">true</span>;</div>
+<div class="line">    blob_detector_param.blobColor = 255;</div>
+<div class="line">    blob_detector_param.filterByArea = <span class="keyword">true</span>;</div>
+<div class="line">    blob_detector_param.minArea = circle_radius_pixel * circle_radius_pixel * 3.14159 / 3;  <span class="comment">// unit: pixel</span></div>
+<div class="line">    blob_detector_param.maxArea = circle_radius_pixel * circle_radius_pixel * 3.14159 * 3;  <span class="comment">// unit: pixel</span></div>
+<div class="line">    blob_detector_param.filterByCircularity = <span class="keyword">true</span>;</div>
+<div class="line">    blob_detector_param.minCircularity = 0.5;</div>
+<div class="line"> </div>
+<div class="line">    printf(<span class="stringliteral">&quot;area threshold pixel: %f, %f\n&quot;</span>, blob_detector_param.minArea, blob_detector_param.maxArea);</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Capture a point map and a image with default setting.</span></div>
+<div class="line">    <span class="keywordflow">if</span> (x2.<a class="code" href="struct_r_v_c_1_1_x2.html#af7f696060a6fe5b4b8248b73609dbe67">Capture</a>(cap_opts) == <span class="keyword">true</span>) {</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;RVC Camera capture successed!&quot;</span> &lt;&lt; std::endl;</div>
+<div class="line"> </div>
+<div class="line">        <span class="comment">// Get point map data (m).</span></div>
+<div class="line">        <a class="code" href="struct_r_v_c_1_1_point_map.html">RVC::PointMap</a> pm = x2.<a class="code" href="struct_r_v_c_1_1_x2.html#a83a5c69c670df3f6e9951c04b8e34b3c">GetPointMap</a>();</div>
+<div class="line">        std::string pm_addr = save_directory + <span class="stringliteral">&quot;test.ply&quot;</span>;</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;save point map to file: &quot;</span> &lt;&lt; pm_addr &lt;&lt; std::endl;</div>
+<div class="line">        pm.<a class="code" href="struct_r_v_c_1_1_point_map.html#aa623644e8ec081625549da3294669449">Save</a>(pm_addr.c_str(), RVC::PointMapUnit::Meter, <span class="keyword">true</span>);</div>
+<div class="line"> </div>
+<div class="line">        <span class="comment">// Get image data.</span></div>
+<div class="line">        <a class="code" href="struct_r_v_c_1_1_image.html">RVC::Image</a> img = x2.<a class="code" href="struct_r_v_c_1_1_x2.html#ab71a809ec745620668e8101deda300b3">GetImage</a>(camera_id);</div>
+<div class="line">        std::string img_addr = save_directory + <span class="stringliteral">&quot;test.png&quot;</span>;</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;save image to file: &quot;</span> &lt;&lt; img_addr &lt;&lt; std::endl;</div>
+<div class="line">        img.<a class="code" href="struct_r_v_c_1_1_image.html#a0252adee2e031190a0526d6265070192">SaveImage</a>(img_addr.c_str());</div>
+<div class="line">        <span class="keywordtype">double</span> R_in_camera[9], T_in_camera[3];</div>
+<div class="line">        cv::Mat drawed_image;</div>
+<div class="line">        <span class="keywordtype">bool</span> found = GetCaliBoardPose(pm, img, center_distance, calib_board_size, blob_detector_param, R_in_camera,</div>
+<div class="line">                                      T_in_camera, &amp;drawed_image);</div>
+<div class="line">        cv::imwrite(save_directory + <span class="stringliteral">&quot;drawedImage.png&quot;</span>, drawed_image);</div>
+<div class="line">        <span class="keywordflow">if</span> (!found) {</div>
+<div class="line">            printf(</div>
+<div class="line">                <span class="stringliteral">&quot;Get pose failed. please adjust parameter according to ./Data/drawedImage.png. if calibboard in 2d &quot;</span></div>
+<div class="line">                <span class="stringliteral">&quot;image is detected, then adjust exposure time of 3d, otherwise, adjust blobdetector parameter\n&quot;</span>);</div>
+<div class="line">        } <span class="keywordflow">else</span> {</div>
+<div class="line">            PrintHomogeneousMatrix(R_in_camera, T_in_camera);</div>
+<div class="line">            <span class="comment">// transform point cloud from camera coordinate to calibBoard coordinate</span></div>
+<div class="line">            <span class="keywordtype">double</span> R_in_calib[9], T_in_calib[3];</div>
+<div class="line">            RigidTransformInv(R_in_camera, T_in_camera, R_in_calib, T_in_calib);</div>
+<div class="line">            RigidTransformPointMap(pm, R_in_calib, T_in_calib);</div>
+<div class="line">            pm_addr = save_directory + <span class="stringliteral">&quot;pointmap_in_calib.ply&quot;</span>;</div>
+<div class="line">            std::cout &lt;&lt; <span class="stringliteral">&quot;save transformed point map to file: &quot;</span> &lt;&lt; pm_addr &lt;&lt; std::endl;</div>
+<div class="line">            pm.<a class="code" href="struct_r_v_c_1_1_point_map.html#aa623644e8ec081625549da3294669449">Save</a>(pm_addr.c_str(), RVC::PointMapUnit::Meter, <span class="keyword">true</span>);</div>
+<div class="line"> </div>
+<div class="line">        }</div>
+<div class="line">    } <span class="keywordflow">else</span> {</div>
+<div class="line">        std::cout &lt;&lt; <a class="code" href="namespace_r_v_c.html#a02779b50f9e7e758b8ab4a4566efb85c">RVC::GetLastErrorMessage</a>() &lt;&lt; std::endl;</div>
+<div class="line">        std::cout &lt;&lt; <span class="stringliteral">&quot;RVC Camera capture failed!&quot;</span> &lt;&lt; std::endl;</div>
+<div class="line">    }</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Close RVC Camera.</span></div>
+<div class="line">    x2.<a class="code" href="struct_r_v_c_1_1_x2.html#a406258deb04b02e00c969672ce2d1219">Close</a>();</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Destroy RVC Camera.</span></div>
+<div class="line">    <a class="code" href="struct_r_v_c_1_1_x2.html#ae672010b55a304c56aad605ac9a03ab8">RVC::X2::Destroy</a>(x2);</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Shutdown RVC System.</span></div>
+<div class="line">    <a class="code" href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC::SystemShutdown</a>();</div>
+<div class="line"> </div>
+<div class="line">    <span class="keywordflow">return</span> 0;</div>
+<div class="line">}</div>
+</div><!-- fragment --> </div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_ac399e8c8c2ac0c87bab365f109d3e363"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#ac399e8c8c2ac0c87bab365f109d3e363">RVC::X2::IsOpen</a></div><div class="ttdeci">bool IsOpen()</div><div class="ttdoc">Check X2 is open or not.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a69996ceb2250750c7f8bd050d1948236"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a69996ceb2250750c7f8bd050d1948236">RVC::X2::GetExtrinsicMatrix</a></div><div class="ttdeci">bool GetExtrinsicMatrix(const CameraID cid, float *matrix)</div><div class="ttdoc">Get the extrinsic matrix (transformation from calibration board to specified camera)</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a12d14e53dde0452be851c6c24352a960"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a12d14e53dde0452be851c6c24352a960">RVC::X2::CaptureOptions::use_projector_capturing_2d_image</a></div><div class="ttdeci">bool use_projector_capturing_2d_image</div><div class="ttdoc">Set 2D image whether use projector.</div><div class="ttdef"><b>Definition:</b> RVC.h:2147</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_ae7e7fb4668e73846a2766d2509d931f2"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#ae7e7fb4668e73846a2766d2509d931f2">RVC::X2::CaptureOptions::exposure_time_3d</a></div><div class="ttdeci">int exposure_time_3d</div><div class="ttdoc">Set the exposure_time 3D value in milliseconds.</div><div class="ttdef"><b>Definition:</b> RVC.h:2097</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a00b7a6605af2c815713b1678fd41ff55"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a00b7a6605af2c815713b1678fd41ff55">RVC::X2::Create</a></div><div class="ttdeci">static X2 Create(const Device &amp;d)</div><div class="ttdoc">Create a RVC X Camera before you use x2.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_ae672010b55a304c56aad605ac9a03ab8"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#ae672010b55a304c56aad605ac9a03ab8">RVC::X2::Destroy</a></div><div class="ttdeci">static void Destroy(X2 &amp;x)</div><div class="ttdoc">Release all X2 resources after you use X2.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_aa83bd44b81819ede5ffce9b8ab235582"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#aa83bd44b81819ede5ffce9b8ab235582">RVC::X2::LoadCaptureOptionParameters</a></div><div class="ttdeci">bool LoadCaptureOptionParameters(X2::CaptureOptions &amp;opts)</div><div class="ttdoc">Get capture option parameters.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_af7f696060a6fe5b4b8248b73609dbe67"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#af7f696060a6fe5b4b8248b73609dbe67">RVC::X2::Capture</a></div><div class="ttdeci">bool Capture(const CaptureOptions &amp;opts)</div><div class="ttdoc">Capture one point map and one image.This function will save capture options into camera.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a182637624d485019887829439c53a3d1"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a182637624d485019887829439c53a3d1">RVC::X2::CaptureOptions::exposure_time_2d</a></div><div class="ttdeci">int exposure_time_2d</div><div class="ttdoc">Set the exposure_time 2D value in milliseconds.</div><div class="ttdef"><b>Definition:</b> RVC.h:2092</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_image_html_a0252adee2e031190a0526d6265070192"><div class="ttname"><a href="struct_r_v_c_1_1_image.html#a0252adee2e031190a0526d6265070192">RVC::Image::SaveImage</a></div><div class="ttdeci">bool SaveImage(const char *addr) const</div><div class="ttdoc">Save Image to file.</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a3ee199b906497d6b03fbb3139e74cb71"><div class="ttname"><a href="namespace_r_v_c.html#a3ee199b906497d6b03fbb3139e74cb71">RVC::SystemListDevices</a></div><div class="ttdeci">RVC_EXPORT int SystemListDevices(Device *pdevices, size_t size, size_t *actual_size, SystemListDeviceType::Enum opt=SystemListDeviceType::All)</div><div class="ttdoc">List the fix number devices.</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_adf5057625a1487c09643b07ec5578e78"><div class="ttname"><a href="namespace_r_v_c.html#adf5057625a1487c09643b07ec5578e78">RVC::CameraID</a></div><div class="ttdeci">CameraID</div><div class="ttdoc">CameraID, support CameraID_Left and CameraID_Right</div><div class="ttdef"><b>Definition:</b> RVC.h:742</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a7c616a5d26f42991a8fbe38176a46c69"><div class="ttname"><a href="namespace_r_v_c.html#a7c616a5d26f42991a8fbe38176a46c69">RVC::SystemShutdown</a></div><div class="ttdeci">RVC_EXPORT void SystemShutdown()</div><div class="ttdoc">SystemShutdown.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html">RVC::X2::CaptureOptions</a></div><div class="ttdoc">Capture options.</div><div class="ttdef"><b>Definition:</b> RVC.h:1982</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_device_html_ad5edfbbaf441b14d432fc609a71f1d89"><div class="ttname"><a href="struct_r_v_c_1_1_device.html#ad5edfbbaf441b14d432fc609a71f1d89">RVC::Device::GetDeviceInfo</a></div><div class="ttdeci">bool GetDeviceInfo(DeviceInfo *pinfo)</div><div class="ttdoc">Get the DeviceInfo object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_image_html"><div class="ttname"><a href="struct_r_v_c_1_1_image.html">RVC::Image</a></div><div class="ttdoc">RVC X Image object.</div><div class="ttdef"><b>Definition:</b> RVC.h:303</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a406258deb04b02e00c969672ce2d1219"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a406258deb04b02e00c969672ce2d1219">RVC::X2::Close</a></div><div class="ttdeci">void Close()</div><div class="ttdoc">Close X2 after you Open it.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_device_info_html"><div class="ttname"><a href="struct_r_v_c_1_1_device_info.html">RVC::DeviceInfo</a></div><div class="ttdoc">RVC X Device info.</div><div class="ttdef"><b>Definition:</b> RVC.h:924</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a83a5c69c670df3f6e9951c04b8e34b3c"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a83a5c69c670df3f6e9951c04b8e34b3c">RVC::X2::GetPointMap</a></div><div class="ttdeci">PointMap GetPointMap()</div><div class="ttdoc">Get the Point Map object.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_a2dd51ceb4fe11c8cc41822d144fa6a6d"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#a2dd51ceb4fe11c8cc41822d144fa6a6d">RVC::X2::GetIntrinsicParameters</a></div><div class="ttdeci">bool GetIntrinsicParameters(const CameraID cid, float *instrinsicMatrix, float *distortion)</div><div class="ttdoc">Get intrinsic and distortion parameters of the specified camera.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_point_map_html_aa623644e8ec081625549da3294669449"><div class="ttname"><a href="struct_r_v_c_1_1_point_map.html#aa623644e8ec081625549da3294669449">RVC::PointMap::Save</a></div><div class="ttdeci">bool Save(const char *fileName, const PointMapUnit::Enum unit, const bool isBinary, const Image &amp;rawImage=Image())</div><div class="ttdoc">export PointMap's data to local file. Only support the *.ply* format.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html">RVC::X2</a></div><div class="ttdoc">X2 struct.</div><div class="ttdef"><b>Definition:</b> RVC.h:1977</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_point_map_html"><div class="ttname"><a href="struct_r_v_c_1_1_point_map.html">RVC::PointMap</a></div><div class="ttdoc">RVC X PointMap.</div><div class="ttdef"><b>Definition:</b> RVC.h:560</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a323593973d7de52708fae81cc20db39c"><div class="ttname"><a href="namespace_r_v_c.html#a323593973d7de52708fae81cc20db39c">RVC::SystemInit</a></div><div class="ttdeci">RVC_EXPORT bool SystemInit()</div><div class="ttdoc">SystemInit.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_device_html"><div class="ttname"><a href="struct_r_v_c_1_1_device.html">RVC::Device</a></div><div class="ttdoc">Device struct.</div><div class="ttdef"><b>Definition:</b> RVC.h:948</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_af5eb5b9bcaf2e65feac44839f1f4ae50"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#af5eb5b9bcaf2e65feac44839f1f4ae50">RVC::X2::Open</a></div><div class="ttdeci">bool Open()</div><div class="ttdoc">Open X2 before you use it.</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_1_1_capture_options_html_a7c8a6be8a69f08b06719f2c26cd96242"><div class="ttname"><a href="struct_r_v_c_1_1_x2_1_1_capture_options.html#a7c8a6be8a69f08b06719f2c26cd96242">RVC::X2::CaptureOptions::transform_to_camera</a></div><div class="ttdeci">CameraID transform_to_camera</div><div class="ttdoc">CameraID_Left transfrom 3D points from calibration board system to left camera coordinate system Came...</div><div class="ttdef"><b>Definition:</b> RVC.h:2059</div></div>
+<div class="ttc" id="astruct_r_v_c_1_1_x2_html_ab71a809ec745620668e8101deda300b3"><div class="ttname"><a href="struct_r_v_c_1_1_x2.html#ab71a809ec745620668e8101deda300b3">RVC::X2::GetImage</a></div><div class="ttdeci">Image GetImage(const CameraID cid)</div><div class="ttdoc">Get the Image object.</div></div>
+<div class="ttc" id="anamespace_r_v_c_html_a02779b50f9e7e758b8ab4a4566efb85c"><div class="ttname"><a href="namespace_r_v_c.html#a02779b50f9e7e758b8ab4a4566efb85c">RVC::GetLastErrorMessage</a></div><div class="ttdeci">RVC_EXPORT const char * GetLastErrorMessage()</div><div class="ttdoc">Get the lastest error message. The pointer to string is temporary, you need to copy data from its buf...</div></div>
+</body>
+</html>

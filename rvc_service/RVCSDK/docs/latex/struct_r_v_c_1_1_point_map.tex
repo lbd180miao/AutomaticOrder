@@ -1,0 +1,310 @@
+\hypertarget{struct_r_v_c_1_1_point_map}{}\doxysection{R\+VC\+::Point\+Map Struct Reference}
+\label{struct_r_v_c_1_1_point_map}\index{RVC::PointMap@{RVC::PointMap}}
+
+
+\mbox{\hyperlink{namespace_r_v_c}{R\+VC}} X \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}}.  
+
+
+
+
+{\ttfamily \#include $<$R\+V\+C.\+h$>$}
+
+
+
+Collaboration diagram for R\+VC\+::Point\+Map\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=168pt]{struct_r_v_c_1_1_point_map__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_point_map_aa623644e8ec081625549da3294669449}{Save}} (const char $\ast$file\+Name, const \mbox{\hyperlink{struct_r_v_c_1_1_point_map_unit_aa0ced57a0947829c94ea7b40d747f0e5}{Point\+Map\+Unit\+::\+Enum}} unit, const bool is\+Binary, const \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} \&raw\+Image=\mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}}())
+\begin{DoxyCompactList}\small\item\em export \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}}\textquotesingle{}s data to local file. Only support the $\ast$.ply$\ast$ format. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_point_map_ab6eae42dacb2f02ddb51fa4d52227820}{Is\+Valid}} () const
+\begin{DoxyCompactList}\small\item\em Check \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} is Valid or not. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} \mbox{\hyperlink{struct_r_v_c_1_1_point_map_a099e6e81efa12be4f4b650375374a07f}{Get\+Size}} () const
+\begin{DoxyCompactList}\small\item\em Get the \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} object. \end{DoxyCompactList}\item 
+double $\ast$ \mbox{\hyperlink{struct_r_v_c_1_1_point_map_aac42fb0bd7985ea4758f05389bf6c967}{Get\+Point\+Data\+Ptr}} ()
+\begin{DoxyCompactList}\small\item\em Get the Point Data Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object. \end{DoxyCompactList}\item 
+double $\ast$ \mbox{\hyperlink{struct_r_v_c_1_1_point_map_a511fd29c68607dd4004c3edd7a0b9a7a}{Get\+Normal\+Data\+Ptr}} ()
+\begin{DoxyCompactList}\small\item\em Get the Normal Data Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object. \end{DoxyCompactList}\item 
+const double $\ast$ \mbox{\hyperlink{struct_r_v_c_1_1_point_map_a5e3e3b13728d8d5e0fadab2530960e15}{Get\+Point\+Data\+Const\+Ptr}} () const
+\begin{DoxyCompactList}\small\item\em Get the Point Data Const Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object. \end{DoxyCompactList}\item 
+const double $\ast$ \mbox{\hyperlink{struct_r_v_c_1_1_point_map_a56f6c2f207f77a770193ea055ffeb2eb}{Get\+Normal\+Data\+Const\+Ptr}} () const
+\begin{DoxyCompactList}\small\item\em Get the Normal Const Data Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_point_map_a0ade7a2e351aa214bb599a569b06b85c}{Get\+Point\+Map\+Seperated}} (double $\ast$x, double $\ast$y, double $\ast$z, const double scale=1.\+0)
+\begin{DoxyCompactList}\small\item\em Get the Point Data Seperated. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_ab1e863418e2829d4c299e62c45819bb7}\label{struct_r_v_c_1_1_point_map_ab1e863418e2829d4c299e62c45819bb7}} 
+\mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} {\bfseries Clone} () const
+\item 
+uint64\+\_\+t \mbox{\hyperlink{struct_r_v_c_1_1_point_map_abbcd1aa62daa1b1c83a56b7bdeb11571}{Get\+Timestamp}} () const
+\begin{DoxyCompactList}\small\item\em Retrieves the timestamp of the \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}}. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{struct_r_v_c_1_1_point_map_ad0b130cbbab9387cfec3447a96f740b0}{Set\+Timestamp}} (const uint64\+\_\+t timestamp)
+\begin{DoxyCompactList}\small\item\em Sets the timestamp for the \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}}. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+static \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_point_map_a4acdaaea3fd07d7e1746b17d038df4cf}{Create}} (\mbox{\hyperlink{struct_r_v_c_1_1_point_map_type_ab1013ca999d69b50732c7e99d9304dfc}{Point\+Map\+Type\+::\+Enum}} pmt, const \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} size, double $\ast$data=nullptr, bool owndata=true)
+\begin{DoxyCompactList}\small\item\em Create \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object. \end{DoxyCompactList}\item 
+static \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_point_map_a8550a9ccbede7758925ab8b2a6332e8b}{Create\+From\+File}} (const char $\ast$file\+Name, const \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} sz, const \mbox{\hyperlink{struct_r_v_c_1_1_point_map_unit_aa0ced57a0947829c94ea7b40d747f0e5}{Point\+Map\+Unit\+::\+Enum}} unit)
+\begin{DoxyCompactList}\small\item\em Create \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object from file. Only support the $\ast$.ply$\ast$ format. If actual number of points in the point cloud is not equal to sz.\+width $\ast$ sz.\+height, the function will return an invalid pointmap. If point cloud unit in the file is millimeter, the point cloud data will be divided by 1000. \end{DoxyCompactList}\item 
+static void \mbox{\hyperlink{struct_r_v_c_1_1_point_map_a630aad8e9f82e49c0c375d515b6ecf39}{Destroy}} (\mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} pm, bool no\+\_\+reuse=true)
+\begin{DoxyCompactList}\small\item\em Destroy a \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} \mbox{\hyperlink{struct_r_v_c_1_1_point_map_a994ac9ed3ad6351ca3689a0a39497b18}{m\+\_\+handle}}
+\begin{DoxyCompactList}\small\item\em \mbox{\hyperlink{namespace_r_v_c}{R\+VC}} \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}}. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+\mbox{\hyperlink{namespace_r_v_c}{R\+VC}} X \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}}. 
+
+
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_a4acdaaea3fd07d7e1746b17d038df4cf}\label{struct_r_v_c_1_1_point_map_a4acdaaea3fd07d7e1746b17d038df4cf}} 
+\index{RVC::PointMap@{RVC::PointMap}!Create@{Create}}
+\index{Create@{Create}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{Create()}{Create()}}
+{\footnotesize\ttfamily static \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} R\+V\+C\+::\+Point\+Map\+::\+Create (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_point_map_type_ab1013ca999d69b50732c7e99d9304dfc}{Point\+Map\+Type\+::\+Enum}}}]{pmt,  }\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}}}]{size,  }\item[{double $\ast$}]{data = {\ttfamily nullptr},  }\item[{bool}]{owndata = {\ttfamily true} }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Create \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em pmt} & \mbox{\hyperlink{struct_r_v_c_1_1_point_map_type}{Point\+Map\+Type}} \\
+\hline
+{\em size} & \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} \\
+\hline
+{\em data} & \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} data (m) \\
+\hline
+{\em owndata} & True for malloc a new space for \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} A \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_a8550a9ccbede7758925ab8b2a6332e8b}\label{struct_r_v_c_1_1_point_map_a8550a9ccbede7758925ab8b2a6332e8b}} 
+\index{RVC::PointMap@{RVC::PointMap}!CreateFromFile@{CreateFromFile}}
+\index{CreateFromFile@{CreateFromFile}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{CreateFromFile()}{CreateFromFile()}}
+{\footnotesize\ttfamily static \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} R\+V\+C\+::\+Point\+Map\+::\+Create\+From\+File (\begin{DoxyParamCaption}\item[{const char $\ast$}]{file\+Name,  }\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}}}]{sz,  }\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_point_map_unit_aa0ced57a0947829c94ea7b40d747f0e5}{Point\+Map\+Unit\+::\+Enum}}}]{unit }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Create \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object from file. Only support the $\ast$.ply$\ast$ format. If actual number of points in the point cloud is not equal to sz.\+width $\ast$ sz.\+height, the function will return an invalid pointmap. If point cloud unit in the file is millimeter, the point cloud data will be divided by 1000. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em file\+Name} & Name of file to be loaded. \\
+\hline
+{\em sz} & \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} of the point cloud. \\
+\hline
+{\em unit} & The unit of the point cloud data in the file. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_a630aad8e9f82e49c0c375d515b6ecf39}\label{struct_r_v_c_1_1_point_map_a630aad8e9f82e49c0c375d515b6ecf39}} 
+\index{RVC::PointMap@{RVC::PointMap}!Destroy@{Destroy}}
+\index{Destroy@{Destroy}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{Destroy()}{Destroy()}}
+{\footnotesize\ttfamily static void R\+V\+C\+::\+Point\+Map\+::\+Destroy (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}}}]{pm,  }\item[{bool}]{no\+\_\+reuse = {\ttfamily true} }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Destroy a \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em pm} & \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object will be destroyed \\
+\hline
+{\em no\+\_\+reuse} & True for reuse current space of \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_a56f6c2f207f77a770193ea055ffeb2eb}\label{struct_r_v_c_1_1_point_map_a56f6c2f207f77a770193ea055ffeb2eb}} 
+\index{RVC::PointMap@{RVC::PointMap}!GetNormalDataConstPtr@{GetNormalDataConstPtr}}
+\index{GetNormalDataConstPtr@{GetNormalDataConstPtr}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{GetNormalDataConstPtr()}{GetNormalDataConstPtr()}}
+{\footnotesize\ttfamily const double$\ast$ R\+V\+C\+::\+Point\+Map\+::\+Get\+Normal\+Data\+Const\+Ptr (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get the Normal Const Data Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object. 
+
+\begin{DoxyReturn}{Returns}
+const double$\ast$ Normal Data Ptr 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_a511fd29c68607dd4004c3edd7a0b9a7a}\label{struct_r_v_c_1_1_point_map_a511fd29c68607dd4004c3edd7a0b9a7a}} 
+\index{RVC::PointMap@{RVC::PointMap}!GetNormalDataPtr@{GetNormalDataPtr}}
+\index{GetNormalDataPtr@{GetNormalDataPtr}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{GetNormalDataPtr()}{GetNormalDataPtr()}}
+{\footnotesize\ttfamily double$\ast$ R\+V\+C\+::\+Point\+Map\+::\+Get\+Normal\+Data\+Ptr (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the Normal Data Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object. 
+
+\begin{DoxyReturn}{Returns}
+double$\ast$ Normal Data Ptr 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_a5e3e3b13728d8d5e0fadab2530960e15}\label{struct_r_v_c_1_1_point_map_a5e3e3b13728d8d5e0fadab2530960e15}} 
+\index{RVC::PointMap@{RVC::PointMap}!GetPointDataConstPtr@{GetPointDataConstPtr}}
+\index{GetPointDataConstPtr@{GetPointDataConstPtr}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{GetPointDataConstPtr()}{GetPointDataConstPtr()}}
+{\footnotesize\ttfamily const double$\ast$ R\+V\+C\+::\+Point\+Map\+::\+Get\+Point\+Data\+Const\+Ptr (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get the Point Data Const Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object. 
+
+\begin{DoxyReturn}{Returns}
+const double$\ast$ Point Data Ptr (m) 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_aac42fb0bd7985ea4758f05389bf6c967}\label{struct_r_v_c_1_1_point_map_aac42fb0bd7985ea4758f05389bf6c967}} 
+\index{RVC::PointMap@{RVC::PointMap}!GetPointDataPtr@{GetPointDataPtr}}
+\index{GetPointDataPtr@{GetPointDataPtr}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{GetPointDataPtr()}{GetPointDataPtr()}}
+{\footnotesize\ttfamily double$\ast$ R\+V\+C\+::\+Point\+Map\+::\+Get\+Point\+Data\+Ptr (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get the Point Data Ptr of \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} object. 
+
+\begin{DoxyReturn}{Returns}
+double$\ast$ Point Data Ptr (m) 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_a0ade7a2e351aa214bb599a569b06b85c}\label{struct_r_v_c_1_1_point_map_a0ade7a2e351aa214bb599a569b06b85c}} 
+\index{RVC::PointMap@{RVC::PointMap}!GetPointMapSeperated@{GetPointMapSeperated}}
+\index{GetPointMapSeperated@{GetPointMapSeperated}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{GetPointMapSeperated()}{GetPointMapSeperated()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Point\+Map\+::\+Get\+Point\+Map\+Seperated (\begin{DoxyParamCaption}\item[{double $\ast$}]{x,  }\item[{double $\ast$}]{y,  }\item[{double $\ast$}]{z,  }\item[{const double}]{scale = {\ttfamily 1.0} }\end{DoxyParamCaption})}
+
+
+
+Get the Point Data Seperated. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em x} & \\
+\hline
+{\em y} & \\
+\hline
+{\em z} & \\
+\hline
+{\em scale} & default set to 1 \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_a099e6e81efa12be4f4b650375374a07f}\label{struct_r_v_c_1_1_point_map_a099e6e81efa12be4f4b650375374a07f}} 
+\index{RVC::PointMap@{RVC::PointMap}!GetSize@{GetSize}}
+\index{GetSize@{GetSize}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{GetSize()}{GetSize()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} R\+V\+C\+::\+Point\+Map\+::\+Get\+Size (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get the \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} object. 
+
+\begin{DoxyReturn}{Returns}
+\mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} \mbox{\hyperlink{struct_r_v_c_1_1_size}{Size}} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_abbcd1aa62daa1b1c83a56b7bdeb11571}\label{struct_r_v_c_1_1_point_map_abbcd1aa62daa1b1c83a56b7bdeb11571}} 
+\index{RVC::PointMap@{RVC::PointMap}!GetTimestamp@{GetTimestamp}}
+\index{GetTimestamp@{GetTimestamp}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{GetTimestamp()}{GetTimestamp()}}
+{\footnotesize\ttfamily uint64\+\_\+t R\+V\+C\+::\+Point\+Map\+::\+Get\+Timestamp (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Retrieves the timestamp of the \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}}. 
+
+Returns the timestamp value representing the acquisition time of the point cloud data. The timestamp is measured in microseconds (us).
+
+\begin{DoxyReturn}{Returns}
+uint64\+\_\+t Timestamp value in microseconds (us) 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_ab6eae42dacb2f02ddb51fa4d52227820}\label{struct_r_v_c_1_1_point_map_ab6eae42dacb2f02ddb51fa4d52227820}} 
+\index{RVC::PointMap@{RVC::PointMap}!IsValid@{IsValid}}
+\index{IsValid@{IsValid}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{IsValid()}{IsValid()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Point\+Map\+::\+Is\+Valid (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Check \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} is Valid or not. 
+
+\begin{DoxyReturn}{Returns}
+true Valid 
+
+false Not valid 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_aa623644e8ec081625549da3294669449}\label{struct_r_v_c_1_1_point_map_aa623644e8ec081625549da3294669449}} 
+\index{RVC::PointMap@{RVC::PointMap}!Save@{Save}}
+\index{Save@{Save}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{Save()}{Save()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Point\+Map\+::\+Save (\begin{DoxyParamCaption}\item[{const char $\ast$}]{file\+Name,  }\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_point_map_unit_aa0ced57a0947829c94ea7b40d747f0e5}{Point\+Map\+Unit\+::\+Enum}}}]{unit,  }\item[{const bool}]{is\+Binary,  }\item[{const \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}} \&}]{raw\+Image = {\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_image}{Image}}()} }\end{DoxyParamCaption})}
+
+
+
+export \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}}\textquotesingle{}s data to local file. Only support the $\ast$.ply$\ast$ format. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em file\+Name} & Name of file to be created. \\
+\hline
+{\em unit} & The unit of exported data. If save unit is millimeter, the point cloud data will be multiplied by 1000. \\
+\hline
+{\em is\+Binary} & Whether to export to binary format. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+bool. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_ad0b130cbbab9387cfec3447a96f740b0}\label{struct_r_v_c_1_1_point_map_ad0b130cbbab9387cfec3447a96f740b0}} 
+\index{RVC::PointMap@{RVC::PointMap}!SetTimestamp@{SetTimestamp}}
+\index{SetTimestamp@{SetTimestamp}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{SetTimestamp()}{SetTimestamp()}}
+{\footnotesize\ttfamily bool R\+V\+C\+::\+Point\+Map\+::\+Set\+Timestamp (\begin{DoxyParamCaption}\item[{const uint64\+\_\+t}]{timestamp }\end{DoxyParamCaption})}
+
+
+
+Sets the timestamp for the \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}}. 
+
+Updates the timestamp value associated with the \mbox{\hyperlink{struct_r_v_c_1_1_point_map}{Point\+Map}} data. The timestamp should represent the acquisition time of the point cloud data and must be provided in microseconds (us).
+
+
+\begin{DoxyParams}{Parameters}
+{\em timestamp} & Timestamp value in microseconds (us) to be set \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+bool True if the timestamp was successfully set, false otherwise 
+\end{DoxyReturn}
+
+
+\doxysubsection{Member Data Documentation}
+\mbox{\Hypertarget{struct_r_v_c_1_1_point_map_a994ac9ed3ad6351ca3689a0a39497b18}\label{struct_r_v_c_1_1_point_map_a994ac9ed3ad6351ca3689a0a39497b18}} 
+\index{RVC::PointMap@{RVC::PointMap}!m\_handle@{m\_handle}}
+\index{m\_handle@{m\_handle}!RVC::PointMap@{RVC::PointMap}}
+\doxysubsubsection{\texorpdfstring{m\_handle}{m\_handle}}
+{\footnotesize\ttfamily \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}} R\+V\+C\+::\+Point\+Map\+::m\+\_\+handle}
+
+
+
+\mbox{\hyperlink{namespace_r_v_c}{R\+VC}} \mbox{\hyperlink{struct_r_v_c_1_1_handle}{Handle}}. 
+
+
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+R\+V\+C.\+h\end{DoxyCompactItemize}

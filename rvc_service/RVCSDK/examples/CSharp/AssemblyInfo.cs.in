@@ -1,0 +1,9 @@
+
+using System.Reflection;
+
+[assembly: AssemblyVersion("@MYPROJECT_VERSION@")]
+[assembly: AssemblyFileVersion("@MYPROJECT_FILE_VERSION@")]
+[assembly: AssemblyInformationalVersion("@MYPROJECT_PRODUCT_VERSION@")]
+[assembly: AssemblyCompany("@MYPROJECT_COMPANY_NAME@")]
+[assembly: AssemblyProduct("@MYPROJECT_PRODUCT_NAME@")]
+[assembly: AssemblyCopyright("@MYPROJECT_COPYRIGHT@")]

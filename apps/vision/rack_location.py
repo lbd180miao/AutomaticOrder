@@ -29,6 +29,7 @@ from apps.alarms.services import AlarmService
 from apps.devices.services import DeviceService, get_device_adapter
 from apps.dm_camera.models import DMCameraConfig
 from apps.dm_camera.sdk_wrapper import DMCameraConfigurationError
+from apps.rvc_camera.client import RvcCameraConfigurationError
 
 from .algorithms import image_io
 from .algorithms.rack_opening_rectangle import (
@@ -59,11 +60,22 @@ def _decimal(value: Any, places: str = '0.001') -> Decimal:
 
 
 def _local_template_layer_spacing_mm(local_template: dict) -> float:
-    """Return direct Π1/Π3 layer separation along camera Z.
+    """Return Π1/Π3 layer separation along the camera Z axis (depth direction).
 
-    The workbench ROIs may describe three independent reference faces rather
-    than two parallel planes.  Layer spacing is therefore the Z separation of
-    the two fitted ROI centroids, not a perpendicular plane-to-plane distance.
+    Layer spacing is the vertical distance between two shelf layers, measured
+    along the camera depth axis (Z).  Even though the two fitted centroids may
+    differ in camera X and Y (due to perspective / different depth planes), the
+    physically meaningful shelf-to-shelf gap is the Z component difference.
+
+    Using the full 3D Euclidean centroid distance would include X/Y parallax
+    offsets caused by perspective and would overestimate the true layer spacing.
+
+    This method is the fallback when no measurement line is configured.  The
+    measurement-line method (endpoint_depth_cluster_3d_distance) measures the
+    true 3D distance between two user-selected points on corresponding features
+    of adjacent layers, which is correct because the two endpoints are chosen to
+    lie on the same structural feature (e.g. the same beam face), so X/Y offset
+    between them represents actual geometry, not parallax.
     """
     plane1 = (local_template or {}).get('plane1') or {}
     plane3 = (local_template or {}).get('plane3') or {}
@@ -76,6 +88,8 @@ def _local_template_layer_spacing_mm(local_template: dict) -> float:
     if not all(np.all(np.isfinite(value)) for value in (normal1, normal3, centroid1, centroid3)):
         raise ValueError('Π1/Π3 平面数据无效，无法计算层距')
 
+    # Z-axis difference only: shelf layers are horizontal, layer spacing is vertical.
+    # X/Y centroid differences are perspective artefacts and must not be included.
     return float(abs(centroid3[2] - centroid1[2]))
 
 
@@ -96,7 +110,7 @@ def _measure_layer_spacing_line(pointcloud: np.ndarray, line: dict) -> tuple[flo
             (float(line['x2']), float(line['y2'])),
         ]
         radius = max(4, min(30, int(round(float(line.get('sample_radius', 10))))))
-        depth_window = max(5.0, min(80.0, float(line.get('depth_window_mm', 25.0))))
+        depth_window = max(5.0, min(80.0, float(line.get('depth_window_mm', 15.0))))
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError('层距测量线缺少有效端点') from exc
 
@@ -1089,12 +1103,13 @@ def sample_scene_median_xyz(target_roi: dict, *, side: str = 'LEFT',
     return processor.calculate_median_xyz(points)
 
 
-class DMCameraRackFrameProvider:
-    """Frame provider using the existing DM camera SDK service with sample fallback.
+class RVCCameraRackFrameProvider:
+    """Frame provider backed by the RVC 3D camera service, with sample fallback.
 
-    DM SDK 的 capture_frame_data() 将原始帧数据放在 'data' 键下，但
+    现役 RVC 相机的 PyRVC 运行在独立进程 ``rvc_service`` 中（Django 只通过
+    HTTP 调用）。RvcCameraService.capture_frame_data() 把点云放在 'data' 键，
     PointCloudProcessor.extract_pose() 使用 'organized_pointcloud' 或
-    'pointcloud' 来查找点云数据。此处负责做 key 映射。
+    'pointcloud'，此处负责 key 映射（与旧 DM provider 行为一致）。
     """
 
     def __init__(self, *, fallback_provider: Optional[SampleRackFrameProvider] = None):
@@ -1107,25 +1122,20 @@ class DMCameraRackFrameProvider:
             return frame
 
         try:
-            from apps.dm_camera.services import DMCameraService
+            from apps.rvc_camera.services import RvcCameraService
 
-            service = DMCameraService()
+            service = RvcCameraService()
             if not service.is_connected:
-                # 工作台采集不要求事先在相机页面手动「连接」：此处自动连接物理
-                # 相机（默认第一台 + 激活配置），连接失败才会进入下方异常回退。
-                active_config = DMCameraConfig.objects.filter(is_active=True).first()
-                service.connect(
-                    device_sn=getattr(active_config, 'device_sn', None) or None,
-                    config_id=getattr(active_config, 'id', None),
-                )
-            if not service.is_streaming:
-                service.start_stream()
+                # 工作台采集不要求事先在相机页面手动连接：相机服务未连接时
+                # 自动补连（IP/SN 取自 settings RVC_CAMERA），失败再回退模拟。
+                service.ensure_connected()
+            # RVC 为单次触发采集，无需 start_stream
             frame = service.capture_frame_data(frame_type='POINTCLOUD', save_record=False)
 
-            # ── key 映射：SDK 'data' → 算法层 'organized_pointcloud' ──
+            # ── key 映射：服务层 'data' -> 算法层 'organized_pointcloud' ──
             result = {
                 **frame,
-                'source': 'dm_camera',
+                'source': 'rvc_camera',
                 'position_no': position_no,
                 'layer_no': layer_no,
             }
@@ -1134,36 +1144,31 @@ class DMCameraRackFrameProvider:
                 arr = np.asarray(raw_data)
                 width = int(frame.get('width') or frame.get('image_width') or 0)
                 height = int(frame.get('height') or frame.get('image_height') or 0)
-                if frame.get('frame_type') == 'POINTCLOUD':
-                    # DM SDK 点云帧的 data 可能是扁平 (N,3)、1D 连续 XYZ，
-                    # 或已经是 H×W×3；统一整理成组织化点云供 ROI 裁剪。
-                    if arr.ndim == 3 and arr.shape[2] == 3:
-                        result['organized_pointcloud'] = arr
-                    elif arr.ndim == 2 and arr.shape[1] == 3:
-                        if width > 0 and height > 0 and arr.shape[0] == width * height:
-                            result['organized_pointcloud'] = arr.reshape(height, width, 3)
-                        else:
-                            result['pointcloud'] = arr
-                    elif arr.ndim == 1 and width > 0 and height > 0 and arr.size == width * height * 3:
+                if arr.ndim == 3 and arr.shape[2] == 3:
+                    # RVC 点云即 H×W×3 组织化点云
+                    result['organized_pointcloud'] = arr
+                elif arr.ndim == 2 and arr.shape[1] == 3:
+                    if width > 0 and height > 0 and arr.shape[0] == width * height:
                         result['organized_pointcloud'] = arr.reshape(height, width, 3)
                     else:
-                        # 形状无法对齐到 H×W×3 时保留原始点列，供 extract_pose fallback
                         result['pointcloud'] = arr
-                elif arr.ndim == 3 and arr.shape[2] == 3:
-                    result['organized_pointcloud'] = arr
-                elif arr.ndim == 2:
-                    # 深度图帧
-                    result['depth_image'] = arr
+                elif arr.ndim == 1 and width > 0 and height > 0 and arr.size == width * height * 3:
+                    result['organized_pointcloud'] = arr.reshape(height, width, 3)
                 else:
                     result['pointcloud'] = arr
             return result
-        except DMCameraConfigurationError:
+        except (DMCameraConfigurationError, RvcCameraConfigurationError):
+            # 配置类错误（如不支持的采集模式）不得静默回退模拟数据
             raise
         except Exception as exc:  # noqa: BLE001 - hardware fallback is intentional
             frame = self.fallback_provider.capture(recipe, position_no, layer_no)
             frame['source'] = 'sample_fallback'
             frame['fallback_reason'] = str(exc)
             return frame
+
+
+# 旧类名保留为别名，兼容既有测试与导入
+DMCameraRackFrameProvider = RVCCameraRackFrameProvider
 
 
 class PlcVisionResultWriter:
@@ -1478,8 +1483,8 @@ class Rack3DLocator:
                 arr = np.asarray(cloud, dtype=float)
                 if arr.ndim == 3 and arr.shape[2] == 3:
                     pointcloud = arr
-                    source = frame.get('source', 'dm_camera')
-        except DMCameraConfigurationError:
+                    source = frame.get('source', 'rvc_camera')
+        except (DMCameraConfigurationError, RvcCameraConfigurationError):
             raise
         except Exception as exc:  # noqa: BLE001
             fallback_reason = str(exc)
@@ -1494,12 +1499,15 @@ class Rack3DLocator:
             )
             source = 'sample'
 
+        # 2D 相机原图 URL（与组织化点云像素一一对应，直接用于前端显示和 ROI 绘制）
+        raw_rgb_url = frame.get('preview_url', '') if source not in ('sample', 'sample_forced', 'sample_fallback') else ''
+
         token, preview_url, width, height = self._persist_frame(pointcloud)
         payload = {
             'pointcloud_token': token,
-            'pointcloud_preview_url': preview_url,
-            'raw_rgb_image_url': preview_url,
-            'raw_depth_image_url': preview_url,
+            'pointcloud_preview_url': preview_url,    # 深度伪彩图（备用）
+            'raw_rgb_image_url': raw_rgb_url,          # 2D 相机原图（前端主显）
+            'raw_depth_image_url': preview_url,        # 深度伪彩图
             'image_width': width,
             'image_height': height,
             'source': source,
@@ -1510,7 +1518,52 @@ class Rack3DLocator:
                 frame_provider=self.frame_provider,
                 plc_writer=self.plc_writer,
             ).project_recipe_roi_to_pixels(pointcloud, recipe)
+
+        # ── 保存深度伪彩图 + 点云到 rvc_service/pic/ 快照目录 ──────────────
+        # 仅真实相机采集时保存（不保存模拟数据）。
+        # 深度伪彩图与前端页面显示的图像完全同源（均使用 image_io.pointcloud_to_preview）。
+        if source not in ('sample', 'sample_forced', 'sample_fallback'):
+            self._save_to_pic_dir(pointcloud)
+
         return payload
+
+    @staticmethod
+    def _save_to_pic_dir(pointcloud) -> None:
+        """将深度伪彩图和点云 npy 写入最新的 rvc_service/pic/ 快照目录。
+
+        快照目录由 RvcCameraService._save_capture_snapshot() 在采集时已创建，
+        此处找到最新的目录追加写入，确保所有文件在同一文件夹。
+        """
+        import cv2
+        from pathlib import Path
+        from apps.rvc_camera.services import RvcCameraService
+
+        pic_base = RvcCameraService._pic_base_dir()
+        if not pic_base.exists():
+            return
+
+        # 找到本次采集创建的最新子目录（按名称降序，取第一个）
+        subs = sorted(pic_base.iterdir(), reverse=True)
+        if not subs:
+            return
+        save_dir = subs[0]
+
+        # 1) 深度伪彩图（与前端 _persist_workbench_frame 使用同一函数）
+        try:
+            preview = image_io.pointcloud_to_preview(pointcloud)
+            # image_io 返回 BGR；直接用 cv2 写入
+            cv2.imwrite(str(save_dir / 'depth_preview.png'), preview)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning('保存深度伪彩图到 pic/ 失败: %s', exc)
+
+        # 2) 点云原始数据
+        try:
+            np.save(str(save_dir / 'pointcloud.npy'), pointcloud)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning('保存点云 npy 到 pic/ 失败: %s', exc)
+
+        logger.info('深度伪彩图 + 点云已写入快照目录: %s', save_dir)
+
 
     def auto_align(self, *, token, recipe_id=None) -> dict:
         pointcloud = self._load_pointcloud(token)
@@ -2565,8 +2618,8 @@ class RackLocationService:
                 arr = np.asarray(cloud, dtype=float)
                 if arr.ndim == 3 and arr.shape[2] == 3:
                     pointcloud = arr
-                    source = frame.get('source', 'dm_camera')
-        except DMCameraConfigurationError:
+                    source = frame.get('source', 'rvc_camera')
+        except (DMCameraConfigurationError, RvcCameraConfigurationError):
             raise
         except Exception as exc:  # noqa: BLE001 - 任何非配置相机异常都回退到模拟点云
             pointcloud = None
@@ -2593,7 +2646,7 @@ class RackLocationService:
         if recipe and recipe.roi_config:
             payload['recipe_pixel_roi'] = self.project_recipe_roi_to_pixels(pointcloud, recipe)
         # 没拿到真实相机数据时，把原因暴露出来（未找到设备 / 数据流未开启等）。
-        if source != 'dm_camera' and fallback_reason:
+        if source not in ('dm_camera', 'rvc_camera') and fallback_reason:
             payload['fallback_reason'] = fallback_reason
         return payload
 
@@ -2842,7 +2895,7 @@ class RackLocationService:
                 layer_spacing_method = layer_spacing_measurement['method']
             except ValueError as exc:
                 measured_layer_spacing = None
-                layer_spacing_method = 'endpoint_depth_cluster_3d_distance'
+                layer_spacing_method = 'endpoint_depth_cluster_3d_distance_failed'
                 layer_spacing_warning = str(exc)
         else:
             measured_layer_spacing = diagnostic_layer_spacing

@@ -567,10 +567,20 @@
       ? `${value.toFixed(1)} mm`
       : '—';
     if (methodNode) {
-      methodNode.textContent = warning
-        ? warning
-        : (method === 'endpoint_depth_cluster_3d_distance' ? '测量线 · 端点3D深度簇' : '三平面估算');
-      methodNode.classList.toggle('warning', Boolean(warning));
+      // warning 优先：测量线方法执行失败时 warning 非空且 method 含 _failed
+      if (warning) {
+        methodNode.textContent = warning;
+        methodNode.classList.add('warning');
+      } else if (method === 'endpoint_depth_cluster_3d_distance') {
+        methodNode.textContent = '测量线 · 端点3D深度簇';
+        methodNode.classList.remove('warning');
+      } else if (method === 'camera_z_centroid_delta') {
+        methodNode.textContent = '三平面质心估算（无测量线）';
+        methodNode.classList.remove('warning');
+      } else {
+        methodNode.textContent = '三平面估算';
+        methodNode.classList.remove('warning');
+      }
     }
   }
 
@@ -1649,6 +1659,7 @@
       }));
       const data = apiPayload(raw);
       if (!data.success) { setStatus(data.error || '采集失败'); return; }
+      console.log('[DEBUG capture] raw_rgb_image_url=' + data.raw_rgb_image_url + ' | pointcloud_preview_url=' + data.pointcloud_preview_url + ' | source=' + data.source);
       state.token = data.pointcloud_token;
       state.source = data.source || '';
       state.captureRecipeId = $('recipe-id').value || null;
@@ -1659,7 +1670,9 @@
       state.lastResultOk = false;
       state.lastResultRecipeId = null;
       state.roi = null; state.displayRoi = null;
-      const previewUrl = data.pointcloud_preview_url || data.preview_image_url;
+      // 优先显示 2D 相机原图（与点云像素一一对应，ROI 坐标可直接索引点云）；
+      // 无真实图像时回退到深度伪彩图（模拟数据 / 旧数据兼容）
+      const previewUrl = data.raw_rgb_image_url || data.pointcloud_preview_url || data.preview_image_url;
       if (previewUrl) {
         const urlWithTime = previewUrl + '?t=' + Date.now();
         image.src = urlWithTime;
@@ -1673,6 +1686,9 @@
       $('rl-placeholder').style.display = 'none';
       $('rl-roi-readout').style.display = 'block';
       $('rl-source').textContent = '数据源 ' + (data.source || '—');
+      // 更新左侧图像类型标签
+      const imgTypeBadge = $('rl-image-type-badge');
+      if (imgTypeBadge) imgTypeBadge.textContent = data.raw_rgb_image_url ? '2D 图像' : '深度伪彩';
       setReadout();
       // 右侧若尚无结果图，显示占位提示；若有上次结果图则保留不动。
       if (!$('rl-result-img').src || $('rl-result-img').style.display === 'none') {
@@ -1963,7 +1979,7 @@
         state.pointcloudConsumed = false;
         state.alignmentToken = null;
         state.roi = null; state.displayRoi = null;
-        const previewUrl = captureData.pointcloud_preview_url || captureData.preview_image_url;
+        const previewUrl = captureData.raw_rgb_image_url || captureData.pointcloud_preview_url || captureData.preview_image_url;
         if (previewUrl) { image.src = previewUrl + '?t=' + Date.now(); }
         image.dataset.naturalWidth = captureData.image_width;
         image.dataset.naturalHeight = captureData.image_height;
