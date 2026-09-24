@@ -1,4 +1,0 @@
-[2026-09-22 15:53:22,627] INFO rvc_service: RVC 相机服务已启动: http://127.0.0.1:8001
-[2026-09-22 15:53:22,629] INFO rvc_service: 采集文件目录: D:\workspace2\AutomaticOrder\media\rvc_captures
-[2026-09-22 15:53:22,629] INFO rvc_service: 请确认已关闭 RVCManager（否则会抢占相机连接）
-[2026-09-22 15:53:28,353] INFO rvc_service: 127.0.0.1 - "GET /find_devices HTTP/1.1" 200 -
