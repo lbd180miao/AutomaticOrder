@@ -367,8 +367,16 @@ def build_foam_inspection_config(recipe):
     template_status = get_foam_standard_template_status(recipe)
     standard_mask_paths = template_status['paths']
     
+    layer = roi_config.get('layerSearchROI')
+    layer_ratio = _pixel_roi_to_ratio(layer, recipe.image_width, recipe.image_height) if layer else None
+    if layer and (not layer_ratio or not all(0 <= v <= 1 for v in layer_ratio)
+                  or any(not (layer_ratio[0] <= box[0] < box[2] <= layer_ratio[2]
+                              and layer_ratio[1] <= box[1] < box[3] <= layer_ratio[3]) for box in (left, right))):
+        raise ValueError('本层搜索大框必须在图像内并包含左右标准 ROI')
     pos_str = str(recipe.pos)
     return {
+        'layer_search_roi': layer_ratio,
+        'layer_search_polygon': _extract_polygon_points(layer) if layer else None,
         'foam_rois': {
             pos_str: {
                 'left': left,

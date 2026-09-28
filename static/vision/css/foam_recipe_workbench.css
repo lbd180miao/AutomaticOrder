@@ -90,3 +90,20 @@
   .recipe-authoring-progress span,.recipe-authoring-progress.compact span { left:11px;top:11px;transform:none; }
   .empty-rack-save-actions { grid-template-columns:1fr; }
 }
+
+/* Foam teaching: one image, three rectangles, parameters, one save action. */
+.foam-recipe-workbench-mode .recipe-authoring-progress,
+.foam-recipe-workbench-mode .foam-result-panel,
+.foam-recipe-workbench-mode .standard-mask-panel,
+.foam-recipe-workbench-mode #btn-live-preview,
+.foam-recipe-workbench-mode #btn-capture-inspect,
+.foam-recipe-workbench-mode #btn-start-roi,
+.foam-recipe-workbench-mode #btn-start-roi-polygon,
+.foam-recipe-workbench-mode #calibration-side,
+.foam-recipe-workbench-mode #btn-save-roi,
+.foam-recipe-workbench-mode #btn-publish-recipe { display:none !important; }
+.simple-roi-choices { display:flex; gap:6px; width:100%; }
+.simple-roi-choices .selected { color:white; background:var(--primary); }
+.foam-recipe-workbench-mode #btn-save-recipe { width:100%; margin-top:16px; background:var(--primary); color:white; padding:12px; }
+.foam-recipe-workbench-mode #recipe-publish-feedback { margin-top:10px; }
+.foam-recipe-workbench-mode .camera-viewport { min-height:460px; }

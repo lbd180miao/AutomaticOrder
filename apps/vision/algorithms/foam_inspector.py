@@ -712,7 +712,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
                 polygon_points=polygon_points,
             )
 
-    mask = generate_foam_mask(roi_img, cfg)
+    mask = cfg['_detected_mask'].copy() if '_detected_mask' in cfg else generate_foam_mask(roi_img, cfg)
 
     border_ratio = float(cfg.get('ignore_border_ratio', 0.02))
     border_x = int(round(roi_width * max(0.0, min(0.25, border_ratio))))
@@ -742,7 +742,9 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
             standard_mask = np.full((roi_height, roi_width), 255, dtype=np.uint8)
         
     standard_pixels = int(np.count_nonzero(standard_mask)) if standard_mask is not None else None
-    coverage_ratio = round(compute_coverage_ratio(mask, standard_mask, roi_area), 4)
+    coverage_ratio = round(
+        np.count_nonzero((mask > 0) & (standard_mask > 0)) / max(standard_pixels, 1)
+        if cfg.get('layer_search_roi') else compute_coverage_ratio(mask, standard_mask, roi_area), 4)
     iou = round(compute_iou(mask, standard_mask), 4) if has_real_standard_mask else None
     centroid = compute_mask_centroid(mask)
     box = _largest_mask_box(mask, (x1, y1))
@@ -793,7 +795,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         result['standard_mask'] = standard_mask if has_real_standard_mask else None
         return result
 
-    if coverage_ratio < coverage_threshold:
+    if coverage_ratio < coverage_threshold and not cfg.get('layer_search_roi'):
         result = _empty_side_result(
             roi,
             reason='coverage_below_threshold',
@@ -847,7 +849,9 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         'is_aligned': is_aligned,
         'coverage_ratio': float(coverage_ratio),
         'white_pixel_coverage': float(white_pixel_coverage),
-        'coverage_source': 'standard_mask' if has_real_standard_mask else 'roi_pixel_ratio',
+        'coverage_source': 'standard_overlap' if cfg.get('layer_search_roi') else ('standard_mask' if has_real_standard_mask else 'roi_pixel_ratio'),
+        'overlap_pixels': int(np.count_nonzero((mask > 0) & (standard_mask > 0))),
+        'is_complete': bool(coverage_ratio >= coverage_threshold),
         'detected_pixels': int(detected_pixels),
         'standard_pixels': int(standard_pixels) if standard_pixels is not None else None,
         'iou': iou,
@@ -875,6 +879,102 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
     return result
 
 
+def _inspect_layer_sides(image, side_roi_config, cfg):
+    """Search the entire layer and assign distinct components to standard sides."""
+    from itertools import product
+
+    height, width = image.shape[:2]
+    roi = _ratio_box_to_pixels(cfg['layer_search_roi'], width, height)
+    x1, y1, x2, y2 = roi
+    if not (0 <= x1 < x2 <= width and 0 <= y1 < y2 <= height):
+        raise ValueError('本层搜索 ROI 无效或超出图像')
+    shape = (y2 - y1, x2 - x1)
+    standards = {}
+    for side in ('left', 'right'):
+        box = _ratio_box_to_pixels(side_roi_config[side], width, height)
+        a, b, c, d = box
+        if not (x1 <= a < c <= x2 and y1 <= b < d <= y2):
+            raise ValueError('本层搜索大框必须包含左右标准 ROI')
+        local = _load_standard_mask_for_side(cfg, side, (d-b, c-a))
+        if local is None:
+            if cfg.get('require_standard_template'):
+                raise StandardMaskConfigurationError('请先建立左右标准模板')
+            local = np.full((d-b, c-a), 255, np.uint8)
+        standard = np.zeros(shape, np.uint8)
+        standard[b-y1:d-y1, a-x1:c-x1] = local
+        standards[side] = (standard, box)
+
+    hsv = cv2.cvtColor(image[y1:y2, x1:x2], cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, (0, 0, int(cfg.get('foam_min_v', 140))),
+                       (180, int(cfg.get('foam_max_s', 80)), 255))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    layer_polygon = cfg.get('layer_search_polygon')
+    if layer_polygon:
+        points = np.rint(np.asarray(layer_polygon) * [width, height] - [x1, y1]).astype(np.int32)
+        layer_mask = np.zeros(shape, np.uint8)
+        cv2.fillPoly(layer_mask, [points], 255)
+        # Search only inside the drawn polygon. Keep the full reference mask
+        # for coverage/offset comparison; excluded reference pixels must not
+        # abort inspection or reduce the coverage denominator.
+        mask = cv2.bitwise_and(mask, layer_mask)
+    count, labels, stats, centers = cv2.connectedComponentsWithStats(mask)
+    # Reflections can connect the two foams. Split only components that
+    # substantially intersect BOTH standards, using distance to their masks.
+    # Distinct candidates remain free to move throughout the layer.
+    left_standard = standards['left'][0]
+    right_standard = standards['right'][0]
+    distances = [cv2.distanceTransform((standard == 0).astype(np.uint8), cv2.DIST_L2, 5)
+                 for standard in (left_standard, right_standard)]
+    next_label = count
+    for index in range(1, count):
+        component = labels == index
+        overlaps = [np.count_nonzero(component & (standard > 0)) / max(np.count_nonzero(standard), 1)
+                    for standard in (left_standard, right_standard)]
+        if min(overlaps) >= 0.2:
+            right_part = component & (distances[1] < distances[0])
+            if np.any(right_part) and np.any(component & ~right_part):
+                labels[right_part] = next_label
+                next_label += 1
+    if next_label != count:
+        count = next_label
+        stats = np.zeros((count, 5), np.int32)
+        centers = np.zeros((count, 2), np.float64)
+        for index in range(1, count):
+            ys, xs = np.nonzero(labels == index)
+            if xs.size:
+                stats[index] = [xs.min(), ys.min(), xs.max()-xs.min()+1, ys.max()-ys.min()+1, xs.size]
+                centers[index] = [xs.mean(), ys.mean()]
+    choices, costs = {}, {}
+    for side, (standard, _) in standards.items():
+        area = np.count_nonzero(standard)
+        center = compute_mask_centroid(standard)
+        costs[side] = {}
+        for index in range(1, count):
+            ratio = stats[index, cv2.CC_STAT_AREA] / max(area, 1)
+            if ratio >= 0.01:
+                distance = np.hypot(*(centers[index] - center)) / max(np.hypot(*shape), 1)
+                costs[side][index] = float(distance + 0.2 * abs(np.log(ratio)))
+        choices[side] = [None] + sorted(costs[side], key=costs[side].get)[:20]
+    assignment = min(
+        ((l, r) for l, r in product(choices['left'], choices['right'])
+         if l is None or r is None or l != r),
+        key=lambda pair: sum(2 if index is None else costs[side][index]
+                             for side, index in zip(('left', 'right'), pair)),
+    )
+    sides = {}
+    for side, index in zip(('left', 'right'), assignment):
+        standard, box = standards[side]
+        detected = np.zeros(shape, np.uint8) if index is None else (labels == index).astype(np.uint8)*255
+        side_cfg = dict(cfg, standard_masks={side: standard}, _detected_mask=detected,
+                        ignore_border_ratio=0, require_dark_support=False)
+        sides[side] = _detect_foam_side(image, roi, side_cfg, side=side)
+        sides[side]['original_roi'] = box
+        sides[side]['search_roi'] = roi
+        sides[side]['search_polygon'] = layer_polygon
+        sides[side]['calibrated'] = bool(cfg.get('mm_per_pixel_x', 0) > 0 and cfg.get('mm_per_pixel_y', 0) > 0)
+    return sides
+
+
 def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
     """检测配方配置的左右ROI区域内的泡棉。
     
@@ -892,7 +992,10 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
     
     polygon_rois = cfg.get('polygon_rois', {}).get(str(position_index), {})
 
-    for side, ratio_box in side_roi_config.items():
+    if cfg.get('layer_search_roi'):
+        sides = _inspect_layer_sides(image, side_roi_config, cfg)
+
+    for side, ratio_box in ({} if sides else side_roi_config).items():
         roi = _ratio_box_to_pixels(ratio_box, width, height)
         polygon_points = polygon_rois.get(side)
         sides[side] = _detect_foam_side(
@@ -906,7 +1009,8 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
     missing = [side for side, data in sides.items() if not data['is_present']]
     misaligned = [side for side, data in sides.items() if not data.get('is_aligned', False)]
     present_sides = [data for data in sides.values() if data['box']]
-    if missing:
+    incomplete = [side for side, data in sides.items() if not data.get('is_complete', True)]
+    if missing or incomplete:
         defect_type = FoamDefectType.MISSING
         is_passed = False
     elif misaligned:

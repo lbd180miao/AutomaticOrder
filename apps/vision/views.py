@@ -381,70 +381,84 @@ def api_foam_recipe_defaults(request):
 @require_POST
 def api_foam_recipe_save(request):
     try:
-        body = json.loads(request.body or '{}')
-        pos = int(body.get('pos', 0))
-        if pos < 0:
-            raise ValueError('pos must be non-negative')
-        roi_config = body.get('roi_config') or {}
-        if not roi_config.get('leftFoamROI') or not roi_config.get('rightFoamROI'):
-            raise ValueError('leftFoamROI and rightFoamROI are required')
-        incoming_threshold_config = body.get('threshold_config') or {}
-        if not isinstance(incoming_threshold_config, dict):
-            raise ValueError('threshold_config must be an object')
+        with transaction.atomic():
+            body = json.loads(request.POST.get('payload', '{}') if request.content_type == 'multipart/form-data' else (request.body or '{}'))
+            pos = int(body.get('pos', 0))
+            if pos < 0:
+                raise ValueError('pos must be non-negative')
+            roi_config = body.get('roi_config') or {}
+            if not roi_config.get('leftFoamROI') or not roi_config.get('rightFoamROI'):
+                raise ValueError('leftFoamROI and rightFoamROI are required')
+            incoming_threshold_config = body.get('threshold_config') or {}
+            if not isinstance(incoming_threshold_config, dict):
+                raise ValueError('threshold_config must be an object')
 
-        recipe_id = body.get('id')
-        layout_id = body.get('layout_id') or body.get('foam_product_layout_id')
-        layout = None
-        if layout_id not in (None, ''):
-            layout = get_object_or_404(
-                FoamProductLayout.objects.select_related('rack_spec'),
-                id=int(layout_id),
-                is_active=True,
-            )
-            if pos >= layout.total_positions:
-                raise ValueError(f'POS {pos} 超出当前产品容量 0～{layout.total_positions - 1}')
-        create_new = _as_bool(body.get('create_new'), False)
-        save_mode = str(body.get('save_mode') or '').lower()
-        if recipe_id:
-            recipe = get_object_or_404(
-                VisionRecipe, id=recipe_id, recipe_type='FOAM_2D'
-            )
-        elif create_new:
-            recipe = None
-        else:
-            recipe = get_active_foam_2d_recipe_by_pos(pos, layout_id=layout_id)
-        if recipe is None:
-            recipe = VisionRecipe(recipe_type='FOAM_2D', pos=pos, camera_side='both')
-        # 阈值表单只编辑少数字段。合并而不是整体替换，避免清除模板路径、
-        # 毫米标定和模板必选开关；标准模板位置本体保存在独立模型字段中。
-        threshold_config = dict(recipe.threshold_config or {})
-        threshold_config.update(incoming_threshold_config)
-        recipe.name = body.get('name') or f'第{pos + 1}层泡棉检测配方'
-        recipe.pos = pos
-        if layout is not None:
-            recipe.foam_product_layout = layout
-            recipe.rack_type = layout.rack_spec.rack_type
-            recipe.product_code = layout.product_code
-        recipe.camera_side = body.get('camera_side') or recipe.camera_side or 'both'
-        recipe.image_width = int(body.get('image_width') or recipe.image_width or 1280)
-        recipe.image_height = int(body.get('image_height') or recipe.image_height or 720)
-        recipe.roi_config = roi_config
-        recipe.threshold_config = threshold_config
-        if save_mode in {'draft', 'publish'}:
-            recipe.is_active = save_mode == 'publish'
-        else:
-            recipe.is_active = _as_bool(body.get('is_active'), True)
-        recipe.remark = body.get('remark') or ''
-        recipe.save()
-        if recipe.is_active:
-            conflicts = VisionRecipe.objects.filter(
-                recipe_type='FOAM_2D', pos=pos, is_active=True,
-            )
-            if recipe.foam_product_layout_id:
-                conflicts = conflicts.filter(foam_product_layout_id=recipe.foam_product_layout_id)
-            conflicts.exclude(pk=recipe.pk).update(is_active=False)
-        return JsonResponse({'success': True, 'recipe': serialize_recipe(recipe)})
-    except (TypeError, ValueError) as exc:
+            recipe_id = body.get('id')
+            layout_id = body.get('layout_id') or body.get('foam_product_layout_id')
+            layout = None
+            if layout_id not in (None, ''):
+                layout = get_object_or_404(
+                    FoamProductLayout.objects.select_related('rack_spec'),
+                    id=int(layout_id),
+                    is_active=True,
+                )
+                if pos >= layout.total_positions:
+                    raise ValueError(f'POS {pos} 超出当前产品容量 0～{layout.total_positions - 1}')
+            create_new = _as_bool(body.get('create_new'), False)
+            save_mode = str(body.get('save_mode') or '').lower()
+            if recipe_id:
+                recipe = get_object_or_404(
+                    VisionRecipe, id=recipe_id, recipe_type='FOAM_2D'
+                )
+            elif create_new:
+                recipe = None
+            else:
+                recipe = get_active_foam_2d_recipe_by_pos(pos, layout_id=layout_id)
+            if recipe is None:
+                recipe = VisionRecipe(recipe_type='FOAM_2D', pos=pos, camera_side='both')
+            # 阈值表单只编辑少数字段。合并而不是整体替换，避免清除模板路径、
+            # 毫米标定和模板必选开关；标准模板位置本体保存在独立模型字段中。
+            threshold_config = dict(recipe.threshold_config or {})
+            threshold_config.update(incoming_threshold_config)
+            recipe.name = body.get('name') or f'第{pos + 1}层泡棉检测配方'
+            recipe.pos = pos
+            if layout is not None:
+                recipe.foam_product_layout = layout
+                recipe.rack_type = layout.rack_spec.rack_type
+                recipe.product_code = layout.product_code
+            recipe.camera_side = body.get('camera_side') or recipe.camera_side or 'both'
+            recipe.image_width = int(body.get('image_width') or recipe.image_width or 1280)
+            recipe.image_height = int(body.get('image_height') or recipe.image_height or 720)
+            recipe.roi_config = roi_config
+            recipe.threshold_config = threshold_config
+            if save_mode in {'draft', 'publish'}:
+                recipe.is_active = save_mode == 'publish'
+            else:
+                recipe.is_active = _as_bool(body.get('is_active'), True)
+            recipe.remark = body.get('remark') or ''
+            if roi_config.get('layerSearchROI'):
+                from .recipe_utils import build_foam_inspection_config
+                build_foam_inspection_config(recipe)
+            recipe.save()
+            if body.get('simple_save'):
+                if not roi_config.get('layerSearchROI'):
+                    raise ValueError('请画出左右标准框和本层搜索大框')
+                uploaded = request.FILES.get('image')
+                token = body.get('preview_capture_token')
+                if uploaded or token:
+                    image = _decode_uploaded_image(uploaded) if uploaded else _camera_image_from_preview_token(token)
+                    _save_foam_standard_template(recipe, image, {'type': 'recipe_save'})
+                elif not get_foam_standard_template_status(recipe)['ready']:
+                    raise ValueError('请先拍照或导入合格样件图，保存时将自动建立标准模板')
+            if recipe.is_active:
+                conflicts = VisionRecipe.objects.filter(
+                    recipe_type='FOAM_2D', pos=pos, is_active=True,
+                )
+                if recipe.foam_product_layout_id:
+                    conflicts = conflicts.filter(foam_product_layout_id=recipe.foam_product_layout_id)
+                conflicts.exclude(pk=recipe.pk).update(is_active=False)
+            return JsonResponse({'success': True, 'recipe': serialize_recipe(recipe)})
+    except (TypeError, ValueError, signing.BadSignature) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 

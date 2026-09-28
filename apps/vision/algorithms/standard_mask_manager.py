@@ -100,7 +100,7 @@ class StandardMaskManager:
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
-            raise ValueError(f'No foam was detected inside the {side} search ROI')
+            raise ValueError(f'{"左侧" if side == "left" else "右侧"}标准框内未识别到泡棉，请检查图片和框的位置')
 
         # Keep all meaningful connected pieces. This preserves gaps/breaks while
         # discarding isolated segmentation noise from the standard sample.
@@ -114,11 +114,13 @@ class StandardMaskManager:
         pixels = int(np.count_nonzero(clean_mask))
         coverage = pixels / max(search_area, 1)
         if coverage < 0.01:
-            raise ValueError(f'{side} standard foam area is too small ({coverage:.1%})')
-        if coverage > 0.98:
+            raise ValueError(f'{"左侧" if side == "left" else "右侧"}标准框内泡棉面积过小（{coverage:.1%}），请检查框的位置')
+        # In layer mode these are tight reference boxes, not search regions.
+        # A correctly drawn standard box may legitimately be entirely foam.
+        if coverage > 0.98 and not (cfg or {}).get('layer_search_roi'):
             raise ValueError(
-                f'{side} detected foam fills almost the entire search ROI ({coverage:.1%}); '
-                'enlarge the search ROI or check exposure'
+                f'{"左侧" if side == "left" else "右侧"}泡棉占满搜索框（{coverage:.1%}）。'
+                '请扩大搜索框或检查曝光；使用三框模式时请配置本层搜索大框。'
             )
 
         centroid = compute_mask_centroid(clean_mask)

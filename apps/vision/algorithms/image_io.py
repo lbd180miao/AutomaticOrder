@@ -246,6 +246,13 @@ def annotate_foam(img, roi, foam, result):
     is_missing = not result.get('is_present', True)
     sides = result.get('sides') or result.get('result_data', {}).get('sides') or {}
 
+    if any(data.get('search_roi') for data in sides.values()):
+        search_polygon = next((data.get('search_polygon') for data in sides.values() if data.get('search_polygon')), None)
+        if search_polygon:
+            draw_polygon_roi(out, search_polygon, color=COLOR_ROI, label='本层搜索区域', thickness=2)
+        else:
+            draw_roi(out, roi, color=COLOR_ROI, label='本层搜索区域')
+
     # 有左右独立 ROI 时，只画左右 ROI，避免把两个框合成一个横跨中间的大框。
     if not sides:
         draw_roi(out, roi, color=COLOR_ROI, label='ROI 检测区')
@@ -300,7 +307,9 @@ def annotate_foam(img, roi, foam, result):
 
             # 如果检测到泡棉，再绘制泡棉实际位置框（绿色/红色）
             if side_box:
-                box_color = COLOR_OK if data.get('is_aligned') else COLOR_FAIL
+                box_color = COLOR_OK if (data.get('is_present') and data.get('is_aligned')
+                                         and data.get('is_complete', True)
+                                         and data.get('coverage_ratio', 0) >= data.get('coverage_threshold', 0)) else COLOR_FAIL
                 draw_roi(out, tuple(side_box), color=box_color, label=None, thickness=2)
             elif original_roi:
                 # 如果ROI内未检测到泡棉，标注缺失警告（使用多边形或矩形）
