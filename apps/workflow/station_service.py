@@ -1,4 +1,4 @@
-"""DB100-driven packing station orchestration.
+"""DB2-driven packing station orchestration.
 
 No PLC protocol details or vision algorithms live here. The service coordinates
 existing production/MES/vision/alarm services and persists every handshake phase.
@@ -15,6 +15,7 @@ from apps.core.constants import (
     AlarmLevel, AlarmSource, DeviceType, EventSource,
     STATE_STAGE_MAP, Stage, WorkflowState,
 )
+from apps.devices.plc_db100 import POINTS_BY_NAME, DB_NUMBER
 from apps.devices.models import Device
 from apps.devices.services import DeviceService, get_plc_adapter
 from apps.mes.services import MesService
@@ -150,7 +151,8 @@ class StationWorkflowService:
     OUTPUTS = (
         'mark_read_done', 'product_barcode_valid', 'rack_done', 'rack_result',
         'boxing_allowed', 'recipe_verify_done', 'position_done',
-        'position_success', 'layer_delta_z', 'foam_done',
+        'position_success', 'layer_delta_x', 'layer_delta_y', 'layer_delta_z', 'foam_done', 'foam_passed',
+        'product_mes_upload_done', 'product_mes_upload_success',
         'mes_upload_success', 'mes_upload_done', 'workstation_locked',
     )
 
@@ -190,13 +192,13 @@ class StationWorkflowService:
         )
 
     def poll_once(self):
-        """Process at most one phase transition from the current DB100 snapshot."""
+        """Process at most one phase transition from the current DB2 snapshot."""
         heartbeat = self.plc.tick_heartbeat()
         snapshot = self.plc.read_snapshot()
         cycle = self._ensure_cycle()
         self.devices.record_signal(
             self.plc_device_code, 'heartbeat', heartbeat, direction='OUT',
-            raw_payload={'db': 100, 'offset': 0},
+            raw_payload={'db': DB_NUMBER, 'offset': 48, 'bit': 0},
         )
         if cycle.phase == StationPhase.LOCKED:
             if not snapshot.get('workstation_locked', True):
@@ -227,7 +229,7 @@ class StationWorkflowService:
             StationPhase.WAIT_RECIPE_RESET: self._recipe_reset,
             StationPhase.WAIT_FOAM: self._foam_trigger,
             StationPhase.WAIT_FOAM_RESET: self._foam_reset,
-            StationPhase.WAIT_BOXING: self._boxing_trigger,
+            StationPhase.WAIT_BOXING: self._mes_box_trigger,
             StationPhase.WAIT_BOXING_RESET: self._boxing_reset,
         }
         handler = handlers.get(cycle.phase)
@@ -262,7 +264,7 @@ class StationWorkflowService:
 
     def _record_input(self, name, value, offset):
         self.devices.record_signal(
-            self.plc_device_code, name, value, raw_payload={'db': 100, 'offset': offset},
+            self.plc_device_code, name, value, raw_payload={'db': DB_NUMBER, 'offset': POINTS_BY_NAME[name].offset, 'bit': POINTS_BY_NAME[name].bit},
         )
 
     def _write(self, name, value, offset):
@@ -271,12 +273,13 @@ class StationWorkflowService:
             self.plc_device_code, name,
             int(bool(value)) if isinstance(value, bool) else value,
             direction='OUT',
-            raw_payload={'db': 100, 'offset': offset},
+            raw_payload={'db': DB_NUMBER, 'offset': POINTS_BY_NAME[name].offset, 'bit': POINTS_BY_NAME[name].bit},
         )
 
     def _write_failure_result(self, phase):
         """Expose a deterministic NG + done handshake before locking the station."""
         failure_outputs = {
+            StationPhase.WAIT_FOAM: (('foam_passed', False, 62), ('foam_done', True, 62)),
             StationPhase.WAIT_PRODUCT: (('product_barcode_valid', False, 26), ('mark_read_done', True, 25)),
             StationPhase.WAIT_RACK: (('rack_result', False, 52), ('rack_done', True, 51)),
             StationPhase.WAIT_POSITION: (('position_success', False, 58), ('position_done', True, 57)),
@@ -293,7 +296,7 @@ class StationWorkflowService:
             return False
         from apps.core.barcode_validator import validate_product_barcode
 
-        self._record_input('mark_trigger', True, 24)
+        self._record_input('mark_trigger', True, 22)
         if cycle.rack_id is None or cycle.rack.current_recipe_id is None:
             raise StationStepError('料框与配方尚未准备完成，不能接收产品条码', AlarmSource.RECIPE)
 
@@ -321,9 +324,12 @@ class StationWorkflowService:
         cycle.workflow = workflow
         cycle.save(update_fields=['workflow', 'updated_at'])
         self.production.bind_product_to_rack(product, cycle.rack)
-        self._record_input('product_barcode', code, 2)
-        self._write('product_barcode_valid', True, 26)
-        self._write('mark_read_done', True, 25)
+        self._record_input('product_barcode', code, 0)
+        self._write('product_barcode_valid', True, 48)
+        self._write('mark_read_done', True, 48)
+        upload = self.mes.upload_product_barcode(code, cycle.rack.rack_code, product=product, rack=cycle.rack)
+        self._write('product_mes_upload_success', bool(upload.get('success')), 48)
+        self._write('product_mes_upload_done', True, 48)
         self._set_phase(
             cycle, StationPhase.WAIT_MARK_RESET, event_type='PRODUCT_BARCODE_READ',
             source=EventSource.PLC, message=f'产品条码 {code} 三维校验通过并与料框绑定落库',
@@ -335,8 +341,10 @@ class StationWorkflowService:
     def _mark_reset(self, cycle, snapshot):
         if snapshot.get('mark_trigger'):
             return False
-        self._write('mark_read_done', False, 25)
-        self._write('product_barcode_valid', False, 26)
+        self._write('mark_read_done', False, 48)
+        self._write('product_mes_upload_done', False, 48)
+        self._write('product_mes_upload_success', False, 48)
+        self._write('product_barcode_valid', False, 48)
         self._set_phase(cycle, StationPhase.WAIT_FOAM)
         return True
 
@@ -345,7 +353,7 @@ class StationWorkflowService:
             return False
         from apps.core.barcode_validator import validate_rack_barcode
 
-        self._record_input('rack_trigger', True, 50)
+        self._record_input('rack_trigger', True, 46)
         raw_code = snapshot.get('rack_barcode')
         val_res = validate_rack_barcode(raw_code, check_db_duplicate=True)
         if not val_res.is_valid:
@@ -367,9 +375,9 @@ class StationWorkflowService:
         cycle.rack = rack
         cycle.planned_quantity = int(recipe.total_quantity)
         cycle.save(update_fields=['rack', 'planned_quantity', 'updated_at'])
-        self._record_input('rack_barcode', rack_code, 28)
-        self._write('rack_result', True, 52)
-        self._write('rack_done', True, 51)
+        self._record_input('rack_barcode', rack_code, 24)
+        self._write('rack_result', True, 48)
+        self._write('rack_done', True, 48)
         self._set_phase(
             cycle, StationPhase.WAIT_RACK_RESET, event_type='RACK_RECIPE_BOUND',
             source=EventSource.MES, message='料框配方已读取并保存到本地',
@@ -380,25 +388,25 @@ class StationWorkflowService:
     def _rack_reset(self, cycle, snapshot):
         if snapshot.get('rack_trigger'):
             return False
-        self._write('rack_done', False, 51)
-        self._write('rack_result', False, 52)
+        self._write('rack_done', False, 48)
+        self._write('rack_result', False, 48)
         self._set_phase(cycle, StationPhase.WAIT_RECIPE_VERIFY)
         return True
 
     def _position_trigger(self, cycle, snapshot):
         if not snapshot.get('position_trigger'):
             return False
-        self._record_input('position_trigger', True, 56)
+        self._record_input('position_trigger', True, 46)
         delta_z = Decimal(str(self.vision.calculate_position_delta_z(cycle)))
-        self._write('layer_delta_z', float(delta_z), 60)
+        self._write('layer_delta_z', float(delta_z), 58)
         cycle.position_delta_z = delta_z
         cycle.positioning_matrix = []
         cycle.save(update_fields=['position_delta_z', 'positioning_matrix', 'updated_at'])
-        self._write('position_success', True, 58)
-        self._write('position_done', True, 57)
+        self._write('position_success', True, 49)
+        self._write('position_done', True, 49)
         self._set_phase(
             cycle, StationPhase.WAIT_POSITION_RESET, event_type='POSITIONED',
-            source=EventSource.VISION, message=f'当前层 ΔZ={delta_z:.3f}mm 已写入 DB100.DBD60',
+            source=EventSource.VISION, message=f'当前层 ΔZ={delta_z:.3f}mm 已写入 DB2.DBD58',
             payload={'delta_z': float(delta_z)}, workflow_state=WorkflowState.RACK_LOCATED,
         )
         return True
@@ -406,15 +414,15 @@ class StationWorkflowService:
     def _position_reset(self, cycle, snapshot):
         if snapshot.get('position_trigger'):
             return False
-        self._write('position_done', False, 57)
-        self._write('position_success', False, 58)
+        self._write('position_done', False, 49)
+        self._write('position_success', False, 49)
         self._set_phase(cycle, StationPhase.WAIT_PRODUCT)
         return True
 
     def _recipe_trigger(self, cycle, snapshot):
         if not snapshot.get('recipe_verify_trigger'):
             return False
-        self._record_input('recipe_verify_trigger', True, 53)
+        self._record_input('recipe_verify_trigger', True, 46)
         height, spacing = self.vision.measure_recipe(cycle)
         recipe = cycle.rack.current_recipe
         tolerance = Decimal(str(recipe.tolerance_z))
@@ -428,8 +436,8 @@ class StationWorkflowService:
             'measured_layer_height', 'measured_layer_spacing',
             'recipe_verified', 'updated_at',
         ])
-        self._write('boxing_allowed', passed, 55)
-        self._write('recipe_verify_done', True, 54)
+        self._write('boxing_allowed', passed, 49)
+        self._write('recipe_verify_done', True, 48)
         if not passed:
             raise StationStepError(
                 f'配方校验不通过：层高 {height:.3f}/{recipe.layer_height}，'
@@ -447,8 +455,8 @@ class StationWorkflowService:
     def _recipe_reset(self, cycle, snapshot):
         if snapshot.get('recipe_verify_trigger'):
             return False
-        self._write('boxing_allowed', False, 55)
-        self._write('recipe_verify_done', False, 54)
+        self._write('boxing_allowed', False, 49)
+        self._write('recipe_verify_done', False, 48)
         if cycle.recipe_verified is False:
             cycle.recipe_verified = None
             cycle.save(update_fields=['recipe_verified', 'updated_at'])
@@ -460,19 +468,19 @@ class StationWorkflowService:
     def _foam_trigger(self, cycle, snapshot):
         if not snapshot.get('foam_trigger'):
             return False
-        passed = bool(snapshot.get('foam_passed'))
-        self._record_input('foam_trigger', True, 64)
-        self._record_input('foam_passed', int(passed), 65)
+        passed, _ = self.vision.inspect_foam(cycle)
+        self._write('foam_passed', passed, 62)
+        self._record_input('foam_trigger', True, 46)
         cycle.foam_passed = passed
         if passed:
             cycle.loaded_quantity += 1
         cycle.save(update_fields=['foam_passed', 'loaded_quantity', 'updated_at'])
-        self._write('foam_done', True, 66)
+        self._write('foam_done', True, 62)
         if not passed:
             raise StationStepError('泡棉检测不合格，工位已锁定', AlarmSource.VISION)
         self._set_phase(
             cycle, StationPhase.WAIT_FOAM_RESET, event_type='FOAM_INSPECTED',
-            source=EventSource.PLC, message='PLC 泡棉检测结果已记录：合格',
+            source=EventSource.VISION, message='泡棉视觉检测完成：合格',
             payload={'position_index': cycle.loaded_quantity, 'foam_passed': True},
             workflow_state=WorkflowState.BOXING,
         )
@@ -481,7 +489,8 @@ class StationWorkflowService:
     def _foam_reset(self, cycle, snapshot):
         if snapshot.get('foam_trigger'):
             return False
-        self._write('foam_done', False, 66)
+        self._write('foam_done', False, 62)
+        self._write('foam_passed', False, 62)
         if cycle.foam_passed is False:
             cycle.foam_passed = None
             cycle.save(update_fields=['foam_passed', 'updated_at'])
@@ -492,12 +501,12 @@ class StationWorkflowService:
             self._set_phase(cycle, StationPhase.WAIT_PRODUCT)
         return True
 
-    def _boxing_trigger(self, cycle, snapshot):
+    def _mes_box_trigger(self, cycle, snapshot):
         if not snapshot.get('boxing_trigger'):
             return False
         from apps.production.models import Product
 
-        self._record_input('boxing_trigger', True, 67)
+        self._record_input('boxing_trigger', True, 46)
         products = list(
             Product.objects.filter(
                 rack=cycle.rack, created_at__gte=cycle.started_at,
@@ -518,8 +527,8 @@ class StationWorkflowService:
         bin_code = response.get('bin_code', '') or ''
         cycle.mes_upload_success = succeeded
         cycle.save(update_fields=['mes_upload_success', 'updated_at'])
-        self._write('mes_upload_success', succeeded, 69)
-        self._write('mes_upload_done', True, 68)
+        self._write('mes_upload_success', succeeded, 62)
+        self._write('mes_upload_done', True, 62)
         if succeeded:
             done_message = (
                 f'整框封箱已上传 MES，区位号 {bin_code}' if bin_code
@@ -539,8 +548,8 @@ class StationWorkflowService:
     def _boxing_reset(self, cycle, snapshot):
         if snapshot.get('boxing_trigger'):
             return False
-        self._write('mes_upload_done', False, 68)
-        self._write('mes_upload_success', False, 69)
+        self._write('mes_upload_done', False, 62)
+        self._write('mes_upload_success', False, 62)
         cycle.finished_at = timezone.now()
         cycle.save(update_fields=['finished_at', 'updated_at'])
         self._set_phase(
@@ -635,7 +644,7 @@ class StationWorkflowService:
                 message=message, success=False,
             )
         try:
-            self._write('workstation_locked', True, 70)
+            self._write('workstation_locked', True, 62)
         except Exception:
             pass
 
@@ -654,7 +663,7 @@ class StationWorkflowService:
             resume = cycle.resume_phase or StationPhase.WAIT_RACK
         # PLC unlock is part of the operation: do it before committing database
         # state so a communication failure cannot show a false unlocked status.
-        self._write('workstation_locked', False, 70)
+        self._write('workstation_locked', False, 62)
         cycle.is_locked = False
         cycle.last_error = ''
         cycle.phase = resume

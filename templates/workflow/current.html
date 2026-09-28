@@ -2,7 +2,7 @@
 {% block title %}PLC 握手流程 - AutomaticBoxing{% endblock %}
 {% block content %}
 <section class="page-header">
-  <div><div class="title-with-badge"><h1>PLC 握手流程</h1>{% if demo_mode %}<span class="demo-label">模拟数据 · 非 PLC 实时值</span>{% endif %}</div><p class="page-subtitle">面向调试与维护：按 DB100 顺序查看触发、业务结果和完成确认。</p></div>
+  <div><div class="title-with-badge"><h1>PLC 握手流程</h1>{% if demo_mode %}<span class="demo-label">模拟数据 · 非 PLC 实时值</span>{% endif %}</div><p class="page-subtitle">面向调试与维护：按 DB2 顺序查看触发、业务结果和完成确认。</p></div>
   <a href="{% url 'workflow:history' %}" class="btn btn-secondary">历史流程</a>
 </section>
 
@@ -11,11 +11,11 @@
 {% endif %}
 
 <section class="workflow-command">
-  <div><span>当前阶段</span><strong>{{ display_phase }}</strong></div><div><span>产品条码</span><strong>{{ display_product|default:"等待 DBB2" }}</strong></div><div><span>料框码</span><strong>{{ display_rack|default:"等待 DBB26" }}</strong></div><div><span>配方</span><strong>{{ display_recipe|default:"等待 MES" }}</strong></div>
+  <div><span>当前阶段</span><strong>{{ display_phase }}</strong></div><div><span>产品条码</span><strong>{{ display_product|default:"等待 DBB0" }}</strong></div><div><span>料框码</span><strong>{{ display_rack|default:"等待 DBB24" }}</strong></div><div><span>配方</span><strong>{{ display_recipe|default:"等待 MES" }}</strong></div>
 </section>
 
 <section class="panel handshake-panel">
-  <div class="panel-heading"><div><span class="eyebrow">DB100 HANDSHAKE</span><h2>自动流程握手</h2></div><span class="table-scope">绿：完成 · 蓝：当前 · 灰：等待</span></div>
+  <div class="panel-heading"><div><span class="eyebrow">DB2 HANDSHAKE</span><h2>自动流程握手</h2></div><span class="table-scope">绿：完成 · 蓝：当前 · 灰：等待</span></div>
   <div class="handshake-list">
     {% for item in handshakes %}
     <article class="handshake-row handshake-{{ item.status }}">
@@ -38,7 +38,7 @@
     <div class="workflow-timeline">
       {% for ev in recent_events %}<div class="timeline-item {% if not ev.success %}failed{% endif %}"><time>{{ ev.occurred_at|default:ev.created_at|date:"H:i:s" }}</time><i></i><div><strong>{{ ev.event_type }}</strong><span>{{ ev.message|default:"状态已更新" }}</span><small>{{ ev.get_source_display }} · {{ ev.from_state|default:"—" }} → {{ ev.to_state|default:"—" }}</small></div></div>
       {% empty %}
-      {% if demo_mode %}<div class="timeline-item"><time>14:32:18</time><i></i><div><strong>RACK_LOCATED</strong><span>当前层 ΔZ 已写入 DBD60</span><small>模拟事件</small></div></div><div class="timeline-item"><time>14:31:46</time><i></i><div><strong>RECIPE_LOADED</strong><span>配方 BUMPER-A-04 获取成功</span><small>模拟事件</small></div></div>{% else %}<div class="empty">暂无流程事件</div>{% endif %}
+      {% if demo_mode %}<div class="timeline-item"><time>14:32:18</time><i></i><div><strong>RACK_LOCATED</strong><span>当前层 ΔZ 已写入 DBD58</span><small>模拟事件</small></div></div><div class="timeline-item"><time>14:31:46</time><i></i><div><strong>RECIPE_LOADED</strong><span>配方 BUMPER-A-04 获取成功</span><small>模拟事件</small></div></div>{% else %}<div class="empty">暂无流程事件</div>{% endif %}
       {% endfor %}
     </div>
   </article>

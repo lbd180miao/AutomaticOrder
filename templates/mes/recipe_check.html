@@ -2,14 +2,14 @@
 {% block title %}配方核对与 2D 调试 - AutomaticBoxing{% endblock %}
 {% block content %}
 <section class="page-header">
-  <div><h1>配方核对与 2D 调试</h1><p class="page-subtitle">自动模式由 PLC DBX50.0 触发；手动调试始终旁路，不写 PLC、不推进工位。</p></div>
+  <div><h1>配方核对与 2D 调试</h1><p class="page-subtitle">自动模式由 PLC DBX46.0 触发；手动调试始终旁路，不写 PLC、不推进工位。</p></div>
   <a class="btn btn-secondary" href="{% url 'mes:record_list' %}">返回 MES 记录</a>
 </section>
 
 <nav class="module-tabs" aria-label="MES 模块"><a href="{% url 'mes:record_list' %}">接口记录</a><a class="active" href="{% url 'mes:recipe_check' %}">配方核对与 2D 调试</a></nav>
 
 <section class="auto-mode-banner">
-  <div><span class="mode-pill">AUTO</span><div><strong>PLC 自动计算已接入</strong><small>DBX50.0 = 1 → 相机拍照 → 计算层高/层距 → 与 MES 配方比对 → 写 DBX51.0 与 DBX52.0</small></div></div>
+  <div><span class="mode-pill">AUTO</span><div><strong>PLC 自动计算已接入</strong><small>DBX46.0 = 1 → 相机拍照 → 计算层高/层距 → 与 MES 配方比对 → 写 DBX48.5 与 DBX48.6</small></div></div>
   <span class="badge badge-{{ verification.state_tone }}" id="verification-state">{{ verification.state_label }}</span>
 </section>
 
@@ -49,7 +49,7 @@
   </tbody></table></div>
   <div class="verification-result-bar verification-{{ verification.state_tone }}" id="verification-footer">
     <div><span>判定说明</span><strong id="verification-footer-label">{{ verification.state_label }}</strong><small id="verification-message">{{ verification.state_message }}</small></div>
-    <div class="plc-writeback"><span>DBX51 可装箱 <strong id="plc-allowed">{% if verification.plc_allowed == True %}已写入 1{% elif verification.plc_allowed == False %}已写入 0{% else %}等待{% endif %}</strong></span><span>DBX52 完成 <strong id="plc-done">{% if verification.plc_done %}已发送{% else %}等待{% endif %}</strong></span></div>
+    <div class="plc-writeback"><span>DBX48.5 可装箱 <strong id="plc-allowed">{% if verification.plc_allowed == True %}已写入 1{% elif verification.plc_allowed == False %}已写入 0{% else %}等待{% endif %}</strong></span><span>DBX48.6 完成 <strong id="plc-done">{% if verification.plc_done %}已发送{% else %}等待{% endif %}</strong></span></div>
   </div>
 </section>
 
@@ -106,7 +106,7 @@
     } catch(error) { setMessage(error.message||'计算失败','fail'); toast(`计算失败：${error.message}`,'fail'); } finally { active.textContent=original; calc.disabled=camera.disabled=false; }
   }
   document.getElementById('btn-debug-calculate').addEventListener('click',()=>measure('upload')); document.getElementById('btn-camera-measure').addEventListener('click',()=>measure('camera'));
-  document.getElementById('btn-save-profile').addEventListener('click',async function(){const original=this.textContent;this.disabled=true;this.textContent='保存中…';try{const response=await fetch('{% url "mes:rack_measurement_profile_api" %}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...parameters(),name:'料架层高层距自动测量'})});const data=await response.json();if(!data.success)throw new Error(data.error||'保存失败');document.getElementById('profile-status').textContent='自动参数已配置';document.getElementById('profile-status').className='badge badge-ok';setMessage('参数已保存，PLC DBX50.0 触发时会自动使用。','ok');toast('自动测量参数已保存','ok');}catch(error){setMessage(`保存失败：${error.message}`,'fail');}finally{this.disabled=false;this.textContent=original;}});
+  document.getElementById('btn-save-profile').addEventListener('click',async function(){const original=this.textContent;this.disabled=true;this.textContent='保存中…';try{const response=await fetch('{% url "mes:rack_measurement_profile_api" %}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...parameters(),name:'料架层高层距自动测量'})});const data=await response.json();if(!data.success)throw new Error(data.error||'保存失败');document.getElementById('profile-status').textContent='自动参数已配置';document.getElementById('profile-status').className='badge badge-ok';setMessage('参数已保存，PLC DBX46.0 触发时会自动使用。','ok');toast('自动测量参数已保存','ok');}catch(error){setMessage(`保存失败：${error.message}`,'fail');}finally{this.disabled=false;this.textContent=original;}});
 
   // 保存配方校验容差阈值
   document.getElementById('btn-save-tolerance-threshold')?.addEventListener('click', async function () {

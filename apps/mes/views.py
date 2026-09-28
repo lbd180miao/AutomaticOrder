@@ -464,7 +464,7 @@ def _build_recipe_verification(cycle):
         state = ('校验不通过', 'fail', cycle.last_error or '实测值超出 MES 配方容差')
         camera_state = '测量完成'
     elif cycle.phase == StationPhase.WAIT_RECIPE_VERIFY:
-        state = ('等待校验', 'running', '等待 PLC 配方校验触发 DB100.DBX50.0')
+        state = ('等待校验', 'running', '等待 PLC 配方校验触发 DB2.DBX46.0')
         camera_state = '等待 PLC 触发'
     elif cycle.phase in {
         StationPhase.WAIT_RECIPE_RESET,

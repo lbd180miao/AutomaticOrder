@@ -47,7 +47,7 @@ class StationPhase(models.TextChoices):
 
 
 class StationCycle(TimeStampedModel):
-    """One DB100-controlled rack loading cycle.
+    """One DB2-controlled rack loading cycle.
 
     Handshake phases are persisted so a worker restart cannot execute the same
     PLC trigger twice while the input remains high.

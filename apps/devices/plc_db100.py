@@ -1,4 +1,4 @@
-"""DB100 communication contract and Siemens S7 value codecs.
+"""DB2 communication contract and Siemens S7 value codecs.
 
 The workflow layer uses symbolic point names only.  Byte offsets, S7 STRING
 headers and big-endian numeric encoding are deliberately kept in this module.
@@ -22,8 +22,8 @@ class DB100Point:
     bit: int = 0
 
 
-DB_NUMBER = 100
-DB_SIZE = 71
+DB_NUMBER = 2
+DB_SIZE = 63
 
 
 def _point(name, offset, data_type, direction, description, size, bit=0):
@@ -31,31 +31,33 @@ def _point(name, offset, data_type, direction, description, size, bit=0):
 
 
 DB100_POINTS = (
-    _point('heartbeat', 0, 'INT', 'OUT', '心跳计数', 2),
-    _point('product_barcode', 2, 'STRING[20]', 'IN', '产品条码', 22),
-    _point('mark_trigger', 24, 'BOOL', 'IN', '产品条码就绪触发', 1),
-    _point('mark_read_done', 25, 'BOOL', 'OUT', '产品条码处理完成确认', 1),
-    _point('product_barcode_valid', 26, 'BOOL', 'OUT', '产品条码校验结果（1=OK，0=NG）', 1),
-    _point('reserved_27', 27, 'BYTE', '-', '对齐填充', 1),
-    _point('rack_barcode', 28, 'STRING[20]', 'IN', '料框码', 22),
-    _point('rack_trigger', 50, 'BOOL', 'IN', '料框到位触发', 1),
-    _point('rack_done', 51, 'BOOL', 'OUT', '料框处理完成确认', 1),
-    _point('rack_result', 52, 'BOOL', 'OUT', '料框处理结果（1=OK，0=NG）', 1),
-    _point('recipe_verify_trigger', 53, 'BOOL', 'IN', '配方校验触发', 1),
-    _point('recipe_verify_done', 54, 'BOOL', 'OUT', '配方校验完成确认', 1),
-    _point('boxing_allowed', 55, 'BOOL', 'OUT', '可装箱结果（1=OK，0=NG）', 1),
-    _point('position_trigger', 56, 'BOOL', 'IN', '3D定位触发', 1),
-    _point('position_done', 57, 'BOOL', 'OUT', '3D定位完成确认', 1),
-    _point('position_success', 58, 'BOOL', 'OUT', '3D定位结果（1=OK，0=NG）', 1),
-    _point('reserved_59', 59, 'BYTE', '-', '对齐填充', 1),
-    _point('layer_delta_z', 60, 'REAL', 'OUT', '当前层视觉补偿值 ΔZ（mm）', 4),
-    _point('foam_trigger', 64, 'BOOL', 'IN', '泡棉检测结果记录触发', 1),
-    _point('foam_passed', 65, 'BOOL', 'IN', '泡棉检测结果（1=OK，0=NG）', 1),
-    _point('foam_done', 66, 'BOOL', 'OUT', '泡棉检测记录完成确认', 1),
-    _point('boxing_trigger', 67, 'BOOL', 'IN', '装箱完成 / MES上传触发', 1),
-    _point('mes_upload_done', 68, 'BOOL', 'OUT', 'MES上传完成确认', 1),
-    _point('mes_upload_success', 69, 'BOOL', 'OUT', 'MES上传结果（1=OK，0=NG）', 1),
-    _point('workstation_locked', 70, 'BOOL', 'OUT', '工位锁定（1=锁定，0=正常）', 1),
+    _point('product_barcode', 0, 'STRING[20]', 'IN', '当前产品条码', 22, 0),
+    _point('mark_trigger', 22, 'BOOL', 'IN', '扫码完成', 1, 0),
+    _point('rack_barcode', 24, 'STRING[20]', 'IN', '料框码', 22, 0),
+    _point('rack_trigger', 46, 'BOOL', 'IN', '料框到位触发', 1, 0),
+    _point('recipe_verify_trigger', 46, 'BOOL', 'IN', '配方校验触发', 1, 1),
+    _point('position_trigger', 46, 'BOOL', 'IN', '3D 定位触发', 1, 2),
+    _point('foam_trigger', 46, 'BOOL', 'IN', '泡棉视觉检测触发', 1, 3),
+    _point('boxing_trigger', 46, 'BOOL', 'IN', 'MES 封箱上传触发', 1, 4),
+    _point('heartbeat', 48, 'BOOL', 'OUT', '心跳信号', 1, 0),
+    _point('mark_read_done', 48, 'BOOL', 'OUT', '产品条码处理完成确认', 1, 1),
+    _point('product_barcode_valid', 48, 'BOOL', 'OUT', '产品条码校验结果', 1, 2),
+    _point('product_mes_upload_done', 48, 'BOOL', 'OUT', '单件 MES 上传完成确认', 1, 3),
+    _point('product_mes_upload_success', 48, 'BOOL', 'OUT', '单件 MES 上传结果', 1, 4),
+    _point('rack_done', 48, 'BOOL', 'OUT', '料框处理完成确认', 1, 5),
+    _point('rack_result', 48, 'BOOL', 'OUT', '料框处理结果', 1, 6),
+    _point('recipe_verify_done', 48, 'BOOL', 'OUT', '配方校验完成确认', 1, 7),
+    _point('boxing_allowed', 49, 'BOOL', 'OUT', '可装箱结果', 1, 0),
+    _point('position_done', 49, 'BOOL', 'OUT', '3D 定位完成确认', 1, 1),
+    _point('position_success', 49, 'BOOL', 'OUT', '3D 定位结果', 1, 2),
+    _point('layer_delta_x', 50, 'REAL', 'OUT', '当前层视觉补偿 ΔX', 4, 0),
+    _point('layer_delta_y', 54, 'REAL', 'OUT', '当前层视觉补偿 ΔY', 4, 0),
+    _point('layer_delta_z', 58, 'REAL', 'OUT', '当前层视觉补偿 ΔZ', 4, 0),
+    _point('foam_done', 62, 'BOOL', 'OUT', '泡棉检测完成确认', 1, 0),
+    _point('foam_passed', 62, 'BOOL', 'OUT', '泡棉检测结果', 1, 1),
+    _point('mes_upload_done', 62, 'BOOL', 'OUT', 'MES 封箱上传完成确认', 1, 2),
+    _point('mes_upload_success', 62, 'BOOL', 'OUT', 'MES 封箱上传结果', 1, 3),
+    _point('workstation_locked', 62, 'BOOL', 'OUT', '工位锁定', 1, 4),
 )
 
 POINTS_BY_NAME = {point.name: point for point in DB100_POINTS}

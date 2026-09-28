@@ -1,4 +1,4 @@
-"""Siemens DB100 adapter.
+"""Siemens DB2 adapter.
 
 ``Snap7Transport`` imports python-snap7 lazily so development and unit tests can
 run without the native PLC dependency. ``MemoryPLCTransport`` is a byte-accurate
@@ -87,7 +87,7 @@ class MemoryPLCTransport:
 
 
 class PLCAdapter(BaseDeviceAdapter):
-    """Typed read/write facade for the fixed DB100 contract."""
+    """Typed read/write facade for the fixed DB2 contract."""
 
     def __init__(self, transport=None, *, address='', rack=0, slot=1, tcp_port=102):
         self.transport = transport or Snap7Transport(address, rack, slot, tcp_port)
@@ -145,8 +145,9 @@ class PLCAdapter(BaseDeviceAdapter):
         }
 
     def tick_heartbeat(self):
+        """Toggle heartbeat BOOL signal."""
         current = self.read_point('heartbeat')
-        value = -32768 if current >= 32767 else current + 1
+        value = not current
         self.write_point('heartbeat', value)
         return value
 
@@ -156,14 +157,14 @@ class PLCAdapter(BaseDeviceAdapter):
     def write_signal(self, signal_name, value):
         self.write_point(signal_name, value)
         return True
-    
+
     def read_robot_pose(self, robot_code: str = 'ROBOT-01') -> dict:
         """
         从PLC读取机器人当前位姿（T_base_flange）
-        
+
         Args:
             robot_code: 机器人设备代码
-            
+
         Returns:
             机器人位姿字典 {
                 'success': bool,
@@ -202,13 +203,25 @@ class PLCAdapter(BaseDeviceAdapter):
         返回：
             {success: bool, sent_at: str, echo: payload}
         """
-        delta_z = payload.get('layer_delta_z')
-        if delta_z is None:
-            delta_z = payload.get('compensation_z', payload.get('offset_z'))
-        if delta_z is None:
-            return {'success': False, 'error': 'DB100 规则要求下发当前层 ΔZ'}
+        # 提取三轴补偿值
+        delta_x = payload.get('layer_delta_x', payload.get('compensation_x', payload.get('offset_x', 0.0)))
+        delta_y = payload.get('layer_delta_y', payload.get('compensation_y', payload.get('offset_y', 0.0)))
+        delta_z = payload.get('layer_delta_z', payload.get('compensation_z', payload.get('offset_z', 0.0)))
+
+        # 写入PLC DB2
+        self.write_point('layer_delta_x', delta_x)
+        self.write_point('layer_delta_y', delta_y)
         self.write_point('layer_delta_z', delta_z)
-        return {'success': True, 'echo': payload}
+
+        return {
+            'success': True,
+            'echo': payload,
+            'sent': {
+                'layer_delta_x': delta_x,
+                'layer_delta_y': delta_y,
+                'layer_delta_z': delta_z,
+            }
+        }
 
     def send_offsets(self, product_code, side, x, y, z):
         """已废弃，请改用 send_rack_offsets()。保留以兼容旧代码。"""

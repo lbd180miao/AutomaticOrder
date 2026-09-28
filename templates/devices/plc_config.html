@@ -119,19 +119,19 @@
       <p>
         <strong>IN</strong>（← PLC → 上位机）：上位机轮询读取该点位，检测到变化时触发对应业务逻辑。<br>
         <strong>OUT</strong>（上位机 → PLC →）：上位机计算完成后将结果写入该点位，PLC 读取后执行动作。<br>
-        本工位统一使用 <strong>DB100</strong>。BOOL 当前使用对应字节的 bit 0；
+        本工位统一使用 <strong>DB2</strong>。BOOL 使用点表指定的字节和 bit 位；
         STRING[20] 含 2 字节 S7 头，总占 22 字节。
       </p>
     </div>
 
     <div class="scene-section">
-      <div class="scene-title">DB100 · 完整工位点表</div>
+      <div class="scene-title">DB2 · 完整工位点表</div>
       <table class="points-table">
         <thead><tr><th>偏移</th><th>类型</th><th>信号名</th><th>说明</th><th>方向</th></tr></thead>
         <tbody>
           {% for point in plc_points %}
           <tr>
-            <td class="mono">{{ point.offset }}</td>
+            <td class="mono">{{ point.offset }}{% if point.data_type == "BOOL" %}.{{ point.bit }}{% endif %}</td>
             <td class="mono">{{ point.data_type }}</td>
             <td class="mono">{{ point.name }}</td>
             <td>{{ point.description }}</td>

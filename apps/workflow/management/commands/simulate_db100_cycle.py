@@ -1,4 +1,4 @@
-"""Run a byte-accurate DB100 cycle without PLC/camera/MES hardware."""
+"""Run a byte-accurate DB2 cycle without PLC/camera/MES hardware."""
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.test.utils import override_settings
@@ -12,7 +12,7 @@ from apps.workflow.station_service import ExistingVisionGateway, StationWorkflow
 
 
 class Command(BaseCommand):
-    help = '使用内存 PLC 和模拟 MES/视觉跑通一次完整 DB100 装箱周期'
+    help = '使用内存 PLC 和模拟 MES/视觉跑通一次完整 DB2 装箱周期'
 
     def add_arguments(self, parser):
         parser.add_argument('--product-code', default='')
@@ -51,7 +51,6 @@ class Command(BaseCommand):
                 item_code = product_code if quantity == 1 else f'{product_code[:16]}-{loaded:03d}'
                 plc.write_point('product_barcode', item_code)
                 self._pulse(service, plc, 'mark_trigger')
-                plc.write_point('foam_passed', True)
                 self._pulse(service, plc, 'foam_trigger')
                 cycle = service.active_cycle()
                 self.stdout.write(f'已装 {loaded}/{quantity} · {cycle.get_phase_display()}')
@@ -60,7 +59,7 @@ class Command(BaseCommand):
         if cycle.phase != StationPhase.COMPLETED:
             raise CommandError(f'联调未完成，最终阶段: {cycle.phase}')
         self.stdout.write(self.style.SUCCESS(
-            f'DB100 全链路联调成功：{product_code} → {rack_code}，数量 {quantity}',
+            f'DB2 全链路联调成功：{product_code} → {rack_code}，数量 {quantity}',
         ))
 
     @staticmethod

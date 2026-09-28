@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}PLC 读写调试{% endblock %}
+{% block content %}
+<style>
+.plc-debug{max-width:1200px;margin:auto}.plc-debug .panels{display:grid;grid-template-columns:1fr 1fr;gap:20px}.plc-debug .panel{background:var(--card-bg,#fff);border:1px solid #cbd5e1;border-radius:12px;padding:24px;margin:18px 0}.plc-debug label{display:block;margin:16px 0 8px;font-weight:600}.plc-debug select,.plc-debug input{width:100%;padding:10px;border:1px solid #94a3b8;border-radius:6px;box-sizing:border-box}.plc-debug button{margin-top:18px;padding:10px 18px;border:0;border-radius:6px;background:#2563eb;color:white;cursor:pointer}.plc-debug button:disabled{opacity:.5;cursor:wait}.plc-debug .hint{color:#64748b;font-size:13px;line-height:1.7}.plc-debug output{display:block;white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;background:#f1f5f9;color:#0f172a;border-radius:6px;margin-top:18px;min-height:65px}.plc-debug output[data-error="true"]{background:#fef2f2;color:#b91c1c}.plc-debug table{width:100%;border-collapse:collapse}.plc-debug td,.plc-debug th{text-align:left;padding:12px;border-bottom:1px solid #e2e8f0}.plc-debug .history{overflow:auto}.plc-debug h1{margin-bottom:8px}@media(max-width:800px){.plc-debug .panels{grid-template-columns:1fr}}
+</style>
+<div class="plc-debug">
+<h1>PLC 读写调试</h1>
+<p>S7-1200 · {{ plc.address|default:"未配置 IP" }}:{{ plc.configuration.tcp_port|default:102 }} · Rack {{ plc.configuration.rack|default:0 }} / Slot {{ plc.configuration.slot|default:1 }} · DB{{ db_number }}</p>
+<p class="hint">{% if simulated %}当前为模拟模式，操作内存 PLC。{% else %}当前为真实设备模式，写入将发送至上述 PLC。{% endif %} Bool 单独修改指定位；Real 使用 32 位浮点数。自动流程可能覆盖手动写入值。</p>
+<div class="panels">
+<section class="panel"><h2>读取点位</h2><form id="read-form">{% csrf_token %}
+<label for="read-point">点位</label><select id="read-point" required>
+{% for point in plc_points %}<option value="{{ point.name }}">{{ point.description }} · {% if point.data_type == 'BOOL' %}DBX{{ point.offset }}.{{ point.bit }}{% elif point.data_type == 'REAL' %}DBD{{ point.offset }}{% else %}DBB{{ point.offset }}{% endif %} · {{ point.data_type }}</option>{% endfor %}
+</select><button type="submit">读取当前值</button></form><output id="read-result" aria-live="polite">等待读取</output></section>
+<section class="panel"><h2>写入点位 · CCD → PLC</h2><form id="write-form">
+<label for="write-point">点位</label><select id="write-point" required>
+{% for point in plc_points %}{% if point.direction == 'OUT' %}<option value="{{ point.name }}" data-type="{{ point.data_type }}">{{ point.description }} · {% if point.data_type == 'BOOL' %}DBX{{ point.offset }}.{{ point.bit }}{% else %}DBD{{ point.offset }}{% endif %} · {{ point.data_type }}</option>{% endif %}{% endfor %}
+</select>
+<div id="bool-field"><label for="bool-value">写入值</label><select id="bool-value"><option value="false">FALSE / 0 · 复位</option><option value="true">TRUE / 1 · 置位</option></select></div>
+<div id="real-field" hidden><label for="real-value">补偿值（mm）</label><input id="real-value" type="number" step="any" placeholder="例如 -1.25"><p class="hint">支持正数、负数和小数。</p></div>
+<button type="submit">写入并回读</button></form><output id="write-result" aria-live="polite">等待写入</output></section>
+</div>
+<section class="panel"><h2>本页操作记录</h2><p class="hint">显示最近 30 次操作，刷新页面后清空。</p><div class="history"><table><thead><tr><th>时间</th><th>操作 / 点位</th><th>请求值</th><th>回读值</th><th>结果</th></tr></thead><tbody id="history"><tr id="empty-history"><td colspan="5">暂无操作</td></tr></tbody></table></div></section>
+</div>
+<script>
+(()=>{
+const selector=document.getElementById('write-point'), real=document.getElementById('real-value');
+const format=v=>typeof v==='boolean'?(v?'TRUE / 1':'FALSE / 0'):v===undefined?'—':String(v);
+function updateType(){const isReal=selector.selectedOptions[0].dataset.type==='REAL';document.getElementById('bool-field').hidden=isReal;document.getElementById('real-field').hidden=!isReal;real.required=isReal;real.disabled=!isReal;document.getElementById('write-result').textContent='等待写入';}
+selector.addEventListener('change',updateType);updateType();
+async function execute(event,writing){
+event.preventDefault();const form=event.currentTarget,button=form.querySelector('button'), point=document.getElementById(writing?'write-point':'read-point'), output=document.getElementById(writing?'write-result':'read-result');
+let value;if(writing){value=selector.selectedOptions[0].dataset.type==='REAL'?Number(real.value):document.getElementById('bool-value').value==='true';if(typeof value==='number'&&!Number.isFinite(value)){output.textContent='请输入有限数值';output.dataset.error='true';return;}}
+const body={point_name:point.value};if(writing)body.value=value;const label=point.selectedOptions[0].textContent;button.disabled=true;output.textContent=writing?'正在写入并回读…':'正在读取…';output.dataset.error='false';let data;
+try{const response=await fetch(writing?'{% url "devices:api_plc_write" %}':'{% url "devices:api_plc_read" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]').value},body:JSON.stringify(body)});if(!response.ok)throw new Error('请求失败，HTTP '+response.status);data=await response.json();output.dataset.error=String(!data.success);output.textContent=data.success?(writing?'写入成功，回读一致\n请求值：'+format(value)+'\n实际回读：'+format(data.read_back_value):'当前值：'+format(data.value)):(data.error||'操作失败');if(!data.success&&data.read_back_value!==undefined)output.textContent+='\n实际回读：'+format(data.read_back_value);
+}catch(error){data={success:false,error:error.message};output.dataset.error='true';output.textContent=error.message;}finally{button.disabled=false;}
+document.getElementById('empty-history')?.remove();const row=document.createElement('tr');[new Date().toLocaleTimeString(),(writing?'写入 · ':'读取 · ')+label,writing?format(value):'—',format(writing?data.read_back_value:data.value),data.success?'成功':data.error||'失败'].forEach(text=>{const cell=document.createElement('td');cell.textContent=text;row.appendChild(cell);});const history=document.getElementById('history');history.prepend(row);while(history.children.length>30)history.lastElementChild.remove();
+}
+document.getElementById('read-form').addEventListener('submit',event=>execute(event,false));document.getElementById('write-form').addEventListener('submit',event=>execute(event,true));
+})();
+</script>
+{% endblock %}

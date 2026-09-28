@@ -1,4 +1,4 @@
-"""Poll DB100 and run the persisted station handshake state machine."""
+"""Poll DB2 and run the persisted station handshake state machine."""
 import time
 
 from django.core.management.base import BaseCommand, CommandError
@@ -7,7 +7,7 @@ from apps.workflow.station_service import StationWorkflowService
 
 
 class Command(BaseCommand):
-    help = '轮询 PLC DB100，并按触发/确认握手推进装箱工位流程'
+    help = '轮询 PLC DB2，并按触发/确认握手推进装箱工位流程'
 
     def add_arguments(self, parser):
         parser.add_argument('--interval', type=float, default=1.0, help='扫描间隔秒数（默认 1）')
@@ -19,7 +19,7 @@ class Command(BaseCommand):
             raise CommandError('--interval 必须大于 0')
 
         service = StationWorkflowService()
-        self.stdout.write(self.style.SUCCESS(f'DB100 工位 Worker 已启动，间隔 {interval:g} 秒'))
+        self.stdout.write(self.style.SUCCESS(f'DB2 工位 Worker 已启动，间隔 {interval:g} 秒'))
         try:
             while True:
                 try:
@@ -30,7 +30,7 @@ class Command(BaseCommand):
                     )
                 except Exception as exc:
                     service.devices.mark_offline(service.plc_device_code)
-                    self.stderr.write(self.style.ERROR(f'PLC DB100 轮询失败：{exc}'))
+                    self.stderr.write(self.style.ERROR(f'PLC DB2 轮询失败：{exc}'))
                     if options['once']:
                         raise CommandError(str(exc)) from exc
 

@@ -20,7 +20,7 @@ WORKFLOW_ORDER = [value for value, _label in WorkflowState.choices]
 
 
 def _stage_cards(current_state, demo_mode=False):
-    """将旧流程状态压缩为与 DB100 一致的六个操作员步骤。"""
+    """将旧流程状态压缩为与 DB2 一致的六个操作员步骤。"""
     if demo_mode:
         states = ['done', 'done', 'done', 'done', 'active', 'pending']
     else:
@@ -47,12 +47,12 @@ def _stage_cards(current_state, demo_mode=False):
             states = ['done'] * 6
 
     content = [
-        ('01', '产品条码', 'DBX24 → DBX25/26'),
-        ('02', '料框配方', 'DBX50 → DBX51/52'),
-        ('03', '3D 定位', 'DBX56 → DBD60 / DBX57/58'),
-        ('04', '配方核对', 'DBX53 → DBX54/55'),
-        ('05', '泡棉检测', 'DBX64/65 → DBX66'),
-        ('06', 'MES 上传', 'DBX67 → DBX68/69'),
+        ('01', '产品条码', 'DBX22.0 → DBX48.1/48.2'),
+        ('02', '料框配方', 'DBX46.0 → DBX48.5/48.6'),
+        ('03', '3D 定位', 'DBX46.2 → DBD58 / DBX49.1/49.2'),
+        ('04', '配方核对', 'DBX46.1 → DBX48.7/49.0'),
+        ('05', '泡棉检测', 'DBX46.3 → DBX62.0/62.1'),
+        ('06', 'MES 上传', 'DBX46.4 → DBX62.2/62.3'),
     ]
     return [
         {'number': number, 'name': name, 'description': description, 'status': status}
@@ -85,12 +85,12 @@ def _station_stage_cards(phase, resume_phase=''):
             for index in range(6)
         ]
     content = [
-        ('01', '产品条码', 'DBX24 → DBX25/26'),
-        ('02', '料框配方', 'DBX50 → DBX51/52'),
-        ('03', '3D 定位', 'DBX56 → DBD60 / DBX57/58'),
-        ('04', '配方核对', 'DBX53 → DBX54/55'),
-        ('05', '泡棉检测', 'DBX64/65 → DBX66'),
-        ('06', 'MES 上传', 'DBX67 → DBX68/69'),
+        ('01', '产品条码', 'DBX22.0 → DBX48.1/48.2'),
+        ('02', '料框配方', 'DBX46.0 → DBX48.5/48.6'),
+        ('03', '3D 定位', 'DBX46.2 → DBD58 / DBX49.1/49.2'),
+        ('04', '配方核对', 'DBX46.1 → DBX48.7/49.0'),
+        ('05', '泡棉检测', 'DBX46.3 → DBX62.0/62.1'),
+        ('06', 'MES 上传', 'DBX46.4 → DBX62.2/62.3'),
     ]
     return [
         {'number': number, 'name': name, 'description': description, 'status': status}
@@ -190,20 +190,20 @@ class DashboardService:
             })
 
         phase_signal_map = {
-            StationPhase.WAIT_PRODUCT: ('DBX24.0', '等待打标完成触发', '读取 DBB2 产品条码'),
-            StationPhase.WAIT_MARK_RESET: ('DBX24.0', '等待 PLC 清除打标触发', 'DBX25.0 保持确认'),
-            StationPhase.WAIT_RACK: ('DBX50.0', '等待料框到位触发', '读取 DBB28 料框码'),
-            StationPhase.WAIT_RACK_RESET: ('DBX50.0', '等待 PLC 清除料框触发', 'DBX51/52 保持确认'),
-            StationPhase.WAIT_POSITION: ('DBX56.0', '等待 3D 定位触发', 'ΔZ 写入 DBD60'),
-            StationPhase.WAIT_POSITION_RESET: ('DBX56.0', '等待 PLC 清除定位触发', 'DBX57/58 保持确认'),
-            StationPhase.WAIT_RECIPE_VERIFY: ('DBX53.0', '等待配方校验触发', '结果写入 DBX54/55'),
-            StationPhase.WAIT_RECIPE_RESET: ('DBX53.0', '等待 PLC 清除校验触发', 'DBX54 保持确认'),
-            StationPhase.WAIT_FOAM: ('DBX64.0', '等待泡棉结果记录触发', '读取 DBX65，确认写入 DBX66'),
-            StationPhase.WAIT_FOAM_RESET: ('DBX64.0', '等待 PLC 清除泡棉触发', 'DBX66 保持确认'),
-            StationPhase.WAIT_BOXING: ('DBX67.0', '等待装箱完成触发', '结果写入 DBX68/69'),
-            StationPhase.WAIT_BOXING_RESET: ('DBX67.0', '等待 PLC 清除上传触发', 'DBX68 保持确认'),
-            StationPhase.COMPLETED: ('DBX67.0', '料框装箱已完成', '等待下一料框'),
-            StationPhase.LOCKED: ('DBX70.0', '工位已锁定', '处理报警后人工解锁'),
+            StationPhase.WAIT_PRODUCT: ('DBX22.0', '等待打标完成触发', '读取 DBB0 产品条码'),
+            StationPhase.WAIT_MARK_RESET: ('DBX22.0', '等待 PLC 清除打标触发', 'DBX48.1 保持确认'),
+            StationPhase.WAIT_RACK: ('DBX46.0', '等待料框到位触发', '读取 DBB24 料框码'),
+            StationPhase.WAIT_RACK_RESET: ('DBX46.0', '等待 PLC 清除料框触发', 'DBX48.5/48.6 保持确认'),
+            StationPhase.WAIT_POSITION: ('DBX46.2', '等待 3D 定位触发', 'ΔZ 写入 DBD58'),
+            StationPhase.WAIT_POSITION_RESET: ('DBX46.2', '等待 PLC 清除定位触发', 'DBX49.1/49.2 保持确认'),
+            StationPhase.WAIT_RECIPE_VERIFY: ('DBX46.1', '等待配方校验触发', '结果写入 DBX48.7/49.0'),
+            StationPhase.WAIT_RECIPE_RESET: ('DBX46.1', '等待 PLC 清除校验触发', 'DBX48.7 保持确认'),
+            StationPhase.WAIT_FOAM: ('DBX46.3', '等待泡棉视觉检测触发', '检测结果写入 DBX62.1，确认写入 DBX62.0'),
+            StationPhase.WAIT_FOAM_RESET: ('DBX46.3', '等待 PLC 清除泡棉触发', 'DBX62.0 保持确认'),
+            StationPhase.WAIT_BOXING: ('DBX46.4', '等待装箱完成触发', '结果写入 DBX62.2/62.3'),
+            StationPhase.WAIT_BOXING_RESET: ('DBX46.4', '等待 PLC 清除上传触发', 'DBX62.2 保持确认'),
+            StationPhase.COMPLETED: ('DBX46.4', '料框装箱已完成', '等待下一料框'),
+            StationPhase.LOCKED: ('DBX62.4', '工位已锁定', '处理报警后人工解锁'),
         }
         if station_cycle is not None:
             signal_code, wait_label, signal_hint = phase_signal_map.get(
@@ -211,10 +211,10 @@ class DashboardService:
             )
         elif demo_mode:
             signal_code, wait_label, signal_hint = (
-                'DBX64.0', '等待泡棉结果记录触发', '读取 DBX65，确认写入 DBX66'
+                'DBX46.3', '等待泡棉视觉检测触发', '检测结果写入 DBX62.1，确认写入 DBX62.0'
             )
         else:
-            signal_code, wait_label, signal_hint = ('DBX50.0', '等待料框到位触发', '读取 DBB28 料框码')
+            signal_code, wait_label, signal_hint = ('DBX46.0', '等待料框到位触发', '读取 DBB24 料框码')
 
         if planned_quantity and loaded_quantity >= planned_quantity:
             current_layer = layer_count

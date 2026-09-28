@@ -27,7 +27,7 @@ _memory_plc_adapter = None
 
 
 def get_plc_adapter():
-    """Return the configured DB100 PLC adapter.
+    """Return the configured DB2 PLC adapter.
 
     Simulation uses a process-wide memory DB so management commands and debug
     APIs observe the same PLC state. Production resolves rack/slot from the PLC
@@ -49,7 +49,7 @@ def get_plc_adapter():
     if not device.address:
         raise RuntimeError('PLC IP 地址未配置')
     if (device.protocol or 'S7').upper() not in {'S7', 'S7COMM'}:
-        raise RuntimeError(f'DB100 Worker 当前仅支持 S7，现配置为 {device.protocol}')
+        raise RuntimeError(f'DB2 Worker 当前仅支持 S7，现配置为 {device.protocol}')
     config = device.configuration or {}
     return PLCAdapter(
         address=device.address,
