@@ -321,11 +321,13 @@ def api_plc_status(request):
 
 def plc_debug(request):
     """PLC调试页面"""
+    from apps.vision.models import RackLocationRecipe
     plc = _get_plc_device()
     return render(request, 'devices/plc_debug.html', {
         'plc': plc,
         'plc_points': PLC_POINT_DEFINITIONS,
         'db_number': DB_NUMBER,
+        'position_recipes': RackLocationRecipe.objects.filter(enabled=True).order_by('recipe_name'),
         'simulated': getattr(settings, 'AUTOMATIC_ORDER', {}).get('USE_SIMULATED_DEVICES', True),
     })
 
@@ -379,7 +381,7 @@ def api_plc_read(request):
         return JsonResponse({'success': False, 'error': f'服务器错误: {str(e)}'})
 
 
-def api_plc_write(request):
+def _api_plc_write(request):
     """写入PLC点位数据的API"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': '仅支持POST请求'}, status=405)
@@ -482,3 +484,67 @@ def api_plc_write(request):
         return JsonResponse({'success': False, 'error': '无效的JSON数据'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'服务器错误: {str(e)}'})
+
+
+def api_plc_write(request):
+    from .plc_position_debug import ownership, active, DebugBusy
+    try:
+        with ownership() as (state, save):
+            if active(state):
+                return JsonResponse({'success': False, 'error': '3D 自动联调运行中，请先停止监听再手动写入'})
+            return _api_plc_write(request)
+    except DebugBusy as exc:
+        return JsonResponse({'success': False, 'error': str(exc)})
+
+
+@require_POST
+def api_plc_position_debug(request):
+    import secrets
+    import time
+    from .plc_position_debug import ownership, active, DebugBusy, step, capture_position
+    from .services import get_plc_adapter
+    from apps.vision.models import RackLocationRecipe
+    try:
+        data = json.loads(request.body)
+        action = data.get('action')
+        with ownership() as (state, save):
+            if action == 'start':
+                if active(state):
+                    raise ValueError('已有页面正在监听，请先在原页面停止或等待租约到期')
+                recipe = RackLocationRecipe.objects.get(pk=int(data['recipe_id']), enabled=True)
+                layer = int(data['layer_no'])
+                if not 1 <= layer <= recipe.layer_count:
+                    raise ValueError(f'层号必须在 1 到 {recipe.layer_count} 之间')
+                state.clear()
+                state.update(token=secrets.token_hex(24), recipe_id=recipe.pk, layer_no=layer,
+                             phase='ARMING', count=0, expires=time.time()+15,
+                             message='监听已启动；先等待触发为 0，再接受新的触发')
+                save()
+                return JsonResponse({'success': True, **state})
+            if action not in ('poll', 'stop'):
+                raise ValueError('不支持的操作')
+            if not state.get('token') or not secrets.compare_digest(str(data.get('token', '')), state['token']):
+                raise ValueError('监听会话已失效，请重新开始')
+            if action == 'stop':
+                state['expires'] = 0
+                save()
+                return JsonResponse({'success': True, 'stopped': True, 'message': '监听已停止，已完成的握手信号保留'})
+            if not active(state):
+                raise ValueError('监听已超时停止，请重新开始')
+            plc = get_plc_adapter()
+            try:
+                step(state, plc, capture_position, save)
+            except Exception as exc:
+                state.update(expires=0, error=str(exc), message='PLC 通讯失败，监听已停止')
+                save()
+                return JsonResponse({'success': False, 'error': str(exc), 'stopped': True})
+            finally:
+                if not getattr(settings, 'AUTOMATIC_ORDER', {}).get('USE_SIMULATED_DEVICES', True):
+                    plc.disconnect()
+            state['expires'] = time.time()+15
+            save()
+            return JsonResponse({'success': True, **{k:v for k,v in state.items() if k != 'token'}})
+    except DebugBusy as exc:
+        return JsonResponse({'success': False, 'busy': True, 'error': str(exc)})
+    except (ValueError, TypeError, KeyError, RackLocationRecipe.DoesNotExist) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)})

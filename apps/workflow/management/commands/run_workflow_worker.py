@@ -24,6 +24,11 @@ class Command(BaseCommand):
             while True:
                 try:
                     cycle, changed = service.poll_once()
+                    if cycle is None:
+                        if options['once']:
+                            break
+                        time.sleep(interval)
+                        continue
                     self.stdout.write(
                         f'工位周期 #{cycle.pk} · {cycle.get_phase_display()}'
                         f' · {"已处理信号" if changed else "等待触发"}'

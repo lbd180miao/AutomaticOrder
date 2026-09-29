@@ -8,6 +8,19 @@
 <h1>PLC 读写调试</h1>
 <p>S7-1200 · {{ plc.address|default:"未配置 IP" }}:{{ plc.configuration.tcp_port|default:102 }} · Rack {{ plc.configuration.rack|default:0 }} / Slot {{ plc.configuration.slot|default:1 }} · DB{{ db_number }}</p>
 <p class="hint">{% if simulated %}当前为模拟模式，操作内存 PLC。{% else %}当前为真实设备模式，写入将发送至上述 PLC。{% endif %} Bool 单独修改指定位；Real 使用 32 位浮点数。自动流程可能覆盖手动写入值。</p>
+<section class="panel">
+<h2>3D 自动联调 · PLC 触发 → 拍照计算 → 三轴回写</h2>
+<p class="hint">选择已完成标定与 ROI 示教的 3D 配方和层号。开始后需保持本页打开；关闭页面或断网后停止接收新触发（最长 15 秒）。正在执行的拍照会完成本次回写。监听期间暂停工位 Worker 的 PLC 操作，并禁止手动写入。</p>
+<form id="position-form"><div class="panels">
+<div><label for="position-recipe">3D 定位配方</label><select id="position-recipe" required><option value="">请选择配方</option>{% for recipe in position_recipes %}<option value="{{ recipe.pk }}" data-layers="{{ recipe.layer_count }}">{{ recipe.recipe_name }}（{{ recipe.layer_count }} 层）</option>{% endfor %}</select></div>
+<div><label for="position-layer">当前层号</label><input id="position-layer" type="number" min="1" step="1" value="1" required></div></div>
+<button id="position-start" type="submit">开始监听 PLC 3D 触发</button>
+<button id="position-stop" type="button" disabled>停止监听</button>
+</form>
+<p class="hint">触发 DB2.DBX46.2 → ΔX / ΔY / ΔZ 写入 DBD50 / DBD54 / DBD58（mm）→ 结果 DBX49.2 → 完成 DBX49.1。失败时结果为 0、完成为 1；PLC 读取结果后撤销触发，系统复位完成和结果。启动时先等待触发为 0，避免重拍。</p>
+<output id="position-status" aria-live="polite">未启动监听</output>
+<div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>ΔX（mm）</th><th>ΔY（mm）</th><th>ΔZ（mm）</th><th>结果 / 错误</th></tr></thead><tbody id="position-history"><tr><td colspan="6">暂无定位结果</td></tr></tbody></table></div>
+</section>
 <div class="panels">
 <section class="panel"><h2>读取点位</h2><form id="read-form">{% csrf_token %}
 <label for="read-point">点位</label><select id="read-point" required>
@@ -38,6 +51,20 @@ try{const response=await fetch(writing?'{% url "devices:api_plc_write" %}':'{% u
 document.getElementById('empty-history')?.remove();const row=document.createElement('tr');[new Date().toLocaleTimeString(),(writing?'写入 · ':'读取 · ')+label,writing?format(value):'—',format(writing?data.read_back_value:data.value),data.success?'成功':data.error||'失败'].forEach(text=>{const cell=document.createElement('td');cell.textContent=text;row.appendChild(cell);});const history=document.getElementById('history');history.prepend(row);while(history.children.length>30)history.lastElementChild.remove();
 }
 document.getElementById('read-form').addEventListener('submit',event=>execute(event,false));document.getElementById('write-form').addEventListener('submit',event=>execute(event,true));
+})();
+</script>
+<script>
+(()=>{
+const form=document.getElementById('position-form'), recipe=document.getElementById('position-recipe'), layer=document.getElementById('position-layer'), start=document.getElementById('position-start'), stop=document.getElementById('position-stop'), status=document.getElementById('position-status');
+let token=null,timer=null,pending=false,stopping=false,lastCount=0;
+recipe.addEventListener('change',()=>{layer.max=recipe.selectedOptions[0].dataset.layers||1;if(Number(layer.value)>Number(layer.max))layer.value=1;});
+function controls(running){start.disabled=running;stop.disabled=!running;recipe.disabled=running;layer.disabled=running;document.querySelector('#write-form button').disabled=running;}
+async function request(action,extra={}){const response=await fetch('{% url "devices:api_plc_position_debug" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]').value},body:JSON.stringify({action,token,...extra})});if(!response.ok)throw new Error('HTTP '+response.status);return await response.json();}
+function finish(message){clearTimeout(timer);token=null;stopping=false;controls(false);status.textContent=message;}
+function display(data){status.dataset.error=String(Boolean(data.error));status.textContent=data.message+'\n触发：'+(data.trigger?'1':'0')+' · 完成：'+(data.done?'1':'0')+' · 结果：'+(data.ok?'OK':'NG / 未完成')+(data.error?'\n'+data.error:'');if(data.count>lastCount){lastCount=data.count;const history=document.getElementById('position-history');if(lastCount===1)history.replaceChildren();const row=document.createElement('tr');[data.completed_at,data.count,...['x','y','z'].map(axis=>data.values?Number(data.values[axis]).toFixed(3):'—'),data.ok?'OK':data.error||'NG'].forEach(value=>{const cell=document.createElement('td');cell.textContent=value;row.appendChild(cell);});history.prepend(row);while(history.children.length>30)history.lastElementChild.remove();}}
+async function poll(){if(!token)return;pending=true;status.textContent=stopping?'正在停止监听…':'监听扫描中；收到触发后将采集点云、计算并回写…';try{const data=await request(stopping?'stop':'poll');if(data.busy){status.textContent=data.error;}else if(!data.success){finish('监听已停止：'+data.error);return;}else if(data.stopped){finish(data.message);return;}else{display(data);}}catch(error){finish('连接中断，停止发送扫描请求；服务端租约将在 15 秒内到期。'+error.message);return;}finally{pending=false;}if(token)timer=setTimeout(poll,stopping?0:500);}
+form.addEventListener('submit',async event=>{event.preventDefault();start.disabled=true;try{const data=await request('start',{recipe_id:recipe.value,layer_no:layer.value});if(!data.success)throw new Error(data.error);token=data.token;lastCount=0;stopping=false;controls(true);status.textContent=data.message;poll();}catch(error){controls(false);status.dataset.error='true';status.textContent=error.message;}});
+stop.addEventListener('click',()=>{stopping=true;stop.disabled=true;status.textContent=pending?'等待本次扫描 / 拍照及回写完成后停止…':'正在停止…';if(!pending){clearTimeout(timer);poll();}});
 })();
 </script>
 {% endblock %}

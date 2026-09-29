@@ -192,6 +192,16 @@ class StationWorkflowService:
         )
 
     def poll_once(self):
+        from apps.devices.plc_position_debug import ownership, active, DebugBusy
+        try:
+            with ownership() as (state, save):
+                if active(state):
+                    return self.active_cycle(), False
+                return self._poll_once_owned()
+        except DebugBusy:
+            return self.active_cycle(), False
+
+    def _poll_once_owned(self):
         """Process at most one phase transition from the current DB2 snapshot."""
         heartbeat = self.plc.tick_heartbeat()
         snapshot = self.plc.read_snapshot()
