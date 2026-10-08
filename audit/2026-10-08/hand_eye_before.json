@@ -1,0 +1,58 @@
+{
+  "id": 1,
+  "name": "测试标定-自动化测试-7290",
+  "robot_device": {
+    "id": 11,
+    "code": "ROBOT-TEST-01",
+    "name": "测试装箱机器人"
+  },
+  "camera_device": {
+    "id": 12,
+    "code": "DM-CAMERA-TEST-01",
+    "name": "测试DM 3D相机"
+  },
+  "T_flange_camera": {
+    "matrix": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "calibration_method": "OPENCV_TSAI",
+  "calibration_error": 107.05849110748905,
+  "sample_count": 10,
+  "calibration_params": {
+    "method": "OPENCV_TSAI",
+    "opencv_method_code": 0,
+    "sample_count": 10,
+    "rotation_valid": true,
+    "rotation_check_message": "旋转矩阵有效"
+  },
+  "is_active": true,
+  "verified_at": "2026-07-01T07:02:01.019673+00:00",
+  "created_at": "2026-07-01T07:02:00.879670+00:00",
+  "updated_at": "2026-08-11T08:31:08.425803+00:00",
+  "description": "自动化测试创建的标定任务",
+  "operator": "测试脚本"
+}

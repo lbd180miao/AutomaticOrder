@@ -1,7 +1,7 @@
 import json
 from unittest.mock import patch
 
-from django.test import SimpleTestCase, RequestFactory
+from django.test import SimpleTestCase, RequestFactory, override_settings
 from django.template.loader import render_to_string
 
 from apps.devices import views
@@ -53,3 +53,19 @@ class PLCWriteTests(SimpleTestCase):
             self.assertEqual(f'value="{point.name}"' in write_form, point.direction == 'OUT')
         self.assertIn('DBX48.7', write_form)
         self.assertIn('DBD54', write_form)
+
+    @override_settings(AUTOMATIC_ORDER={'USE_SIMULATED_DEVICES': False})
+    def test_manual_read_closes_connection_even_on_timeout(self):
+        request = RequestFactory().post('/', data=json.dumps({'point_name': 'position_trigger'}), content_type='application/json')
+        with patch('apps.devices.services.get_plc_adapter', return_value=self.plc), patch.object(
+            self.plc, 'read_point', side_effect=TimeoutError('Receive timeout'),
+        ), patch.object(self.plc, 'disconnect') as close:
+            response = json.loads(views.api_plc_read(request).content)
+        self.assertFalse(response['success'])
+        close.assert_called_once()
+
+    @override_settings(AUTOMATIC_ORDER={'USE_SIMULATED_DEVICES': False})
+    def test_manual_write_closes_connection(self):
+        with patch.object(self.plc, 'disconnect') as close:
+            self.assertTrue(self.write('layer_delta_x', 999)['verified'])
+        close.assert_called_once()

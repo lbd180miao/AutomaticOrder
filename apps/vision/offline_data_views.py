@@ -50,6 +50,21 @@ def packages(request):
         cloud = Rack3DLocator()._load_pointcloud(data.get("pointcloud_token"))
         hand_eye = _hand_eye_matrix(recipe)
         robot_pose = _robot_pose_matrix(recipe)
+        image_2d_path = None
+        source = str(data.get('source') or '')
+        if source.startswith(('offline_package:', 'raw_package:')):
+            image_2d_path = service.get_2d_image(source.split(':', 1)[1])
+        elif data.get('raw_rgb_image_url'):
+            from pathlib import Path
+            from urllib.parse import urlsplit, unquote
+            from django.conf import settings
+            image_url = unquote(urlsplit(data['raw_rgb_image_url']).path)
+            if not image_url.startswith(settings.MEDIA_URL):
+                raise ValueError('2D原图必须来自本地采集目录')
+            root = Path(settings.MEDIA_ROOT).resolve()
+            image_2d_path = (root / image_url[len(settings.MEDIA_URL):]).resolve()
+            if not image_2d_path.is_relative_to(root) or not image_2d_path.is_file():
+                raise ValueError('2D原图不存在或路径无效')
         created = service.create_package(
             pointcloud=cloud,
             hand_eye_matrix=hand_eye,
@@ -68,6 +83,7 @@ def packages(request):
             },
             result=data.get("result"),
             description=data.get("description") or "",
+            image_2d_path=image_2d_path,
         )
         return JsonResponse({"success": True, "package": created}, status=201)
     except RackLocationRecipe.DoesNotExist:
@@ -180,8 +196,12 @@ def package_preview(request, package_name):
 def raw_preview(request, package_name):
     """获取原始数据包的预览图（专用端点）"""
     try:
+        service = OfflineDataPackageService()
+        path = (service.get_2d_image(package_name)
+                if request.GET.get('image') == '2d'
+                else service.get_raw_preview(package_name))
         return FileResponse(
-            OfflineDataPackageService().get_raw_preview(package_name).open("rb"),
+            path.open("rb"),
             content_type="image/png"
         )
     except OfflineDataPackageError as exc:

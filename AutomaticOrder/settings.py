@@ -219,10 +219,10 @@ AUTOMATIC_ORDER = {
         'CAMERA_IP': None,  # 设置为 None 启用自动检测
         'PC_IP': None,       # 设置为 None 启用自动检测
         'FORMAT': 'BMP',  # 使用 BMP 格式避免编码问题
-        'SERIAL_NUMBER': os.environ.get('HIK_CAMERA_SERIAL_NUMBER', 'DA6649441'),
+        'SERIAL_NUMBER': os.environ.get('HIK_CAMERA_SERIAL_NUMBER', 'DA1512004'),
         'FEATURE_FILE': Path(os.environ.get(
             'HIK_CAMERA_FEATURE_FILE',
-            BASE_DIR / '2d_SDK' / 'MV-CH100-60GC_DA6649441.mfs',
+            BASE_DIR / '2d_SDK' / 'MV-CS200-10GM_DA1512004.mfs',
         )),
         'QUALITY': 5,
         'RUN_IN_SUBPROCESS': True,
@@ -257,8 +257,8 @@ AUTOMATIC_ORDER = {
         'EXPOSURE_2D': float(os.environ.get('RVC_CAMERA_EXPOSURE_2D', '10')),
         'EXPOSURE_3D': float(os.environ.get('RVC_CAMERA_EXPOSURE_3D', '50')),
         'PROJECTOR_BRIGHTNESS': int(os.environ.get('RVC_CAMERA_PROJECTOR_BRIGHTNESS', '240')),
-        # RVC 点云原生单位为毫米；若实测为米，将此值设为 1000
-        'POINTCLOUD_SCALE': float(os.environ.get('RVC_CAMERA_POINTCLOUD_SCALE', '1.0')),
+        # RVC SDK PointMap 原生单位为米，进入视觉算法前转换为毫米。
+        'POINTCLOUD_SCALE': float(os.environ.get('RVC_CAMERA_POINTCLOUD_SCALE', '1000.0')),
         'OUTPUT_DIR': Path(os.environ.get(
             'RVC_CAMERA_OUTPUT_DIR', BASE_DIR / 'media' / 'rvc_captures')),
         'TIMEOUT': int(os.environ.get('RVC_CAMERA_TIMEOUT', '10')),

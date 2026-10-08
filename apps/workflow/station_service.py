@@ -485,6 +485,7 @@ class StationWorkflowService:
         if passed:
             cycle.loaded_quantity += 1
         cycle.save(update_fields=['foam_passed', 'loaded_quantity', 'updated_at'])
+        # Completion is independent of the verdict, including NG before station locking.
         self._write('foam_done', True, 62)
         if not passed:
             raise StationStepError('泡棉检测不合格，工位已锁定', AlarmSource.VISION)

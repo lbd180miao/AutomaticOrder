@@ -31,12 +31,23 @@ class Snap7Transport:
             client_class = getattr(snap7, 'Client', None) or snap7.client.Client
             self.client = client_class()
         try:
-            self.client.connect(self.address, self.rack, self.slot, self.tcp_port)
-        except TypeError:
-            # python-snap7 3.x defaults to TCP/102 and exposes a 3-arg API.
-            if self.tcp_port != 102:
-                raise
-            self.client.connect(self.address, self.rack, self.slot)
+            try:
+                self.client.connect(self.address, self.rack, self.slot, self.tcp_port)
+            except TypeError:
+                # Older clients expose a three-argument connect API.
+                if self.tcp_port != 102:
+                    raise
+                self.client.connect(self.address, self.rack, self.slot)
+        except Exception as exc:
+            self.connected = False
+            try:
+                self.client.disconnect()
+            except Exception:
+                pass
+            raise ConnectionError(
+                f'PLC {self.address}:{self.tcp_port} S7连接失败 '
+                f'(Rack {self.rack}/Slot {self.slot})：{exc}'
+            ) from exc
         self.connected = True
         return self.is_connected()
 

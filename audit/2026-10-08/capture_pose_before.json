@@ -1,0 +1,66 @@
+{
+  "id": 4,
+  "name": "3D手眼标定-20261008",
+  "robot_device": {
+    "id": 11,
+    "code": "ROBOT-TEST-01",
+    "name": "测试装箱机器人"
+  },
+  "camera_device": {
+    "id": 12,
+    "code": "DM-CAMERA-TEST-01",
+    "name": "测试DM 3D相机"
+  },
+  "T_flange_camera": {
+    "matrix": [
+      [
+        0.0039187,
+        -0.9980179,
+        -0.0628083,
+        -260.0563789
+      ],
+      [
+        0.9993386,
+        0.0016377,
+        0.0363274,
+        55.5139166
+      ],
+      [
+        -0.0361526,
+        -0.0629091,
+        0.9973642,
+        179.7053233
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "calibration_method": "MANUAL",
+  "calibration_error": 0.0,
+  "sample_count": 0,
+  "calibration_params": {
+    "source": "user_supplied_calibration",
+    "robot_pose6d": [
+      -260.056,
+      55.5139,
+      179.705,
+      -3.60917,
+      2.07184,
+      89.7753
+    ],
+    "units": {
+      "translation": "mm",
+      "rotation": "deg"
+    }
+  },
+  "is_active": true,
+  "verified_at": null,
+  "created_at": "2026-10-08T08:18:09.155890+00:00",
+  "updated_at": "2026-10-08T08:18:09.170797+00:00",
+  "description": "用户提供的相机到末端标定；使用原始4×4矩阵精度计算。",
+  "operator": ""
+}

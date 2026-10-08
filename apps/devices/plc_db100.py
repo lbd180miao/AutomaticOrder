@@ -24,6 +24,7 @@ class DB100Point:
 
 DB_NUMBER = 2
 DB_SIZE = 63
+POSITION_FAILURE_OFFSET = 999.0  # 3D 联调失败哨兵值（不是有效补偿）
 
 
 def _point(name, offset, data_type, direction, description, size, bit=0):

@@ -3133,7 +3133,23 @@ def api_rack_location_workbench_calculate(request):
         return JsonResponse({'success': True, 'result': payload})
     except (TypeError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
         logger.error(f"[计算偏差] 错误: {exc}")
-        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+        from apps.devices.plc_db100 import POSITION_FAILURE_OFFSET
+        failure_payload = {
+            'offset_x': POSITION_FAILURE_OFFSET,
+            'offset_y': POSITION_FAILURE_OFFSET,
+            'offset_z': POSITION_FAILURE_OFFSET,
+            'position_success': False,
+            'position_done': True,
+            'locate_ok': False,
+            'compensation_valid': False,
+        }
+        return JsonResponse({
+            'success': False,
+            'error': str(exc),
+            'plc_payload': failure_payload,
+            'invalid_roi_keys': getattr(exc, 'invalid_roi_keys', []),
+            'roi_diagnostics': getattr(exc, 'roi_diagnostics', {}),
+        }, status=400)
 
 
 @require_POST

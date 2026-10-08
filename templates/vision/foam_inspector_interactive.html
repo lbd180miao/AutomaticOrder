@@ -1006,6 +1006,8 @@
       </div>
       <div class="foam-panel-body">
 
+        <div id="detection-feedback" role="status" aria-live="polite" hidden
+             style="padding:12px;margin-bottom:12px;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere;"></div>
         <!-- 判定大横幅 -->
         <div id="verdict-banner" class="verdict-banner idle">
           <div class="verdict-icon" id="verdict-icon">⏳</div>
@@ -1163,6 +1165,39 @@ function hideLoading() {
   document.getElementById('loading-overlay')?.remove();
 }
 
+function showDetectionFeedback(message, isError = false) {
+  const feedback = document.getElementById('detection-feedback');
+  feedback.hidden = !message;
+  feedback.textContent = message;
+  feedback.style.background = isError ? '#fff7ed' : '#eff6ff';
+  feedback.style.color = isError ? '#9a3412' : '#1e40af';
+}
+
+async function fetchDetectionJson(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  try {
+    const response = await fetch(url, {...options, signal: controller.signal});
+    let data;
+    try {
+      data = await response.json();
+    } catch (error) {
+      if (error.name === 'AbortError') throw error;
+      const invalidResponse = new Error(`服务器返回内容无法解析（HTTP ${response.status}）`);
+      invalidResponse.kind = 'response';
+      throw invalidResponse;
+    }
+    return {response, data};
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('请求超过60秒。请检查相机连接及服务状态；后台任务可能仍在执行，请确认后再重试。');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── 预览图更新 ───────────────────────────────────────────
 let cameraPreviewRequestInFlight = false;
 let livePreviewEnabled = false;
@@ -1224,18 +1259,18 @@ async function refreshCameraPreview({ background = false } = {}) {
   cameraPreviewRequestInFlight = true;
   if (!background) showLoading('获取相机画面...');
   try {
-    const res = await fetch(API.refreshPreview, {
+    const {response: res, data} = await fetchDetectionJson(API.refreshPreview, {
       method: 'POST',
       headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
     });
-    const data = await res.json();
-    if (data.success) {
+    if (res.ok && data?.success) {
       clearPendingFile();
       lastCameraCaptureToken = data.capture_token || '';
       setPreviewImage(data.image_url);
       return true;
     } else {
       let errorMsg = data.error || '未知错误';
+      if (!background) showDetectionFeedback('获取相机画面失败：' + errorMsg, true);
 
       // 相机占用类错误：给出结构化提示
       if (isCameraBusyError(errorMsg)) {
@@ -1282,6 +1317,7 @@ async function refreshCameraPreview({ background = false } = {}) {
       showCameraToast('📷 网络请求失败，将自动重试...');
       return false;
     }
+    showDetectionFeedback('获取相机画面失败：' + e.message, true);
     alert('网络请求失败：' + e.message);
     return false;
   } finally {
@@ -1500,25 +1536,14 @@ function refreshPreviewRecipeRoi() {
 
 async function requestDetection(url, options) {
   let response;
-  try {
-    response = await fetch(url, options);
-  } catch (error) {
-    return {
-      ok: false,
-      kind: 'network',
-      message: error?.message || '无法连接检测服务器',
-    };
-  }
-
   let data;
   try {
-    data = await response.json();
+    ({response, data} = await fetchDetectionJson(url, options));
   } catch (error) {
-    console.error('检测接口响应解析失败:', error);
     return {
       ok: false,
-      kind: 'response',
-      message: `服务器返回内容无法解析（HTTP ${response.status}）`,
+      kind: error.kind || 'network',
+      message: error?.message || '无法连接检测服务器',
     };
   }
 
@@ -1551,16 +1576,17 @@ function showDetectionRequestError(outcome) {
     detection: '检测失败',
   };
   const title = titles[outcome.kind] || '检测失败';
-  alert(`${title}：${outcome.message}`);
+  showDetectionFeedback(`${title}：${outcome.message}`, true);
 }
 
 function renderDetectionResultSafely(result) {
   try {
     renderResult(result);
+    showDetectionFeedback('');
     return true;
   } catch (error) {
     console.error('检测成功，但结果界面渲染失败:', error, result);
-    alert(`检测已完成，但结果显示失败：${error?.message || '未知界面错误'}\n请刷新页面后重试。`);
+    showDetectionFeedback(`检测已完成，但结果显示失败：${error?.message || '未知界面错误'}\n请刷新页面后重试。`, true);
     return false;
   }
 }
@@ -1570,37 +1596,80 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
   const captureButton = document.getElementById('btn-capture-inspect');
   if (captureButton.disabled) return;
   captureButton.disabled = true;
-  const detectionPos = currentDetectionPos();
+  captureButton.textContent = '⏳ 正在检测…';
+  showDetectionFeedback('正在检查配方并准备检测…');
+  try {
+    const detectionPos = currentDetectionPos();
 
-  if (!(await ensureStandardTemplateForDetection(pendingFile))) {
-    captureButton.disabled = false;
-    return;
-  }
+    stopLivePreview();
+    if (!(await waitForCameraPreviewIdle())) {
+      throw new Error('相机预览尚未结束，请稍后重试。');
+    }
 
-  if (pendingFile) {
-    // 有导入图片 → 走上传检测接口（可以重复使用同一张图片）
-    showLoading('检测导入图片...');
-    const fd = new FormData();
-    fd.append('image', pendingFile);
-    fd.append('position_index', detectionPos);
-    const recipe = currentDetectionRecipe();
-    if (recipe?.id) fd.append('recipe_id', recipe.id);
-    fd.append('use_recipe', 'true');
+    if (!(await ensureStandardTemplateForDetection(pendingFile))) {
+      captureButton.disabled = false;
+      return;
+    }
+
+    if (pendingFile) {
+      // 有导入图片 → 走上传检测接口（可以重复使用同一张图片）
+      showLoading('检测导入图片...');
+      const fd = new FormData();
+      fd.append('image', pendingFile);
+      fd.append('position_index', detectionPos);
+      const recipe = currentDetectionRecipe();
+      if (recipe?.id) fd.append('recipe_id', recipe.id);
+      fd.append('use_recipe', 'true');
+      try {
+        const outcome = await requestDetection(API.uploadAndInspect, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCsrf() },
+          body: fd,
+        });
+        if (outcome.ok && renderDetectionResultSafely(outcome.result)) {
+          // 自动递增配方到下一个POS
+          autoIncrementRecipe();
+        
+          // 保持图片在预览区，允许继续检测
+          if (pendingFileDataUrl) {
+            const img = document.getElementById('preview-image');
+            img.src = pendingFileDataUrl;
+          }
+        } else {
+          if (!outcome.ok) showDetectionRequestError(outcome);
+        }
+      } catch (e) {
+        console.error('检测流程发生意外错误:', e);
+        alert('检测流程异常：' + e.message);
+      } finally {
+        hideLoading();
+        captureButton.disabled = false;
+      }
+      return;
+    }
+
+    // 无导入图片 → 走相机拍照接口
+    const previewWasActive = livePreviewEnabled || cameraPreviewRequestInFlight;
+    stopLivePreview();
+    showLoading(previewWasActive ? '正在结束实时预览并拍照检测...' : '拍照检测中...');
     try {
-      const outcome = await requestDetection(API.uploadAndInspect, {
+      // 若预览帧正在采集，先等它释放相机，避免正式检测触发 SDK busy 后
+      // 进入 1s/2s 退避重试。
+      await waitForCameraPreviewIdle();
+      const previewCaptureToken = lastCameraCaptureToken || '';
+      const outcome = await requestDetection(API.captureAndInspect, {
         method: 'POST',
-        headers: { 'X-CSRFToken': getCsrf() },
-        body: fd,
+        headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          position_index: detectionPos,
+          recipe_id: currentDetectionRecipe()?.id,
+          use_recipe: true,
+          preview_capture_token: previewCaptureToken,
+        }),
       });
       if (outcome.ok && renderDetectionResultSafely(outcome.result)) {
         // 自动递增配方到下一个POS
         autoIncrementRecipe();
-        
-        // 保持图片在预览区，允许继续检测
-        if (pendingFileDataUrl) {
-          const img = document.getElementById('preview-image');
-          img.src = pendingFileDataUrl;
-        }
       } else {
         if (!outcome.ok) showDetectionRequestError(outcome);
       }
@@ -1611,40 +1680,13 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
       hideLoading();
       captureButton.disabled = false;
     }
-    return;
-  }
-
-  // 无导入图片 → 走相机拍照接口
-  const previewWasActive = livePreviewEnabled || cameraPreviewRequestInFlight;
-  stopLivePreview();
-  showLoading(previewWasActive ? '正在结束实时预览并拍照检测...' : '拍照检测中...');
-  try {
-    // 若预览帧正在采集，先等它释放相机，避免正式检测触发 SDK busy 后
-    // 进入 1s/2s 退避重试。
-    await waitForCameraPreviewIdle();
-    const previewCaptureToken = lastCameraCaptureToken || '';
-    const outcome = await requestDetection(API.captureAndInspect, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        position_index: detectionPos,
-        recipe_id: currentDetectionRecipe()?.id,
-        use_recipe: true,
-        preview_capture_token: previewCaptureToken,
-      }),
-    });
-    if (outcome.ok && renderDetectionResultSafely(outcome.result)) {
-      // 自动递增配方到下一个POS
-      autoIncrementRecipe();
-    } else {
-      if (!outcome.ok) showDetectionRequestError(outcome);
-    }
-  } catch (e) {
-    console.error('检测流程发生意外错误:', e);
-    alert('检测流程异常：' + e.message);
+  } catch (error) {
+    console.error('检测准备失败:', error);
+    showDetectionFeedback('检测失败：' + error.message, true);
   } finally {
     hideLoading();
     captureButton.disabled = false;
+    updateCaptureButtonText();
   }
 });
 
@@ -1738,14 +1780,17 @@ async function loadMaskStatus(recipeId) {
 async function teachStandardTemplate({imageFile = null, silentSuccess = false} = {}) {
   const recipe = currentDetectionRecipe();
   if (!recipe?.id) {
+    showDetectionFeedback('请先选择或保存当前 POS 的配方和左右搜索 ROI。', true);
     alert('请先保存当前 POS 的配方和左右搜索 ROI。');
     return false;
   }
   if (cal.dirty) {
+    showDetectionFeedback('搜索 ROI 已修改，请先保存到配方。', true);
     alert('搜索 ROI 已修改，请先点击“保存到配方”，再进行标准模板示教。');
     return false;
   }
   if (!confirm('当前配方还没有标准模板。\n\n请确认当前画面中的左右泡棉均为合格样件。确认后，系统会把当前图的检测结果设为标准模板，并自动继续本次检测。')) {
+    showDetectionFeedback('本次检测已取消：请先使用合格样件完成标准模板示教。');
     return false;
   }
 
@@ -1769,8 +1814,7 @@ async function teachStandardTemplate({imageFile = null, silentSuccess = false} =
 
   showLoading('正在从合格样件建立左右标准模板...');
   try {
-    const response = await fetch(API.standardTemplateTeach(recipe.id), options);
-    const data = await response.json();
+    const {response, data} = await fetchDetectionJson(API.standardTemplateTeach(recipe.id), options);
     if (!response.ok || !data.success) throw new Error(data.error || '标准模板示教失败');
     upsertSavedRecipe(data.recipe);
     currentTemplateReady = true;
@@ -1781,6 +1825,7 @@ async function teachStandardTemplate({imageFile = null, silentSuccess = false} =
     }
     return true;
   } catch (error) {
+    showDetectionFeedback('标准模板示教失败：' + error.message, true);
     alert('标准模板示教失败：' + error.message);
     return false;
   } finally {

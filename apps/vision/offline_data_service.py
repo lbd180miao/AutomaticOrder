@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from .pointcloud_units import load_pointcloud_mm, to_millimeters
 from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
@@ -52,6 +53,7 @@ class OfflineDataPackageService:
         camera_info: Dict[str, Any],
         result: Optional[Dict[str, Any]] = None,
         description: str = "",
+        image_2d_path: Optional[Path] = None,
     ) -> Dict[str, Any]:
         cloud = self._validate_pointcloud(pointcloud)
         hand_eye = self._validate_matrix(hand_eye_matrix, "手眼标定矩阵")
@@ -70,6 +72,7 @@ class OfflineDataPackageService:
             "layer": {"layer_no": int(layer_no)},
             "camera": {
                 **self._json_safe(camera_info),
+                "pointcloud_unit": "mm",
                 "width": int(camera_info.get("width") or self._cloud_width(cloud)),
                 "height": int(camera_info.get("height") or self._cloud_height(cloud)),
             },
@@ -87,6 +90,12 @@ class OfflineDataPackageService:
             if result:
                 self._write_json(temp_dir / "result.json", result)
             self._write_preview(temp_dir / "preview.png", cloud)
+            if image_2d_path is not None:
+                from PIL import Image
+                with Image.open(image_2d_path) as image:
+                    if image.size != (self._cloud_width(cloud), self._cloud_height(cloud)):
+                        raise OfflineDataPackageError('2D原图尺寸与点云不一致，无法保存像素对应关系')
+                    image.save(temp_dir / 'image2d.png', format='PNG')
             os.replace(temp_dir, package_dir)
             self._rebuild_index()
         except Exception:
@@ -115,6 +124,7 @@ class OfflineDataPackageService:
             metadata = self._read_json(package_dir / "metadata.json")
             roi_config = self._read_json(package_dir / "roi_config.json")
             pointcloud = self._validate_pointcloud(np.load(package_dir / "pointcloud.npy", allow_pickle=False))
+            pointcloud = to_millimeters(pointcloud, metadata.get('camera', {}).get('pointcloud_unit', 'mm'))
             hand_eye = self._validate_matrix(
                 np.load(package_dir / "hand_eye_matrix.npy", allow_pickle=False), "手眼标定矩阵"
             )
@@ -185,6 +195,7 @@ class OfflineDataPackageService:
 
     def create_workbench_copy(self, package_name: str, recipe_id: Optional[Any] = None) -> Dict[str, Any]:
         package = self.load_package(package_name)
+        self.get_2d_image(package_name)
         
         cloud = package["pointcloud"]
         if cloud.ndim == 2 and cloud.shape[1] == 3:
@@ -199,6 +210,7 @@ class OfflineDataPackageService:
         token, preview_url, width, height = workbench_service._persist_workbench_frame(
             cloud
         )
+        preview_url = reverse('vision:offline_raw_preview', args=[package_name]) + '?image=2d'
         payload = {
             "pointcloud_token": token,
             "preview_image_url": preview_url,
@@ -442,7 +454,7 @@ class OfflineDataPackageService:
             pass
         
         # 检查是否有预览图
-        preview_files = ["Image.png", "preview.png", "image.png"]
+        preview_files = ["image2d.png", "Image.png", "image.png", "preview.png"]
         preview_url = None
         for preview_file in preview_files:
             if (package_dir / preview_file).is_file():
@@ -477,7 +489,7 @@ class OfflineDataPackageService:
             pointcloud = self._load_ply_pointcloud(ply_path)
         elif npy_path.is_file():
             # 加载NPY点云
-            pointcloud = np.load(npy_path, allow_pickle=False)
+            pointcloud = load_pointcloud_mm(npy_path)
         else:
             raise OfflineDataPackageError(f"数据包中未找到点云文件: {package_name}")
 
@@ -571,9 +583,22 @@ class OfflineDataPackageService:
             )
         return cloud.reshape(int(height), int(width), 3)
 
+    def get_2d_image(self, package_name: str) -> Path:
+        """Only select camera images, never depth or point-cloud previews."""
+        package_dir = self._package_dir(package_name)
+        files = {p.name.lower(): p for p in package_dir.iterdir() if p.is_file()}
+        for name in ('image2d.png', 'image.png', 'rgb.png', 'color.png'):
+            if name in files:
+                return files[name]
+        raise OfflineDataPackageError(f'数据包缺少2D原图（image2d.png / Image.png）：{package_name}')
+
     def get_raw_preview(self, package_name: str) -> Path:
         """获取原始数据包的预览图路径（不区分大小写）"""
         package_dir = self._package_dir(package_name)
+        try:
+            return self.get_2d_image(package_name)
+        except OfflineDataPackageError:
+            pass
         
         # 查找预览图文件（不区分大小写）
         preview_files = ["Image.png", "preview.png", "image.png", "IMAGE.PNG", "PREVIEW.PNG"]
@@ -598,6 +623,7 @@ class OfflineDataPackageService:
 
     def create_workbench_copy_from_raw(self, package_name: str, recipe_id: Optional[Any] = None) -> Dict[str, Any]:
         """从原始数据包创建工作台副本"""
+        self.get_2d_image(package_name)
         package = self.load_raw_package(package_name)
         cloud = package["pointcloud"]
         from apps.vision.rack_location import RackLocationService
@@ -620,14 +646,8 @@ class OfflineDataPackageService:
             "height": int(height),
         }
         
-        # 使用原始预览图
-        try:
-            preview_path = self.get_raw_preview(package_name)
-            # 使用API端点而不是直接media路径
-            from django.urls import reverse
-            preview_url = reverse('vision:offline_raw_preview', args=[package_name])
-        except Exception:
-            preview_url = ""
+        # 画布显示相机2D原图，点云副本仅供定位计算使用。
+        preview_url = reverse('vision:offline_raw_preview', args=[package_name]) + '?image=2d'
         
         payload = {
             "pointcloud_token": token,

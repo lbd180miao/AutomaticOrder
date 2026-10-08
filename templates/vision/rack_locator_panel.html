@@ -1024,7 +1024,7 @@
     <button id="btn-redraw" class="btn btn-secondary" disabled title="清除当前选中的区域后重新框选">🔄 重画当前区域</button>
     <button id="btn-polygon" class="btn btn-secondary" disabled title="切换为多边形画笔模式，逐点点击绘制不规则ROI，双击闭合">✏️ 画笔</button>
     <button id="btn-save-recipe" class="btn btn-secondary" disabled title="将外框、三平面与层距测量线保存到当前配方">💾 保存配方</button>
-    <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" disabled>🎯 开始计算</button>
+    <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" title="自动采集点云并计算">🎯 开始计算</button>
     <div style="flex:1;"></div>
     <button id="btn-export-package" class="btn" style="background:#0ea5e9;" disabled>💾 保存数据包</button>
     <button id="btn-packages" class="btn btn-secondary">📦 数据包管理</button>
@@ -1041,7 +1041,8 @@
     <span class="rl-roi-help">层距请用“层距测量线”从上层对应点拖到下层对应点；两个端点的小圆用于3D深度簇采样。三块 ROI 继续用于坐标补偿。</span>
   </div>
 
-  <div class="rl-workbench-status" id="rl-status">请选择配方并采集或加载点云。</div>
+  <div class="rl-workbench-status" id="rl-status" role="status" aria-live="polite">请选择配方，点击「开始计算」自动采集并计算；也可先采集点云调整 ROI。</div>
+  <div id="rl-calculation-feedback" role="alert" hidden style="padding:14px;margin:12px 0;border:1px solid #fca5a5;border-radius:8px;background:#fef2f2;color:#b91c1c;white-space:pre-wrap;"></div>
 
 
 
@@ -1535,6 +1536,6 @@
     offlinePackagesUrl: '{% url "vision:offline_packages" %}',
   };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=40" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=44" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
 <script src="{% static 'vision/js/offline_package_manager.js' %}?v=21"></script>
 {% endblock %}

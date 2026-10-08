@@ -16,6 +16,7 @@
   // ── 工作台状态 ──────────────────────────────────────────
   const state = {
     token: null,         // 持久化点云 token
+    busy: false,
     roi: null,           // 真实图像像素 ROI {x,y,w,h}
     roiPlane1: null,     // Π1 顶部横梁 ROI
     roiPlane2: null,     // Π2 左侧立柱 ROI
@@ -148,7 +149,10 @@
 
   // ── Loading 遮罩 ─────────────────────────────────────────
   function showLoading(msg) {
-    if ($('rl-loading')) return;
+    if ($('rl-loading')) {
+      $('rl-loading').querySelector('p').textContent = msg || '处理中...';
+      return;
+    }
     const el = document.createElement('div');
     el.id = 'rl-loading';
     el.innerHTML = `<div class="rl-loading-card"><div class="rl-spinner"></div><p>${msg || '处理中...'}</p></div>`;
@@ -160,37 +164,76 @@
     if (!url || typeof url !== 'string' || !url.startsWith('/')) {
       throw new Error(`API URL 未正确配置 (值为: ${url})。请刷新页面重试，或检查浏览器控制台是否有JS语法错误。`);
     }
-    const res = await fetch(url, {
-      method: method,
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
-      body: JSON.stringify(body || {}),
-    });
-    
-    // 检查响应的Content-Type
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      // 如果不是JSON响应，读取文本内容用于调试
-      const text = await res.text();
-      console.error('服务器返回非JSON响应:', {
-        status: res.status,
-        statusText: res.statusText,
-        contentType: contentType,
-        responseText: text.substring(0, 500) // 只记录前500字符
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120000);
+    try {
+      const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+        body: JSON.stringify(body || {}),
+        signal: controller.signal,
       });
+
+      // 检查响应的Content-Type
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        // 如果不是JSON响应，读取文本内容用于调试
+        const text = await res.text();
+        console.error('服务器返回非JSON响应:', {
+          status: res.status,
+          statusText: res.statusText,
+          contentType: contentType,
+          responseText: text.substring(0, 500) // 只记录前500字符
+        });
       
-      // 如果是4xx或5xx错误，提供更有用的错误信息
-      if (!res.ok) {
-        throw new Error(`服务器错误 (${res.status}): ${res.statusText}。可能是URL路径错误或权限问题。`);
+        // 如果是4xx或5xx错误，提供更有用的错误信息
+        if (!res.ok) {
+          throw new Error(`服务器错误 (${res.status}): ${res.statusText}。可能是URL路径错误或权限问题。`);
+        }
+      
+        throw new Error('服务器返回了HTML页面而不是JSON数据。请检查API URL配置是否正确。');
       }
-      
-      throw new Error('服务器返回了HTML页面而不是JSON数据。请检查API URL配置是否正确。');
-    }
     
-    // 正常解析JSON
-    return res.json();
+      // 正常解析JSON
+      const data = await res.json();
+      if (!res.ok && data.success !== false) throw new Error(`服务器请求失败（HTTP ${res.status}）`);
+      return data;
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error('请求超过120秒，请检查相机连接和计算服务。后台可能仍在处理，请确认后再重试。');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
-  function setStatus(text) { const n = $('rl-status'); if (n) n.textContent = text; }
+  function setStatus(text, isError = false) {
+    const n = $('rl-status');
+    if (!n) return;
+    n.textContent = text;
+    n.style.background = isError ? '#fef2f2' : '';
+    n.style.color = isError ? '#b91c1c' : '';
+    n.setAttribute('role', isError ? 'alert' : 'status');
+  }
+
+  function showCalculationError(data) {
+    const message = data.error || '计算失败，请检查点云和配方。';
+    setStatus('计算未完成：' + message, true);
+    const feedback = $('rl-calculation-feedback');
+    feedback.hidden = false;
+    feedback.textContent = '本次计算失败：' + message
+      + (data.plc_payload ? `\nPLC失败返回值：X=${data.plc_payload.offset_x}，Y=${data.plc_payload.offset_y}，Z=${data.plc_payload.offset_z}（补偿无效；此页面仅显示，PLC联调页按触发握手回写）` : '')
+      + (data.invalid_roi_keys?.length ? '\n请对准料架后重新采集；若相机或料架位置改变，请重新示教对应区域。' : '')
+      + (state.lastResult ? '\n下方保留的是上一次计算结果，不代表本次计算成功。' : '');
+    if ($('template-status')) $('template-status').textContent = '本次计算失败';
+    state.lastResultOk = false;
+    state.invalidRoiKeys = (data.invalid_roi_keys || []).map(key => ({
+      plane1: 'roiPlane1', plane2: 'roiPlane2', plane3: 'roiPlane3',
+    }[key])).filter(Boolean);
+    updateLocalTemplateRoiCount();
+    draw();
+  }
 
   function apiPayload(data) {
     if (!data || !data.data) return data || {};
@@ -669,6 +712,7 @@
     );
     const hasCloud = Boolean(state.token);
     setButton('btn-capture', true);
+    setButton('btn-packages', true);
     setButton('btn-redraw', hasCloud);
     setButton('btn-polygon', hasCloud);
     const localRoisReady = hasAllLocalTemplateRois();
@@ -679,7 +723,10 @@
         ? '当前三平面有质量提示；直检模式允许保存'
         : '将外框、三平面与层距测量线保存到当前配方';
     }
-    setButton('btn-calculate', hasCloud);
+    setButton('btn-calculate', true);
+    $('btn-calculate').title = hasCloud && !state.pointcloudConsumed
+      ? '使用当前点云与所选配方计算'
+      : '自动采集新点云，再使用所选配方计算';
     setButton('btn-auto-align', hasCloud);
     setButton('btn-save-roi', Boolean(state.alignmentToken));
     setButton('btn-write-plc', canWritePlc);
@@ -690,6 +737,11 @@
     setButton('btn-roi-plane2', hasCloud);
     setButton('btn-roi-plane3', hasCloud);
     setButton('btn-layer-spacing-line', hasCloud);
+    if (state.busy) {
+      document.querySelectorAll('.rl-action-bar button, .rl-roi-toolbar button').forEach(node => { node.disabled = true; });
+    }
+    if ($('recipe-select')) $('recipe-select').disabled = state.busy;
+    if ($('ransac-distance-threshold')) $('ransac-distance-threshold').disabled = state.busy;
   }
 
   /** 更新「三平面已框选 x/3」计数徽章 */
@@ -1069,7 +1121,7 @@
     draw();
     setReadout();
     syncRoiToRightSide();
-    setButton('btn-calculate', true);
+    setButton('btn-calculate', !state.busy);
     return true;
   }
 
@@ -1149,6 +1201,25 @@
     };
     if (image.complete && image.naturalWidth > 0) run();
     else image.addEventListener('load', run, { once: true });
+  }
+
+  async function waitForPreviewReady() {
+    if (!image.src) throw new Error('相机没有返回预览图');
+    if (!(image.complete && image.naturalWidth > 0)) {
+      await new Promise((resolve, reject) => {
+        const cleanup = () => {
+          clearTimeout(timer);
+          image.removeEventListener('load', loaded);
+          image.removeEventListener('error', failed);
+        };
+        const loaded = () => { cleanup(); resolve(); };
+        const failed = () => { cleanup(); reject(new Error('点云预览图加载失败，请重新采集')); };
+        const timer = setTimeout(failed, 15000);
+        image.addEventListener('load', loaded, {once: true});
+        image.addEventListener('error', failed, {once: true});
+      });
+    }
+    resizeCanvas();
   }
 
   // ── 画布 / ROI ───────────────────────────────────────────
@@ -1267,7 +1338,6 @@
     ctx.fillStyle = style.fill;
     ctx.fillRect(roi.x, roi.y, roi.w, roi.h);
     ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
-
     const label = preview ? `${style.label}（绘制中）` : style.label;
     ctx.setLineDash([]);
     ctx.font = '600 14px sans-serif';
@@ -1287,7 +1357,7 @@
     // 已完成的外框、Π1、Π2、Π3 始终同时显示；当前选中区域用虚线强调。
     roiOverlayStyles.forEach((style) => {
       const roi = state[style.key];
-      if (!roi || (style.key === 'roi' && roi.displayPolygon?.length >= 2)) return;
+      if (!roi || (state.drawing && style.key === (state.activeRoiStateKey || 'roi')) || (style.key === 'roi' && roi.displayPolygon?.length >= 2)) return;
       const invalid = state.invalidRoiKeys.includes(style.key);
       const displayStyle = invalid
         ? { ...style, label: `${style.label} · 提示`, color: '#d97706', fill: 'rgba(217,119,6,0.18)' }
@@ -1405,7 +1475,7 @@
 
   // ── 矩形拖拽绘制（原有模式） ────────────────────────────
   canvas.addEventListener('mousedown', (e) => {
-    if (!state.token) return;
+    if (!state.token || e.button !== 0) return;
     if (state.drawMode === 'polygon') return;  // 多边形模式由 click 处理
     if (state.drawMode === 'line') {
       const point = pointerToCanvas(e);
@@ -1423,6 +1493,7 @@
     draw();
   });
   canvas.addEventListener('mousemove', (e) => {
+    canvas.style.cursor = 'crosshair';
     if (state.drawMode === 'polygon') {
       // 多边形模式：实时更新预览连线
       if (state.polyDrawing) {
@@ -1485,8 +1556,10 @@
     if (state.displayRoi.w < 3 || state.displayRoi.h < 3) { state.displayRoi = null; draw(); return; }
     const real = displayToReal(state.displayRoi);
     const roiData = { x: real.x, y: real.y, w: real.w, h: real.h, feature_type: 'rack_reference' };
+    state.displayRoi = null;
     const key = state.activeRoiStateKey || 'roi';
     state[key] = roiData;
+    draw();
     state.invalidRoiKeys = state.invalidRoiKeys.filter((item) => item !== key);
     if (key !== 'roi') state.localTemplateGeometryValid = null;
     if (key === 'roi') {
@@ -1646,7 +1719,7 @@
   });
 
   // ── 采集点云 ─────────────────────────────────────────────
-  $('btn-capture').addEventListener('click', async () => {
+  async function captureWorkbenchFrame() {
     showLoading('3D 相机采集中...');
     try {
       // 优先使用工作台专用端点
@@ -1658,10 +1731,12 @@
         rack_side: currentRackSide(),
       }));
       const data = apiPayload(raw);
-      if (!data.success) { setStatus(data.error || '采集失败'); return; }
+      if (!data.success) throw new Error(data.error || '采集失败');
+      if (!data.pointcloud_token) throw new Error('相机未返回有效点云，请重新采集');
       console.log('[DEBUG capture] raw_rgb_image_url=' + data.raw_rgb_image_url + ' | pointcloud_preview_url=' + data.pointcloud_preview_url + ' | source=' + data.source);
       state.token = data.pointcloud_token;
       state.source = data.source || '';
+      state.rawRgbImageUrl = data.raw_rgb_image_url || '';
       state.captureRecipeId = $('recipe-id').value || null;
       state.captureLayerNo = currentLayerIndex();
       state.pointcloudConsumed = false;
@@ -1673,6 +1748,7 @@
       // 优先显示 2D 相机原图（与点云像素一一对应，ROI 坐标可直接索引点云）；
       // 无真实图像时回退到深度伪彩图（模拟数据 / 旧数据兼容）
       const previewUrl = data.raw_rgb_image_url || data.pointcloud_preview_url || data.preview_image_url;
+      if (!previewUrl) throw new Error('相机未返回预览图，请重新采集');
       if (previewUrl) {
         const urlWithTime = previewUrl + '?t=' + Date.now();
         image.src = urlWithTime;
@@ -1705,22 +1781,39 @@
       
       // 点云图像真正加载完成后，再读取本次采集所用3D配方的2D ROI。
       if (data.roi_projection_error) console.warn('[自动ROI] 3D ROI投影提示：', data.roi_projection_error);
-      afterPreviewLoaded(() => autoLoadAndShowRecipeRoi({
+      await waitForPreviewReady();
+      const roiLoaded = await autoLoadAndShowRecipeRoi({
         recipeId: state.captureRecipeId,
         targetRoi: data.recipe_pixel_roi,
         source: data.recipe_pixel_roi ? '配方3D ROI' : '配方',
-      }));
-      
+      });
+
       if (data.source && data.source.indexOf('sample') === 0) {
         setStatus('⚠ 未取到真实相机数据，已回退模拟点云'
           + (data.fallback_reason ? '：' + data.fallback_reason : '（相机未连接）')
           + '。请检查相机连接后重试。');
-      } else {
-        setStatus('点云已采集，正在加载配方 ROI...');
+      } else if (roiLoaded) {
+        setStatus('点云已采集，配方已加载，可点击「开始计算」。');
       }
+      return true;
     } catch (e) {
-      setStatus('网络请求失败：' + e.message);
+      showCalculationError({error: '采集失败：' + e.message});
+      return false;
     } finally { hideLoading(); refreshActionState(); }
+  }
+
+  $('btn-capture').addEventListener('click', async () => {
+    if (state.busy) return;
+    state.busy = true;
+    refreshActionState();
+    $('rl-calculation-feedback').hidden = true;
+    setStatus('正在采集3D点云…');
+    try {
+      await captureWorkbenchFrame();
+    } finally {
+      state.busy = false;
+      refreshActionState();
+    }
   });
 
   $('btn-redraw').addEventListener('click', () => {
@@ -1805,7 +1898,7 @@
         state.drawMode = 'rect';
         draw();
         setReadout();
-        setStatus(`请在点云图上框选「${id === 'btn-roi-target' ? '外框 ROI' : mode === 'plane1' ? 'Π1 顶部横梁' : mode === 'plane2' ? 'Π2 左侧立柱' : 'Π3 底部横梁'}」区域。`);
+        setStatus(`请拖拽重画「${id === 'btn-roi-target' ? '外框 ROI' : mode === 'plane1' ? 'Π1 顶部横梁' : mode === 'plane2' ? 'Π2 左侧立柱' : 'Π3 底部横梁'}」区域，画完替换当前配方对应 ROI 并自动保存。`);
       });
     });
 
@@ -1838,6 +1931,7 @@
     try {
       const raw = await postJson(CFG.autoAlignUrl, semanticPayload({
         pointcloud_token: state.token,
+        raw_rgb_image_url: state.rawRgbImageUrl || '',
         recipe_id: $('recipe-id')?.value || null,
       }));
       const data = apiPayload(raw);
@@ -1960,42 +2054,20 @@
 
   // ── 计算偏差 ─────────────────────────────────────────────
   $('btn-calculate').addEventListener('click', async () => {
-    // 未采集或当前点云已经计算过时，必须重新采集。禁止把建立标准
-    // 模板时的同一帧再次用于验证，避免标准与自身比较得到假性零误差。
-    if (!state.token || state.pointcloudConsumed) {
-      showLoading('3D 相机采集中...');
-      try {
-        const captureApiUrl = CFG.captureUrl || CFG.legacyCaptureUrl || '/vision/api/rack-location/workbench/capture/';
-        const captureRaw = await postJson(captureApiUrl, semanticPayload({
-          recipe_id: $('recipe-id').value || null,
-          rack_side: currentRackSide(),
-        }));
-        const captureData = apiPayload(captureRaw);
-        if (!captureData.success) { setStatus(captureData.error || '采集失败，请检查相机连接'); hideLoading(); return; }
-        state.token = captureData.pointcloud_token;
-        state.source = captureData.source || '';
-        state.captureRecipeId = $('recipe-id').value || null;
-        state.captureLayerNo = currentLayerIndex();
-        state.pointcloudConsumed = false;
-        state.alignmentToken = null;
-        state.roi = null; state.displayRoi = null;
-        const previewUrl = captureData.raw_rgb_image_url || captureData.pointcloud_preview_url || captureData.preview_image_url;
-        if (previewUrl) { image.src = previewUrl + '?t=' + Date.now(); }
-        image.dataset.naturalWidth = captureData.image_width;
-        image.dataset.naturalHeight = captureData.image_height;
-        image.style.display = 'block';
-        canvas.style.display = 'block';
-        $('rl-placeholder').style.display = 'none';
-        setStatus('点云已采集，开始计算...');
-      } catch (e) {
-        setStatus('采集失败：' + e.message);
-        hideLoading();
-        return;
-      }
-    }
-
-    showLoading('计算坐标偏差中...');
+    if (state.busy) return;
+    state.busy = true;
+    $('btn-calculate').textContent = '⏳ 正在计算…';
+    $('rl-calculation-feedback').hidden = true;
+    state.invalidRoiKeys = [];
+    refreshActionState();
     try {
+      // 新页面和已使用过的点云统一执行完整采集流程，等待图像及配方 ROI 就绪。
+      if (!state.token || state.pointcloudConsumed) {
+        setStatus('正在采集3D点云，完成后自动计算…');
+        if (!(await captureWorkbenchFrame())) return;
+      }
+      setStatus('正在计算三平面与坐标补偿…');
+      showLoading('计算坐标偏差中...');
       // 优先使用工作台专用端点
       const calculateApiUrl = CFG.calculateUrl || CFG.legacyCalculateUrl || CFG.testLocateUrl || CFG.locateUrl || '/vision/api/rack-location/workbench/calculate/';
       console.log('[计算偏差] 使用API端点:', calculateApiUrl);
@@ -2016,7 +2088,7 @@
       };
       const raw = await postJson(calculateApiUrl, semanticPayload(calculation));
       const data = apiPayload(raw);
-      if (!data.success) { setStatus(data.error || '计算失败'); return; }
+      if (!data.success) { showCalculationError(data); return; }
       state.lastCalculation = calculation;
       state.lastResultId = data.result?.result_id || data.result?.id || null;
       state.lastResultRecipeId = data.result?.recipe_id || calculation.recipe_id || null;
@@ -2051,8 +2123,13 @@
 
       // 保持当前配方不变，确保后续「保存为标准模板」仍绑定本次计算的配方。
     } catch (e) {
-      setStatus('网络请求失败：' + e.message);
-    } finally { hideLoading(); refreshActionState(); }
+      showCalculationError({error: e.message});
+    } finally {
+      state.busy = false;
+      $('btn-calculate').textContent = '🎯 开始计算';
+      hideLoading();
+      refreshActionState();
+    }
   });
 
 
@@ -2285,6 +2362,8 @@
     },
     load(payload) {
       if (!payload || !payload.pointcloud_token) throw new Error('数据包未返回有效点云');
+      if (!payload.preview_image_url) throw new Error('数据包缺少2D原图');
+      state.rawRgbImageUrl = '';
       state.token = payload.pointcloud_token;
       state.pointcloudConsumed = false;
       state.source = payload.source || 'offline_package';

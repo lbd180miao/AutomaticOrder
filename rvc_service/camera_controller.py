@@ -110,7 +110,7 @@ class CaptureState:
     gain_3d: float = 1.0
     projector_brightness: int = 240  # 0-255
     save_2d: bool = True
-    pointcloud_scale: float = 1.0    # 点云单位换算到毫米的系数（RVC 原生即毫米时为 1）
+    pointcloud_scale: float = 1000.0  # RVC SDK PointMap: m -> mm
     
     @classmethod
     def from_json_config(cls, json_path: Path) -> "CaptureState":

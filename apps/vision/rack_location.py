@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 import logging
+import json
 import os
 import random
 from typing import Any, Optional
@@ -53,6 +54,20 @@ from .rack_compensation import (
 
 
 logger = logging.getLogger(__name__)
+
+
+class PointcloudRoiError(ValueError):
+    """Usable depth is missing from one or more taught plane regions."""
+
+    def __init__(self, diagnostics):
+        self.roi_diagnostics = diagnostics
+        self.invalid_roi_keys = [key for key, value in diagnostics.items() if value['valid_points'] < 50]
+        labels = {'plane1': 'Π1 顶部横梁', 'plane2': 'Π2 左侧立柱', 'plane3': 'Π3 底部横梁'}
+        details = '；'.join(
+            f"{labels[key]} 有效点 {diagnostics[key]['valid_points']}/{diagnostics[key]['total_points']}"
+            for key in self.invalid_roi_keys
+        )
+        super().__init__(details + '（每个区域至少需要50个有效点）。请确认相机对准料架、深度采集正常及ROI与钢架表面重合。')
 
 
 def _decimal(value: Any, places: str = '0.001') -> Decimal:
@@ -1559,6 +1574,9 @@ class Rack3DLocator:
         # 2) 点云原始数据
         try:
             np.save(str(save_dir / 'pointcloud.npy'), pointcloud)
+            (save_dir / 'pointcloud.units.json').write_text(
+                json.dumps({'unit': 'mm'}), encoding='utf-8',
+            )
         except Exception as exc:  # noqa: BLE001
             logger.warning('保存点云 npy 到 pic/ 失败: %s', exc)
 
@@ -2554,6 +2572,8 @@ class RackLocationService:
         stamp = timezone.now().strftime('%H%M%S_%f')
         npy_name = f'rack_workbench_{stamp}.npy'
         np.save(os.path.join(abs_dir, npy_name), cloud)
+        with open(os.path.join(abs_dir, npy_name.replace('.npy', '.units.json')), 'w', encoding='utf-8') as marker:
+            json.dump({'unit': 'mm'}, marker)
         npy_rel = f'{rel_dir}/{npy_name}'
 
         preview = image_io.pointcloud_to_preview(cloud)
@@ -2571,7 +2591,8 @@ class RackLocationService:
         abs_path = os.path.realpath(os.path.join(media_root, token))
         if os.path.commonpath([abs_path, media_root]) != media_root or not os.path.exists(abs_path):
             raise ValueError('点云数据已失效，请重新采集')
-        return np.load(abs_path)
+        from .pointcloud_units import load_pointcloud_mm
+        return load_pointcloud_mm(abs_path)
 
     def _build_workbench_recipe(self, recipe_id=None, recipe_data=None) -> RackLocationRecipe:
         recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first() if recipe_id else None
@@ -2678,6 +2699,7 @@ class RackLocationService:
     @staticmethod
     def _crop_local_template_clouds(pointcloud, regions) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         clouds = []
+        diagnostics = {}
         for name in ('plane1', 'plane2', 'plane3'):
             roi = regions[name]
             points = pointcloud[
@@ -2686,10 +2708,10 @@ class RackLocationService:
             ].reshape(-1, 3)
             valid = np.isfinite(points).all(axis=1) & (np.abs(points[:, 2]) > 1e-9)
             cloud = np.asarray(points[valid], dtype=np.float64)
-            if cloud.shape[0] < 50:
-                label = {'plane1': 'Π1', 'plane2': 'Π2', 'plane3': 'Π3'}[name]
-                raise ValueError(f'{label} 有效点不足（{cloud.shape[0]} < 50），请重新框选真实钢架表面')
+            diagnostics[name] = {'valid_points': int(cloud.shape[0]), 'total_points': int(points.shape[0])}
             clouds.append(cloud)
+        if any(item['valid_points'] < 50 for item in diagnostics.values()):
+            raise PointcloudRoiError(diagnostics)
         return tuple(clouds)
 
     @staticmethod
