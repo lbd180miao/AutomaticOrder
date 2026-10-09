@@ -2140,6 +2140,25 @@ def _merge_rack_roi_config(existing, incoming, *, stamp_measurement=False):
     """
     merged = dict(existing or {})
     patch = dict(incoming or {})
+    if merged.get('spatial_rois'):
+        if 'spatial_rois' in patch or 'algorithm_version' in patch:
+            raise ValueError('空间配方修改请通过 AABB 示教预览保存')
+    for key, maximum, default in (('margin_mm', 500, 5), ('voxel_mm', 50, 0)):
+        if key in patch:
+            value = float(patch[key])
+            if not 0 <= value <= maximum:
+                raise ValueError(f'{key} 必须在 0～{maximum} mm 之间')
+            patch[key] = value
+    if merged.get('spatial_rois') and 'margin_mm' in patch:
+        from .rack_spatial import bounds
+        difference = patch['margin_mm'] - float(merged.get('margin_mm', 5))
+        boxes = {name: dict(box) for name, box in merged['spatial_rois'].items()}
+        for box in boxes.values():
+            for axis in 'XYZ':
+                box[axis + 'min'] -= difference
+                box[axis + 'max'] += difference
+            bounds(box)
+        merged['spatial_rois'] = boxes
     for key, value in patch.items():
         if key == 'local_template_rois' and isinstance(value, dict):
             current_local = merged.get(key)
@@ -2374,6 +2393,8 @@ def _save_rack_location_recipe_from_request(request, recipe=None):
         roi_config['camera_roi'] = {
             key: _as_float(value) for key, value in camera_roi_fields.items()
         }
+    for key in ('margin_mm', 'voxel_mm'):
+        if data.get(key) not in (None, ''): roi_config[key] = data[key]
     recipe.roi_config = _merge_rack_roi_config(recipe.roi_config, roi_config)
     
     recipe.reference_feature_config = normalize_reference_feature_config(
@@ -3352,7 +3373,7 @@ def api_rack_location_calibrate_standard(request, recipe_id):
         if result_id:
             result = RackLocationResult.objects.get(pk=result_id)
             recipe = RackLocationRecipe.objects.get(pk=recipe_id)
-            if result.recipe_id and result.recipe_id != recipe.id:
+            if result.recipe_id != recipe.id:
                 raise ValueError('定位结果与配方不匹配，不能作为该配方的标准模板')
 
             result_data = result.result_data or {}
@@ -3363,6 +3384,10 @@ def api_rack_location_calibrate_standard(request, recipe_id):
                 frame = LocalFrameResult.from_dict(current_template)
                 validation = RackStructureValidator().validate(frame_cur=frame, frame_std=None)
 
+                if (recipe.roi_config or {}).get('spatial_rois'):
+                    raise ValueError('空间配方请通过空间预览保存标准，不能覆盖为旧三平面标准')
+                from .rack_spatial_service import reference_axes_from_record
+                axes = reference_axes_from_record(RackLocationService(), recipe, result)
                 saved_template = {
                     **current_template,
                     'build_timestamp': timezone.now().isoformat(),
@@ -3371,6 +3396,7 @@ def api_rack_location_calibrate_standard(request, recipe_id):
                     'source_result_id': result.id,
                     'quality_validation': validation.to_dict(),
                     'quality_gate_mode': 'disabled',
+                    'dual_axis_standard': {'recipe_id': recipe.pk, 'source_result_id': result.pk, 'groups': axes},
                 }
                 recipe.local_template_std = saved_template
                 recipe.save(update_fields=['local_template_std', 'updated_at'])
@@ -3395,7 +3421,7 @@ def api_rack_location_calibrate_standard(request, recipe_id):
         return JsonResponse({'success': False, 'error': '未找到3D料架定位配方'}, status=404)
     except RackLocationResult.DoesNotExist:
         return JsonResponse({'success': False, 'error': '未找到定位结果'}, status=404)
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+    except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 

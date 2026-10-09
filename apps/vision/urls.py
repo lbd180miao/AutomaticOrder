@@ -2,12 +2,14 @@ from django.urls import path, include
 from django.shortcuts import render
 
 from . import views
+from . import rack_spatial_service
 from . import offline_data_views
 from . import views_foam_profile
 
 app_name = 'vision'
 
 urlpatterns = [
+    path('api/rack-location/workbench/spatial-teach/', rack_spatial_service.teach, name='rack_spatial_teach'),
     # 3D 料架定位离线数据包（新增旁路，不改变现有离线测试 API）。
     path('offline/packages/', offline_data_views.packages, name='offline_packages'),
     path('offline/packages/<str:package_name>/', offline_data_views.package_detail, name='offline_package_detail'),

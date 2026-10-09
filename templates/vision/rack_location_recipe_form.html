@@ -14,6 +14,10 @@
   <input type="hidden" id="hand-eye-config-input" name="hand_eye_config" value='{{ hand_eye_config_json|escape }}'>
   <input type="hidden" id="capture-pose-input" name="capture_pose" value='{{ capture_pose_json|escape }}'>
 
+  <div class="card" style="padding:12px;margin-bottom:12px">
+    <label>向外扩充（mm） <input name="margin_mm" type="number" min="0" max="500" step="1" value="{{ recipe_defaults.roi_config.margin_mm|default_if_none:5 }}"></label>
+    <label>下采样体素（mm，0 关闭） <input name="voxel_mm" type="number" min="0" max="50" step="0.5" value="{{ recipe_defaults.roi_config.voxel_mm|default_if_none:0 }}"></label>
+  </div>
   <div class="rack-location-layout">
     <section class="card rack-location-left">
       <div class="card-header">

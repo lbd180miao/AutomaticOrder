@@ -387,6 +387,13 @@
       </div>
 
       <div class="form-section">
+        <div class="form-section-title">空间算法参数</div>
+        <div class="form-row">
+          <div class="form-group"><label>向外扩充（mm）</label><input id="modal-margin" type="number" min="0" max="500" step="1" value="5"></div>
+          <div class="form-group"><label>下采样体素（mm，0 关闭）</label><input id="modal-voxel" type="number" min="0" max="50" step="0.5" value="0"></div>
+        </div>
+      </div>
+      <div class="form-section">
         <div class="form-section-title">标准坐标（mm）</div>
         <div class="form-row">
           <div class="form-group" style="margin-bottom:0;">
@@ -465,6 +472,8 @@ document.getElementById('btn-create-recipe').addEventListener('click', () => {
   document.getElementById('modal-roi-y-max').value = '';
   document.getElementById('modal-roi-z-min').value = '';
   document.getElementById('modal-roi-z-max').value = '';
+  document.getElementById('modal-margin').value = 5;
+  document.getElementById('modal-voxel').value = 0;
   document.getElementById('modal-std-x').value = '0';
   document.getElementById('modal-std-y').value = '0';
   document.getElementById('modal-std-z').value = '0';
@@ -496,6 +505,8 @@ async function editRecipe(id) {
     
     // ROI参数
     const roiConfig = recipe.roi_config || {};
+    document.getElementById('modal-margin').value = roiConfig.margin_mm ?? 5;
+    document.getElementById('modal-voxel').value = roiConfig.voxel_mm ?? 0;
     const roi = roiConfig.x_min != null ? roiConfig : (roiConfig.target_roi || {});
     ['x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max'].forEach(key => {
       document.getElementById('modal-roi-' + key.replace('_', '-')).value = roi[key] ?? '';
@@ -598,6 +609,7 @@ async function saveRecipe() {
     }
   }
 
+  payload.roi_config = {...(payload.roi_config || {}), margin_mm: Number(document.getElementById('modal-margin').value), voxel_mm: Number(document.getElementById('modal-voxel').value)};
   if (id) {
     payload.id = Number(id);
   }

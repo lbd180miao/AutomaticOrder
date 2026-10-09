@@ -2029,6 +2029,10 @@ class Rack3DLocator:
                     layer_no=1, save_record=False, auto_extract_corners=False) -> dict:
         """测试定位（不保存到数据库，除非指定save_record=True）"""
         recipe = self._select_recipe(recipe_id=recipe_id, layer_no=layer_no)
+        if (recipe.roi_config or {}).get('spatial_rois'):
+            from .rack_spatial_service import calculate
+            return calculate(RackLocationService(), token=token, recipe=recipe,
+                             layer_no=layer_no, save_record=save_record)
         pointcloud = self._load_pointcloud(token)
         
         target_roi = None
@@ -2222,6 +2226,10 @@ class Rack3DLocator:
 
     def locate(self, *, rack_side, layer_no, recipe_id=None, write_plc=False, product=None, rack=None, workflow=None):
         recipe = self._select_recipe(recipe_id=recipe_id, layer_no=layer_no)
+        if (recipe.roi_config or {}).get('spatial_rois'):
+            return RackLocationService(frame_provider=self.frame_provider, plc_writer=self.plc_writer).trigger(
+                rack_side=rack_side, layer_no=layer_no, recipe_id=recipe.pk, write_plc=write_plc,
+                product=product, rack=rack, workflow=workflow)
         roi, roi_source = self._select_roi(recipe, int(layer_no))
         task = VisionTask.objects.create(
             task_type=VisionTaskType.RACK_LOCATING,
@@ -2664,7 +2672,11 @@ class RackLocationService:
             'image_height': height,
             'source': source,
         }
-        if recipe and recipe.roi_config:
+        if recipe and (recipe.roi_config or {}).get('spatial_rois'):
+            from .rack_spatial import preview
+            payload['spatial_preview'] = preview(pointcloud, recipe.roi_config)
+            payload['spatial_rois'] = recipe.roi_config['spatial_rois']
+        elif recipe and recipe.roi_config:
             payload['recipe_pixel_roi'] = self.project_recipe_roi_to_pixels(pointcloud, recipe)
         # 没拿到真实相机数据时，把原因暴露出来（未找到设备 / 数据流未开启等）。
         if source not in ('dm_camera', 'rvc_camera') and fallback_reason:
@@ -3029,6 +3041,10 @@ class RackLocationService:
                 'ransac_distance_threshold_mm': ransac_distance_threshold_mm,
             },
         }
+        from .rack_spatial_service import legacy_robot_groups
+        result_data.update(legacy_robot_groups(self, recipe, pointcloud, regions))
+        warning_message = "；".join(filter(None, [warning_message, *result_data.get("quality_warnings", [])]))
+        result_data["warning_message"] = warning_message
         output_compensation = robot_rack_compensation or rack_compensation
         output_pose = output_compensation['pose6d']
         plc_payload = {
@@ -3216,6 +3232,9 @@ class RackLocationService:
             save_record: 是否保存到数据库（默认False；计算偏差只预览）
         """
         recipe = self._build_workbench_recipe(recipe_id, recipe_data)
+        if (recipe.roi_config or {}).get('spatial_rois'):
+            from .rack_spatial_service import calculate
+            return calculate(self, token=token, recipe=recipe, layer_no=layer_no, save_record=save_record)
         if (roi_config or {}).get('local_template_rois'):
             resolved_layer = int((recipe_data or {}).get('layer_no') or layer_no or getattr(recipe, 'layer_no', 1) or 1)
             return self._calculate_local_template_workbench(
@@ -3319,6 +3338,10 @@ class RackLocationService:
             )
             return RackLocationResult.objects.get(pk=saved['result_id'])
         recipe = self._build_workbench_recipe(recipe_id, recipe_data)
+        if (recipe.roi_config or {}).get('spatial_rois'):
+            from .rack_spatial_service import calculate
+            saved = calculate(self, token=token, recipe=recipe, layer_no=layer_no, save_record=True)
+            return RackLocationResult.objects.get(pk=saved['result_id'])
         output, result_rel = self._compute_workbench(
             token=token, roi_config=roi_config, recipe=recipe, layer_no=layer_no,
         )
@@ -3408,6 +3431,23 @@ class RackLocationService:
         recipe = self._select_recipe(
             recipe_id=recipe_id, position_no=position_no, layer_no=layer_no,
         )
+        if (recipe.roi_config or {}).get('spatial_rois'):
+            from .rack_spatial_service import calculate
+            if write_plc:
+                raise ValueError('双组轴线补偿尚未绑定 PLC 分组寄存器，请先完成组别映射')
+            frame = self.frame_provider.capture(recipe, position_no, layer_no)
+            cloud = frame.get('organized_pointcloud')
+            if cloud is None:
+                raise ValueError('当前帧缺少 npy 3D 点云')
+            token, _, _, _ = self._persist_workbench_frame(cloud)
+            payload = calculate(self, token=token, recipe=recipe, layer_no=layer_no, save_record=True, cloud=cloud)
+            record = RackLocationResult.objects.get(pk=payload['result_id'])
+            record.rack = rack
+            record.save(update_fields=['rack'])
+            record.vision_task.product = product
+            record.vision_task.rack = rack
+            record.vision_task.save(update_fields=['product', 'rack'])
+            return record
         if is_rectangle_v2(recipe.reference_feature_config):
             return Rack3DLocator(
                 frame_provider=self.frame_provider,

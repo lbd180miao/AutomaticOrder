@@ -21,6 +21,9 @@ def _error(exc, status=400):
 def _merge_package_roi_config(saved_config, request_config):
     """Merge a workbench snapshot without dropping untouched plane ROIs."""
     saved = dict(saved_config or {})
+    if saved.get('spatial_rois'):
+        from .rack_spatial_service import spatial_config
+        return spatial_config(saved)
     incoming = dict(request_config or {})
     merged = {**saved, **incoming}
     incoming_planes = incoming.get("local_template_rois")
@@ -65,14 +68,14 @@ def packages(request):
             image_2d_path = (root / image_url[len(settings.MEDIA_URL):]).resolve()
             if not image_2d_path.is_relative_to(root) or not image_2d_path.is_file():
                 raise ValueError('2D原图不存在或路径无效')
+        package_config = _merge_package_roi_config(recipe.roi_config, data.get("roi_config"))
+        if package_config.get('spatial_rois'):
+            package_config['standard_axes'] = recipe.local_template_std
         created = service.create_package(
             pointcloud=cloud,
             hand_eye_matrix=hand_eye,
             robot_pose_matrix=robot_pose,
-            roi_config=_merge_package_roi_config(
-                recipe.roi_config,
-                data.get("roi_config"),
-            ),
+            roi_config=package_config,
             recipe=recipe,
             layer_no=int(data.get("layer_no") or recipe.layer_no),
             camera_info={

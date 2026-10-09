@@ -15,6 +15,7 @@
 
   // ── 工作台状态 ──────────────────────────────────────────
   const state = {
+    spatialProjection: null,
     token: null,         // 持久化点云 token
     busy: false,
     roi: null,           // 真实图像像素 ROI {x,y,w,h}
@@ -60,6 +61,7 @@
   window.rackLocatorRoiRevision = () => roiEditRevision;
   function markRoiEdited() {
     roiEditRevision++;
+    state.spatialProjection = null;
     state.roiDirty = true;
     state.pendingRoi = null;
     state.pendingLocalTemplateRois = null;
@@ -136,6 +138,14 @@
   };
 
   window.rackLocatorRecipeChanged = function(recipeId) {
+    renderRobotGroups(null);
+    state.lastResultId = null;
+    state.lastResultRecipeId = null;
+    spatialCandidate = null;
+    state.spatialProjection = null;
+    if ($('spatial-viewport')) $('spatial-viewport').hidden = true;
+    if ($('spatial-results')) $('spatial-results').replaceChildren();
+    if ($('spatial-state')) $('spatial-state').textContent = '';
     roiEditRevision++;
     state.roiDirty = false;
     state.roi = null;
@@ -245,6 +255,7 @@
       + (data.invalid_roi_keys?.length ? '\n请对准料架后重新采集；若相机或料架位置改变，请重新示教对应区域。' : '')
       + (state.lastResult ? '\n下方保留的是上一次计算结果，不代表本次计算成功。' : '');
     if ($('template-status')) $('template-status').textContent = '本次计算失败';
+    renderRobotGroups(null, '本次计算失败，机器人偏差未更新');
     state.lastResultOk = false;
     state.invalidRoiKeys = (data.invalid_roi_keys || []).map(key => ({
       plane1: 'roiPlane1', plane2: 'roiPlane2', plane3: 'roiPlane3',
@@ -735,12 +746,11 @@
     setButton('btn-polygon', hasCloud);
     const localRoisReady = hasAllLocalTemplateRois();
     const measurementSummary = updateMeasurementConfigProgress();
-    setButton('btn-save-recipe', measurementSummary.count > 0 || state.roiDirty);
+    setButton('btn-save-recipe', Boolean(state.currentRecipe) || measurementSummary.count > 0 || state.roiDirty);
     if ($('btn-save-recipe')) {
-      $('btn-save-recipe').title = localRoisReady && state.localTemplateGeometryValid !== true
-        ? '当前三平面有质量提示；直检模式允许保存'
-        : '将外框、三平面与层距测量线保存到当前配方';
+      $('btn-save-recipe').title = '保存外框、三组 ROI 与层距测量线；生成空间预览后同时保存新算法标准';
     }
+    setButton('btn-spatial-preview', hasCloud);
     setButton('btn-calculate', true);
     $('btn-calculate').title = hasCloud && !state.pointcloudConsumed
       ? '使用当前点云与所选配方计算'
@@ -762,12 +772,12 @@
     if ($('ransac-distance-threshold')) $('ransac-distance-threshold').disabled = state.busy;
   }
 
-  /** 更新「三平面已框选 x/3」计数徽章 */
+  /** 更新「示教区域已框选 x/3」计数徽章 */
   function updateLocalTemplateRoiCount() {
     const count = [state.roiPlane1, state.roiPlane2, state.roiPlane3].filter(Boolean).length;
     const badge = $('roi-teach-progress');
     if (badge) {
-      badge.textContent = `三平面已框选 ${count}/3`;
+      badge.textContent = `示教区域已框选 ${count}/3`;
       badge.className = count === 3 ? 'badge badge-ok' : 'badge badge-muted';
     }
     [
@@ -916,6 +926,8 @@
   }
 
   function syncRansacThreshold(config) {
+    if ($('spatial-margin')) $('spatial-margin').value = config?.margin_mm ?? 5;
+    if ($('spatial-voxel')) $('spatial-voxel').value = config?.voxel_mm ?? 0;
     const input = $('ransac-distance-threshold');
     if (!input) return;
     const value = Number(config?.ransac_distance_threshold_mm ?? 2.0);
@@ -948,7 +960,7 @@
       return { ransac_distance_threshold_mm: selectedRansacThreshold() };
     }
 
-    const config = {};
+    const config = {margin_mm: Number($('spatial-margin').value), voxel_mm: Number($('spatial-voxel').value)};
     const targetRoi = cleanTargetRoi();
     config.target_roi = targetRoi;
     const localRois = cleanLocalTemplateRois();
@@ -1408,6 +1420,21 @@
 
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (state.spatialProjection) {
+      Object.values(state.spatialProjection.boxes).forEach((box,i)=>{
+        if(!box.pixels)return;
+        ctx.strokeStyle=['#38bdf8','#f59e0b','#ec4899'][i];ctx.lineWidth=2;
+        state.spatialProjection.edges.forEach(([a,b])=>{
+          const p=realPointToDisplay({x:box.pixels[a][0],y:box.pixels[a][1]});
+          const q=realPointToDisplay({x:box.pixels[b][0],y:box.pixels[b][1]});
+          ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();
+        });
+      });
+      if(state.spatialProjection.spacing_pixels){
+        const [p,q]=state.spatialProjection.spacing_pixels.map(v=>realPointToDisplay({x:v[0],y:v[1]}));
+        ctx.strokeStyle='#22c55e';ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();
+      }
+    }
 
     // 已完成的外框、Π1、Π2、Π3 始终同时显示；当前选中区域用虚线强调。
     roiOverlayStyles.forEach((style) => {
@@ -1803,6 +1830,7 @@
       if (!data.success) throw new Error(data.error || '采集失败');
       if (!data.pointcloud_token) throw new Error('相机未返回有效点云，请重新采集');
       console.log('[DEBUG capture] raw_rgb_image_url=' + data.raw_rgb_image_url + ' | pointcloud_preview_url=' + data.pointcloud_preview_url + ' | source=' + data.source);
+      state.spatialProjection = null;
       state.token = data.pointcloud_token;
       state.source = data.source || '';
       state.rawRgbImageUrl = data.raw_rgb_image_url || '';
@@ -1857,6 +1885,10 @@
         source: data.recipe_pixel_roi ? '配方3D ROI' : '配方',
       });
 
+      if (data.spatial_preview) {
+        showSpatialPreview(data.spatial_preview, data.spatial_rois);
+        draw();
+      }
       if (data.source && data.source.indexOf('sample') === 0) {
         setStatus('⚠ 未取到真实相机数据，已回退模拟点云'
           + (data.fallback_reason ? '：' + data.fallback_reason : '（相机未连接）')
@@ -2135,14 +2167,15 @@
         setStatus('正在采集3D点云，完成后自动计算…');
         if (!(await captureWorkbenchFrame())) return;
       }
-      setStatus('正在计算三平面与坐标补偿…');
+      if (state.currentRecipe?.roi_config?.spatial_rois && state.roiDirty) throw new Error('示教草稿尚未保存，请重新预览并保存空间配方，或重新选择配方放弃草稿。');
+      setStatus(state.currentRecipe?.roi_config?.spatial_rois ? '正在计算 A/B 两组独立空间轴线偏差…' : '正在按已选配方计算三平面与坐标补偿…');
       showLoading('计算坐标偏差中...');
       // 优先使用工作台专用端点
       const calculateApiUrl = CFG.calculateUrl || CFG.legacyCalculateUrl || CFG.testLocateUrl || CFG.locateUrl || '/vision/api/rack-location/workbench/calculate/';
       console.log('[计算偏差] 使用API端点:', calculateApiUrl);
 
       // 五项位置统一走同一个清洗器，避免保存值与计算值发生漂移。
-      const measurementConfig = measurementConfigPatch('all');
+      const measurementConfig = state.currentRecipe?.roi_config?.spatial_rois ? {} : measurementConfigPatch('all');
       const calculation = {
         pointcloud_token: state.token,
         roi: currentRoi3D(),
@@ -2182,7 +2215,7 @@
         lastTime.textContent = '上次计算：' + new Date().toLocaleString('zh-CN', { hour12: false });
       }
       if (data.result.direct_detection_mode) {
-        setStatus('计算完成：直接检测完成，本次3D记录已自动保存'
+        setStatus('计算完成：本次3D记录已自动保存'
           + (data.result.warning_message ? ' · ' + data.result.warning_message : '。')
           + ' 再次计算将重新采集点云。');
       } else {
@@ -2204,14 +2237,14 @@
 
 
   // ── 保存按钮：以当前草稿完整替换测量位置 ──────────────────
-  async function autoSaveRoiToRecipe({ changedKey = 'all' } = {}) {
+  async function saveLegacyRoiToRecipe({ changedKey = 'all' } = {}) {
     const recipeId = $('recipe-id')?.value;
     if (!recipeId) { setStatus('未找到配方·请先选择配方'); return; }
     const roiConfig = measurementConfigPatch(changedKey);
     if (!Object.keys(roiConfig).length) { setStatus('当前项目没有可保存的位置数据'); return false; }
     const requestSeq = ++roiSaveRequestSeq;
     const editRevision = roiEditRevision;
-    const payload = JSON.parse(JSON.stringify({ id: recipeId, roi_config: roiConfig }));
+    const payload = JSON.parse(JSON.stringify({ id: recipeId, roi_config: state.currentRecipe?.roi_config?.spatial_rois ? {margin_mm: roiConfig.margin_mm, voxel_mm: roiConfig.voxel_mm} : roiConfig }));
     const currentRecipeId = () => String($('recipe-id')?.value || '');
     const isCurrentRequest = () => (
       currentRecipeId() === String(recipeId) && requestSeq === roiSaveRequestSeq
@@ -2246,6 +2279,24 @@
     const savePromise = roiSaveChain.then(executeSave, executeSave);
     roiSaveChain = savePromise.then(() => undefined, () => undefined);
     return savePromise;
+  }
+
+  async function autoSaveRoiToRecipe() {
+    if (!spatialCandidate && (!state.currentRecipe?.roi_config?.spatial_rois || !state.roiDirty)) return saveLegacyRoiToRecipe();
+    if (!spatialCandidate || spatialFingerprint() !== spatialCandidate.fingerprint) {
+      setStatus('请先生成 3D 预览，检查三组包围盒后再保存；修改框选、余量或切换帧后需重新预览。');
+      return false;
+    }
+    const data = await postJson('/vision/api/rack-location/workbench/spatial-teach/', {
+      action: 'save', recipe_id: $('recipe-id').value, candidate: spatialCandidate.candidate,
+    });
+    if (!data.success) throw new Error(data.error);
+    state.currentRecipe = {...state.currentRecipe, roi_config: data.roi_config, local_template_std: data.local_template_std};
+    state.roiDirty = false;
+    spatialCandidate = null;
+    $('spatial-state').textContent = '已保存空间标准及页面 ROI，可按配方重复计算';
+    setStatus('空间配方已保存，可开始计算 A/B 两组独立偏差。');
+    return true;
   }
 
   // ── 自动选中下一个配方 ──────────────────────────────────
@@ -2300,6 +2351,7 @@
 
   // ── 渲染结果 ─────────────────────────────────────────────
   function renderResult(r) {
+    renderRobotGroups(r);
     state.lastResult = r || null;
     if (r?.result_id || r?.id) {
       state.lastResultId = r.result_id || r.id;
@@ -2313,9 +2365,20 @@
       : Boolean(ok);
 
 
-    renderLocalTemplate(r);
-    renderLayerSpacing(r);
-    renderCompensation(r);
+    const isSpatialResult = r.algorithm_version === 'RACK_DUAL_AXIS_3D_V1';
+    ['rl-template-panel', 'rl-comp-panel'].forEach(id => {
+      if ($(id)) $(id).style.display = isSpatialResult ? 'none' : '';
+    });
+    if (!isSpatialResult) $('spatial-results').replaceChildren();
+    if (isSpatialResult) {
+      renderSpatialResults(r);
+      showSpatialPreview(r.spatial_preview, r.spatial_rois);
+      renderLayerSpacing(r);
+    } else {
+      renderLocalTemplate(r);
+      renderLayerSpacing(r);
+      renderCompensation(r);
+    }
 
     if (r.result_image_url) {
       const resultImg = $('rl-result-img');
@@ -2423,7 +2486,7 @@
       return {
         pointcloud_token: state.token,
         source: state.source,
-        roi_config: {
+        roi_config: state.currentRecipe?.roi_config?.spatial_rois ? state.currentRecipe.roi_config : {
           ...currentRoi3D(),
           ...measurementConfigPatch('all'),
         },
@@ -2436,6 +2499,7 @@
       if (!payload || !payload.pointcloud_token) throw new Error('数据包未返回有效点云');
       if (!payload.preview_image_url) throw new Error('数据包缺少2D原图');
       state.rawRgbImageUrl = '';
+      state.spatialProjection = null;
       state.token = payload.pointcloud_token;
       state.pointcloudConsumed = false;
       state.source = payload.source || 'offline_package';
@@ -2519,6 +2583,8 @@
       const recipeId = state.lastResultRecipeId || state.captureRecipeId || $('recipe-id')?.value;
       const resultId = state.lastResultId;
       if (!recipeId) { setStatus('无选中配方'); return; }
+      if (String(recipeId) !== String($('recipe-id')?.value)) { setStatus('当前配方与计算记录不一致，请重新计算后保存标准。', true); return; }
+      if (state.busy || state.roiDirty || state.token !== state.lastCalculation?.pointcloud_token) { setStatus('点云或 ROI 已改变，请重新计算后保存标准。', true); return; }
       if (!window._tempCurTpl) { setStatus('无现场模板可保存，请先点击「开始计算」'); return; }
       if (!resultId) {
         setStatus('标准模板未保存：缺少本次计算记录，请重新点击「开始计算」。');
@@ -2547,7 +2613,8 @@
         if (state.currentRecipe && String(state.currentRecipe.id) === String(recipeId)) {
           state.currentRecipe.local_template_std = savedTemplate;
         }
-        setStatus(`✅ 标准模板已保存到配方 #${recipeId}，下次定位将以此作为基准。`);
+        setStatus(`✅ 配方 #${recipeId} 已保存三平面及双组标准，来源记录 #${savedTemplate.source_result_id}。请重新计算偏差。`);
+        renderRobotGroups(null, `配方 #${recipeId} 的标准已更新为记录 #${savedTemplate.source_result_id}，请重新计算。`);
         renderLocalTemplate({
           local_template_cur: window._tempCurTpl,
           local_template_validation: window._tempCurTplValidation,
@@ -2561,6 +2628,123 @@
       }
     });
   }
+
+  // Preserve editor positions alongside spatial teaching; computation uses only 3D bounds.
+  let spatialCandidate = null;
+  let spatialScene = null;
+  let spatialYaw = 0.3, spatialPitch = -0.15, spatialZoom = 1;
+  const spatialColors = ['#38bdf8', '#f59e0b', '#ec4899'];
+  function spatialFingerprint() {
+    return JSON.stringify([$('recipe-id').value, state.token, measurementConfigPatch('all'),
+      $('spatial-margin').value, $('spatial-voxel').value]);
+  }
+  function showSpatialPreview(preview, boxes) {
+    if (!preview) return;
+    spatialScene = preview;
+    state.spatialProjection = preview;
+    draw();
+    $('spatial-viewport').hidden = false;
+    $('spatial-bounds').textContent = Object.entries(boxes || {}).map(([key,b]) =>
+      `${key}: X [${b.Xmin.toFixed(2)}, ${b.Xmax.toFixed(2)}]  Y [${b.Ymin.toFixed(2)}, ${b.Ymax.toFixed(2)}]  Z [${b.Zmin.toFixed(2)}, ${b.Zmax.toFixed(2)}] mm`).join('\n');
+    paintSpatial();
+  }
+  function paintSpatial() {
+    if (!spatialScene) return;
+    const c = $('spatial-canvas'), g = c.getContext('2d');
+    const vertices = Object.values(spatialScene.boxes).flatMap(b=>b.vertices);
+    const low = [0,1,2].map(i=>Math.min(...vertices.map(p=>p[i])));
+    const high = [0,1,2].map(i=>Math.max(...vertices.map(p=>p[i])));
+    const center = low.map((x,i)=>(x+high[i])/2);
+    const scale = 260/Math.max(1, ...high.map((x,i)=>x-low[i]))*spatialZoom;
+    const project = p => {
+      const [x,y,z] = p.map((v,i)=>v-center[i]);
+      const xx=x*Math.cos(spatialYaw)+z*Math.sin(spatialYaw);
+      const zz=-x*Math.sin(spatialYaw)+z*Math.cos(spatialYaw);
+      return [c.width/2+xx*scale, c.height/2+(y*Math.cos(spatialPitch)-zz*Math.sin(spatialPitch))*scale];
+    };
+    g.fillStyle='#0f172a'; g.fillRect(0,0,c.width,c.height);
+    g.fillStyle='#64748b';
+    spatialScene.points.forEach(p=>{const [x,y]=project(p);g.fillRect(x,y,1.5,1.5);});
+    Object.values(spatialScene.boxes).forEach((b,i)=>{
+      g.strokeStyle=spatialColors[i];g.lineWidth=2;
+      spatialScene.edges.forEach(([a,d])=>{g.beginPath();g.moveTo(...project(b.vertices[a]));g.lineTo(...project(b.vertices[d]));g.stroke();});
+    });
+  }
+  function renderRobotGroups(result, message = '') {
+    const warnings = result?.quality_warnings || result?.result_data?.quality_warnings || [];
+    const warningBox = $('robot-groups-warning');
+    if (warningBox) {
+      warningBox.hidden = !warnings.length;
+      warningBox.textContent = warnings.length ? '⚠ 质量警告（已继续计算）\n' + warnings.join('\n') : '';
+    }
+    const groups = result?.robot_groups || result?.result_data?.robot_groups || {};
+    const ready = ['A', 'B'].every(group =>
+      ['x', 'y', 'z', 'rx', 'ry', 'rz'].every(axis => Number.isFinite(groups[group]?.pose6d?.[axis])));
+    ['A', 'B'].forEach(group => {
+      ['x', 'y', 'z', 'rx', 'ry', 'rz'].forEach(axis => {
+        const cell = $(`robot-${group.toLowerCase()}-${axis}`);
+        if (cell) cell.textContent = ready ? groups[group].pose6d[axis].toFixed(3) : '—';
+      });
+    });
+    const badge = $('robot-groups-status'), note = $('robot-groups-note');
+    if (!badge || !note) return;
+    const error = result?.robot_conversion_error || result?.result_data?.robot_conversion_error || '';
+    badge.textContent = ready ? (warnings.length ? '已换算 · 有质量警告' : '已换算 · 本次结果') : (result ? (error.startsWith('双组偏差计算失败') ? '轴线拟合失败' : '无法换算') : '未计算');
+    badge.className = ready ? 'badge badge-ok' : 'badge badge-muted';
+    const context = result?.transform_context || result?.result_data?.transform_context || {};
+    note.textContent = ready
+      ? `标定：${context.hand_eye_calibration_name || '配方手眼配置'}；使用本次计算时保存的配置快照。数值为机器人基坐标补偿矩阵的平移和旋转分量。`
+      : (message || result?.robot_conversion_error || result?.result_data?.robot_conversion_error
+        || (result ? '当前结果没有 A/B 两组机器人偏差，请使用双组空间配方重新计算。' : '计算后显示两组机器人偏差；无有效换算结果时显示 —。'));
+    if (result) {
+      const data = result.result_data || result;
+      const recipeId = data.robot_groups_recipe_id || result.recipe_id || state.currentRecipe?.id;
+      const referenceId = data.robot_groups_reference_result_id;
+      note.textContent = `配方 #${recipeId}${referenceId ? ` · 标准记录 #${referenceId}` : ''}。` + note.textContent;
+    }
+  }
+  function renderSpatialResults(result) {
+    const host=$('spatial-results'); host.replaceChildren();
+    const table=document.createElement('table'); table.style.cssText='width:100%;margin-top:14px;text-align:left';
+    const header=table.insertRow();
+    ['拟合组','ΔX / ΔY / ΔZ (mm)','ΔRx / ΔRy / ΔRz (°)','夹角 / 轴线间距'].forEach(t=>{const th=document.createElement('th');th.textContent=t;header.append(th);});
+    Object.entries(result.groups).forEach(([key,v])=>{
+      const row=table.insertRow();
+      [key==='A'?'A · 上层 Π1–Π2':'B · 中层 Π2–Π3',
+       v.translation_mm ? Object.values(v.translation_mm).map(x=>x.toFixed(3)).join(' / ') : '标准帧预览',
+       v.rotation_deg ? Object.values(v.rotation_deg).map(x=>x.toFixed(3)).join(' / ') : '—',
+       `${v.angle_deg.toFixed(2)}° / ${v.gap_mm.toFixed(3)} mm`].forEach(t=>row.insertCell().textContent=t);
+    });
+    host.append(table);
+    const note=document.createElement('p');
+    note.textContent=`层距 ${Number(result.layer_spacing_mm).toFixed(3)} mm · 相机坐标系。位移为各组基准点变化，完整刚体变换保存在各组 delta_T。`;
+    host.append(note);
+    if (result.warning_message) {const warning=document.createElement('p');warning.textContent=result.warning_message;host.append(warning);}
+  }
+  $('btn-spatial-preview').addEventListener('click', async()=>{
+    if(state.busy) return;
+    state.busy=true;refreshActionState();
+    const fingerprint=spatialFingerprint();
+    spatialCandidate=null;
+    try {
+      if(!state.token) throw new Error('请先采集或加载同帧点云');
+      const data=await postJson('/vision/api/rack-location/workbench/spatial-teach/', {
+        action:'preview', recipe_id:$('recipe-id').value, pointcloud_token:state.token,
+        roi_config:measurementConfigPatch('all'), local_template_rois:cleanLocalTemplateRois(), margin_mm:Number($('spatial-margin').value), voxel_mm:Number($('spatial-voxel').value),
+      });
+      if(!data.success) throw new Error(data.error);
+      if(fingerprint!==spatialFingerprint()) throw new Error('示教数据已改变，请重新预览');
+      spatialCandidate={candidate:data.candidate,fingerprint};
+      showSpatialPreview(data.preview,data.roi_config.spatial_rois);renderSpatialResults(data.standard);
+      $('spatial-state').textContent='预览就绪；确认覆盖后点击「保存配方」';
+      setStatus(data.preview.projection_warning || '已生成三组 AABB；可调整余量后更新预览，确认后保存。');
+    } catch(e){setStatus(e.message);} finally{state.busy=false;refreshActionState();}
+  });
+  let spatialDrag=null;
+  $('spatial-canvas').addEventListener('pointerdown',e=>{spatialDrag=[e.clientX,e.clientY];e.currentTarget.setPointerCapture(e.pointerId);});
+  $('spatial-canvas').addEventListener('pointermove',e=>{if(!spatialDrag)return;spatialYaw+=(e.clientX-spatialDrag[0])*0.01;spatialPitch+=(e.clientY-spatialDrag[1])*0.01;spatialDrag=[e.clientX,e.clientY];paintSpatial();});
+  $('spatial-canvas').addEventListener('pointerup',()=>{spatialDrag=null;});
+  $('spatial-canvas').addEventListener('wheel',e=>{e.preventDefault();spatialZoom=Math.max(.1,Math.min(10,spatialZoom*Math.exp(-e.deltaY*.001)));paintSpatial();},{passive:false});
 
 }());
 

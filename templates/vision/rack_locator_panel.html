@@ -1038,9 +1038,22 @@
     <button id="btn-layer-spacing-line" class="btn rl-roi-editor-btn" disabled>📏 层距测量线</button>
     <span id="roi-teach-progress" class="badge badge-muted">三平面已框选 0/3</span>
     <span id="roi-config-progress" class="badge badge-muted">五项位置 0/5</span>
-    <span class="rl-roi-help">层距请用“层距测量线”从上层对应点拖到下层对应点；两个端点的小圆用于3D深度簇采样。三块 ROI 继续用于坐标补偿。</span>
+    <span class="rl-roi-help">外框、三组 ROI 与层距测量线随配方保存和回显。空间配方使用 3D 范围及轴线基准计算。</span>
   </div>
 
+  <section class="rl-panel" style="padding:16px;margin:12px 0">
+    <strong>三组空间 ROI · 双组轴线定位</strong>
+    <label>向外扩充（mm） <input id="spatial-margin" type="number" value="5" min="0" max="500" step="1" style="width:80px"></label>
+    <label>下采样体素（mm，0 关闭） <input id="spatial-voxel" type="number" value="0" min="0" max="50" step="0.5" style="width:80px"></label>
+    <button id="btn-spatial-preview" type="button" class="btn btn-secondary">生成 / 更新 3D 预览</button>
+    <span id="spatial-state">尚未预览</span>
+    <div id="spatial-viewport" hidden>
+      <p>拖拽旋转，滚轮缩放；蓝：Π1 顶部横梁，橙：Π2 左侧立柱，粉：Π3 底部横梁。相机坐标，单位 mm。</p>
+      <canvas id="spatial-canvas" width="1000" height="360" style="width:100%;height:360px;background:#0f172a;touch-action:none"></canvas>
+      <pre id="spatial-bounds" style="white-space:pre-wrap"></pre>
+    </div>
+    <div id="spatial-results" aria-live="polite"></div>
+  </section>
   <div class="rl-workbench-status" id="rl-status" role="status" aria-live="polite">请选择配方，点击「开始计算」自动采集并计算；也可先采集点云调整 ROI。</div>
   <div id="rl-calculation-feedback" role="alert" hidden style="padding:14px;margin:12px 0;border:1px solid #fca5a5;border-radius:8px;background:#fef2f2;color:#b91c1c;white-space:pre-wrap;"></div>
 
@@ -1074,6 +1087,30 @@
     <!-- 右栏：模板、补偿矩阵与结果图 -->
     <div class="rl-panel">
       <div class="rl-panel-body">
+        <section class="rl-comp-panel" id="rl-robot-groups-panel" style="margin-top:16px" aria-live="polite">
+          <div class="rl-comp-head">
+            <h3>机器人基坐标系偏差 · A / B 两组</h3>
+            <span class="badge badge-muted" id="robot-groups-status">未计算</span>
+          </div>
+          <p class="rl-comp-coordinate-note">标准料架 → 当前料架；使用手眼标定页面保存的手眼矩阵与拍照位姿换算。</p>
+          <div class="rl-comp-body">
+            <table class="rl-matrix" style="width:100%;table-layout:fixed" aria-label="两组机器人基坐标系六轴偏差">
+              <thead><tr><th scope="col">偏差</th><th scope="col">A · Π1–Π2</th><th scope="col">B · Π3–Π2</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">ΔX (mm)</th><td id="robot-a-x">—</td><td id="robot-b-x">—</td></tr>
+                <tr><th scope="row">ΔY (mm)</th><td id="robot-a-y">—</td><td id="robot-b-y">—</td></tr>
+                <tr><th scope="row">ΔZ (mm)</th><td id="robot-a-z">—</td><td id="robot-b-z">—</td></tr>
+                <tr><th scope="row">ΔRX (°)</th><td id="robot-a-rx">—</td><td id="robot-b-rx">—</td></tr>
+                <tr><th scope="row">ΔRY (°)</th><td id="robot-a-ry">—</td><td id="robot-b-ry">—</td></tr>
+                <tr><th scope="row">ΔRZ (°)</th><td id="robot-a-rz">—</td><td id="robot-b-rz">—</td></tr>
+              </tbody>
+            </table>
+            <p id="robot-groups-warning" role="status" hidden style="padding:10px;background:#fffbeb;color:#92400e;border:1px solid #fcd34d;border-radius:6px;white-space:pre-wrap"></p>
+            <p id="robot-groups-note" class="rl-comp-coordinate-note">计算后显示两组机器人偏差；无有效换算结果时显示 —。</p>
+            <a href="{% url 'vision:hand_eye_page' %}" target="_blank" rel="noopener">查看手眼标定配置</a>
+          </div>
+        </section>
+
         <section class="rl-template-panel" id="rl-template-panel" style="margin-bottom: 16px;">
           <div class="rl-comp-head" style="justify-content: space-between;">
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -1534,6 +1571,6 @@
     offlinePackagesUrl: '{% url "vision:offline_packages" %}',
   };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=47" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=55" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
 <script src="{% static 'vision/js/offline_package_manager.js' %}?v=21"></script>
 {% endblock %}
