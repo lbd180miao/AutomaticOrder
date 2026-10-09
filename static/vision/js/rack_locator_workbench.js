@@ -55,9 +55,24 @@
   };
   let roiSaveChain = Promise.resolve();
   let roiSaveRequestSeq = 0;
+  let roiEditRevision = 0;
+  state.roiDirty = false;
+  window.rackLocatorRoiRevision = () => roiEditRevision;
+  function markRoiEdited() {
+    roiEditRevision++;
+    state.roiDirty = true;
+    state.pendingRoi = null;
+    state.pendingLocalTemplateRois = null;
+    state.pendingLayerSpacingLine = null;
+    window.tempPendingRoi = null;
+    if ($('btn-save-recipe')) $('btn-save-recipe').textContent = '💾 保存配方（未保存）';
+    setStatus('当前区域已重新绘制，请点击「保存配方」保存新位置。');
+    refreshActionState();
+  }
 
   // ── 暴露设置 ROI 的接口供外部调用 ────────────────────────
   window.rackLocatorSetRoi = function(targetRoi, localTemplateRois, layerSpacingLine) {
+    if (state.roiDirty) return;
     // 外部JS初始化完成时，将页面初始化阶段暂存的 tempPendingRoi 迁移进来
     if (window.tempPendingRoi) {
       state.pendingRoi = window.tempPendingRoi;
@@ -103,6 +118,7 @@
     if (state.token && image.style.display !== 'none') {
       // 直接委托 applyPixelRoi，它已正确处理矩形和多边形两种情况
       if (applyPixelRoi(targetRoi)) {
+        refreshActionState();
         const roiType = (targetRoi.polygon && targetRoi.polygon.length >= 3)
           ? `多边形(${targetRoi.polygon.length}点)`
           : `矩形(${targetRoi.w}×${targetRoi.h})`;
@@ -120,6 +136,8 @@
   };
 
   window.rackLocatorRecipeChanged = function(recipeId) {
+    roiEditRevision++;
+    state.roiDirty = false;
     state.roi = null;
     state.displayRoi = null;
     state.pendingRoi = null;
@@ -717,7 +735,7 @@
     setButton('btn-polygon', hasCloud);
     const localRoisReady = hasAllLocalTemplateRois();
     const measurementSummary = updateMeasurementConfigProgress();
-    setButton('btn-save-recipe', measurementSummary.count > 0);
+    setButton('btn-save-recipe', measurementSummary.count > 0 || state.roiDirty);
     if ($('btn-save-recipe')) {
       $('btn-save-recipe').title = localRoisReady && state.localTemplateGeometryValid !== true
         ? '当前三平面有质量提示；直检模式允许保存'
@@ -829,7 +847,11 @@
 
   async function refreshCurrentRecipe(recipeId = null) {
     if (!CFG.currentRecipeUrl && !CFG.recipeApiUrl) return null;
+    // 工作台必须始终以用户的选择为准，不能按层号重新解析成其他配方。
+    const selectedId = $('recipe-select')?.value || $('recipe-id')?.value || '';
+    recipeId = selectedId || recipeId;
     const requestSeq = ++state.recipeRequestSeq;
+    const saveRevision = roiSaveRequestSeq;
     try {
       let url;
       if (recipeId && CFG.recipeApiUrl) {
@@ -847,6 +869,10 @@
       const recipe = data.recipe || data.recipes?.[0] || null;
       // 用户快速切换配方时，旧请求不得覆盖最后一次选择。
       if (requestSeq !== state.recipeRequestSeq) return null;
+      if (selectedId && String($('recipe-select')?.value || $('recipe-id')?.value || '') !== String(selectedId)) return null;
+      if (recipeId && recipe && String(recipe.id) !== String(recipeId)) return null;
+      if (saveRevision !== roiSaveRequestSeq) return null;
+      if (state.roiDirty) return null;
       state.currentRecipe = recipe;
       syncRansacThreshold(recipe?.roi_config || {});
       if (recipe && recipe.id && $('recipe-id')) {
@@ -924,16 +950,11 @@
 
     const config = {};
     const targetRoi = cleanTargetRoi();
-    if (targetRoi) config.target_roi = targetRoi;
+    config.target_roi = targetRoi;
     const localRois = cleanLocalTemplateRois();
-    const configuredLocalRois = Object.fromEntries(
-      Object.entries(localRois).filter(([, roi]) => Boolean(roi)),
-    );
-    if (Object.keys(configuredLocalRois).length) {
-      config.local_template_rois = configuredLocalRois;
-    }
+    config.local_template_rois = localRois;
     const line = cleanLayerSpacingLine();
-    if (line) config.layer_spacing_line = line;
+    config.layer_spacing_line = line;
     config.ransac_distance_threshold_mm = selectedRansacThreshold();
     return config;
   }
@@ -1149,8 +1170,42 @@
   async function autoLoadAndShowRecipeRoi({ recipeId, targetRoi, source = '配方' } = {}) {
     const token = state.token;
     if (!token || !image.src || image.style.display === 'none') return false;
+    const revision = roiEditRevision;
+    const selectedId = $('recipe-select')?.value || $('recipe-id')?.value || recipeId;
+    // 重新采集/加载数据包不能丢弃用户尚未保存的新框。
+    if (state.roiDirty) {
+      draw();
+      refreshActionState();
+      return Boolean(state.roi);
+    }
 
     try {
+      if (selectedId) {
+        const res = await fetch(`${CFG.recipeApiUrl || '/vision/api/vision/3d/recipes/'}?id=${encodeURIComponent(selectedId)}`, {cache: 'no-store'});
+        const data = apiPayload(await res.json());
+        if (!res.ok || !data.success) throw new Error(data.error || '读取配方失败');
+        const recipe = data.recipe || data.recipes?.[0];
+        if (!recipe || String(recipe.id) !== String(selectedId)) throw new Error('当前配方不存在');
+        if (state.token !== token || roiEditRevision !== revision || state.roiDirty
+          || String($('recipe-select')?.value || $('recipe-id')?.value || recipeId) !== String(selectedId)) return false;
+        const config = recipe.roi_config || {};
+        state.currentRecipe = recipe;
+        state.pendingRoi = null;
+        state.pendingLocalTemplateRois = null;
+        state.pendingLayerSpacingLine = null;
+        window.tempPendingRoi = null;
+        state.roi = null;
+        state.displayRoi = null;
+        applyLocalTemplateRois(config.local_template_rois);
+        applyLayerSpacingLine(config.layer_spacing_line);
+        syncRansacThreshold(config);
+        if (config.target_roi) applyPixelRoi(config.target_roi);
+        draw();
+        setReadout();
+        refreshActionState();
+        setStatus(`已加载配方「${recipe.recipe_name || selectedId}」最新保存的位置；重画后请点击「保存配方」。`);
+        return Boolean(state.roi);
+      }
       if (state.pendingLocalTemplateRois !== null) {
         applyLocalTemplateRois(state.pendingLocalTemplateRois);
         state.pendingLocalTemplateRois = null;
@@ -1168,7 +1223,7 @@
         || normalizePixelRoi(window.tempPendingRoi)
         || await recipePixelRoi(recipeId);
       // 等待接口期间如果又加载了另一帧，旧 ROI 不再覆盖新画布。
-      if (state.token !== token) return false;
+      if (state.token !== token || roiEditRevision !== revision || state.roiDirty) return false;
       if (!roi) {
         setStatus('点云已加载，但当前3D配方ROI无法投影到图像，请检查相机坐标ROI。');
         return false;
@@ -1377,7 +1432,7 @@
 
     // 外框 ROI 可以使用多边形，绘制它时也不隐藏三个平面矩形。
     if (state.roi && state.roi.displayPolygon && state.roi.displayPolygon.length >= 2) {
-      const poly = state.roi.displayPolygon;
+      const poly = state.roi.polygon.map(realPointToDisplay);
       ctx.save();
       ctx.strokeStyle = '#a855f7';
       ctx.lineWidth = 3;
@@ -1439,8 +1494,8 @@
   }
   function naturalDims() {
     return {
-      w: image.naturalWidth || Number(image.dataset.naturalWidth) || canvas.width,
-      h: image.naturalHeight || Number(image.dataset.naturalHeight) || canvas.height,
+      w: Number(image.dataset.naturalWidth) || image.naturalWidth || canvas.width,
+      h: Number(image.dataset.naturalHeight) || image.naturalHeight || canvas.height,
     };
   }
   function displayToReal(d) {
@@ -1476,7 +1531,10 @@
   // ── 矩形拖拽绘制（原有模式） ────────────────────────────
   canvas.addEventListener('mousedown', (e) => {
     if (!state.token || e.button !== 0) return;
+    if (state.busy) return;
     if (state.drawMode === 'polygon') return;  // 多边形模式由 click 处理
+    state[state.activeRoiStateKey || 'roi'] = null;
+    markRoiEdited();
     if (state.drawMode === 'line') {
       const point = pointerToCanvas(e);
       state.lineDrawing = true;
@@ -1547,7 +1605,7 @@
       updateLayerSpacingLineUI();
       draw();
       refreshActionState();
-      autoSaveRoiToRecipe({ changedKey: 'layerSpacingLine' });
+      markRoiEdited();
       return;
     }
     if (!state.drawing || !state.displayRoi) return;
@@ -1563,18 +1621,18 @@
     state.invalidRoiKeys = state.invalidRoiKeys.filter((item) => item !== key);
     if (key !== 'roi') state.localTemplateGeometryValid = null;
     if (key === 'roi') {
-      // 外框 ROI 自动保存到配方
+      // 新框替换当前草稿，只有保存按钮写入配方。
       setReadout();
       syncRoiToRightSide();
       refreshActionState();
-      autoSaveRoiToRecipe({ changedKey: 'roi' });
+      markRoiEdited();
     } else {
       // 局部模板 ROI：更新三平面计数显示
       updateLocalTemplateRoiCount();
       setReadout();
       refreshActionState();
       draw();
-      autoSaveRoiToRecipe({ changedKey: key });
+      markRoiEdited();
     }
   });
 
@@ -1617,18 +1675,19 @@
     setReadout();
     syncRoiToRightSide();
     refreshActionState();
-    autoSaveRoiToRecipe({ changedKey: 'roi' });
-    setStatus(`✅ 多边形 ROI 已闭合（${realPts.length} 个顶点），正在自动保存...`);
+    markRoiEdited();
   }
 
   // 单击：在多边形模式下添加顶点
   canvas.addEventListener('click', (e) => {
-    if (!state.token || state.drawMode !== 'polygon') return;
+    if (!state.token || state.busy || state.drawMode !== 'polygon') return;
     // 避免 dblclick 时触发两次 click
     if (e.detail >= 2) return;
     const pt = pointerToCanvas(e);
     if (!state.polyDrawing) {
       // 开始新多边形
+      state.roi = null;
+      markRoiEdited();
       state.polyPoints = [pt];
       state.polyDrawing = true;
     } else {
@@ -1707,21 +1766,31 @@
 
   // ── 保存配方按钮（手动保存当前 ROI 到配方）─────────────────
   $('btn-save-recipe')?.addEventListener('click', async () => {
-    if (measurementConfigSummary().count === 0) { setStatus('请先画好至少一项位置再保存。'); return; }
+    if (state.busy) return;
+    if (state.polyDrawing) { setStatus('请先双击闭合多边形，再保存配方。'); return; }
+    state.busy = true;
+    refreshActionState();
     const btn = $('btn-save-recipe');
-    const origText = btn.textContent;
     btn.disabled = true;
     btn.textContent = '保存中...';
-    await autoSaveRoiToRecipe({ changedKey: 'all' });
-    btn.textContent = origText;
-    btn.disabled = false;
-    refreshActionState();
+    try {
+      const saved = await autoSaveRoiToRecipe({ changedKey: 'all' });
+      btn.textContent = saved ? '✅ 配方已保存' : '❌ 保存失败，请重试';
+    } catch (error) {
+      btn.textContent = '❌ 保存失败，请重试';
+      setStatus('保存配方失败：' + error.message);
+    } finally {
+      state.busy = false;
+      btn.disabled = false;
+      refreshActionState();
+    }
   });
 
   // ── 采集点云 ─────────────────────────────────────────────
   async function captureWorkbenchFrame() {
     showLoading('3D 相机采集中...');
     try {
+      await roiSaveChain;
       // 优先使用工作台专用端点
       const captureApiUrl = CFG.captureUrl || CFG.legacyCaptureUrl || '/vision/api/rack-location/workbench/capture/';
       console.log('[采集点云] 使用API端点:', captureApiUrl);
@@ -1744,7 +1813,7 @@
       state.lastResultId = null;
       state.lastResultOk = false;
       state.lastResultRecipeId = null;
-      state.roi = null; state.displayRoi = null;
+      state.displayRoi = null;
       // 优先显示 2D 相机原图（与点云像素一一对应，ROI 坐标可直接索引点云）；
       // 无真实图像时回退到深度伪彩图（模拟数据 / 旧数据兼容）
       const previewUrl = data.raw_rgb_image_url || data.pointcloud_preview_url || data.preview_image_url;
@@ -1820,6 +1889,7 @@
     const key = state.activeRoiStateKey || 'roi';
     if (key === 'layerSpacingLine') {
       clearLayerSpacingLine();
+      markRoiEdited();
       state.drawMode = 'line';
       state.activeRoiStateKey = 'layerSpacingLine';
       updateLayerSpacingLineUI();
@@ -1830,6 +1900,7 @@
     }
     const style = roiOverlayStyles.find((item) => item.key === key) || roiOverlayStyles[0];
     state[key] = null;
+    markRoiEdited();
     state.invalidRoiKeys = state.invalidRoiKeys.filter((item) => item !== key);
     if (key !== 'roi') state.localTemplateGeometryValid = null;
     state.displayRoi = null;
@@ -1856,10 +1927,8 @@
       return;
     }
     input.value = value.toFixed(1);
-    const saved = await autoSaveRoiToRecipe({ changedKey: 'ransacThreshold' });
-    if (saved) {
-      setStatus(`✅ RANSAC距离阈值 ${value.toFixed(1)} mm 已保存到当前配方；下次计算生效。`);
-    }
+    markRoiEdited();
+    setStatus('阈值已修改，请点击「保存配方」。');
   }
   const ransacThresholdInput = $('ransac-distance-threshold');
   ransacThresholdInput?.addEventListener('input', () => {
@@ -1898,7 +1967,7 @@
         state.drawMode = 'rect';
         draw();
         setReadout();
-        setStatus(`请拖拽重画「${id === 'btn-roi-target' ? '外框 ROI' : mode === 'plane1' ? 'Π1 顶部横梁' : mode === 'plane2' ? 'Π2 左侧立柱' : 'Π3 底部横梁'}」区域，画完替换当前配方对应 ROI 并自动保存。`);
+        setStatus(`请拖拽重画「${id === 'btn-roi-target' ? '外框 ROI' : mode === 'plane1' ? 'Π1 顶部横梁' : mode === 'plane2' ? 'Π2 左侧立柱' : 'Π3 底部横梁'}」区域，再点击「保存配方」。`);
       });
     });
 
@@ -2079,6 +2148,7 @@
         roi: currentRoi3D(),
         roi_3d: currentRoi3D(),
         roi_config: measurementConfig,
+        save_recipe_roi: false,
         rack_side: currentRackSide(),
         recipe_id: $('recipe-id').value || null,
         recipe_data: currentRecipeData(),
@@ -2133,13 +2203,14 @@
   });
 
 
-  // ── 自动保存 ROI 到配方 ──────────────────────────────────
+  // ── 保存按钮：以当前草稿完整替换测量位置 ──────────────────
   async function autoSaveRoiToRecipe({ changedKey = 'all' } = {}) {
     const recipeId = $('recipe-id')?.value;
     if (!recipeId) { setStatus('未找到配方·请先选择配方'); return; }
     const roiConfig = measurementConfigPatch(changedKey);
     if (!Object.keys(roiConfig).length) { setStatus('当前项目没有可保存的位置数据'); return false; }
     const requestSeq = ++roiSaveRequestSeq;
+    const editRevision = roiEditRevision;
     const payload = JSON.parse(JSON.stringify({ id: recipeId, roi_config: roiConfig }));
     const currentRecipeId = () => String($('recipe-id')?.value || '');
     const isCurrentRequest = () => (
@@ -2151,7 +2222,7 @@
       try {
         const raw = await postJson(
           CFG.recipeApiUrl || '/vision/api/vision/3d/recipes/',
-          semanticPayload(payload),
+          payload,
           'PATCH',
         );
         const data = apiPayload(raw);
@@ -2161,8 +2232,9 @@
           state.currentRecipe = savedRecipe;
         }
         if (isCurrentRequest()) {
+          if (editRevision === roiEditRevision) state.roiDirty = false;
           const summary = measurementConfigSummary(savedRecipe?.roi_config || measurementConfigPatch('all'));
-          setStatus(`✅ 已保存到配方：${summary.labels.join('、')}（${summary.count}/5），可点击「开始计算」。`);
+          setStatus(`✅ 已保存到配方「${savedRecipe?.recipe_name || recipeId}」#${recipeId}：${summary.labels.join('、')}（${summary.count}/5），可点击「开始计算」。`);
         }
         return true;
       } catch (e) {
@@ -2371,10 +2443,8 @@
       state.captureLayerNo = payload.metadata?.layer?.layer_no || currentLayerIndex();
       state.lastResult = payload.result || null;
       state.lastResultRecipeId = payload.result?.recipe_id || state.captureRecipeId || null;
-      state.roi = null;
+      // 数据包仅替换图像，草稿不动；图像就绪后读取当前配方的新位置。
       state.displayRoi = null;
-      clearLocalTemplateRois();
-      clearLayerSpacingLine();
       const previewUrl = payload.preview_image_url;
       if (previewUrl) {
         image.src = previewUrl + (previewUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
@@ -2400,9 +2470,11 @@
       if (payload.roi_projection_error) console.warn('[自动ROI] 数据包3D ROI投影提示：', payload.roi_projection_error);
       const packageRoi = normalizePixelRoi(payload.recipe_pixel_roi)
         || normalizePixelRoi(payload.roi_config?.target_roi);
-      state.pendingLocalTemplateRois = payload.roi_config?.local_template_rois || null;
-      state.pendingLayerSpacingLine = normalizeLayerSpacingLine(payload.roi_config?.layer_spacing_line);
-      syncRansacThreshold(payload.roi_config || state.currentRecipe?.roi_config || {});
+      if (!$('recipe-id')?.value && !state.roiDirty) {
+        state.pendingLocalTemplateRois = payload.roi_config?.local_template_rois || null;
+        state.pendingLayerSpacingLine = normalizeLayerSpacingLine(payload.roi_config?.layer_spacing_line);
+        syncRansacThreshold(payload.roi_config || {});
+      }
       afterPreviewLoaded(() => autoLoadAndShowRecipeRoi({
         recipeId: state.captureRecipeId,
         targetRoi: packageRoi,

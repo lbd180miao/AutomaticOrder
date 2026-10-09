@@ -3063,7 +3063,7 @@ def api_rack_location_workbench_calculate(request):
             recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first()
             if recipe and recipe.roi_config:
                 for key in ('target_roi', 'local_template_rois', 'layer_spacing_line'):
-                    if not roi_config.get(key) and recipe.roi_config.get(key):
+                    if key not in roi_config and recipe.roi_config.get(key):
                         roi_config[key] = recipe.roi_config[key]
                 logger.info(f"自动补齐配方 {recipe_id} 的已保存2D测量配置")
         
@@ -3101,7 +3101,7 @@ def api_rack_location_workbench_calculate(request):
             layer_spacing_line.get(key) is not None
             for key in ('x1', 'y1', 'x2', 'y2')
         )
-        if recipe_id and (
+        if _as_bool(data.get('save_recipe_roi'), True) and recipe_id and (
             has_target_roi or has_local_template_rois or has_layer_spacing_line
             or ransac_distance_threshold_mm is not None
         ):

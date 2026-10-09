@@ -1212,6 +1212,10 @@
     if (!option || !option.value) return;
 
     const id = option.value;
+    // 刷新或返回工作台时保留当前选择，不再退回列表第一项。
+    const selectedUrl = new URL(window.location.href);
+    selectedUrl.searchParams.set('recipe_id', id);
+    window.history.replaceState(window.history.state, '', selectedUrl);
     const pos = option.dataset.pos || '1';
     const layer = option.dataset.layer || '1';
     const sx = option.dataset.sx || '0';
@@ -1276,30 +1280,16 @@
   }
 
   // ── 监听配方下拉框 ──
-  // Bug修复：当配方1已被默认选中时，再次点击配方1不会触发 change 事件。
-  // 使用 mousedown 记录"打开前的值"，blur 时若值未变化则手动触发应用。
+  // 只在选择改变时加载，失焦不能清空正在编辑的 ROI。
   (function setupRecipeSelectEvents() {
     const sel = document.getElementById('recipe-select');
     if (!sel) return;
-    let _valueBeforeOpen = sel.value;
 
     // change 事件：正常切换时触发
     sel.addEventListener('change', function () {
-      _valueBeforeOpen = this.value;
       applyRecipeFromDropdown();
     });
 
-    // mousedown：记录打开下拉前的值
-    sel.addEventListener('mousedown', function () {
-      _valueBeforeOpen = this.value;
-    });
-
-    // blur：下拉关闭后，若值没变（重选了同一项）也触发一次
-    sel.addEventListener('blur', function () {
-      if (this.value && this.value === _valueBeforeOpen) {
-        applyRecipeFromDropdown();
-      }
-    });
   })();
 
   // 初始化：在外部 JS (rack_locator_workbench.js) 加载完成后再应用第一个配方，
@@ -1326,8 +1316,14 @@
   window.selectRecipeCard = selectRecipeCard;
 
   // ── 加载配方保存的 ROI 并显示在画布上 ──────────────────────
+  let recipeRoiLoadSeq = 0;
   async function loadRecipeRoi(recipeId) {
     if (!recipeId) return;
+    const requestSeq = ++recipeRoiLoadSeq;
+    const revision = window.rackLocatorRoiRevision?.();
+    const isCurrent = () => requestSeq === recipeRoiLoadSeq
+      && String(document.getElementById('recipe-id')?.value) === String(recipeId)
+      && revision === window.rackLocatorRoiRevision?.();
     try {
       // 1. 查询该配方保存的 3D ROI 参数（点云空间坐标框）
       const query = new URLSearchParams({ recipe_id: recipeId });
@@ -1337,6 +1333,7 @@
         console.warn('api_vision_3d_rois returned non-JSON:', res.status);
       } else {
         const data = await res.json();
+        if (!isCurrent()) return;
         if (data.success && data.data && data.data.rois && data.data.rois.length > 0) {
           const roi = data.data.rois[0];
           const roiFields = {
@@ -1361,6 +1358,7 @@
         return;
       }
       const recipeDetailData = await recipeDetailRes.json();
+      if (!isCurrent()) return;
       if (recipeDetailData.success) {
         // 后端返回 {success, recipes:[...], data:{recipes:[...]}}，取第一条
         const recipeList = recipeDetailData.recipes
@@ -1536,6 +1534,6 @@
     offlinePackagesUrl: '{% url "vision:offline_packages" %}',
   };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=44" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=47" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
 <script src="{% static 'vision/js/offline_package_manager.js' %}?v=21"></script>
 {% endblock %}
