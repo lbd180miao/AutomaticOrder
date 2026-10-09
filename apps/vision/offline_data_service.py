@@ -38,7 +38,7 @@ class OfflineDataPackageService:
 
     def __init__(self, base_dir: Optional[str] = None):
         configured = getattr(settings, "OFFLINE_DATA_PACKAGE_DIR", None)
-        self.base_dir = Path(base_dir or configured or (Path(settings.BASE_DIR) / "docs" / "pic"))
+        self.base_dir = Path(base_dir or configured or (Path(settings.BASE_DIR) / "3d_SDK" / "pic"))
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.index_path = self.base_dir / "index.json"
 
@@ -477,7 +477,7 @@ class OfflineDataPackageService:
         }
 
     def load_raw_package(self, package_name: str) -> Dict[str, Any]:
-        """加载原始数据包（从docs/pic文件夹）"""
+        """加载原始数据包（从3d_SDK/pic文件夹）"""
         package_dir = self._package_dir(package_name)
         
         # 查找点云文件

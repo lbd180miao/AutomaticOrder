@@ -1032,19 +1032,19 @@ def build_sample_pointcloud(
 
 
 
-_DOCS_PIC_COUNTER = 0  # 轮询计数器，全局唯一
+_OFFLINE_PIC_COUNTER = 0  # 轮询计数器，全局唯一
 
 
-def _load_docs_pic_pointcloud():
-    """从 docs/pic/1~N 目录中轮询读取真实 PLY 点云，转为 HxWx3 有序点云 (mm)。
+def _load_offline_pic_pointcloud():
+    """从 3d_SDK/pic/1~N 目录中轮询读取真实 PLY 点云，转为 HxWx3 有序点云 (mm)。
 
     PLY 格式：binary_little_endian，每点 float x,y,z + uchar r,g,b，
     来自 Rvbust 相机，典型分辨率 1080x1440。
     """
-    global _DOCS_PIC_COUNTER
+    global _OFFLINE_PIC_COUNTER
     import glob as _glob
 
-    base_dir = os.path.join(settings.BASE_DIR, 'docs', 'pic')
+    base_dir = os.fspath(settings.OFFLINE_DATA_PACKAGE_DIR)
     dirs = sorted(
         d for d in _glob.glob(os.path.join(base_dir, '*'))
         if os.path.isdir(d) and os.path.basename(d).isdigit()
@@ -1052,8 +1052,8 @@ def _load_docs_pic_pointcloud():
     if not dirs:
         return None
 
-    idx = _DOCS_PIC_COUNTER % len(dirs)
-    _DOCS_PIC_COUNTER += 1
+    idx = _OFFLINE_PIC_COUNTER % len(dirs)
+    _OFFLINE_PIC_COUNTER += 1
     ply_path = os.path.join(dirs[idx], 'PointCloud.ply')
     if not os.path.exists(ply_path):
         return None
@@ -1098,10 +1098,10 @@ def _load_docs_pic_pointcloud():
         invalid = (cloud[..., 0] == 0) & (cloud[..., 1] == 0) & (cloud[..., 2] == 0)
         cloud[invalid] = np.nan
 
-        logger.info('[docs/pic] 加载离线点云 %s，尺寸 %dx%d', ply_path, H, W)
+        logger.info('[3d_SDK/pic] 加载离线点云 %s，尺寸 %dx%d', ply_path, H, W)
         return cloud
     except Exception as exc:  # noqa: BLE001
-        logger.warning('[docs/pic] PLY 读取失败: %s', exc)
+        logger.warning('[3d_SDK/pic] PLY 读取失败: %s', exc)
         return None
 
 
@@ -2655,8 +2655,8 @@ class RackLocationService:
             fallback_reason = str(exc)
 
         if pointcloud is None:
-            # 优先使用 docs/pic 目录中的真实离线点云，失败才回退合成数据
-            real_cloud = _load_docs_pic_pointcloud()
+            # 优先使用 3d_SDK/pic 目录中的真实离线点云，失败才回退合成数据
+            real_cloud = _load_offline_pic_pointcloud()
             if real_cloud is not None:
                 pointcloud = real_cloud
                 source = 'docs_pic_offline'

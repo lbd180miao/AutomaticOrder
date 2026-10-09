@@ -167,15 +167,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 VISION_MAX_UPLOAD_BYTES = int(os.environ.get('VISION_MAX_UPLOAD_BYTES', 25 * 1024 * 1024))
 VISION_MAX_IMAGE_PIXELS = int(os.environ.get('VISION_MAX_IMAGE_PIXELS', 25_000_000))
 
-# 3D 料架定位离线数据包；与既有离线测试文件共用 docs/pic 根目录。
+# 3D 料架定位离线数据包；与既有离线测试文件共用 3d_SDK/pic 根目录。
 OFFLINE_DATA_PACKAGE_DIR = Path(
-    os.environ.get('OFFLINE_DATA_PACKAGE_DIR', BASE_DIR / 'docs' / 'pic')
+    os.environ.get('OFFLINE_DATA_PACKAGE_DIR', BASE_DIR / '3d_SDK' / 'pic')
 )
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# 根目录 test_*.py 是需人工执行的硬件诊断脚本，默认测试仅发现业务应用。
-TEST_RUNNER = 'AutomaticOrder.test_runner.ApplicationDiscoverRunner'
 
 # 3D 深度相机料架定位运行模式：'MOCK'（模拟，无需硬件）/ 'REAL'（真实相机+机器人）
 RACK_3D_POSITIONING_MODE = os.environ.get('RACK_3D_POSITIONING_MODE', 'MOCK').upper()

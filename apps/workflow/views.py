@@ -4,64 +4,10 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from apps.alarms.services import AlarmService
-from apps.core.constants import STATE_STAGE_MAP, Stage, TERMINAL_STATES, WorkflowState
+from apps.core.constants import WorkflowState
 from apps.core.exceptions import AutomaticOrderError
-from .models import StationCycle, StationPhase, WorkflowEvent, WorkflowInstance
+from .models import WorkflowEvent, WorkflowInstance
 from .services import WorkflowService
-
-STAGE_ONE_STATES = [s for s, st in STATE_STAGE_MAP.items() if st == Stage.STAGE_ONE]
-STAGE_TWO_STATES = [s for s, st in STATE_STAGE_MAP.items() if st == Stage.STAGE_TWO]
-STAGE_THREE_STATES = [s for s, st in STATE_STAGE_MAP.items() if st == Stage.STAGE_THREE]
-
-# 主流程状态的线性顺序，用于判断某状态是否已走过。
-ORDERED_STATES = STAGE_ONE_STATES + STAGE_TWO_STATES + STAGE_THREE_STATES + [WorkflowState.COMPLETED]
-
-HANDSHAKE_DEFINITIONS = [
-    ('产品条码', 'DBX22.0', 'DBX48.2', 'DBX48.1', {StationPhase.WAIT_PRODUCT, StationPhase.WAIT_MARK_RESET}),
-    ('料框与配方', 'DBX46.0', 'DBX48.6', 'DBX48.5', {StationPhase.WAIT_RACK, StationPhase.WAIT_RACK_RESET}),
-    ('3D 定位', 'DBX46.2', 'DBD58 / DBX49.2', 'DBX49.1', {StationPhase.WAIT_POSITION, StationPhase.WAIT_POSITION_RESET}),
-    ('配方核对', 'DBX46.1', 'DBX49.0', 'DBX48.7', {StationPhase.WAIT_RECIPE_VERIFY, StationPhase.WAIT_RECIPE_RESET}),
-    ('泡棉检测', 'DBX46.3', 'DBX62.1', 'DBX62.0', {StationPhase.WAIT_FOAM, StationPhase.WAIT_FOAM_RESET}),
-    ('装箱上传', 'DBX46.4', 'DBX62.3', 'DBX62.2', {StationPhase.WAIT_BOXING, StationPhase.WAIT_BOXING_RESET}),
-]
-
-
-def _handshake_cards(cycle, demo_mode=False):
-    phase = cycle.phase if cycle else None
-    active_index = next(
-        (index for index, definition in enumerate(HANDSHAKE_DEFINITIONS) if phase in definition[4]),
-        4 if demo_mode else 0,
-    )
-    completed = phase == StationPhase.COMPLETED
-    cards = []
-    for index, (name, trigger, result, confirm, _phases) in enumerate(HANDSHAKE_DEFINITIONS):
-        status = 'done' if completed or index < active_index else ('active' if index == active_index else 'pending')
-        cards.append({
-            'number': index + 1, 'name': name, 'trigger': trigger,
-            'result': result, 'confirm': confirm, 'status': status,
-            'trigger_value': 1 if status == 'done' else 0,
-            'confirm_value': 1 if status == 'done' else 0,
-        })
-    return cards
-
-
-def _build_stage_view(states, current_state):
-    """把状态列表转成带 label / done / active 标记的步骤列表。"""
-    try:
-        current_index = ORDERED_STATES.index(current_state)
-    except ValueError:
-        current_index = -1
-    steps = []
-    for st in states:
-        idx = ORDERED_STATES.index(st) if st in ORDERED_STATES else -1
-        steps.append({
-            'code': st,
-            'label': WorkflowState(st).label,
-            'done': idx != -1 and current_index != -1 and idx < current_index,
-            'active': st == current_state,
-        })
-    return steps
-
 
 def current(request):
     """兼容旧入口；实时流程监控已合并到设备页面。"""
