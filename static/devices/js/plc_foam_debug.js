@@ -144,4 +144,6 @@
       poll();
     }
   });
+  start.disabled = false;
+  status.textContent = '未启动监听';
 })();

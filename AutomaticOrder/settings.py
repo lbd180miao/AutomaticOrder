@@ -11,10 +11,15 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = Path(os.environ.get(
+    'AUTOMATIC_ORDER_DATA_DIR',
+    Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else BASE_DIR,
+)).resolve()
 
 
 def env_bool(name, default=False):
@@ -116,7 +121,7 @@ WSGI_APPLICATION = 'AutomaticOrder.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': Path(os.environ.get('DJANGO_DATABASE_PATH', BASE_DIR / 'db.sqlite3')),
+        'NAME': Path(os.environ.get('DJANGO_DATABASE_PATH', DATA_DIR / 'db.sqlite3')),
     }
 }
 
@@ -155,13 +160,17 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+# Windows registry may map .js to text/plain; nosniff then blocks PLC UI scripts.
+import mimetypes
+mimetypes.add_type('text/javascript', '.js', strict=True)
+WHITENOISE_MIMETYPES = {'.js': 'text/javascript'}
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 # whitenoise 静态存储
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = Path(os.environ.get('DJANGO_MEDIA_ROOT', DATA_DIR / 'media')).resolve()
 
 # 现场图片入口保护，避免误传超大文件耗尽进程内存。
 VISION_MAX_UPLOAD_BYTES = int(os.environ.get('VISION_MAX_UPLOAD_BYTES', 25 * 1024 * 1024))
@@ -205,7 +214,7 @@ AUTOMATIC_ORDER = {
         'apps.vision.rack_measurement.measure_rack_recipe',
     ),
     'HIK_CAMERA': {
-        'OUTPUT_DIR': Path(os.environ.get('HIK_CAMERA_OUTPUT_DIR', BASE_DIR / 'media' / 'hik_captures')),
+        'OUTPUT_DIR': Path(os.environ.get('HIK_CAMERA_OUTPUT_DIR', MEDIA_ROOT / 'hik_captures')),
         'SDK_LIB_DIR': os.environ.get(
             'HIK_CAMERA_SDK_LIB_DIR',
             'C:/Program Files (x86)/Common Files/MVS/Runtime/Win64_x64',
@@ -225,7 +234,7 @@ AUTOMATIC_ORDER = {
         'RUN_IN_SUBPROCESS': True,
     },
     'DM_CAMERA': {
-        'OUTPUT_DIR': Path(os.environ.get('DM_CAMERA_OUTPUT_DIR', BASE_DIR / 'media' / 'dm_captures')),
+        'OUTPUT_DIR': Path(os.environ.get('DM_CAMERA_OUTPUT_DIR', MEDIA_ROOT / 'dm_captures')),
         'SDK_PATH': Path(os.environ.get(
             'DM_CAMERA_SDK_PATH',
             BASE_DIR.parent / 'DM-Host-Computer-SDK/DM上位机&SDK/SDK/1.2.3',
@@ -257,7 +266,7 @@ AUTOMATIC_ORDER = {
         # RVC SDK PointMap 原生单位为米，进入视觉算法前转换为毫米。
         'POINTCLOUD_SCALE': float(os.environ.get('RVC_CAMERA_POINTCLOUD_SCALE', '1000.0')),
         'OUTPUT_DIR': Path(os.environ.get(
-            'RVC_CAMERA_OUTPUT_DIR', BASE_DIR / 'media' / 'rvc_captures')),
+            'RVC_CAMERA_OUTPUT_DIR', MEDIA_ROOT / 'rvc_captures')),
         'TIMEOUT': int(os.environ.get('RVC_CAMERA_TIMEOUT', '10')),
         'CAPTURE_TIMEOUT': int(os.environ.get('RVC_CAMERA_CAPTURE_TIMEOUT', '60')),
     },

@@ -24,7 +24,7 @@ def active(state):
 @contextmanager
 def ownership(mode=None):
     # One byte remains locked even when the JSON payload is rewritten.
-    path = Path(settings.BASE_DIR) / 'logs' / 'plc_debug_ownership.json'
+    path = Path(getattr(settings, 'DATA_DIR', settings.BASE_DIR)) / 'logs' / 'plc_debug_ownership.json'
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('a+b') as initial:
         if initial.tell() == 0:
@@ -165,7 +165,7 @@ def capture_position(recipe_id, layer_no):
     recipe = RackLocationRecipe.objects.get(pk=recipe_id, enabled=True)
     if not 1 <= layer_no <= recipe.layer_count:
         raise ValueError('当前层号超出配方范围')
-    if (recipe.roi_config or {}).get('local_template_rois'):
+    if (recipe.roi_config or {}).get('local_template_rois') or (recipe.roi_config or {}).get('spatial_rois'):
         # 三平面配方与工作台使用同一采集/计算链路，不能送入需要另一套
         # RackLocationROI3DEnhanced 配置的旧定位算法。
         from apps.vision.rack_location import Rack3DLocator, RackLocationService, SampleRackFrameProvider
@@ -177,17 +177,35 @@ def capture_position(recipe_id, layer_no):
             token=captured['pointcloud_token'], roi_config=recipe.roi_config,
             recipe_id=recipe_id, layer_no=layer_no, save_record=True,
         )
-        payload = result.get('plc_payload') or {}
-        valid = bool(result.get('locate_ok') and payload.get('compensation_valid'))
-        return {
-            'result_id': result.get('result_id'),
-            'is_success': valid,
-            'error_message': '' if valid else (
-                result.get('error_message') or result.get('warning_message') or '补偿无效，请检查标准模板及配方限值'
-            ),
-            **{f'compensation_{axis}': payload.get(f'offset_{axis}') for axis in 'xyz'},
-        }
+        return first_group_position(result, recipe)
     # Never allow the global MOCK camera default to feed a real PLC.
     return RackPositioningService(mode='MOCK' if simulated else 'REAL').execute_positioning(
         recipe_id, layer_no, save=True,
     )
+
+
+def first_group_position(result, recipe):
+    """PLC 调试固定映射第 1 组 A 的机器人基坐标平移，单位 mm。"""
+    try:
+        if not result.get('locate_ok'):
+            raise ValueError(result.get('error_message') or '3D 定位失败')
+        group = (result.get('robot_groups') or {}).get('A')
+        if not group:
+            raise ValueError(result.get('robot_conversion_error') or '缺少第1组（A组）机器人补偿，请重新保存双组标准及手眼标定')
+        if group.get('coordinate_system') != 'robot_base':
+            raise ValueError('第1组补偿不是机器人基坐标，禁止回写')
+        values = {axis: float(group['translation_mm'][axis]) for axis in 'xyz'}
+        for axis, value in values.items():
+            limit = float(getattr(recipe, f'max_offset_{axis}'))
+            if not math.isfinite(value) or not math.isfinite(limit) or abs(value) > limit:
+                raise ValueError(f'第1组 Δ{axis.upper()}={value} mm 超出配方限值 {limit} mm 或数值无效')
+        rz = float(group['rotation_deg']['rz'])
+        limit = float(recipe.max_offset_rz)
+        if not math.isfinite(rz) or not math.isfinite(limit) or abs(rz) > limit:
+            raise ValueError('第1组 Rz 超出配方限值或数值无效')
+        return {'result_id': result.get('result_id'), 'is_success': True,
+                'error_message': '', 'compensation_group': 'A',
+                **{f'compensation_{axis}': value for axis, value in values.items()}}
+    except (ValueError, TypeError, KeyError, OverflowError) as exc:
+        return {'result_id': result.get('result_id'), 'is_success': False,
+                'error_message': str(exc), 'compensation_group': 'A'}

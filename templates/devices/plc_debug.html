@@ -12,28 +12,28 @@
 <section class="panel">
 <h2>3D 自动联调 · PLC 触发 → 拍照计算 → 三轴回写</h2>
 <p class="hint">选择已完成标定与 ROI 示教的 3D 配方和层号。开始后需保持本页打开；关闭页面或断网后停止接收新触发（空闲时最长 15 秒，另一路操作占用期间顺延）。正在执行的拍照会完成本次回写。监听期间暂停工位 Worker 的 PLC 操作，并禁止手动写入。</p>
-<form id="position-form"><div class="panels">
+<form onsubmit="return false" id="position-form"><div class="panels">
 <div><label for="position-recipe">3D 定位配方</label><select id="position-recipe" required><option value="">请选择配方</option>{% for recipe in position_recipes %}<option value="{{ recipe.pk }}" data-layers="{{ recipe.layer_count }}">{{ recipe.recipe_name }}（{{ recipe.layer_count }} 层）</option>{% endfor %}</select></div>
 <div><label for="position-layer">当前层号</label><input id="position-layer" type="number" min="1" step="1" value="1" required></div></div>
-<button id="position-start" type="submit">开始监听 PLC 3D 触发</button>
+<button id="position-start" type="submit" disabled>开始监听 PLC 3D 触发</button>
 <button id="position-stop" type="button" disabled>停止监听</button>
 </form>
-<p class="hint">触发 DB2.DBX46.2 → ΔX / ΔY / ΔZ 写入 DBD50 / DBD54 / DBD58（mm）→ 结果 DBX49.2 → 完成 DBX49.1。无法计算时三轴均返回 999，结果为 0；写入并回读确认后，完成置 1。PLC 读取结果后撤销触发，系统复位完成和结果。启动时先等待触发为 0，同一次触发只拍照一次。三平面配方使用与3D工作台相同的计算流程。</p>
-<output id="position-status" aria-live="polite">未启动监听</output>
+<p class="hint">触发 DB2.DBX46.2 → 第1组（A组，机器人基坐标）ΔX / ΔY / ΔZ 写入 DBD50 / DBD54 / DBD58（mm）→ 结果 DBX49.2 → 完成 DBX49.1。无法计算时三轴均返回 999，结果为 0；写入并回读确认后，完成置 1。PLC 读取结果后撤销触发，系统复位完成和结果。启动时先等待触发为 0，同一次触发只拍照一次。双组配方使用与3D工作台相同的计算流程；仅回写A组，B组暂不写入PLC。</p>
+<output id="position-status" aria-live="polite">调试脚本加载中；若此提示持续存在，请检查静态文件部署并强制刷新。</output>
 <p id="position-progress" class="hint" role="status">开始监听前会先检查PLC通信；通信失败不会启动拍照。</p>
 <div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>ΔX（mm）</th><th>ΔY（mm）</th><th>ΔZ（mm）</th><th>结果 / 错误</th></tr></thead><tbody id="position-history"><tr><td colspan="6">暂无定位结果</td></tr></tbody></table></div>
 </section>
 <section class="panel">
 <h2>2D 相机与 PLC 联调 · 泡棉视觉检测</h2>
 <p class="hint">选择已完成左右泡棉 ROI 和标准模板示教的 2D 配方，检测使用该配方的 POS。保持本页打开；关闭页面或断网后监听会话空闲时最长 15 秒到期。2D 与 3D 可同时监听、分别停止；PLC扫描与拍照回写按顺序执行，另一路等待期间不会因占用而超时，监听期间暂停工位 Worker 的 PLC 操作并禁止手动写入。</p>
-<form id="foam-form">
+<form onsubmit="return false" id="foam-form">
 <label for="foam-recipe">2D 泡棉检测配方</label>
 <select id="foam-recipe" required><option value="">请选择配方</option>{% for recipe in foam_recipes %}<option value="{{ recipe.pk }}">{{ recipe.name }}（POS {{ recipe.pos }}）</option>{% endfor %}</select>
-<button id="foam-start" type="submit">开始监听 PLC 2D 触发</button>
+<button id="foam-start" type="submit" disabled>开始监听 PLC 2D 触发</button>
 <button id="foam-stop" type="button" disabled>停止监听</button>
 </form>
 <p class="hint">泡棉视觉检测触发 DB{{ db_number }}.DBX46.3 → 2D 相机拍照检测 → 泡棉检测结果 DBX62.1（1=OK，0=NG）→ 泡棉检测完成确认 DBX62.0。无论检测结果 OK 或 NG，结果回读确认后，完成确认均写入 TRUE，表示本次检查已结束，不代表合格；拍照或检测异常返回 NG，并显示错误。完成确认保持 TRUE，直到 PLC 读取后撤销触发，系统才将完成和结果复位为 FALSE；启动时触发已为 1，须先复位再触发。</p>
-<output id="foam-status" aria-live="polite">未启动监听</output>
+<output id="foam-status" aria-live="polite">调试脚本加载中；若此提示持续存在，请检查静态文件部署并强制刷新。</output>
 <p id="foam-progress" class="hint" role="status">开始监听前检查配方与PLC通信；通信失败不会启动拍照。</p>
 <div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>记录 ID</th><th>评分</th><th>缺陷</th><th>结果 / 错误</th></tr></thead><tbody id="foam-history"><tr><td colspan="6">暂无泡棉检测结果</td></tr></tbody></table></div>
 </section>
@@ -69,6 +69,6 @@ document.getElementById('empty-history')?.remove();const row=document.createElem
 document.getElementById('read-form').addEventListener('submit',event=>execute(event,false));document.getElementById('write-form').addEventListener('submit',event=>execute(event,true));
 })();
 </script>
-<script id="plc-position-script" src="{% static 'devices/js/plc_position_debug.js' %}?v=20260930-1" data-api-url="{% url 'devices:api_plc_position_debug' %}"></script>
-<script id="plc-foam-script" src="{% static 'devices/js/plc_foam_debug.js' %}?v=20260930-1" data-api-url="{% url 'devices:api_plc_foam_debug' %}"></script>
+<script id="plc-position-script" src="{% static 'devices/js/plc_position_debug.js' %}?v=20261010-group-a" data-api-url="{% url 'devices:api_plc_position_debug' %}"></script>
+<script id="plc-foam-script" src="{% static 'devices/js/plc_foam_debug.js' %}?v=20261010-group-a" data-api-url="{% url 'devices:api_plc_foam_debug' %}"></script>
 {% endblock %}
