@@ -42,11 +42,32 @@ def robot_group_results(service, recipe, groups):
                         'transform_context': context}
             if not np.isfinite(np.asarray(compensation['matrix'], dtype=float)).all():
                 raise ValueError('机器人偏差矩阵包含无效数值')
+            compensation.update(reference_point_motion(groups[name], compensation))
             converted[name] = compensation
         return {'robot_groups': converted, 'robot_conversion_error': '', 'transform_context': context}
     except (ValueError, TypeError, KeyError, np.linalg.LinAlgError) as exc:
         return {'robot_groups': {}, 'robot_conversion_error': f'手眼坐标换算失败：{exc}',
-                'transform_context': context}
+                        'transform_context': context}
+
+
+def reference_point_motion(group, compensation):
+    """Separate displacement at the fitted rack origin from matrix translation.
+
+    A rigid delta has t = displacement(p) + (I-R)p. Its translation column
+    therefore cannot be interpreted as displacement at an arbitrary workpoint.
+    Keep the robot compensation matrix intact and expose both quantities.
+    """
+    current = np.asarray(group['frame'], dtype=float)[:, 3]
+    delta = np.asarray(group['delta_T'], dtype=float)
+    reference = np.linalg.solve(delta, current)
+    base_camera = np.asarray(compensation['T_base_camera'], dtype=float)
+    displacement = base_camera[:3, :3] @ (current[:3] - reference[:3])
+    matrix_translation = np.asarray(compensation['matrix'], dtype=float)[:3, 3]
+    return {
+        'reference_point_displacement_mm': dict(zip('xyz', displacement.tolist())),
+        'rotation_lever_term_mm': dict(zip('xyz', (matrix_translation - displacement).tolist())),
+        'reference_point_meaning': 'fitted_pair_origin_in_robot_base',
+    }
 
 
 def legacy_axis_frames(service, points, rois, voxel_mm, frame_label, reference=None):
@@ -79,9 +100,19 @@ def legacy_robot_groups(service, recipe, cloud, regions):
     """Prefer frozen dual-axis standards; recover older references only from their own record."""
     source_id = (recipe.local_template_std or {}).get('source_result_id')
     metadata = {'robot_groups_recipe_id': recipe.pk, 'robot_groups_reference_result_id': source_id}
+
+    def pending_standard(reason=''):
+        return {**metadata, 'robot_groups': {}, 'robot_conversion_error': '',
+                'robot_groups_status': 'standard_unavailable' if source_id else 'standard_not_set',
+                'robot_groups_message': (
+                    f'旧标准 #{source_id} 暂不可用；' if source_id else '尚未保存双组标准；'
+                ) + '当前帧拟合和测量不受影响，暂不计算相对标准的 A/B 偏差。'
+                    '需要偏差时，请在标准料架位置计算后点击“保存为标准”。',
+                'standard_reference_diagnostic': reason}
+
+    if not source_id:
+        return pending_standard()
     try:
-        if not source_id:
-            raise ValueError('旧标准缺少来源点云记录，请保存双组标准')
         snapshot = (recipe.local_template_std or {}).get('dual_axis_standard') or {}
         if snapshot:
             if snapshot.get('source_result_id') != source_id or snapshot.get('recipe_id') != recipe.pk:
@@ -90,6 +121,9 @@ def legacy_robot_groups(service, recipe, cloud, regions):
         else:
             record = RackLocationResult.objects.get(pk=source_id, recipe_id=recipe.pk)
             standard = reference_axes_from_record(service, recipe, record)
+    except (ValueError, TypeError, KeyError, OSError, RackLocationResult.DoesNotExist, np.linalg.LinAlgError) as exc:
+        return pending_standard(str(exc))
+    try:
         current = legacy_axis_frames(service, cloud, regions, float((recipe.roi_config or {}).get('voxel_mm', 0)),
                                      '当前帧', standard)
         for key in ('A', 'B'):
@@ -97,9 +131,12 @@ def legacy_robot_groups(service, recipe, cloud, regions):
             current[key]['delta_T'] = delta.tolist()
         warnings = list(dict.fromkeys(message for collection in (standard, current)
                                       for group in collection.values() for message in group.get('quality_warnings', [])))
-        return {**robot_group_results(service, recipe, current), **metadata, 'quality_warnings': warnings}
+        converted = robot_group_results(service, recipe, current)
+        return {**converted, **metadata, 'quality_warnings': warnings,
+                'robot_groups_status': 'ready' if converted.get('robot_groups') else 'conversion_unavailable'}
     except (ValueError, TypeError, KeyError, OSError, RackLocationResult.DoesNotExist, np.linalg.LinAlgError) as exc:
-        return {'robot_groups': {}, 'robot_conversion_error': f'双组偏差计算失败：{exc}', **metadata}
+        return {'robot_groups': {}, 'robot_conversion_error': f'双组偏差计算失败：{exc}',
+                'robot_groups_status': 'calculation_failed', **metadata}
 
 
 def calculate(service, *, token, recipe, layer_no=1, save_record=False, cloud=None):

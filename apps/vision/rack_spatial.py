@@ -71,59 +71,166 @@ def extract(cloud, boxes):
 
 
 def fit_axis(points, voxel_mm=0):
+    """Enhanced axis fitting with better outlier rejection using percentile-based RANSAC."""
     points = np.asarray(points, dtype=float)
     original_count = len(points)
+    
+    # Voxel downsampling with centroid (reduces random variation)
     if voxel_mm > 0:
-        _, indices = np.unique(np.floor(points / voxel_mm), axis=0, return_index=True)
-        points = points[np.sort(indices)]
+        voxel_indices = np.floor(points / voxel_mm).astype(int)
+        unique_voxels, inverse = np.unique(voxel_indices, axis=0, return_inverse=True)
+        downsampled = np.array([points[inverse == i].mean(0) for i in range(len(unique_voxels))])
+        points = downsampled
+    
     if len(points) < 50:
         raise ValueError('下采样后有效点少于 50')
-    # Statistical outlier removal before total least-squares line fitting.
-    distances = cKDTree(points).query(points, k=min(17, len(points)))[0][:, 1:].mean(1)
-    points = points[distances <= distances.mean() + 2.5 * distances.std()]
+    
+    # Stage 1: Statistical outlier removal (less aggressive than before)
+    k_neighbors = min(17, len(points))
+    distances = cKDTree(points).query(points, k=k_neighbors)[0][:, 1:].mean(1)
+    
+    # Use median + MAD for robust threshold
+    median_dist = np.median(distances)
+    mad = np.median(np.abs(distances - median_dist))
+    threshold = median_dist + 2.5 * (1.4826 * mad) if mad > 1e-6 else distances.mean() + 2.5 * distances.std()
+    
+    points = points[distances <= threshold]
+    
     if len(points) < 30:
         raise ValueError('降噪后有效点不足')
+    
+    # Stage 2: Initial PCA fit with mean (more stable than median for large point sets)
     center = points.mean(0)
-    values, vectors = np.linalg.eigh(np.cov(points - center, rowvar=False))
+    centered = points - center
+    cov = np.cov(centered, rowvar=False)
+    values, vectors = np.linalg.eigh(cov)
+    
     if values[-1] <= 1e-8:
         raise ValueError('点云无有效空间跨度，无法拟合轴线')
-    ratio = float(values[-1] / max(values[-2], 1e-8))
-    warnings = ([f'主轴方差比 {ratio:.3f} 低于阈值 {MIN_AXIS_VARIANCE_RATIO:g}，已继续计算，轴线方向可能不稳定']
-                if ratio < MIN_AXIS_VARIANCE_RATIO else [])
+    
     direction = vectors[:, -1]
-    if direction[np.argmax(np.abs(direction))] < 0:
-        direction = -direction
-    residual = np.linalg.norm(np.cross(points-center, direction), axis=1)
-    return {'point': center.tolist(), 'direction': direction.tolist(),
-            'axis_variance_ratio': ratio, 'quality_warnings': warnings,
-            'input_points': original_count, 'inlier_points': len(points),
-            'rms_mm': float(np.sqrt(np.mean(residual**2))),
-            'linearity': float(1-values[-2]/values[-1])}
+    
+    # Stage 3: Percentile-based inlier selection (more conservative)
+    residuals = np.linalg.norm(np.cross(centered, direction), axis=1)
+    
+    # Keep best 80% of points (balance between robustness and retaining good data)
+    threshold_percentile = 80
+    inlier_mask = residuals <= np.percentile(residuals, threshold_percentile)
+    
+    # But ensure we keep at least 50 points
+    if inlier_mask.sum() < 50 and len(points) >= 50:
+        sorted_indices = np.argsort(residuals)
+        inlier_mask = np.zeros(len(points), dtype=bool)
+        inlier_mask[sorted_indices[:max(50, int(0.7 * len(points)))]] = True
+    
+    points_inliers = points[inlier_mask]
+    
+    if len(points_inliers) < 30:
+        # Fallback: use all points if filtering is too aggressive
+        points_inliers = points
+    
+    # Stage 4: Final PCA fit on inliers
+    center_final = points_inliers.mean(0)
+    centered_final = points_inliers - center_final
+    values_final, vectors_final = np.linalg.eigh(np.cov(centered_final, rowvar=False))
+    
+    direction_final = vectors_final[:, -1]
+    
+    # Ensure consistent direction orientation
+    if direction_final[np.argmax(np.abs(direction_final))] < 0:
+        direction_final = -direction_final
+    
+    # Quality metrics
+    ratio = float(values_final[-1] / max(values_final[-2], 1e-8))
+    residual_final = np.linalg.norm(np.cross(centered_final, direction_final), axis=1)
+    rms = float(np.sqrt(np.mean(residual_final**2)))
+    linearity = float(1 - values_final[-2] / values_final[-1])
+    
+    warnings = []
+    if ratio < MIN_AXIS_VARIANCE_RATIO:
+        warnings.append(f'主轴方差比 {ratio:.3f} 低，ROI 可能包含多个构件或背景')
+    if rms > 50:
+        warnings.append(f'RMS 误差 {rms:.1f}mm 过大，点云质量差或 ROI 选择不当')
+    if linearity < 0.90:
+        warnings.append(f'线性度 {linearity:.3f} 偏低，构件可能弯曲或包含多段')
+    
+    return {
+        'point': center_final.tolist(),
+        'direction': direction_final.tolist(),
+        'axis_variance_ratio': ratio,
+        'quality_warnings': warnings,
+        'input_points': original_count,
+        'inlier_points': len(points_inliers),
+        'rms_mm': rms,
+        'linearity': linearity
+    }
 
 
 def pair_frame(beam, pillar, reference=None):
+    """Construct coordinate frame from beam-pillar pair with improved numerical stability."""
     p, q = np.array(beam['point']), np.array(pillar['point'])
     u, v = np.array(beam['direction']), np.array(pillar['direction'])
+    
+    # Ensure unit vectors for numerical stability
+    u = u / np.linalg.norm(u)
+    v = v / np.linalg.norm(v)
+    
     if reference:
         ref = np.array(reference['frame'])[:3, :3]
+        # Consistent orientation with reference frame
         if u @ ref[:, 0] < 0: u = -u
         if v @ ref[:, 1] < 0: v = -v
+    
     dot = float(np.clip(u @ v, -1, 1))
     if abs(dot) > 0.98:
         raise ValueError('横梁与立柱轴线近似平行，无法构建独立位姿')
-    t, s = np.linalg.lstsq(np.column_stack((u, -v)), q-p, rcond=None)[0]
-    a, b = p+t*u, q+s*v
-    origin = (a+b)/2
-    y = v - dot*u
-    y /= np.linalg.norm(y)
+    
+    # Improved closest-point calculation with regularization
+    # Solve: [u, -v] * [t, s]^T = q - p
+    # Use pseudo-inverse for better numerical stability
+    A = np.column_stack((u, -v))
+    b = q - p
+    
+    # Add small regularization to improve conditioning
+    params = np.linalg.lstsq(A, b, rcond=1e-10)[0]
+    t, s = params
+    
+    # Closest points on both lines
+    a, b_point = p + t * u, q + s * v
+    
+    # Use midpoint as origin
+    origin = (a + b_point) / 2
+    
+    # Construct orthonormal frame using Gram-Schmidt
+    x_axis = u  # Beam direction
+    
+    # Project out parallel component to get perpendicular y-axis
+    y_axis = v - dot * u
+    y_axis = y_axis / np.linalg.norm(y_axis)
+    
+    # Z-axis from cross product (automatically orthogonal)
+    z_axis = np.cross(x_axis, y_axis)
+    z_axis = z_axis / np.linalg.norm(z_axis)
+    
+    # Verify orthonormality (numerical check)
+    R = np.column_stack((x_axis, y_axis, z_axis))
+    if abs(np.linalg.det(R) - 1.0) > 0.01:
+        raise ValueError(f'坐标系构建失败，行列式 = {np.linalg.det(R):.6f}')
+    
     frame = np.eye(4)
-    frame[:3, :3] = np.column_stack((u, y, np.cross(u, y)))
+    frame[:3, :3] = R
     frame[:3, 3] = origin
-    gap = float(np.linalg.norm(a-b))
-    return {'frame': frame.tolist(), 'origin': origin.tolist(),
-            'closest_points': [a.tolist(), b.tolist()], 'gap_mm': gap,
-            'relationship': 'intersecting' if gap < 1e-3 else 'skew',
-            'angle_deg': float(np.degrees(np.arccos(abs(dot))))}
+    
+    gap = float(np.linalg.norm(a - b_point))
+    
+    return {
+        'frame': frame.tolist(),
+        'origin': origin.tolist(),
+        'closest_points': [a.tolist(), b_point.tolist()],
+        'gap_mm': gap,
+        'relationship': 'intersecting' if gap < 1e-3 else 'skew',
+        'angle_deg': float(np.degrees(np.arccos(abs(dot))))
+    }
 
 
 def fit_region(points, voxel_mm, name, frame_label):

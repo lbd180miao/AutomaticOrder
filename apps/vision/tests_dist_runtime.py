@@ -36,7 +36,7 @@ class DistRuntimeTests(SimpleTestCase):
                 for i, key in enumerate(('plane1', 'plane2', 'plane3'))}
         recipe = RackLocationRecipe(pk=99, recipe_name='test', local_template_std={})
         service = RackLocationService()
-        with tempfile.TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory), \
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory, override_settings(MEDIA_ROOT=directory), \
                 patch.object(service, '_load_workbench_pointcloud', return_value=cloud), \
                 patch.object(service, '_recipe_transform_context', return_value={}):
             result = service._calculate_local_template_workbench(token='test.npy',
@@ -45,7 +45,8 @@ class DistRuntimeTests(SimpleTestCase):
             self.assertTrue(result['result_image_path'].endswith('.jpg'))
         self.assertGreater(result['timings']['total_ms'], 0)
         self.assertEqual(result['robot_groups'], {})
-        self.assertIn('旧标准缺少来源点云记录', result['robot_conversion_error'])
+        self.assertEqual(result['robot_conversion_error'], '')
+        self.assertEqual(result['robot_groups_status'], 'standard_not_set')
 
     def test_frozen_data_is_outside_bundle_and_cwd(self):
         with patch.dict(os.environ, {}, clear=True), \

@@ -899,6 +899,7 @@
         : {};
       renderLocalTemplate(resultForRecipe);
       renderLayerSpacing(resultForRecipe);
+      if (!state.busy) renderRobotGroups(Object.keys(resultForRecipe).length ? resultForRecipe : null);
       return recipe;
     } catch (e) {
       if (requestSeq !== state.recipeRequestSeq) return null;
@@ -2220,10 +2221,12 @@
       }
       if (data.result.direct_detection_mode) {
         const robotError = data.result.robot_conversion_error || data.result.result_data?.robot_conversion_error;
+        const robotMessage = data.result.robot_groups_message || data.result.result_data?.robot_groups_message;
         const elapsed = data.result.timings?.total_ms;
         setStatus('计算完成：本次3D记录已自动保存'
           + (elapsed != null ? ` · 后端耗时 ${(elapsed / 1000).toFixed(2)} 秒` : '')
           + (robotError ? ' · A/B 未完成：' + robotError : '')
+          + (!robotError && robotMessage ? ' · ' + robotMessage : '')
           + (data.result.warning_message ? ' · ' + data.result.warning_message : '。')
           + ' 再次计算将重新采集点云。');
       } else {
@@ -2699,22 +2702,48 @@
         const cell = $(`robot-${group.toLowerCase()}-${axis}`);
         if (cell) cell.textContent = ready ? groups[group].pose6d[axis].toFixed(3) : '—';
       });
+      ['x', 'y', 'z'].forEach(axis => {
+        const cell = $(`robot-${group.toLowerCase()}-point-${axis}`);
+        const value = groups[group]?.reference_point_displacement_mm?.[axis];
+        if (cell) cell.textContent = ready && Number.isFinite(value) ? value.toFixed(3) : '—';
+      });
     });
+    const repeatabilityNote = $('robot-groups-repeatability');
+    if (repeatabilityNote) {
+      const parts = ['A', 'B'].flatMap(group => {
+        const term = groups[group]?.rotation_lever_term_mm;
+        return ready && ['x','y','z'].every(axis => Number.isFinite(term?.[axis]))
+          ? [`${group} 组旋转杠杆项 X/Y/Z：${['x','y','z'].map(axis => term[axis].toFixed(3)).join(' / ')} mm`] : [];
+      });
+      repeatabilityNote.textContent = '基准点位移用于观察拟合基准点的位置变化；补偿矩阵平移还包含旋转产生的杠杆项。机器人补偿需使用完整矩阵，不能直接用基准点位移替换。'
+        + (parts.length ? '\n' + parts.join('；') : '');
+    }
     const badge = $('robot-groups-status'), note = $('robot-groups-note');
     if (!badge || !note) return;
     const error = result?.robot_conversion_error || result?.result_data?.robot_conversion_error || '';
-    badge.textContent = ready ? (warnings.length ? '已换算 · 有质量警告' : '已换算 · 本次结果') : (result ? (error.startsWith('双组偏差计算失败') ? '轴线拟合失败' : '无法换算') : '未计算');
+    const groupStatus = result?.robot_groups_status || result?.result_data?.robot_groups_status;
+    const pendingStandard = ['standard_not_set', 'standard_unavailable'].includes(groupStatus);
+    const groupMessage = result?.robot_groups_message || result?.result_data?.robot_groups_message;
+    badge.textContent = ready ? (warnings.length ? '已换算 · 有质量警告' : '已换算 · 本次结果')
+      : pendingStandard ? '待设置标准 · 不影响测量'
+      : (result ? (error.startsWith('双组偏差计算失败') ? '轴线拟合失败' : '无法换算') : '未计算');
     badge.className = ready ? 'badge badge-ok' : 'badge badge-muted';
     const context = result?.transform_context || result?.result_data?.transform_context || {};
     note.textContent = ready
       ? `标定：${context.hand_eye_calibration_name || '配方手眼配置'}；使用本次计算时保存的配置快照。数值为机器人基坐标补偿矩阵的平移和旋转分量。`
-      : (message || result?.robot_conversion_error || result?.result_data?.robot_conversion_error
+      : (message || groupMessage || result?.robot_conversion_error || result?.result_data?.robot_conversion_error
         || (result ? '当前结果没有 A/B 两组机器人偏差，请使用双组空间配方重新计算。' : '计算后显示两组机器人偏差；无有效换算结果时显示 —。'));
     if (result) {
       const data = result.result_data || result;
       const recipeId = data.robot_groups_recipe_id || result.recipe_id || state.currentRecipe?.id;
       const referenceId = data.robot_groups_reference_result_id;
       note.textContent = `配方 #${recipeId}${referenceId ? ` · 标准记录 #${referenceId}` : ''}。` + note.textContent;
+      const activeReference = state.currentRecipe?.local_template_std?.source_result_id;
+      if (String(recipeId) === String(state.currentRecipe?.id) && referenceId && activeReference
+          && String(referenceId) !== String(activeReference)) {
+        badge.textContent = '历史结果 · 标准已更新';
+        note.textContent = `当前配方标准为 #${activeReference}；下方是使用旧标准 #${referenceId} 的历史结果，请重新计算以获得当前偏差。\n` + note.textContent;
+      }
     }
   }
   function renderSpatialResults(result) {

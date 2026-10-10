@@ -1,0 +1,265 @@
+{
+  "robot_groups": {
+    "A": {
+      "meaning": "standard_rack_to_current_rack_in_robot_base_frame",
+      "coordinate_system": "robot_base",
+      "from_frame": "robot_base_standard_rack",
+      "to_frame": "robot_base_current_rack",
+      "matrix_name": "T_robot_base_standard_to_current",
+      "robot_conversion_applied": true,
+      "matrix": [
+        [
+          0.9999998738748758,
+          0.000466694325051123,
+          0.00018561931302355118,
+          -1.5688762154750293
+        ],
+        [
+          -0.00046648235306378784,
+          0.9999992411555655,
+          -0.0011402745979489913,
+          0.5773407263723129
+        ],
+        [
+          -0.00018615135693197114,
+          0.0011401879652171315,
+          0.9999993325835449,
+          -4.22960493094331
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "translation_mm": {
+        "x": -1.5688762154750293,
+        "y": 0.5773407263723129,
+        "z": -4.22960493094331
+      },
+      "rotation_deg": {
+        "rx": 0.06532797070272182,
+        "ry": 0.010665686445944695,
+        "rz": -0.026727472041839898
+      },
+      "pose6d": {
+        "x": -1.5688762154750293,
+        "y": 0.5773407263723129,
+        "z": -4.22960493094331,
+        "rx": 0.06532797070272182,
+        "ry": 0.010665686445944695,
+        "rz": -0.026727472041839898
+      },
+      "source": "hand_eye_workspace_transform",
+      "transform_context_source": "active_hand_eye_workspace",
+      "T_base_camera": [
+        [
+          0.0024137752854218333,
+          -0.9942614248559941,
+          -0.10695027490400635,
+          -902.4623856351079
+        ],
+        [
+          -0.04007894463286861,
+          -0.10696082642343444,
+          0.9934550679802346,
+          1947.2954147036246
+        ],
+        [
+          -0.9991936028780394,
+          0.0018884646288366122,
+          -0.04010706401165409,
+          640.1348848659236
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "formula": "delta_T_base = T_base_camera * delta_T_camera * inverse(T_base_camera)",
+      "reference_point_displacement_mm": {
+        "x": 0.2431983828089119,
+        "y": 0.036070884731916275,
+        "z": -0.01696215429654559
+      },
+      "rotation_lever_term_mm": {
+        "x": -1.8120745982839412,
+        "y": 0.5412698416403967,
+        "z": -4.2126427766467645
+      },
+      "reference_point_meaning": "fitted_pair_origin_in_robot_base"
+    },
+    "B": {
+      "meaning": "standard_rack_to_current_rack_in_robot_base_frame",
+      "coordinate_system": "robot_base",
+      "from_frame": "robot_base_standard_rack",
+      "to_frame": "robot_base_current_rack",
+      "matrix_name": "T_robot_base_standard_to_current",
+      "robot_conversion_applied": true,
+      "matrix": [
+        [
+          0.999982900610125,
+          -0.00581942931844644,
+          0.0005767181832170604,
+          19.734043365872026
+        ],
+        [
+          0.005820086290535754,
+          0.999982408072657,
+          -0.0011447337342408415,
+          6.3689064597228935
+        ],
+        [
+          -0.0005700459539383643,
+          0.0011480707718612875,
+          0.9999991784159011,
+          -4.499995585219949
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "translation_mm": {
+        "x": 19.734043365872026,
+        "y": 6.3689064597228935,
+        "z": -4.499995585219949
+      },
+      "rotation_deg": {
+        "rx": 0.06577963316382995,
+        "ry": 0.03266124013445952,
+        "rz": 0.333468327981436
+      },
+      "pose6d": {
+        "x": 19.734043365872026,
+        "y": 6.3689064597228935,
+        "z": -4.499995585219949,
+        "rx": 0.06577963316382995,
+        "ry": 0.03266124013445952,
+        "rz": 0.333468327981436
+      },
+      "source": "hand_eye_workspace_transform",
+      "transform_context_source": "active_hand_eye_workspace",
+      "T_base_camera": [
+        [
+          0.0024137752854218333,
+          -0.9942614248559941,
+          -0.10695027490400635,
+          -902.4623856351079
+        ],
+        [
+          -0.04007894463286861,
+          -0.10696082642343444,
+          0.9934550679802346,
+          1947.2954147036246
+        ],
+        [
+          -0.9991936028780394,
+          0.0018884646288366122,
+          -0.04010706401165409,
+          640.1348848659236
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "formula": "delta_T_base = T_base_camera * delta_T_camera * inverse(T_base_camera)",
+      "reference_point_displacement_mm": {
+        "x": -0.5840867895584426,
+        "y": -0.3403847033268921,
+        "z": 0.1633834523709955
+      },
+      "rotation_lever_term_mm": {
+        "x": 20.318130155430467,
+        "y": 6.709291163049786,
+        "z": -4.6633790375909445
+      },
+      "reference_point_meaning": "fitted_pair_origin_in_robot_base"
+    }
+  },
+  "robot_conversion_error": "",
+  "transform_context": {
+    "context_source": "record_snapshot",
+    "configuration_source": "active_hand_eye_workspace",
+    "capture_pose": {
+      "x": -634.545,
+      "y": 1779.49,
+      "z": 695.513,
+      "rx": -90.229,
+      "ry": 0.1880000000000061,
+      "rz": 2.5330000000000004
+    },
+    "capture_pose_name": "hand_eye_workspace_saved_pose",
+    "T_base_flange": {
+      "matrix": [
+        [
+          0.9990175549788629,
+          -0.0031013435136080375,
+          -0.044207539090806755,
+          -634.545
+        ],
+        [
+          0.04419455265763023,
+          -0.0041378995785021355,
+          0.9990143739218521,
+          1779.49
+        ],
+        [
+          -0.0032812131059341935,
+          -0.9999866296383612,
+          -0.0039967718304416144,
+          695.513
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "T_flange_camera": {
+      "matrix": [
+        [
+          0.0039187,
+          -0.9980179,
+          -0.0628083,
+          -260.0563789
+        ],
+        [
+          0.9993386,
+          0.0016377,
+          0.0363274,
+          55.5139166
+        ],
+        [
+          -0.0361526,
+          -0.0629091,
+          0.9973642,
+          179.7053233
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "hand_eye_calibration_id": 4,
+    "hand_eye_calibration_name": "3D手眼标定-20261008",
+    "hand_eye_source": "active_hand_eye_workspace"
+  },
+  "robot_groups_recipe_id": 8,
+  "robot_groups_reference_result_id": 364,
+  "quality_warnings": [],
+  "robot_groups_status": "ready"
+}

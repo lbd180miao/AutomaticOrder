@@ -3140,6 +3140,8 @@ class RackLocationService:
             'timings': timings,
             'robot_groups': result_data.get('robot_groups', {}),
             'robot_conversion_error': result_data.get('robot_conversion_error', ''),
+            'robot_groups_status': result_data.get('robot_groups_status', ''),
+            'robot_groups_message': result_data.get('robot_groups_message', ''),
             'result_id': result_id,
             'recipe_id': recipe.id,
             'rack_side': recipe.rack_side or RackSide.BOTH,
