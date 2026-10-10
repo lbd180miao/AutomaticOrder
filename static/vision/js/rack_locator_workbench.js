@@ -138,6 +138,7 @@
   };
 
   window.rackLocatorRecipeChanged = function(recipeId) {
+    if (state.busy) return;
     renderRobotGroups(null);
     state.lastResultId = null;
     state.lastResultRecipeId = null;
@@ -2158,6 +2159,8 @@
     if (state.busy) return;
     state.busy = true;
     $('btn-calculate').textContent = '⏳ 正在计算…';
+    if ($('recipe-select')) $('recipe-select').disabled = true;
+    renderRobotGroups(null, '正在采集或计算，请等待本次结果…');
     $('rl-calculation-feedback').hidden = true;
     state.invalidRoiKeys = [];
     refreshActionState();
@@ -2192,6 +2195,7 @@
       const raw = await postJson(calculateApiUrl, semanticPayload(calculation));
       const data = apiPayload(raw);
       if (!data.success) { showCalculationError(data); return; }
+      if (!data.result) throw new Error('计算接口未返回结果，请检查程序版本和后台日志。');
       state.lastCalculation = calculation;
       state.lastResultId = data.result?.result_id || data.result?.id || null;
       state.lastResultRecipeId = data.result?.recipe_id || calculation.recipe_id || null;
@@ -2215,7 +2219,11 @@
         lastTime.textContent = '上次计算：' + new Date().toLocaleString('zh-CN', { hour12: false });
       }
       if (data.result.direct_detection_mode) {
+        const robotError = data.result.robot_conversion_error || data.result.result_data?.robot_conversion_error;
+        const elapsed = data.result.timings?.total_ms;
         setStatus('计算完成：本次3D记录已自动保存'
+          + (elapsed != null ? ` · 后端耗时 ${(elapsed / 1000).toFixed(2)} 秒` : '')
+          + (robotError ? ' · A/B 未完成：' + robotError : '')
           + (data.result.warning_message ? ' · ' + data.result.warning_message : '。')
           + ' 再次计算将重新采集点云。');
       } else {
@@ -2230,6 +2238,7 @@
     } finally {
       state.busy = false;
       $('btn-calculate').textContent = '🎯 开始计算';
+      if ($('recipe-select')) $('recipe-select').disabled = false;
       hideLoading();
       refreshActionState();
     }
@@ -2382,7 +2391,12 @@
 
     if (r.result_image_url) {
       const resultImg = $('rl-result-img');
-      resultImg.src = r.result_image_url + '?t=' + Date.now();
+      resultImg.onerror = () => {
+        resultImg.style.display = 'none';
+        $('rl-result-ph').style.display = '';
+        $('rl-result-ph').textContent = '该记录的结果图片缺失，请恢复对应 media 文件；机器人计算结果见上方。';
+      };
+      resultImg.src = r.result_image_url;
       resultImg.style.display = 'block';
       $('rl-result-ph').style.display = 'none';
       resultImg.onload = null;

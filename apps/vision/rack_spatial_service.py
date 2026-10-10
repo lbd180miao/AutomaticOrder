@@ -63,7 +63,13 @@ def legacy_axis_frames(service, points, rois, voxel_mm, frame_label, reference=N
 def reference_axes_from_record(service, recipe, record):
     if record.recipe_id != recipe.pk:
         raise ValueError('标准来源记录与当前配方不一致')
-    points = service._load_workbench_pointcloud(record.raw_data_path)
+    try:
+        points = service._load_workbench_pointcloud(record.raw_data_path)
+    except (ValueError, OSError) as exc:
+        raise ValueError(
+            f'标准记录 #{record.pk} 的原始点云不可用：{exc}。'
+            '请恢复该标准点云及单位文件，或重新采集标准料架并保存标准；重新采集当前帧不能修复旧标准'
+        ) from exc
     rois = (record.result_data or {}).get('local_template_rois') or (record.roi_data or {}).get('local_template_rois')
     return legacy_axis_frames(service, points, rois, float((recipe.roi_config or {}).get('voxel_mm', 0)),
                               f'标准帧（记录 #{record.pk}）')

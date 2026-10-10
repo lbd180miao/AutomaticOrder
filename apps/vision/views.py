@@ -2018,8 +2018,8 @@ def api_rack_locator_load_latest(request):
             'pointcloud_token': token,
             'pointcloud_preview_url': settings.MEDIA_URL + preview_rel,
             'preview_image_url': settings.MEDIA_URL + preview_rel,
-            'image_width': 640,  # 默认值
-            'image_height': 480,
+            'image_width': int(preview.shape[1]),
+            'image_height': int(preview.shape[0]),
             'source': f'imported from {os.path.basename(latest_depth_file)}',
             'source_file': latest_depth_file,
             'pointcloud_shape': list(pointcloud.shape),

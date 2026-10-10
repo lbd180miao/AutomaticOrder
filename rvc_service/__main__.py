@@ -22,10 +22,8 @@ import logging
 import os
 import signal
 import sys
+import threading
 from pathlib import Path
-
-from .camera_controller import RvcCameraController
-from .server import make_server
 
 
 def _project_root() -> Path:
@@ -42,6 +40,8 @@ def _env_bool(name: str, default: bool) -> bool:
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="RVC 3D 相机独立服务")
+    parser.add_argument('--parent-stdin', action='store_true',
+                        help='随启动它的网页进程退出（内部使用）')
     parser.add_argument(
         "--host",
         default=os.environ.get("RVC_CAMERA_SERVICE_HOST", "127.0.0.1"),
@@ -91,6 +91,11 @@ def main(argv=None) -> int:
     logger = logging.getLogger("rvc_service")
 
     args = parse_args(argv)
+    stopping = threading.Event()
+    if args.parent_stdin:
+        threading.Thread(target=_watch_parent, args=(stopping,),
+                         daemon=True, name='web-parent-watch').start()
+    from .server import make_server
     output_dir = Path(args.output_dir) if args.output_dir else (
         _project_root() / "media" / "rvc_captures"
     )
@@ -110,14 +115,11 @@ def main(argv=None) -> int:
     )
 
     # 退出时释放相机与 SDK，避免相机被死会话占用
-    controller: RvcCameraController = server.RequestHandlerClass.controller
+    controller = server.RequestHandlerClass.controller
 
     def _shutdown(signum=None, frame=None):  # noqa: ANN001
         logger.info("收到退出信号，正在释放 RVC 相机资源 ...")
-        try:
-            controller.system_shutdown()
-        finally:
-            server.shutdown()
+        stopping.set()
 
     signal.signal(signal.SIGINT, _shutdown)
     if hasattr(signal, "SIGTERM"):
@@ -127,11 +129,55 @@ def main(argv=None) -> int:
     logger.info("采集文件目录: %s", output_dir)
     logger.info("请确认已关闭 RVCManager（否则会抢占相机连接）")
     try:
-        server.serve_forever()
+        # shutdown() from a signal handler on the serving thread deadlocks.
+        server.timeout = 0.5
+        while not stopping.is_set():
+            server.handle_request()
     finally:
-        controller.system_shutdown()
-        server.server_close()
+        try:
+            controller.system_shutdown()
+        finally:
+            server.server_close()
     return 0
+
+
+def _watch_parent(stopping):
+    """Pipe EOF survives abrupt parent termination, including Windows window close."""
+    try:
+        if sys.platform == 'win32':
+            # A blocking CRT stdin read holds the stream lock. Native DLL
+            # initialization (including NumPy) can need that lock and deadlock.
+            # Probe the pipe instead, so SDK imports and calls remain runnable.
+            import ctypes
+            import msvcrt
+            from ctypes import wintypes
+            kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+            peek = kernel32.PeekNamedPipe
+            peek.argtypes = [wintypes.HANDLE, wintypes.LPVOID, wintypes.DWORD,
+                             wintypes.LPVOID, ctypes.POINTER(wintypes.DWORD),
+                             wintypes.LPVOID]
+            peek.restype = wintypes.BOOL
+            fd = sys.stdin.fileno()
+            handle = msvcrt.get_osfhandle(fd)
+            while not stopping.is_set():
+                available = wintypes.DWORD()
+                if not peek(handle, None, 0, None, ctypes.byref(available), None):
+                    error = ctypes.get_last_error()
+                    if error in (109, 232):  # broken pipe / pipe closing
+                        break
+                    raise ctypes.WinError(error)
+                if available.value:
+                    os.read(fd, min(available.value, 4096))
+                stopping.wait(0.25)
+        else:
+            while sys.stdin.buffer.read(1):
+                pass
+    finally:
+        # Bound shutdown even when a native SDK call is stuck during connect/capture.
+        fallback = threading.Timer(10, os._exit, args=(0,))
+        fallback.daemon = True
+        fallback.start()
+        stopping.set()
 
 
 if __name__ == "__main__":

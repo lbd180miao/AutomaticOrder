@@ -176,7 +176,26 @@ def _capture_with_official_mvs(payload, max_open_retries=3, open_retry_delay=1.0
             break
         if selected is None:
             identity = requested_serial or requested_ip or '(first available device)'
-            raise RuntimeError(f'Hikrobot camera {identity} was not found')
+            discovered = []
+            for index in range(devices.nDeviceNum):
+                info = cast(devices.pDeviceInfo[index], POINTER(mvs.MV_CC_DEVICE_INFO)).contents
+                if info.nTLayerType in (mvs.MV_GIGE_DEVICE, mvs.MV_GENTL_GIGE_DEVICE):
+                    details = info.SpecialInfo.stGigEInfo
+                    value = details.nCurrentIp
+                    address = '.'.join(str((value >> shift) & 0xff) for shift in (24, 16, 8, 0))
+                elif info.nTLayerType == mvs.MV_USB_DEVICE:
+                    details = info.SpecialInfo.stUsb3VInfo
+                    address = 'USB'
+                else:
+                    continue
+                serial = bytes(details.chSerialNumber).split(b'\0', 1)[0].decode('ascii', errors='replace')
+                model = bytes(details.chModelName).split(b'\0', 1)[0].decode('ascii', errors='replace')
+                discovered.append(f'{serial} ({model}, {address})')
+            raise RuntimeError(
+                f'未找到配置的海康2D相机 {identity}。'
+                f'当前发现：{"；".join(discovered) or "无可识别设备"}。'
+                '请检查目标相机供电、网线和序列号配置；不会自动切换到其他相机。'
+            )
 
         cam = mvs.MvCamera()
         ret = cam.MV_CC_CreateHandle(selected)

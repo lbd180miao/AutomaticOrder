@@ -13,12 +13,21 @@ import logging
 from typing import Dict, Tuple, Optional, List
 from dataclasses import dataclass
 
-try:
-    import open3d as o3d
-    OPEN3D_AVAILABLE = True
-except ImportError:
-    OPEN3D_AVAILABLE = False
-    logging.warning("Open3D not available. 3D point cloud processing will be limited.")
+o3d = None
+OPEN3D_AVAILABLE = None
+
+
+def _load_open3d():
+    """Only legacy plane detection needs Open3D; NumPy workbench does not."""
+    global o3d, OPEN3D_AVAILABLE
+    if OPEN3D_AVAILABLE is None:
+        try:
+            import open3d as module
+            o3d = module
+            OPEN3D_AVAILABLE = True
+        except ImportError:
+            OPEN3D_AVAILABLE = False
+    return OPEN3D_AVAILABLE
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +132,7 @@ class RackPositioningAlgorithm:
             raise ValueError(f"点云点数({pointcloud.shape[0]})少于最小要求({min_inliers})")
         
         # 方法1: 使用Open3D的RANSAC平面拟合（推荐）
-        if OPEN3D_AVAILABLE:
+        if _load_open3d():
             return self._detect_plane_open3d(
                 pointcloud, distance_threshold, ransac_n, num_iterations, min_inliers
             )

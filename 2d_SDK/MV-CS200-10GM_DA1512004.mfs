@@ -6,7 +6,7 @@
 # DeviceModelName = MV-CS200-10GM
 # DeviceVersion = V3.4.56 220825 875408
 # DeviceFirmwareVersion = V3.4.56 220825875408 22082401
-# SaveTime = Tuesday, September 29, 2026 16:05:50
+# SaveTime = Saturday, October 10, 2026 10:15:38
 UserSetDefault	UserSet1
 Gain	10.0161
 DigitalShift	0.0117417
@@ -20,7 +20,7 @@ AcquisitionBurstFrameCount	1
 AcquisitionFrameRate	5.9
 AcquisitionFrameRateEnable	1
 ExposureMode	Timed
-ExposureTime	150000
+ExposureTime	7571
 ExposureAuto	Off
 HDREnable	0
 PixelFormat	Mono8

@@ -251,14 +251,15 @@ AUTOMATIC_ORDER = {
         # Django 启动时是否自动拉起相机服务子进程（False=手动启动 python -m rvc_service）
         'AUTO_START': os.environ.get('RVC_CAMERA_AUTO_START', 'true').lower() not in ('0', 'false', 'no', 'off'),
         # 相机默认 IP（网线直连，网卡需同网段 169.254.x.x / 255.255.0.0）
-        # 实测相机 SN=M2GM620B293，真实 IP=169.254.35.81
-        'CAMERA_IP': os.environ.get('RVC_CAMERA_IP', '169.254.35.81'),
+        # 实测相机 SN=M2GM620B293，真实 IP=169.254.10.202
+        'CAMERA_IP': os.environ.get('RVC_CAMERA_IP', '169.254.10.202'),
         # 指定 SN 后优先按 SN 连接（多相机场景），留空则按 IP
         'CAMERA_SN': os.environ.get('RVC_CAMERA_SN', ''),
         # 双目机型相机通道：0/1
         'CAMERA_ID': int(os.environ.get('RVC_CAMERA_ID', '0')),
         # 采集默认参数（连接后自动下发到相机服务）
-        'DEFAULT_MODE': os.environ.get('RVC_CAMERA_MODE', 'Normal'),  # 标准模式（Robust已废弃）
+        # 留空沿用相机内部参数；显式设置环境变量时才覆盖拍摄模式。
+        'DEFAULT_MODE': os.environ.get('RVC_CAMERA_MODE', ''),
         # ✅ 修正：RVC-M2600-V2 有效曝光范围 [3, 100]（SDK v1.15 实测）
         'EXPOSURE_2D': float(os.environ.get('RVC_CAMERA_EXPOSURE_2D', '10')),
         'EXPOSURE_3D': float(os.environ.get('RVC_CAMERA_EXPOSURE_3D', '50')),

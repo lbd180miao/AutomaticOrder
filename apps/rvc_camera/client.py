@@ -196,11 +196,8 @@ class RvcCameraClient:
             target_dir = Path(target_dir)
             target_dir.mkdir(parents=True, exist_ok=True)
             target_dir = str(target_dir)
-        # ⚠️ 注意：只有调用方明确传入曝光/模式参数时才传给服务端。
-        # 若传 None，服务端会用 LoadCaptureOptionParameters() 读回的内部参数，
-        # 但该方式下 capture_mode 整数值可能不被 SDK 支持（如 "capture_mode[2] not support!"）。
-        # 曝光参数应在 ensure_connected() 时通过 set_exposure() 接口设置一次，
-        # 采集时只需直接 Capture()（Method 3，SDK 推荐）。
+        # 默认使用设备内部参数直接 Capture()；仅显式提供参数或配置了
+        # DEFAULT_MODE 时覆盖。通用 Normal 模式不适用于所有激光机型。
         payload: Dict[str, Any] = {
             "output_dir": target_dir,
             "save_2d": save_2d,

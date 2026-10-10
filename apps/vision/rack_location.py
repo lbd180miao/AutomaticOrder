@@ -11,6 +11,7 @@ import logging
 import json
 import os
 import random
+from time import perf_counter
 from typing import Any, Optional
 
 import numpy as np
@@ -118,6 +119,8 @@ def _measure_layer_spacing_line(pointcloud: np.ndarray, line: dict) -> tuple[flo
     """
     if not isinstance(line, dict):
         raise ValueError('层距测量线数据无效')
+    if pointcloud.ndim != 3 or pointcloud.shape[2] != 3:
+        raise ValueError('层距测量需要与预览图逐像素对应的 H×W×3 点云，请重新采集')
     height, width = pointcloud.shape[:2]
     try:
         endpoints = [
@@ -144,10 +147,14 @@ def _measure_layer_spacing_line(pointcloud: np.ndarray, line: dict) -> tuple[flo
         yy, xx = np.ogrid[y0:y1, x0:x1]
         circle_mask = (xx - cx) ** 2 + (yy - cy) ** 2 <= radius ** 2
         valid_mask = circle_mask & np.all(np.isfinite(patch), axis=2)
-        valid_mask &= np.linalg.norm(patch, axis=2) > 1e-6
+        valid_mask &= np.abs(patch[:, :, 2]) > 1e-9
         coords = np.argwhere(valid_mask)
         if len(coords) < 8:
-            raise ValueError(f'层距测量线端点{index}附近有效点不足，请移动端点')
+            raise ValueError(
+                f'层距测量线端点{index} ({cx}, {cy}) 附近有效点不足：'
+                f'半径{radius}px内仅{len(coords)}点，需要至少8点；'
+                f'点云尺寸{width}×{height}。请确认图像与点云对应，并在同一待测表面移动端点'
+            )
 
         # Use the spatially nearest valid pixel as the surface-depth seed.
         local_cx, local_cy = cx - x0, cy - y0
@@ -2587,6 +2594,7 @@ class RackLocationService:
         preview = image_io.pointcloud_to_preview(cloud)
         preview_rel, _, _ = image_io.save_image(
             preview, 'rack_workbench_preview', rel_dir='vision/rack_workbench',
+            extension='jpg', jpeg_quality=90,
         )
         preview_url = settings.MEDIA_URL + preview_rel
         return npy_rel, preview_url, width, height
@@ -2594,11 +2602,18 @@ class RackLocationService:
     def _load_workbench_pointcloud(self, token: str):
         """按 token 安全加载持久化点云（限制在 MEDIA_ROOT 内，防目录穿越）。"""
         if not token:
-            raise ValueError('点云数据已失效，请重新采集')
+            raise ValueError('点云引用为空，请重新采集')
         media_root = os.path.realpath(settings.MEDIA_ROOT)
         abs_path = os.path.realpath(os.path.join(media_root, token))
-        if os.path.commonpath([abs_path, media_root]) != media_root or not os.path.exists(abs_path):
-            raise ValueError('点云数据已失效，请重新采集')
+        try:
+            inside_media = os.path.commonpath([abs_path, media_root]) == media_root
+        except ValueError:
+            inside_media = False
+        if not inside_media:
+            raise ValueError('点云路径不在当前数据目录内，请恢复 media 相对路径或重新采集')
+        if not os.path.isfile(abs_path):
+            logger.error('Point cloud missing: token=%s MEDIA_ROOT=%s', token, media_root)
+            raise ValueError(f'点云文件缺失：{token}。请恢复对应 media 文件或重新采集')
         from .pointcloud_units import load_pointcloud_mm
         return load_pointcloud_mm(abs_path)
 
@@ -2865,11 +2880,15 @@ class RackLocationService:
 
     def _calculate_local_template_workbench(self, *, token, roi_config, recipe, layer_no, save_record) -> dict:
         """按用户示教的三个 ROI 拟合三平面，并计算/预览 6DoF 刚体补偿。"""
+        started = perf_counter()
+        timings = {}
         pointcloud = self._load_workbench_pointcloud(token)
         if pointcloud.ndim != 3 or pointcloud.shape[2] != 3:
             raise ValueError('三平面算法需要组织化点云 H×W×3，请重新采集')
         regions = self._explicit_local_template_regions(pointcloud, roi_config)
         roi1, roi2, roi3 = self._crop_local_template_clouds(pointcloud, regions)
+        timings['load_crop_ms'] = round((perf_counter() - started) * 1000, 1)
+        fit_started = perf_counter()
 
         from .rack_positioning_algorithm import RigidBodyCompensationAlgorithm
         weights = recipe.roi_weights or {}
@@ -2903,6 +2922,7 @@ class RackLocationService:
             }
             compensation_source = 'local_template_current_baseline'
 
+        timings['plane_fit_ms'] = round((perf_counter() - fit_started) * 1000, 1)
         current_template = local_result['local_template_cur']
         inlier_ratio_comparison = {}
         for name, cloud in zip(('plane1', 'plane2', 'plane3'), (roi1, roi2, roi3)):
@@ -2999,6 +3019,7 @@ class RackLocationService:
             image_io.draw_measurement_line(preview, layer_spacing_line, label=line_label)
         result_rel, _, _ = image_io.save_image(
             preview, 'rack_local_template_result', rel_dir='vision/rack_workbench',
+            extension='jpg', jpeg_quality=90,
         )
 
         result_data = {
@@ -3042,7 +3063,9 @@ class RackLocationService:
             },
         }
         from .rack_spatial_service import legacy_robot_groups
+        groups_started = perf_counter()
         result_data.update(legacy_robot_groups(self, recipe, pointcloud, regions))
+        timings['robot_groups_ms'] = round((perf_counter() - groups_started) * 1000, 1)
         warning_message = "；".join(filter(None, [warning_message, *result_data.get("quality_warnings", [])]))
         result_data["warning_message"] = warning_message
         output_compensation = robot_rack_compensation or rack_compensation
@@ -3111,7 +3134,12 @@ class RackLocationService:
             )
             result_id = result.id
 
+        timings['total_ms'] = round((perf_counter() - started) * 1000, 1)
+        logger.warning('工作台计算耗时 recipe=%s timings=%s', recipe.id, timings)
         return {
+            'timings': timings,
+            'robot_groups': result_data.get('robot_groups', {}),
+            'robot_conversion_error': result_data.get('robot_conversion_error', ''),
             'result_id': result_id,
             'recipe_id': recipe.id,
             'rack_side': recipe.rack_side or RackSide.BOTH,

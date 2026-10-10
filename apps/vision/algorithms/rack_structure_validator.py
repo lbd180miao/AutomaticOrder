@@ -167,7 +167,7 @@ class RackStructureValidator:
         else:
             failed_items = [c.name for c in checks if not c.passed]
             message = f"校验失败（{failed_code.value}）：{', '.join(failed_items)}"
-            logger.warning("料架结构校验失败，结果将被拦截 | %s", message)
+            logger.warning("料架结构质量提示（是否拦截由调用方决定） | %s", message)
 
         return ValidationResult(
             is_valid=geom_passed,
