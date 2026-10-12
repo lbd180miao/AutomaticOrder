@@ -186,6 +186,31 @@ def task_detail(request, pk):
     result_img = next((i for i in images if i.image_type == 'RESULT'), None)
     rack_result = task.rack_results.first()
     foam_result = task.foam_results.first()
+
+    # Pre-compute dual-point XYZ delta rows for the template
+    dp_rows = []
+    if rack_result and rack_result.result_data.get('source') == 'dual_point_evaluate':
+        result = rack_result.result_data.get('result') or {}
+        ref_points = {p['name']: p for p in (result.get('reference') or {}).get('points') or []}
+        for pt in result.get('points') or []:
+            name = pt.get('name', '')
+            cur = pt.get('xyz')
+            ref = ref_points.get(name, {}).get('xyz')
+            fmt3 = lambda v: f'{v:.3f}' if isinstance(v, (int, float)) else '—'
+            if cur and len(cur) == 3:
+                cur_str = ' / '.join(fmt3(v) for v in cur)
+            else:
+                cur_str = '—'
+            if ref and len(ref) == 3:
+                ref_str = ' / '.join(fmt3(v) for v in ref)
+            else:
+                ref_str = '—'
+            if cur and ref and len(cur) == 3 and len(ref) == 3:
+                delta_str = ' / '.join(fmt3(cur[i] - ref[i]) for i in range(3))
+            else:
+                delta_str = '—'
+            dp_rows.append({'name': name, 'ref': ref_str, 'cur': cur_str, 'delta': delta_str})
+
     return render(request, 'vision/task_detail.html', {
         'task': task,
         'original': original,
@@ -193,7 +218,9 @@ def task_detail(request, pk):
         'depth_img': depth_img,
         'rack_result': rack_result,
         'foam_result': foam_result,
+        'dp_rows': dp_rows,
     })
+
 
 
 @require_POST
@@ -3394,6 +3421,7 @@ def api_rack_location_calibrate_standard(request, recipe_id):
                     'algorithm_version': 'v2_rigid_body',
                     'coordinate_system': 'camera',
                     'source_result_id': result.id,
+                    'transform_context': result_data.get('transform_context') or {},
                     'quality_validation': validation.to_dict(),
                     'quality_gate_mode': 'disabled',
                     'dual_axis_standard': {'recipe_id': recipe.pk, 'source_result_id': result.pk, 'groups': axes},

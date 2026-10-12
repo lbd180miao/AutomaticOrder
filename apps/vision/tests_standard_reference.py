@@ -36,7 +36,8 @@ class StandardReferenceTests(SimpleTestCase):
         record = SimpleNamespace(pk=337, recipe_id=8, raw_data_path='missing.npy')
         loader = Mock()
         loader._load_workbench_pointcloud.side_effect = ValueError('点云文件缺失')
-        with patch.object(service.RackLocationResult.objects, 'get', return_value=record):
+        with patch.object(service.RackLocationResult.objects, 'get', return_value=record), \
+                patch.object(service, 'legacy_axis_frames', return_value={'A': {}, 'B': {}}):
             result = service.legacy_robot_groups(loader, recipe, None, {})
         self.assertEqual(result['robot_groups_status'], 'standard_unavailable')
         self.assertEqual(result['robot_conversion_error'], '')
@@ -53,3 +54,24 @@ class StandardReferenceTests(SimpleTestCase):
             result = service.legacy_robot_groups(Mock(), recipe, None, {})
         self.assertEqual(result['robot_groups_status'], 'calculation_failed')
         self.assertIn('当前帧点数不足', result['robot_conversion_error'])
+
+    def test_no_standard_still_returns_current_intersections(self):
+        recipe = SimpleNamespace(pk=8, roi_config={}, local_template_std=None)
+        current = {key: {'origin': [1., 2., 3.], 'frame': np.eye(4).tolist()}
+                   for key in ('A', 'B')}
+        with patch.object(service, 'legacy_axis_frames', return_value=current) as fit, \
+                patch.object(service, 'robot_group_results') as convert:
+            result = service.legacy_robot_groups(Mock(), recipe, None, {})
+        fit.assert_called_once()
+        convert.assert_not_called()
+        self.assertEqual(result['groups'], current)
+        self.assertEqual(result['robot_groups_status'], 'standard_not_set')
+        self.assertEqual(result['robot_groups'], {})
+        self.assertNotIn('delta_T', result['groups']['A'])
+
+    def test_no_standard_does_not_hide_current_fit_failure(self):
+        recipe = SimpleNamespace(pk=8, roi_config={}, local_template_std=None)
+        with patch.object(service, 'legacy_axis_frames', side_effect=ValueError('bad cloud')):
+            result = service.legacy_robot_groups(Mock(), recipe, None, {})
+        self.assertEqual(result['robot_groups_status'], 'calculation_failed')
+        self.assertEqual(result['groups'], {})

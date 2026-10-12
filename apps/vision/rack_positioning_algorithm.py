@@ -98,6 +98,16 @@ class RackPositioningResult:
 
 class RackPositioningAlgorithm:
     """料架定位算法"""
+
+    def locate_dual_points(self, image, pointcloud, config, metadata,
+                           hand_eye=None, robot_pose=None, pixel_index_map=None):
+        """Opt-in four-ROI path; existing three-plane callers stay unchanged.
+
+        Returns structured failure until registration, synchronized capture and
+        calibration are explicitly verified. Does not publish PLC results.
+        """
+        from .algorithms.rack_dual_point import locate
+        return locate(image, pointcloud, config, metadata, hand_eye, robot_pose, pixel_index_map)
     
     def __init__(self):
         """初始化算法"""
@@ -656,9 +666,9 @@ class RigidBodyCompensationAlgorithm:
         self,
         w1: float = 0.5,
         w3: float = 0.5,
-        ransac_distance_threshold: float = 2.0,
-        ransac_num_iterations: int = 300,
-        ransac_min_inliers: int = 50,
+        ransac_distance_threshold: float = 1.0,
+        ransac_num_iterations: int = 500,
+        ransac_min_inliers: int = 100,
         angle_tolerance_deg: float = 3.0,
         z_diff_tolerance_mm: float = 5.0,
         orthogonal_tolerance_deg: float = 5.0,

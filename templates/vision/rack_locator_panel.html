@@ -5,1206 +5,642 @@
 
 <style>
   /* ========== 3D 料架定位工作台 ========== */
-  .rl-workbench {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-  }
+  .rl-workbench { display:flex; flex-direction:column; gap:0; }
 
+  /* 标题栏 */
   .rl-title-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 18px;
-    flex-wrap: wrap;
-    gap: 12px;
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px; flex-wrap:wrap; gap:10px;
   }
-
   .rl-title-bar h1 {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 700;
+    margin:0; font-size:20px; font-weight:700;
   }
-
   .rl-title-bar h1::before {
-    content: "";
-    display: inline-block;
-    width: 4px;
-    height: 20px;
-    background: var(--info);
-    border-radius: 3px;
-    margin-right: 10px;
-    vertical-align: -3px;
+    content:""; display:inline-block; width:4px; height:18px;
+    background:var(--info); border-radius:3px; margin-right:10px; vertical-align:-3px;
   }
 
-
-
-  .badge-warning {
-    background: #fef3c7;
-    color: #92400e;
+  /* 配方区 */
+  .rl-recipe-bar {
+    display:flex; align-items:center; flex-wrap:wrap; gap:12px;
+    padding:12px 16px; background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); margin-bottom:10px;
   }
-
-
-  /* ── 配方选择区（下拉选择，仿2D风格）── */
-  .rl-recipe-section {
-    box-shadow: var(--shadow-sm);
-    margin-bottom: 18px;
-    overflow: hidden;
+  .rl-recipe-bar label { font-weight:600; font-size:14px; white-space:nowrap; }
+  .rl-recipe-bar select {
+    flex:1; min-width:260px; padding:7px 10px; font-size:14px;
+    border:1px solid var(--border); border-radius:6px; background:#fff;
   }
-
-  .rl-recipe-section-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 13px 18px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface-2);
+  .rl-recipe-bar select:focus { border-color:var(--info); outline:none; }
+  .rl-recipe-info {
+    display:flex; align-items:center; flex-wrap:wrap; gap:10px;
+    padding:8px 16px; font-size:13px; color:var(--text-muted);
+    border-top:1px solid var(--border);
   }
+  .rl-recipe-info strong { color:var(--text); }
 
-  .rl-recipe-section-head h2 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 700;
-    color: #1f2937;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .rl-recipe-section-head h2::before {
-    content: "";
-    width: 3px;
-    height: 14px;
-    background: var(--info);
-    border-radius: 2px;
-  }
-
-  /* 配方下拉选择器 */
-  .rl-recipe-selector {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--border);
-    background: #f9fafb;
-  }
-
-  .rl-recipe-selector .selector-label {
-    font-weight: 700;
-    font-size: 14px;
-    color: #374151;
-    white-space: nowrap;
-  }
-
-  .rl-recipe-selector .recipe-dropdown {
-    flex: 1;
-    padding: 8px 12px;
-    font-size: 14px;
-    min-width: 300px;
-    border: 2px solid #d1d5db;
-    border-radius: 6px;
-    background: #fff;
-    transition: all 0.2s;
-  }
-
-  .rl-recipe-selector .recipe-dropdown:focus {
-    border-color: var(--info);
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  }
-
-  /* 配方信息卡片 */
-  .rl-recipe-info-card {
-    background: linear-gradient(135deg, #dbeafe 0%, #e0f2fe 100%);
-    border-bottom: 2px solid #0284c7;
-    padding: 14px 18px;
-    box-shadow: inset 0 1px 3px rgba(2, 132, 199, 0.1);
-  }
-
-  .recipe-info-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-
-  .recipe-info-icon {
-    font-size: 18px;
-  }
-
-  .recipe-info-title {
-    font-weight: 700;
-    font-size: 15px;
-    color: #0c4a6e;
-    flex: 1;
-  }
-
-  .recipe-badge {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 700;
-    background: #0284c7;
-    color: #fff;
-  }
-
-  .recipe-info-body {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr;
-    gap: 8px;
-    font-size: 12px;
-  }
-
-  .recipe-info-row {
-    color: #1e40af;
-    line-height: 1.6;
-  }
-
-  .recipe-info-row strong {
-    font-weight: 700;
-    margin-right: 4px;
-  }
-
-  /* 顶部操作栏 */
-  .rl-action-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding: 14px 18px;
-    background: var(--surface-2);
-    border-bottom: 1px solid var(--border);
-    border-radius: var(--radius) var(--radius) 0 0;
-  }
-
-  .rl-action-bar .btn {
-    min-width: 110px;
-  }
-
-  .rl-roi-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding: 10px 18px;
-    background: #f8fafc;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .rl-roi-toolbar .rl-roi-help {
-    flex-basis: 100%;
-    color: var(--text-muted);
-    font-size: 12px;
-  }
-
-  .rl-roi-editor-btn {
-    min-width: 126px;
-    background: #fff;
-    color: #334155;
-    border: 1px solid #cbd5e1;
-  }
-
-  .rl-roi-editor-btn.active {
-    color: #fff;
-    background: #2563eb;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, .18);
-  }
-
-  .rl-roi-editor-btn.done:not(.active)::after {
-    content: ' ✓';
-    color: #16a34a;
-    font-weight: 800;
-  }
-
-  .rl-roi-editor-btn.invalid:not(.active) {
-    color: #92400e;
-    border-color: #f59e0b;
-    background: #fffbeb;
-    box-shadow: 0 0 0 2px rgba(245, 158, 11, .12);
-  }
-
-  .rl-roi-editor-btn.invalid:not(.active)::after {
-    content: ' · 提示';
-    color: #d97706;
-    font-weight: 800;
-  }
-
-  #btn-roi-plane1 { border-left: 4px solid #38bdf8; }
-  #btn-roi-plane2 { border-left: 4px solid #f59e0b; }
-  #btn-roi-plane3 { border-left: 4px solid #ec4899; }
-  #btn-layer-spacing-line { border-left: 4px solid #16a34a; }
-
-  .rl-workbench-status {
-    padding: 9px 18px;
-    background: #eff6ff;
-    border-bottom: 1px solid #bfdbfe;
-    color: #1e40af;
-    font-size: 13px;
-    font-weight: 600;
-  }
-
-  .rl-workbench-status::before {
-    content: '●';
-    margin-right: 8px;
-    color: #2563eb;
-  }
-
-  #btn-save-as-std:disabled {
-    background: #94a3b8 !important;
-    color: #f8fafc !important;
-    cursor: not-allowed;
-    opacity: .72;
-    filter: grayscale(1);
-    box-shadow: none;
-  }
-
-  .rl-template-validation-message {
-    display: none;
-    margin: 0 0 10px;
-    padding: 9px 11px;
-    border: 1px solid #fecaca;
-    border-radius: 6px;
-    background: #fef2f2;
-    color: #b91c1c;
-    font-weight: 600;
-    line-height: 1.5;
-    white-space: pre-line;
-  }
-
-  .rl-template-validation-message.ok {
-    border-color: #bbf7d0;
-    background: #f0fdf4;
-    color: #15803d;
-  }
-
-  .rl-template-validation-message.warning {
-    border-color: #fde68a;
-    background: #fffbeb;
-    color: #92400e;
-  }
-
+  /* RANSAC 阈值（旧版专用） */
   .rl-ransac-setting {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: 16px;
-    color: var(--text-muted);
-    font-size: 13px;
+    display:flex; align-items:center; gap:6px;
+    font-size:13px; color:var(--text-muted); margin-left:8px;
   }
-
   .rl-ransac-setting input {
-    width: 76px;
-    padding: 7px 9px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: #fff;
+    width:72px; padding:6px 8px; border:1px solid var(--border);
+    border-radius:6px; background:#fff;
   }
 
-  .rl-inlier-comparison {
-    display: none;
-    margin: 0 0 10px;
-    padding: 9px 11px;
-    border: 1px solid #bae6fd;
-    border-radius: 6px;
-    background: #f0f9ff;
-    color: #075985;
+  /* 操作栏 */
+  .rl-action-bar {
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    padding:10px 0; margin-bottom:8px;
   }
 
-  .rl-inlier-comparison table {
-    width: 100%;
-    margin-top: 6px;
-    text-align: center;
-    border-collapse: collapse;
+  /* ROI 选择工具栏（旧版） */
+  .rl-roi-toolbar {
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    padding:8px 0; border-top:1px solid var(--border); margin-bottom:8px;
+  }
+  .rl-roi-toolbar .rl-roi-help {
+    flex-basis:100%; color:var(--text-muted); font-size:12px; margin-top:2px;
+  }
+  .rl-roi-editor-btn {
+    min-width:120px; background:#fff; color:#334155;
+    border:1px solid #cbd5e1;
+  }
+  .rl-roi-editor-btn.active {
+    color:#fff; background:#2563eb; border-color:#2563eb;
+    box-shadow:0 0 0 3px rgba(37,99,235,.18);
+  }
+  .rl-roi-editor-btn.done:not(.active)::after { content:' ✓'; color:#16a34a; font-weight:800; }
+  .rl-roi-editor-btn.invalid:not(.active) {
+    color:#92400e; border-color:#f59e0b; background:#fffbeb;
+  }
+  .rl-roi-editor-btn.invalid:not(.active)::after { content:' · 提示'; color:#d97706; font-weight:800; }
+  #btn-roi-plane1 { border-left:4px solid #38bdf8; }
+  #btn-roi-plane2 { border-left:4px solid #f59e0b; }
+  #btn-roi-plane3 { border-left:4px solid #ec4899; }
+  #btn-layer-spacing-line { border-left:4px solid #16a34a; }
+
+  /* 状态栏 */
+  .rl-workbench-status {
+    padding:8px 14px; background:#eff6ff; border:1px solid #bfdbfe;
+    border-radius:6px; color:#1e40af; font-size:13px; font-weight:600;
+    margin-bottom:10px;
+  }
+  .rl-workbench-status::before { content:'●'; margin-right:8px; color:#2563eb; }
+
+  /* 错误反馈 */
+  #rl-calculation-feedback {
+    padding:12px 14px; margin-bottom:10px; border:1px solid #fca5a5;
+    border-radius:8px; background:#fef2f2; color:#b91c1c; white-space:pre-wrap;
   }
 
-  .rl-no-recipe-bar {
-    padding: 18px;
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 13px;
-  }
-
-  /* 主体双栏 */
+  /* 双栏主体 */
   .rl-main {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 18px;
-    align-items: start;
-    min-height: 560px;
+    display:grid; grid-template-columns:1fr 1fr; gap:14px;
   }
+  @media(max-width:1024px) { .rl-main { grid-template-columns:1fr; } }
 
-  @media (max-width: 1024px) {
-    .rl-main {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .rl-panel {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
-    overflow: hidden;
-  }
-
-  .rl-panel-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 13px 18px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface-2);
-  }
-
-  .rl-panel-head h2 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 700;
-    color: #1f2937;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .rl-panel-head h2::before {
-    content: "";
-    width: 3px;
-    height: 14px;
-    background: var(--info);
-    border-radius: 2px;
-  }
-
-  .rl-panel-body {
-    padding: 16px;
-  }
-
-  /* 点云画布舞台 */
+  /* 图像舞台 */
   .rl-image-stage {
-    position: relative;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    overflow: hidden;
-    background: #0f172a;
-    min-height: 460px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position:relative; background:#0f172a; border-radius:0 0 6px 6px;
+    min-height:420px; overflow:hidden; display:flex; align-items:center; justify-content:center;
   }
-
-  .rl-image-stage img {
-    display: block;
-    width: 100%;
-    height: auto;
+  #rl-depth-image { max-width:100%; max-height:600px; display:block; }
+  #rl-canvas {
+    position:absolute; top:0; left:0; cursor:crosshair;
+    touch-action:none; pointer-events:all;
   }
-
-  .rl-image-stage canvas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    cursor: crosshair;
-  }
-
-  .rl-placeholder {
-    color: #6b7280;
-    text-align: center;
-    padding: 40px 20px;
-  }
-
-  .rl-placeholder .cam-icon {
-    font-size: 48px;
-    opacity: 0.5;
-    margin-bottom: 10px;
-  }
-
+  .rl-placeholder { text-align:center; color:#475569; padding:40px; }
+  .rl-placeholder .cam-icon { font-size:48px; margin-bottom:12px; }
   .rl-roi-readout {
-    position: absolute;
-    left: 8px;
-    bottom: 8px;
-    padding: 3px 8px;
-    border-radius: 6px;
-    background: rgba(15, 23, 42, 0.78);
-    color: #e2e8f0;
-    font: 600 12px/1.4 ui-monospace, Menlo, monospace;
-    pointer-events: none;
+    position:absolute; bottom:8px; left:8px; right:8px;
+    padding:4px 8px; background:rgba(0,0,0,.55); color:#e2e8f0;
+    font-size:12px; font-family:monospace; border-radius:4px; text-align:center;
   }
-
-  .rl-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 12px;
-    flex-wrap: wrap;
+  .rl-polygon-hint {
+    position:absolute; top:8px; left:50%; transform:translateX(-50%);
+    padding:4px 12px; border-radius:20px; background:rgba(124,58,237,.85);
+    color:#fff; font-size:12px; font-weight:600; pointer-events:none;
+    white-space:nowrap; z-index:10; display:none;
   }
-
-  .rl-actions .btn {
-    flex: 1;
-    min-width: 120px;
-  }
-
-  .rl-status {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-top: 10px;
-    font-style: italic;
-  }
-
+  .polygon-mode .rl-polygon-hint { display:block; }
   .rl-source-chip {
-    display: inline-block;
-    margin-top: 8px;
-    padding: 2px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    color: var(--text-muted);
+    display:inline-block; margin-top:8px; font-size:12px;
+    color:var(--text-muted);
+  }
+  #btn-polygon.polygon-active {
+    background:#7c3aed; color:#fff; border-color:#7c3aed;
+    box-shadow:0 0 0 3px rgba(124,58,237,.25);
+  }
+  .rl-image-stage.polygon-mode canvas { cursor:crosshair; }
+
+  /* 旧版：三平面空间 ROI */
+  .rl-spatial-section {
+    padding:12px; border:1px solid var(--border); border-radius:8px;
+    background:var(--surface-2); margin-bottom:10px;
+    display:flex; align-items:center; flex-wrap:wrap; gap:10px;
+  }
+
+  /* 结果右栏 */
+  .rl-panel-right { display:flex; flex-direction:column; gap:12px; }
+
+  /* 卡片通用 */
+  .rl-card {
+    border:1px solid var(--border); border-radius:8px;
+    background:#fff; overflow:hidden;
+  }
+  .rl-card-head {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:9px 12px; background:var(--surface-2); border-bottom:1px solid var(--border);
+  }
+  .rl-card-head h3 { margin:0; font-size:13px; font-weight:700; }
+  .rl-card-body { padding:12px; }
+  .rl-card-note {
+    margin:0; padding:7px 12px; border-bottom:1px solid var(--border);
+    background:#f0f9ff; color:#0369a1; font-size:11px; line-height:1.5;
   }
 
   /* 判定横幅 */
   .rl-verdict {
-    border-radius: var(--radius-sm);
-    padding: 16px 18px;
-    margin-bottom: 14px;
-    display: flex;
-    align-items: center;
-    gap: 14px;
+    border-radius:6px; padding:12px 14px; margin-bottom:10px;
+    display:flex; align-items:center; gap:12px;
   }
-
-  .rl-verdict.ok {
-    background: var(--success-soft);
-    border: 2px solid var(--success);
-  }
-
-  .rl-verdict.fail {
-    background: var(--danger-soft);
-    border: 2px solid var(--danger);
-  }
-
-  .rl-verdict.idle {
-    background: var(--surface-2);
-    border: 2px dashed var(--border);
-  }
-
-  .rl-verdict .v-icon {
-    font-size: 36px;
-  }
-
-  .rl-verdict .v-text strong {
-    display: block;
-    font-size: 18px;
-    font-weight: 800;
-  }
-
-  .rl-verdict.ok .v-text strong {
-    color: var(--success);
-  }
-
-  .rl-verdict.fail .v-text strong {
-    color: var(--danger);
-  }
-
-  .rl-verdict.idle .v-text strong {
-    color: var(--text-muted);
-  }
-
-  .rl-verdict .v-sub {
-    font-size: 13px;
-    color: var(--text-muted);
-    margin-top: 3px;
-  }
+  .rl-verdict.ok   { background:var(--success-soft); border:2px solid var(--success); }
+  .rl-verdict.fail { background:var(--danger-soft);  border:2px solid var(--danger);  }
+  .rl-verdict.idle { background:var(--surface-2);    border:2px dashed var(--border);  }
+  .rl-verdict .v-icon { font-size:30px; }
+  .rl-verdict .v-text strong { display:block; font-size:16px; font-weight:800; }
+  .rl-verdict.ok   .v-text strong { color:var(--success); }
+  .rl-verdict.fail .v-text strong { color:var(--danger);  }
+  .rl-verdict.idle .v-text strong { color:var(--text-muted); }
+  .rl-verdict .v-sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
 
   /* 偏差网格 */
-  .rl-offset-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    margin-bottom: 14px;
-  }
-
+  .rl-offset-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:10px; }
   .rl-offset-cell {
-    text-align: center;
-    padding: 10px 8px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    text-align:center; padding:8px 6px; background:var(--surface-2);
+    border:1px solid var(--border); border-radius:6px;
   }
-
-  .rl-offset-axis {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 4px;
-  }
-
-  .rl-offset-val {
-    font-size: 18px;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .rl-offset-unit {
-    font-size: 11px;
-    color: var(--text-faint);
-  }
-
-  .rl-offset-cell.positive .rl-offset-val {
-    color: #d97706;
-  }
-
-  .rl-offset-cell.negative .rl-offset-val {
-    color: var(--info);
-  }
-
-  .rl-offset-cell.zero .rl-offset-val {
-    color: var(--success);
-  }
-
-  .rl-offset-cell.out .rl-offset-val {
-    color: var(--danger);
-  }
+  .rl-offset-axis { font-size:10px; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:3px; }
+  .rl-offset-val  { font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .rl-offset-unit { font-size:10px; color:var(--text-faint); }
+  .rl-offset-cell.positive .rl-offset-val { color:#d97706; }
+  .rl-offset-cell.negative .rl-offset-val { color:var(--info); }
+  .rl-offset-cell.zero     .rl-offset-val { color:var(--success); }
+  .rl-offset-cell.out      .rl-offset-val { color:var(--danger); }
 
   /* 置信度 */
-  .rl-conf-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 12px;
-  }
-
+  .rl-conf-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
   .rl-conf-track {
-    flex: 1;
-    height: 10px;
-    background: var(--surface-2);
-    border-radius: 999px;
-    overflow: hidden;
-    border: 1px solid var(--border);
+    flex:1; height:8px; background:var(--surface-2);
+    border-radius:999px; overflow:hidden; border:1px solid var(--border);
   }
+  .rl-conf-fill { height:100%; border-radius:999px; transition:width .4s,background .3s; width:0; }
+  .rl-conf-fill.high { background:var(--success); }
+  .rl-conf-fill.mid  { background:var(--warn); }
+  .rl-conf-fill.low  { background:var(--danger); }
+  .rl-conf-label { font-size:12px; font-weight:700; width:44px; text-align:right; }
 
-  .rl-conf-fill {
-    height: 100%;
-    border-radius: 999px;
-    transition: width 0.4s, background 0.3s;
-    width: 0;
+  /* 检测层距 */
+  .rl-layer-spacing-result {
+    display:flex; align-items:baseline; gap:10px; margin-bottom:10px;
+    padding:10px 12px; border:1px solid #bae6fd; border-radius:6px;
+    background:#f0f9ff; color:#0c4a6e;
   }
+  .rl-layer-spacing-value { font-size:20px; font-weight:800; font-family:monospace; color:#0284c7; }
+  .rl-layer-spacing-method { margin-left:auto; color:#0369a1; font-size:12px; font-weight:600; }
+  .rl-layer-spacing-method.warning { color:#b45309; }
 
-  .rl-conf-fill.high {
-    background: var(--success);
+  /* 模板表格 */
+  .rl-tpl-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .rl-tpl-table th,.rl-tpl-table td { padding:5px 6px; border-bottom:1px dashed var(--border); text-align:left; }
+  .rl-tpl-table th { color:var(--text-muted); font-weight:600; }
+  .rl-template-validation-message {
+    display:none; margin:0 0 8px; padding:8px 10px;
+    border:1px solid #fecaca; border-radius:6px; background:#fef2f2; color:#b91c1c;
+    font-weight:600; line-height:1.5; white-space:pre-line;
   }
+  .rl-template-validation-message.ok      { border-color:#bbf7d0; background:#f0fdf4; color:#15803d; }
+  .rl-template-validation-message.warning { border-color:#fde68a; background:#fffbeb; color:#92400e; }
 
-  .rl-conf-fill.mid {
-    background: var(--warn);
+  /* RANSAC 内点表 */
+  .rl-inlier-comparison { font-size:12px; margin-bottom:10px; }
+  .rl-inlier-comparison table { width:100%; border-collapse:collapse; }
+  .rl-inlier-comparison td,.rl-inlier-comparison th {
+    padding:4px 6px; border-bottom:1px solid var(--border); text-align:center;
   }
+  .rl-inlier-comparison th { background:var(--surface-2); color:var(--text-muted); }
 
-  .rl-conf-fill.low {
-    background: var(--danger);
+  /* 姿态网格 */
+  .rl-pose-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:5px; }
+  .rl-pose-item {
+    border:1px solid var(--border); border-radius:5px; background:#f8fafc;
+    padding:7px 5px; text-align:center; min-width:0;
   }
+  .rl-pose-label { display:block; font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; }
+  .rl-pose-value {
+    display:block; margin-top:2px; font-size:12px; font-weight:800;
+    font-family:monospace; color:var(--text); overflow-wrap:anywhere;
+  }
+  @media(max-width:980px) { .rl-pose-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 
-  .rl-conf-label {
-    font-size: 12px;
-    font-weight: 700;
-    width: 48px;
-    text-align: right;
-  }
+  /* 4×4 矩阵 */
+  .rl-matrix { width:100%; border-collapse:collapse; margin-top:8px; font-family:monospace; font-size:11px; table-layout:fixed; }
+  .rl-matrix td { border:1px solid var(--border); padding:5px 3px; text-align:right; background:#f8fafc; overflow-wrap:anywhere; }
+
+  /* 机器人偏差表 */
+  .rl-robot-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .rl-robot-table th,.rl-robot-table td { padding:6px 8px; border-bottom:1px solid var(--border); text-align:left; }
+  .rl-robot-table th { background:var(--surface-2); color:var(--text-muted); white-space:nowrap; }
+
+  /* 交点表 */
+  .rl-isect-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .rl-isect-table th,.rl-isect-table td { padding:5px 6px; border-bottom:1px dashed var(--border); text-align:left; }
+  .rl-isect-table th { background:var(--surface-2); color:var(--text-muted); }
 
   /* 结果图 */
   .rl-result-image {
-    width: 100%;
-    background: #0f1623;
-    border-radius: 6px;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 200px;
-    margin-bottom: 12px;
+    width:100%; background:#0f1623; border-radius:6px; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; min-height:160px;
   }
+  .rl-result-image img { max-width:100%; max-height:280px; object-fit:contain; }
+  .rl-result-image .ph { color:#4b5563; font-size:13px; text-align:center; padding:24px; }
 
-  .rl-result-image img {
-    max-width: 100%;
-    max-height: 320px;
-    object-fit: contain;
-  }
-
-  .rl-result-image .ph {
-    color: #4b5563;
-    font-size: 13px;
-    text-align: center;
-    padding: 30px;
-  }
-
-  .rl-detail-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 12px;
-  }
-
-  .rl-comp-panel {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: #fff;
-    margin: 0 0 14px;
-    overflow: hidden;
-  }
-
-  .rl-comp-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 10px 12px;
-    background: var(--surface-2);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .rl-comp-head h3 {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 800;
-    color: var(--text);
-  }
-
-  .rl-comp-coordinate-note {
-    margin: 0;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border);
-    background: #f0f9ff;
-    color: #0369a1;
-    font-size: 11px;
-    line-height: 1.5;
-  }
-
-  .rl-comp-body {
-    padding: 12px;
-  }
-
-  .rl-layer-spacing-result {
-    display: flex;
-    align-items: baseline;
-    justify-content: flex-start;
-    gap: 12px;
-    margin-bottom: 12px;
-    padding: 12px 14px;
-    border: 1px solid #bae6fd;
-    border-radius: 8px;
-    background: #f0f9ff;
-    color: #0c4a6e;
-  }
-
-  .rl-layer-spacing-result strong {
-    font-size: 14px;
-  }
-
-  .rl-layer-spacing-value {
-    font-size: 22px;
-    font-weight: 800;
-    font-family: monospace;
-    color: #0284c7;
-  }
-
-  .rl-layer-spacing-method {
-    margin-left: auto;
-    color: #0369a1;
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  .rl-layer-spacing-method.warning {
-    color: #b45309;
-  }
-
-  .rl-pose-grid {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 6px;
-  }
-
-  .rl-pose-item {
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: #f8fafc;
-    padding: 8px 6px;
-    text-align: center;
-    min-width: 0;
-  }
-
-  .rl-pose-label {
-    display: block;
-    font-size: 10px;
-    font-weight: 800;
-    color: var(--text-muted);
-    text-transform: uppercase;
-  }
-
-  .rl-pose-value {
-    display: block;
-    margin-top: 3px;
-    font-size: 13px;
-    font-weight: 800;
-    font-family: monospace;
-    color: var(--text);
-    overflow-wrap: anywhere;
-  }
-
-  .rl-matrix {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-    font-family: monospace;
-    font-size: 11px;
-    table-layout: fixed;
-  }
-
-  .rl-matrix td {
-    border: 1px solid var(--border);
-    padding: 6px 4px;
-    text-align: right;
-    background: #f8fafc;
-    overflow-wrap: anywhere;
-  }
-
-  .rl-comp-meta {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 10px;
-    font-size: 12px;
-    color: var(--text-muted);
-  }
-
-  .rl-comp-meta strong {
-    color: var(--text);
-  }
-
+  /* 标准操作按钮行 */
   .rl-standard-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px dashed var(--border);
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    margin-top:8px; padding-top:8px; border-top:1px dashed var(--border);
   }
+  .rl-standard-actions .hint { font-size:12px; color:var(--text-muted); line-height:1.5; }
 
-  .rl-standard-actions .hint {
-    font-size: 12px;
-    color: var(--text-muted);
-    line-height: 1.5;
-  }
-
-  @media (max-width: 980px) {
-    .rl-pose-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 560px) {
-    .rl-pose-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .rl-standard-actions {
-      align-items: stretch;
-      flex-direction: column;
-    }
-  }
-
+  /* 辅助 */
   .rl-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    color: var(--text-muted);
+    display:inline-flex; align-items:center; gap:4px; padding:3px 9px;
+    border-radius:999px; font-size:12px; background:var(--surface-2);
+    border:1px solid var(--border); color:var(--text-muted);
   }
+  .rl-chip strong { color:var(--text); }
+  .rl-comp-meta { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; font-size:12px; color:var(--text-muted); }
+  .rl-comp-meta strong { color:var(--text); }
 
-  .rl-chip strong {
-    color: var(--text);
-  }
-
-  /* 次级区块 */
-  .rl-secondary {
-    margin-top: 18px;
-  }
-
-  .rl-auto-bar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    padding: 14px 18px;
-  }
-
-  /* Loading */
+  /* 加载遮罩 */
   #rl-loading {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 22, 35, 0.55);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-    backdrop-filter: blur(2px);
+    position:fixed; inset:0; background:rgba(15,22,35,.55);
+    display:flex; align-items:center; justify-content:center; z-index:9999; backdrop-filter:blur(2px);
   }
-
-  .rl-loading-card {
-    background: #fff;
-    border-radius: var(--radius);
-    padding: 30px 40px;
-    text-align: center;
-    box-shadow: var(--shadow-lg);
-  }
-
+  .rl-loading-card { background:#fff; border-radius:var(--radius); padding:28px 36px; text-align:center; box-shadow:var(--shadow-lg); }
   .rl-spinner {
-    border: 4px solid #e5e7eb;
-    border-top: 4px solid var(--info);
-    border-radius: 50%;
-    width: 44px;
-    height: 44px;
-    animation: spin 0.9s linear infinite;
-    margin: 0 auto 14px;
+    border:4px solid #e5e7eb; border-top:4px solid var(--info); border-radius:50%;
+    width:40px; height:40px; animation:spin .9s linear infinite; margin:0 auto 12px;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* 离线数据包弹窗 */
+  .rl-package-modal[hidden] { display:none; }
+  .rl-package-modal {
+    position:fixed; inset:0; z-index:2000; display:grid; place-items:center; padding:24px;
+  }
+  .rl-package-backdrop { position:absolute; inset:0; background:rgba(15,23,42,.68); backdrop-filter:blur(3px); }
+  .rl-package-dialog {
+    position:relative; width:min(1050px,96vw); max-height:90vh; overflow:hidden;
+    display:flex; flex-direction:column; background:#fff;
+    border:1px solid var(--border); border-radius:12px; box-shadow:0 24px 70px rgba(0,0,0,.3);
+  }
+  .rl-package-head,.rl-package-foot {
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:14px 18px; border-bottom:1px solid var(--border);
+  }
+  .rl-package-head h2 { margin:0; font-size:16px; }
+  .rl-package-head p  { margin:3px 0 0; color:var(--text-muted); font-size:12px; }
+  .rl-package-body {
+    display:grid; grid-template-columns:minmax(240px,33%) 1fr; min-height:400px; overflow:hidden;
+  }
+  .rl-package-list-pane { padding:12px; border-right:1px solid var(--border); overflow-y:auto; }
+  .rl-package-list { display:grid; gap:7px; margin-top:10px; }
+  .rl-package-item {
+    width:100%; display:grid; grid-template-columns:68px 1fr; gap:9px; padding:8px;
+    text-align:left; color:var(--text); background:var(--surface-2);
+    border:1px solid transparent; border-radius:8px; cursor:pointer;
+  }
+  .rl-package-item:hover,.rl-package-item.selected { border-color:var(--primary); }
+  .rl-package-item.raw-package { background:linear-gradient(135deg,rgba(14,165,233,.07) 0%,var(--surface-2) 100%); }
+  .rl-package-item.raw-package:hover { border-color:#0ea5e9; }
+  .rl-package-item img { width:68px; height:54px; object-fit:cover; border-radius:5px; background:#0f172a; }
+  .rl-package-item strong,.rl-package-item span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rl-package-item span { margin-top:3px; color:var(--text-muted); font-size:11px; }
+  .raw-badge { display:inline-block !important; background:#0ea5e9; color:#fff; padding:1px 5px; border-radius:4px; font-size:10px; margin-left:3px; white-space:nowrap; }
+  .rl-package-detail { padding:18px; overflow-y:auto; }
+  .rl-package-detail img { width:100%; max-height:280px; object-fit:contain; background:#0f172a; border-radius:7px; }
+  .rl-package-meta { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:14px; }
+  .rl-package-meta div { padding:9px; border-radius:7px; background:var(--surface-2); }
+  .rl-package-meta small { display:block; color:var(--text-muted); margin-bottom:2px; }
+  .rl-package-empty { color:var(--text-muted); text-align:center; padding:28px 10px; }
+  .rl-package-foot { border-top:1px solid var(--border); border-bottom:0; }
+  #offline-package-message { color:var(--text-muted); font-size:12px; }
+  @media(max-width:760px) {
+    .rl-package-body { grid-template-columns:1fr; }
+    .rl-package-list-pane { max-height:220px; border-right:0; border-bottom:1px solid var(--border); }
+    .rl-package-foot { align-items:flex-start; flex-direction:column; }
   }
 
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  .rl-offline-actions { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color); }
-  .rl-package-modal[hidden] { display: none; }
-  .rl-package-modal { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 24px; }
-  .rl-package-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .68); backdrop-filter: blur(3px); }
-  .rl-package-dialog { position: relative; width: min(1050px, 96vw); max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: var(--card-bg, #fff); border: 1px solid var(--border-color); border-radius: 14px; box-shadow: 0 24px 70px rgba(0, 0, 0, .3); }
-  .rl-package-head, .rl-package-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--border-color); }
-  .rl-package-head h2 { margin: 0; font-size: 18px; }
-  .rl-package-head p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; }
-  .rl-package-body { display: grid; grid-template-columns: minmax(250px, 34%) 1fr; min-height: 430px; overflow: hidden; }
-  .rl-package-list-pane { padding: 14px; border-right: 1px solid var(--border-color); overflow-y: auto; }
-  .rl-package-list { display: grid; gap: 8px; margin-top: 12px; }
-  .rl-package-item { width: 100%; display: grid; grid-template-columns: 72px 1fr; gap: 10px; padding: 9px; text-align: left; color: var(--text); background: var(--bg-hover); border: 1px solid transparent; border-radius: 9px; cursor: pointer; }
-  .rl-package-item:hover, .rl-package-item.selected { border-color: var(--primary); }
-  .rl-package-item.raw-package { background: linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, var(--bg-hover) 100%); }
-  .rl-package-item.raw-package:hover { border-color: #0ea5e9; }
-  .rl-package-item img { width: 72px; height: 58px; object-fit: cover; border-radius: 6px; background: #0f172a; }
-  .rl-package-item strong, .rl-package-item span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rl-package-item span { margin-top: 4px; color: var(--text-muted); font-size: 11px; }
-  .raw-badge { display: inline-block !important; background: #0ea5e9; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 4px; white-space: nowrap; }
-  .rl-package-detail { padding: 20px; overflow-y: auto; }
-  .rl-package-detail img { width: 100%; max-height: 300px; object-fit: contain; background: #0f172a; border-radius: 8px; }
-  .rl-package-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
-  .rl-package-meta div { padding: 10px; border-radius: 8px; background: var(--bg-hover); }
-  .rl-package-meta small { display: block; color: var(--text-muted); margin-bottom: 3px; }
-  .rl-package-empty { color: var(--text-muted); text-align: center; padding: 30px 10px; }
-  .rl-package-foot { border-top: 1px solid var(--border-color); border-bottom: 0; }
-  #offline-package-message { color: var(--text-muted); font-size: 12px; }
-  @media (max-width: 760px) { .rl-package-body { grid-template-columns: 1fr; } .rl-package-list-pane { max-height: 240px; border-right: 0; border-bottom: 1px solid var(--border-color); } .rl-package-foot { align-items: flex-start; flex-direction: column; } }
-
-  /* 画笔（多边形）模式样式 */
-  #btn-polygon.polygon-active {
-    background: #7c3aed;
-    color: #fff;
-    border-color: #7c3aed;
-    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
-  }
-  #btn-polygon.polygon-active:hover {
-    background: #6d28d9;
-  }
-  .rl-image-stage.polygon-mode canvas {
-    cursor: crosshair;
-  }
-  .rl-polygon-hint {
-    position: absolute;
-    top: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 4px 12px;
-    border-radius: 20px;
-    background: rgba(124, 58, 237, 0.85);
-    color: #fff;
-    font-size: 12px;
-    font-weight: 600;
-    pointer-events: none;
-    white-space: nowrap;
-    z-index: 10;
-    display: none;
-  }
-  .polygon-mode .rl-polygon-hint {
-    display: block;
-  }
+  /* 模式切换 */
+  #rack-workbench[data-mode="dual"]   .dp-legacy-only,
+  #rack-workbench[data-mode="dual"]   [data-legacy-reprocess],
+  #rack-workbench[data-mode="legacy"] .dp-dual-only { display:none !important; }
 </style>
 
-<div class="rl-workbench">
+<div class="rl-workbench" id="rack-workbench" data-mode="dual">
 
   <!-- 标题栏 -->
   <div class="rl-title-bar">
     <h1>3D 料架定位工作台</h1>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <label style="font-size:13px;color:var(--text-muted);">
+        定位模式：
+        <select id="dp-mode" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <option value="dual">四 ROI 双交点</option>
+          <option value="legacy">三平面旧版</option>
+        </select>
+      </label>
       <a href="{% url 'vision:rack_location_history' %}" class="btn btn-secondary btn-sm">历史记录</a>
       <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
     </div>
   </div>
 
-
-
-  <!-- ── 配方选择区（下拉选择，仿2D风格）── -->
-  <div class="rl-recipe-section">
-    <div class="rl-recipe-section-head">
-      <h2>选择配方</h2>
-      <a href="{% url 'vision:recipe_management' %}" class="btn btn-secondary btn-sm">管理 3D 配方</a>
-    </div>
-
-    <!-- 配方下拉选择器 -->
-    <div class="rl-recipe-selector">
-      <label for="recipe-select" class="selector-label">当前配方：</label>
-      <select id="recipe-select" class="recipe-dropdown">
-        {% for recipe in recipes %}
-        <option value="{{ recipe.id }}" data-pos="{{ recipe.position_no }}" data-layer="{{ recipe.layer_no }}"
-          data-layer-count="{{ recipe.layer_count }}" data-rack-no="{{ recipe.rack_type }}"
-          data-sx="{{ recipe.standard_x }}" data-sy="{{ recipe.standard_y }}" data-sz="{{ recipe.standard_z }}"
-          data-mox="{{ recipe.max_offset_x }}" data-moy="{{ recipe.max_offset_y }}" data-moz="{{ recipe.max_offset_z }}"
-          data-conf="{{ recipe.confidence_threshold }}" data-name="{{ recipe.recipe_name }}"
-          data-side="{{ recipe.rack_side }}" {% if forloop.first %}selected{% endif %}>
-          {{ recipe.recipe_name }}｜{{ recipe.layer_count }} 层料架配方｜料架号：{{ recipe.rack_type|default:"未设置" }}
-        </option>
-        {% empty %}
-        <option value="">暂无配方</option>
-        {% endfor %}
-      </select>
-      <label class="rl-ransac-setting" for="ransac-distance-threshold">
-        RANSAC距离阈值
-        <input id="ransac-distance-threshold" type="number" min="0.5" max="20" step="0.5" value="2.0"
-          list="ransac-threshold-presets" title="小于该垂直距离的点计为平面内点；保存到当前配方">
-        <span>mm</span>
-      </label>
-      <datalist id="ransac-threshold-presets">
-        <option value="2"></option>
-        <option value="3"></option>
-        <option value="5"></option>
-      </datalist>
-    </div>
-
-    {% if not recipes %}
-    <div class="rl-no-recipe-bar">暂无已启用的 3D 配方，请先<a href="{% url 'vision:rack_location_recipes' %}">前往配方管理</a>新增配方。
-    </div>
-    {% endif %}
-
-    {% if recipes %}
-    <div id="selected-recipe-info" class="rl-recipe-info-card">
-      <div class="recipe-info-header">
-        <span class="recipe-info-icon">📋</span>
-        <span id="selected-recipe-name" class="recipe-info-title">正在加载配方…</span>
-        <span id="selected-recipe-layer-count" class="recipe-badge">—</span>
-      </div>
-      <div class="recipe-info-body">
-        <div class="recipe-info-row"><strong>料架号</strong><span id="selected-recipe-rack-no">—</span></div>
-        <div class="recipe-info-row"><strong>标准 X</strong><span id="selected-recipe-sx">—</span> mm</div>
-        <div class="recipe-info-row"><strong>标准 Y</strong><span id="selected-recipe-sy">—</span> mm</div>
-        <div class="recipe-info-row"><strong>标准 Z</strong><span id="selected-recipe-sz">—</span> mm</div>
-      </div>
-    </div>
-    {% endif %}
-
-
-
+  <!-- 配方选择 -->
+  <div class="rl-recipe-bar">
+    <label for="recipe-select">当前配方：</label>
+    <select id="recipe-select">
+      {% for recipe in recipes %}
+      <option value="{{ recipe.id }}"
+        data-pos="{{ recipe.position_no }}"
+        data-layer="{{ recipe.layer_no }}"
+        data-layer-count="{{ recipe.layer_count }}"
+        data-rack-no="{{ recipe.rack_type }}"
+        data-sx="{{ recipe.standard_x }}"
+        data-sy="{{ recipe.standard_y }}"
+        data-sz="{{ recipe.standard_z }}"
+        data-mox="{{ recipe.max_offset_x }}"
+        data-moy="{{ recipe.max_offset_y }}"
+        data-moz="{{ recipe.max_offset_z }}"
+        data-conf="{{ recipe.confidence_threshold }}"
+        data-name="{{ recipe.recipe_name }}"
+        data-side="{{ recipe.rack_side }}"
+        {% if forloop.first %}selected{% endif %}>
+        {{ recipe.recipe_name }}｜{{ recipe.layer_count }} 层料架配方｜料架号：{{ recipe.rack_type|default:"未设置" }}
+      </option>
+      {% empty %}
+      <option value="">暂无配方</option>
+      {% endfor %}
+    </select>
+    <label class="rl-ransac-setting dp-legacy-only" for="ransac-distance-threshold">
+      RANSAC距离阈值
+      <input id="ransac-distance-threshold" type="number" min="0.5" max="20" step="0.5" value="2.0"
+        list="ransac-threshold-presets" title="小于该垂直距离的点计为平面内点；保存到当前配方">
+      <span>mm</span>
+    </label>
+    <datalist id="ransac-threshold-presets">
+      <option value="2"></option><option value="3"></option><option value="5"></option>
+    </datalist>
+    <a href="{% url 'vision:recipe_management' %}" class="btn btn-secondary btn-sm" style="margin-left:auto;">管理 3D 配方</a>
   </div>
 
-  <!-- 隐藏的辅助字段（供 JS 读取） -->
+  {% if not recipes %}
+  <div style="padding:10px 14px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);margin-bottom:10px;">
+    暂无已启用的 3D 配方，请先<a href="{% url 'vision:rack_location_recipes' %}">前往配方管理</a>新增配方。
+  </div>
+  {% endif %}
+
+  {% if recipes %}
+  <!-- 配方基本信息行（简洁版，替代渐变卡片） -->
+  <div class="rl-recipe-info" id="selected-recipe-info">
+    <span>配方：<strong id="selected-recipe-name">—</strong></span>
+    <span id="selected-recipe-layer-count" style="color:var(--text-muted);">—</span>
+    <span>料架号：<strong id="selected-recipe-rack-no">—</strong></span>
+    <span class="dp-legacy-only">标准 X：<strong id="selected-recipe-sx">—</strong> mm</span>
+    <span class="dp-legacy-only">标准 Y：<strong id="selected-recipe-sy">—</strong> mm</span>
+    <span class="dp-legacy-only">标准 Z：<strong id="selected-recipe-sz">—</strong> mm</span>
+    <span class="dp-dual-only" style="color:var(--text-muted);">L1→P1 双横杆交点 · L2→P2 双横杆交点 · L3→不补偿</span>
+  </div>
+  {% endif %}
+
+  <!-- 隐藏辅助字段 -->
   <input type="hidden" id="recipe-id" value="{% if recipes %}{{ recipes.0.id }}{% endif %}">
   <input type="hidden" id="layer-no" value="1">
 
-  <!-- 顶部操作栏 -->
+  <!-- 操作栏 -->
   <div class="rl-action-bar">
-    <button id="btn-capture" class="btn" style="background:var(--info);">📡 采集点云</button>
-    <button id="btn-redraw" class="btn btn-secondary" disabled title="清除当前选中的区域后重新框选">🔄 重画当前区域</button>
-    <button id="btn-polygon" class="btn btn-secondary" disabled title="切换为多边形画笔模式，逐点点击绘制不规则ROI，双击闭合">✏️ 画笔</button>
-    <button id="btn-save-recipe" class="btn btn-secondary" disabled title="将外框、三平面与层距测量线保存到当前配方">💾 保存配方</button>
-    <button id="btn-calculate" class="btn btn-success" style="background:var(--success);" title="自动采集点云并计算">🎯 开始计算</button>
+    <button id="btn-capture" class="btn" style="background:var(--info);">采集点云</button>
+    <label class="dp-dual-only" for="dp-algorithm">算法
+      <select id="dp-algorithm"><option>Projection</option><option>CaliperFit</option></select>
+    </label>
+    <button type="button" id="dp-evaluate" class="btn btn-success dp-dual-only">开始计算</button>
+    <button id="btn-redraw"   class="btn btn-secondary dp-legacy-only" disabled title="清除当前选中的区域后重新框选">🔄 重画</button>
+    <button id="btn-polygon"  class="btn btn-secondary dp-legacy-only" disabled title="切换为多边形画笔模式">✏️ 画笔</button>
+    <button id="btn-save-recipe"  class="btn btn-secondary dp-legacy-only" disabled title="将外框、三平面与层距测量线保存到当前配方">💾 保存配方</button>
+    <button id="btn-calculate" class="btn btn-success dp-legacy-only" title="自动采集点云并计算">🎯 开始计算</button>
+    <label class="dp-legacy-only" title="仅用于验证算法：重复使用已加载点云，仍完整重算；不代表相机连续拍摄精度。">
+      <input id="rl-reuse-frame" type="checkbox"> 固定点云复算
+    </label>
     <div style="flex:1;"></div>
     <button id="btn-export-package" class="btn" style="background:#0ea5e9;" disabled>💾 保存数据包</button>
-    <button id="btn-packages" class="btn btn-secondary">📦 数据包管理</button>
+    <button id="btn-packages"       class="btn btn-secondary">📦 数据包管理</button>
   </div>
 
-  <div class="rl-roi-toolbar" aria-label="三平面 ROI 示教">
-    <button id="btn-roi-target" class="btn rl-roi-editor-btn active" disabled>外框 ROI</button>
-    <button id="btn-roi-plane1" class="btn rl-roi-editor-btn" disabled>Π1 顶部横梁</button>
-    <button id="btn-roi-plane2" class="btn rl-roi-editor-btn" disabled>Π2 左侧立柱</button>
-    <button id="btn-roi-plane3" class="btn rl-roi-editor-btn" disabled>Π3 底部横梁</button>
+  <!-- ROI 工具栏（旧版） -->
+  <div class="rl-roi-toolbar dp-legacy-only" aria-label="三平面 ROI 示教">
+    <button id="btn-roi-target"        class="btn rl-roi-editor-btn active" disabled>外框 ROI</button>
+    <button id="btn-roi-plane1"        class="btn rl-roi-editor-btn" disabled>Π1 顶部横梁</button>
+    <button id="btn-roi-plane2"        class="btn rl-roi-editor-btn" disabled>Π2 左侧立柱</button>
+    <button id="btn-roi-plane3"        class="btn rl-roi-editor-btn" disabled>Π3 底部横梁</button>
     <button id="btn-layer-spacing-line" class="btn rl-roi-editor-btn" disabled>📏 层距测量线</button>
-    <span id="roi-teach-progress" class="badge badge-muted">三平面已框选 0/3</span>
+    <span id="roi-teach-progress"  class="badge badge-muted">三平面已框选 0/3</span>
     <span id="roi-config-progress" class="badge badge-muted">五项位置 0/5</span>
     <span class="rl-roi-help">外框、三组 ROI 与层距测量线随配方保存和回显。空间配方使用 3D 范围及轴线基准计算。</span>
   </div>
 
-  <section class="rl-panel" style="padding:16px;margin:12px 0">
+  <!-- 旧版空间 ROI -->
+  <div class="rl-spatial-section dp-legacy-only">
     <strong>三组空间 ROI · 双组轴线定位</strong>
-    <label>向外扩充（mm） <input id="spatial-margin" type="number" value="5" min="0" max="500" step="1" style="width:80px"></label>
-    <label>下采样体素（mm，0 关闭） <input id="spatial-voxel" type="number" value="0" min="0" max="50" step="0.5" style="width:80px"></label>
+    <label>向外扩充（mm）<input id="spatial-margin" type="number" value="5" min="0" max="500" step="1" style="width:72px"></label>
+    <label>下采样体素（mm，0 关闭）<input id="spatial-voxel" type="number" value="0" min="0" max="50" step="0.5" style="width:72px"></label>
     <button id="btn-spatial-preview" type="button" class="btn btn-secondary">生成 / 更新 3D 预览</button>
     <span id="spatial-state">尚未预览</span>
-    <div id="spatial-viewport" hidden>
-      <p>拖拽旋转，滚轮缩放；蓝：Π1 顶部横梁，橙：Π2 左侧立柱，粉：Π3 底部横梁。相机坐标，单位 mm。</p>
+    <div id="spatial-viewport" hidden style="width:100%;margin-top:8px;">
+      <p style="font-size:12px;color:var(--text-muted);">拖拽旋转，滚轮缩放；蓝：Π1，橙：Π2，粉：Π3。相机坐标，单位 mm。</p>
       <canvas id="spatial-canvas" width="1000" height="360" style="width:100%;height:360px;background:#0f172a;touch-action:none"></canvas>
-      <pre id="spatial-bounds" style="white-space:pre-wrap"></pre>
+      <pre id="spatial-bounds" style="white-space:pre-wrap;font-size:11px;"></pre>
     </div>
     <div id="spatial-results" aria-live="polite"></div>
-  </section>
-  <div class="rl-workbench-status" id="rl-status" role="status" aria-live="polite">请选择配方，点击「开始计算」自动采集并计算；也可先采集点云调整 ROI。</div>
-  <div id="rl-calculation-feedback" role="alert" hidden style="padding:14px;margin:12px 0;border:1px solid #fca5a5;border-radius:8px;background:#fef2f2;color:#b91c1c;white-space:pre-wrap;"></div>
-
-
-
-  <!-- 双栏主体 -->
-  <div class="rl-main">
-
-    <!-- 左栏：点云 -->
-    <div class="rl-panel">
-      <div class="rl-panel-head">
-        <h2>3D 点云 · 拖拽绘制 ROI</h2>
-        <span class="badge badge-muted" id="rl-image-type-badge">深度伪彩</span>
-      </div>
-      <div class="rl-panel-body">
-        <div class="rl-image-stage" id="rl-stage">
-          <img id="rl-depth-image" src="" alt="3D 点云" style="display:none;">
-          <canvas id="rl-canvas" style="display:none;"></canvas>
-          <div class="rl-placeholder" id="rl-placeholder">
-            <div class="cam-icon">📡</div>
-            <p>点击「采集点云」获取 3D 深度相机画面</p>
-          </div>
-          <div class="rl-roi-readout" id="rl-roi-readout" style="display:none;">拖拽绘制 ROI</div>
-          <div class="rl-polygon-hint" id="rl-polygon-hint">✏️ 画笔模式：单击添加顶点 · 双击闭合多边形 · 右键取消末点</div>
-        </div>
-        <span class="rl-source-chip" id="rl-source" style="display: none; margin-top: 10px;">数据源 —</span>
-        <span id="recipe-switch-status" style="margin-left: 12px; font-size: 13px; transition: all 0.3s;"></span>
-      </div>
-    </div>
-
-    <!-- 右栏：模板、补偿矩阵与结果图 -->
-    <div class="rl-panel">
-      <div class="rl-panel-body">
-        <section class="rl-comp-panel" id="rl-robot-groups-panel" style="margin-top:16px" aria-live="polite">
-          <div class="rl-comp-head">
-            <h3>机器人基坐标系偏差 · A / B 两组</h3>
-            <span class="badge badge-muted" id="robot-groups-status">未计算</span>
-          </div>
-          <p class="rl-comp-coordinate-note">标准料架 → 当前料架；使用手眼标定页面保存的手眼矩阵与拍照位姿换算。</p>
-          <div class="rl-comp-body">
-            <table class="rl-matrix" style="width:100%;table-layout:fixed" aria-label="两组机器人基坐标系六轴偏差">
-              <thead><tr><th scope="col">偏差</th><th scope="col">A · Π1–Π2</th><th scope="col">B · Π3–Π2</th></tr></thead>
-              <tbody>
-                <tr><th scope="row">机器人补偿 X (mm)</th><td id="robot-a-x">—</td><td id="robot-b-x">—</td></tr>
-                <tr><th scope="row">机器人补偿 Y (mm)</th><td id="robot-a-y">—</td><td id="robot-b-y">—</td></tr>
-                <tr><th scope="row">机器人补偿 Z (mm)</th><td id="robot-a-z">—</td><td id="robot-b-z">—</td></tr>
-                <tr><th scope="row">ΔRX (°)</th><td id="robot-a-rx">—</td><td id="robot-b-rx">—</td></tr>
-                <tr><th scope="row">ΔRY (°)</th><td id="robot-a-ry">—</td><td id="robot-b-ry">—</td></tr>
-                <tr><th scope="row">ΔRZ (°)</th><td id="robot-a-rz">—</td><td id="robot-b-rz">—</td></tr>
-              </tbody>
-            </table>
-            <p id="robot-groups-warning" role="status" hidden style="padding:10px;background:#fffbeb;color:#92400e;border:1px solid #fcd34d;border-radius:6px;white-space:pre-wrap"></p>
-            <p id="robot-groups-repeatability" class="rl-comp-coordinate-note">显示的补偿值为机器人基坐标系下的偏差，包含平移和旋转分量。机器人应用完整的补偿矩阵进行校正。</p>
-            <p id="robot-groups-note" class="rl-comp-coordinate-note">计算后显示两组机器人偏差；无有效换算结果时显示 —。</p>
-            <a href="{% url 'vision:hand_eye_page' %}" target="_blank" rel="noopener">查看手眼标定配置</a>
-          </div>
-        </section>
-
-        <section class="rl-template-panel" id="rl-template-panel" style="margin-bottom: 16px;">
-          <div class="rl-comp-head" style="justify-content: space-between;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <h3>局部 3D 模板对比</h3>
-              <span class="badge badge-muted" id="template-status">未加载</span>
-            </div>
-            <button id="btn-save-as-std" class="btn btn-sm btn-secondary" style="background:#22c55e; color:white; border:none; display:none;">保存为标准模板</button>
-          </div>
-          <div class="rl-comp-body" style="background:#f8fafc; padding:12px; border-radius:6px; border:1px solid #e2e8f0; font-size:12px;">
-            <div class="rl-layer-spacing-result" aria-live="polite">
-              <strong>检测层距：</strong>
-              <span class="rl-layer-spacing-value" id="measured-layer-spacing">—</span>
-              <span class="rl-layer-spacing-method" id="layer-spacing-method">三平面估算</span>
-            </div>
-            <div class="rl-template-validation-message" id="template-validation-message" role="alert"></div>
-            <div class="rl-inlier-comparison" id="ransac-inlier-comparison" aria-live="polite">
-              <strong id="ransac-comparison-title">同一拟合平面的内点率对比</strong>
-              <table>
-                <thead><tr><th>区域</th><th>2 mm</th><th>3 mm</th><th>5 mm</th></tr></thead>
-                <tbody>
-                  <tr><td>Π1</td><td id="ransac-p1-2">—</td><td id="ransac-p1-3">—</td><td id="ransac-p1-5">—</td></tr>
-                  <tr><td>Π2</td><td id="ransac-p2-2">—</td><td id="ransac-p2-3">—</td><td id="ransac-p2-5">—</td></tr>
-                  <tr><td>Π3</td><td id="ransac-p3-2">—</td><td id="ransac-p3-3">—</td><td id="ransac-p3-5">—</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <table style="width:100%; text-align:left; border-collapse: collapse;">
-              <thead>
-                <tr style="border-bottom: 1px solid #cbd5e1;">
-                  <th style="padding: 4px;">区域</th>
-                  <th style="padding: 4px;">M_std 标准模板 (Normal, D)</th>
-                  <th style="padding: 4px;">M_cur 现场模板 (Normal, D)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style="border-bottom: 1px dashed #e2e8f0;">
-                  <td style="padding: 4px;"><strong>顶部横梁 (Π1)</strong></td>
-                  <td style="padding: 4px;" id="tpl-std-p1">—</td>
-                  <td style="padding: 4px;" id="tpl-cur-p1">—</td>
-                </tr>
-                <tr style="border-bottom: 1px dashed #e2e8f0;">
-                  <td style="padding: 4px;"><strong>左侧立柱 (Π2)</strong></td>
-                  <td style="padding: 4px;" id="tpl-std-p2">—</td>
-                  <td style="padding: 4px;" id="tpl-cur-p2">—</td>
-                </tr>
-                <tr>
-                  <td style="padding: 4px;"><strong>底部横梁 (Π3)</strong></td>
-                  <td style="padding: 4px;" id="tpl-std-p3">—</td>
-                  <td style="padding: 4px;" id="tpl-cur-p3">—</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <section class="rl-comp-panel" id="rl-comp-panel">
-          <div class="rl-comp-head">
-            <h3>相机坐标补偿矩阵 T<sub>cam std→cur</sub></h3>
-            <span class="badge badge-muted" id="comp-source">未计算</span>
-          </div>
-          <p class="rl-comp-coordinate-note">
-            标准料架 → 当前料架；基于相机点云坐标计算，尚未转换到机器人基坐标系。
-          </p>
-          <div class="rl-comp-body">
-            <div class="rl-pose-grid">
-              <div class="rl-pose-item"><span class="rl-pose-label">Xcam mm</span><span class="rl-pose-value" id="comp-x">—</span></div>
-              <div class="rl-pose-item"><span class="rl-pose-label">Ycam mm</span><span class="rl-pose-value" id="comp-y">—</span></div>
-              <div class="rl-pose-item"><span class="rl-pose-label">Zcam mm</span><span class="rl-pose-value" id="comp-z">—</span></div>
-              <div class="rl-pose-item"><span class="rl-pose-label">Rxcam deg</span><span class="rl-pose-value" id="comp-rx">—</span></div>
-              <div class="rl-pose-item"><span class="rl-pose-label">Rycam deg</span><span class="rl-pose-value" id="comp-ry">—</span></div>
-              <div class="rl-pose-item"><span class="rl-pose-label">Rzcam deg</span><span class="rl-pose-value" id="comp-rz">—</span></div>
-            </div>
-            <table class="rl-matrix" aria-label="相机坐标系4x4补偿矩阵">
-              <tbody>
-                <tr><td id="comp-m-00">—</td><td id="comp-m-01">—</td><td id="comp-m-02">—</td><td id="comp-m-03">—</td></tr>
-                <tr><td id="comp-m-10">—</td><td id="comp-m-11">—</td><td id="comp-m-12">—</td><td id="comp-m-13">—</td></tr>
-                <tr><td id="comp-m-20">—</td><td id="comp-m-21">—</td><td id="comp-m-22">—</td><td id="comp-m-23">—</td></tr>
-                <tr><td id="comp-m-30">—</td><td id="comp-m-31">—</td><td id="comp-m-32">—</td><td id="comp-m-33">—</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <div class="rl-result-image" id="rl-result-image">
-          <div class="ph" id="rl-result-ph">计算完成后，此处显示带 ROI 框的点云结果图</div>
-          <img id="rl-result-img" src="" alt="计算结果" style="display:none;">
-        </div>
-
-      </div>
-    </div>
-
   </div>
 
-  <!-- 新增：离线数据包管理弹窗；独立于现有工作台交互。 -->
+  <!-- 状态栏 -->
+  <div class="rl-workbench-status dp-legacy-only" id="rl-status" role="status" aria-live="polite">
+    请选择配方，点击「开始计算」自动采集并计算；也可先采集点云调整 ROI。
+  </div>
+  <div class="rl-workbench-status dp-dual-only" id="dp-frame-status" role="status" aria-live="polite">
+    请选择配方，采集点云或加载数据包，再载入原图绘制四 ROI。
+  </div>
+  <div class="dp-legacy-only" id="rl-calculation-feedback" role="alert" hidden></div>
+
+  <!-- 四 ROI 双交点面板 -->
+  {% include 'vision/rack_dual_point_panel.html' %}
+
+  <!-- 旧版双栏主体 -->
+  <div class="rl-main dp-legacy-only">
+
+    <!-- 左栏：点云画布 -->
+    <div class="rl-card">
+      <div class="rl-card-head">
+        <h3>3D 点云 · 拖拽绘制 ROI</h3>
+        <span class="badge badge-muted" id="rl-image-type-badge">深度伪彩</span>
+      </div>
+      <div class="rl-image-stage" id="rl-stage">
+        <img id="rl-depth-image" src="" alt="3D 点云" style="display:none;">
+        <canvas id="rl-canvas" style="display:none;"></canvas>
+        <div class="rl-placeholder" id="rl-placeholder">
+          <div class="cam-icon">📡</div>
+          <p>点击「采集点云」获取 3D 深度相机画面</p>
+        </div>
+        <div class="rl-roi-readout" id="rl-roi-readout" style="display:none;">拖拽绘制 ROI</div>
+        <div class="rl-polygon-hint" id="rl-polygon-hint">✏️ 画笔模式：单击添加顶点 · 双击闭合 · 右键取消末点</div>
+      </div>
+      <div style="padding:8px 12px;">
+        <span class="rl-source-chip" id="rl-source" style="display:none;">数据源 —</span>
+        <span id="recipe-switch-status" style="margin-left:10px;font-size:13px;transition:all .3s;"></span>
+      </div>
+    </div>
+
+    <!-- 右栏：结果 -->
+    <div class="rl-panel-right">
+
+      <!-- 机器人偏差（A/B 两组） -->
+      <div class="rl-card" id="rl-robot-groups-panel" aria-live="polite">
+        <div class="rl-card-head">
+          <h3>机器人基坐标系偏差 · A / B 两组</h3>
+          <span class="badge badge-muted" id="robot-groups-status">未计算</span>
+        </div>
+        <p class="rl-card-note">标准料架 → 当前料架；使用手眼标定页面保存的手眼矩阵与拍照位姿换算。</p>
+        <div class="rl-card-body">
+          <table class="rl-robot-table" aria-label="两组机器人基坐标系六轴偏差">
+            <thead>
+              <tr><th>偏差</th><th>A · Π1–Π2</th><th>B · Π3–Π2</th></tr>
+            </thead>
+            <tbody>
+              <tr><th>X (mm)</th><td id="robot-a-x">—</td><td id="robot-b-x">—</td></tr>
+              <tr><th>Y (mm)</th><td id="robot-a-y">—</td><td id="robot-b-y">—</td></tr>
+              <tr><th>Z (mm)</th><td id="robot-a-z">—</td><td id="robot-b-z">—</td></tr>
+              <tr><th>ΔRX (°)</th><td id="robot-a-rx">—</td><td id="robot-b-rx">—</td></tr>
+              <tr><th>ΔRY (°)</th><td id="robot-a-ry">—</td><td id="robot-b-ry">—</td></tr>
+              <tr><th>ΔRZ (°)</th><td id="robot-a-rz">—</td><td id="robot-b-rz">—</td></tr>
+            </tbody>
+          </table>
+          <p id="robot-groups-warning" role="status" hidden
+             style="margin-top:8px;padding:8px 10px;background:#fffbeb;color:#92400e;border:1px solid #fcd34d;border-radius:6px;white-space:pre-wrap;font-size:12px;"></p>
+          <p id="robot-groups-repeatability" class="rl-card-note" style="margin:8px 0 0;font-size:11px;"></p>
+          <p id="robot-groups-note"          class="rl-card-note" style="margin:6px 0 0;font-size:11px;">计算后显示两组机器人偏差。</p>
+          <a href="{% url 'vision:hand_eye_page' %}" target="_blank" rel="noopener" style="font-size:12px;">查看手眼标定配置</a>
+        </div>
+      </div>
+
+      <!-- 局部 3D 模板对比 -->
+      <div class="rl-card" id="rl-template-panel">
+        <div class="rl-card-head">
+          <h3>局部 3D 模板对比
+            <span class="badge badge-muted" id="template-status" style="margin-left:6px;">未加载</span>
+          </h3>
+          <button id="btn-save-as-std" class="btn btn-sm" style="background:#22c55e;color:#fff;border:none;display:none;">保存为标准模板</button>
+        </div>
+        <div class="rl-card-body">
+          <div class="rl-layer-spacing-result" aria-live="polite">
+            <strong>检测层距：</strong>
+            <span class="rl-layer-spacing-value" id="measured-layer-spacing">—</span>
+            <span class="rl-layer-spacing-method" id="layer-spacing-method">三平面估算</span>
+          </div>
+          <div class="rl-template-validation-message" id="template-validation-message" role="alert"></div>
+          <div class="rl-inlier-comparison" id="ransac-inlier-comparison" aria-live="polite">
+            <strong id="ransac-comparison-title" style="font-size:12px;">同一拟合平面内点率对比</strong>
+            <table>
+              <thead><tr><th>区域</th><th>2 mm</th><th>3 mm</th><th>5 mm</th></tr></thead>
+              <tbody>
+                <tr><td>Π1</td><td id="ransac-p1-2">—</td><td id="ransac-p1-3">—</td><td id="ransac-p1-5">—</td></tr>
+                <tr><td>Π2</td><td id="ransac-p2-2">—</td><td id="ransac-p2-3">—</td><td id="ransac-p2-5">—</td></tr>
+                <tr><td>Π3</td><td id="ransac-p3-2">—</td><td id="ransac-p3-3">—</td><td id="ransac-p3-5">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <table class="rl-tpl-table">
+            <thead>
+              <tr><th>区域</th><th>M_std 标准模板 (Normal, D)</th><th>M_cur 现场模板 (Normal, D)</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Π1 顶部横梁</strong></td><td id="tpl-std-p1">—</td><td id="tpl-cur-p1">—</td></tr>
+              <tr><td><strong>Π2 左侧立柱</strong></td><td id="tpl-std-p2">—</td><td id="tpl-cur-p2">—</td></tr>
+              <tr><td><strong>Π3 底部横梁</strong></td><td id="tpl-std-p3">—</td><td id="tpl-cur-p3">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 平面交点位置 -->
+      <div class="rl-card" id="rl-intersection-panel">
+        <div class="rl-card-head">
+          <h3>平面交点位置（相机坐标系 mm）</h3>
+          <span class="badge badge-muted" id="intersection-status">未计算</span>
+        </div>
+        <p class="rl-card-note">A 组：Π1∩Π2；B 组：Π3∩Π2。ROI 质心投影点。</p>
+        <p id="rl-frame-identity" class="rl-card-note" style="border-top:0;">计算后显示点云来源与数据指纹。</p>
+        <div class="rl-card-body">
+          <table class="rl-isect-table">
+            <thead>
+              <tr><th>交点</th><th>标准 (X,Y,Z)</th><th>当前 (X,Y,Z)</th><th>位移 (ΔX,ΔY,ΔZ)</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>A (Π1∩Π2)</strong></td><td id="intersection-std-a">—</td><td id="intersection-cur-a">—</td><td id="intersection-delta-a">—</td></tr>
+              <tr><td><strong>B (Π3∩Π2)</strong></td><td id="intersection-std-b">—</td><td id="intersection-cur-b">—</td><td id="intersection-delta-b">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 相机坐标补偿矩阵 -->
+      <div class="rl-card" id="rl-comp-panel">
+        <div class="rl-card-head">
+          <h3>相机坐标补偿矩阵 T<sub>cam std→cur</sub></h3>
+          <span class="badge badge-muted" id="comp-source">未计算</span>
+        </div>
+        <p class="rl-card-note">标准料架 → 当前料架；基于相机点云坐标计算，尚未转换到机器人基坐标系。</p>
+        <div class="rl-card-body">
+          <div class="rl-pose-grid">
+            <div class="rl-pose-item"><span class="rl-pose-label">Xcam mm</span><span class="rl-pose-value" id="comp-x">—</span></div>
+            <div class="rl-pose-item"><span class="rl-pose-label">Ycam mm</span><span class="rl-pose-value" id="comp-y">—</span></div>
+            <div class="rl-pose-item"><span class="rl-pose-label">Zcam mm</span><span class="rl-pose-value" id="comp-z">—</span></div>
+            <div class="rl-pose-item"><span class="rl-pose-label">Rxcam °</span><span class="rl-pose-value" id="comp-rx">—</span></div>
+            <div class="rl-pose-item"><span class="rl-pose-label">Rycam °</span><span class="rl-pose-value" id="comp-ry">—</span></div>
+            <div class="rl-pose-item"><span class="rl-pose-label">Rzcam °</span><span class="rl-pose-value" id="comp-rz">—</span></div>
+          </div>
+          <table class="rl-matrix" aria-label="相机坐标系4x4补偿矩阵">
+            <tbody>
+              <tr><td id="comp-m-00">—</td><td id="comp-m-01">—</td><td id="comp-m-02">—</td><td id="comp-m-03">—</td></tr>
+              <tr><td id="comp-m-10">—</td><td id="comp-m-11">—</td><td id="comp-m-12">—</td><td id="comp-m-13">—</td></tr>
+              <tr><td id="comp-m-20">—</td><td id="comp-m-21">—</td><td id="comp-m-22">—</td><td id="comp-m-23">—</td></tr>
+              <tr><td id="comp-m-30">—</td><td id="comp-m-31">—</td><td id="comp-m-32">—</td><td id="comp-m-33">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 结果图 -->
+      <div class="rl-result-image" id="rl-result-image">
+        <div class="ph" id="rl-result-ph">计算完成后，此处显示带 ROI 框的点云结果图</div>
+        <img id="rl-result-img" src="" alt="计算结果" style="display:none;">
+      </div>
+
+    </div><!-- /.rl-panel-right -->
+  </div><!-- /.rl-main -->
+
+  <!-- 离线数据包弹窗 -->
   <div class="rl-package-modal" id="packages-modal" hidden aria-hidden="true">
     <div class="rl-package-backdrop" data-package-close></div>
     <section class="rl-package-dialog" role="dialog" aria-modal="true" aria-labelledby="packages-modal-title">
@@ -1228,13 +664,14 @@
         <span id="offline-package-message">—</span>
         <div class="rl-actions">
           <button type="button" class="btn" id="btn-load-package" disabled>加载到画布</button>
-          <button type="button" class="btn btn-success" id="btn-reprocess-package" disabled>重新定位</button>
+          <button type="button" class="btn btn-success" id="btn-reprocess-package" data-legacy-reprocess="true" disabled>旧版三平面重算</button>
           <button type="button" class="btn" id="btn-delete-package" style="background:var(--danger);" disabled>删除</button>
         </div>
       </footer>
     </section>
   </div>
-</div>
+
+</div><!-- /#rack-workbench -->
 
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
@@ -1242,118 +679,82 @@
   // ── 配方下拉选择 ────────────────────────────────────
   let selectedRecipeData = null;
 
-  // 应用选中的配方
   function applyRecipeFromDropdown() {
     const select = document.getElementById('recipe-select');
     const option = select.options[select.selectedIndex];
-
     if (!option || !option.value) return;
 
     const id = option.value;
-    // 刷新或返回工作台时保留当前选择，不再退回列表第一项。
     const selectedUrl = new URL(window.location.href);
     selectedUrl.searchParams.set('recipe_id', id);
     window.history.replaceState(window.history.state, '', selectedUrl);
-    const pos = option.dataset.pos || '1';
-    const layer = option.dataset.layer || '1';
-    const sx = option.dataset.sx || '0';
-    const sy = option.dataset.sy || '0';
-    const sz = option.dataset.sz || '0';
-    const name = option.dataset.name || '';
+
+    const pos        = option.dataset.pos        || '1';
+    const layer      = option.dataset.layer      || '1';
+    const sx         = option.dataset.sx         || '0';
+    const sy         = option.dataset.sy         || '0';
+    const sz         = option.dataset.sz         || '0';
+    const name       = option.dataset.name       || '';
     const layerCount = option.dataset.layerCount || '3';
-    const rackNo = option.dataset.rackNo || '未设置';
-    const conf = option.dataset.conf || '0.7';
-    const side = option.dataset.side || 'BOTH';
+    const rackNo     = option.dataset.rackNo     || '未设置';
+    const conf       = option.dataset.conf       || '0.7';
+    const side       = option.dataset.side       || 'BOTH';
 
-    // 填充隐藏输入和手动调整框
-    const recipeIdEl = document.getElementById('recipe-id');
-    if (recipeIdEl) recipeIdEl.value = id;
-    
-    const posNoEl = document.getElementById('position-no');
-    if (posNoEl) posNoEl.value = pos;
-    
-    const layerNoEl = document.getElementById('layer-no');
-    if (layerNoEl) layerNoEl.value = layer;
-    
-    const layerSelect = document.getElementById('layer-no-select');
-    if (layerSelect) layerSelect.value = layer;
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    set('recipe-id', id);
+    set('position-no', pos);
+    set('layer-no', layer);
+    set('layer-no-select', layer);
 
-    // 同步料架侧选择
     const rackSideSelect = document.getElementById('rack-side');
-    if (rackSideSelect && side !== 'BOTH') {
-      rackSideSelect.value = side;
-    }
+    if (rackSideSelect && side !== 'BOTH') rackSideSelect.value = side;
 
     selectedRecipeData = { id, pos, layer, layerCount, rackNo, sx, sy, sz, conf, side };
-    const setText = (elementId, value) => {
-      const element = document.getElementById(elementId);
-      if (element) element.textContent = value;
-    };
-    setText('selected-recipe-name', name);
+
+    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setText('selected-recipe-name',        name);
     setText('selected-recipe-layer-count', `${layerCount} 层料架配方`);
-    setText('selected-recipe-rack-no', rackNo);
-    setText('selected-recipe-sx', Number(sx).toFixed(2));
-    setText('selected-recipe-sy', Number(sy).toFixed(2));
-    setText('selected-recipe-sz', Number(sz).toFixed(2));
-    document.getElementById('rl-status').textContent =
-      `已选配方：${name}（${layerCount} 层料架，料架号：${rackNo}），正在同步 ROI 与标准模板。`;
+    setText('selected-recipe-rack-no',     rackNo);
+    setText('selected-recipe-sx',          Number(sx).toFixed(2));
+    setText('selected-recipe-sy',          Number(sy).toFixed(2));
+    setText('selected-recipe-sz',          Number(sz).toFixed(2));
 
-    if (typeof window.rackLocatorRecipeChanged === 'function') {
-      window.rackLocatorRecipeChanged(id, layer);
-    }
+    const status = document.getElementById('rl-status');
+    if (status) status.textContent = `已选配方：${name}（${layerCount} 层料架，料架号：${rackNo}），正在同步 ROI 与标准模板。`;
 
-    if (typeof window.rackLocatorLoadStandardModel === 'function') {
-      window.rackLocatorLoadStandardModel(id);
-    }
+    if (typeof window.rackLocatorRecipeChanged === 'function')     window.rackLocatorRecipeChanged(id, layer);
+    if (typeof window.rackLocatorLoadStandardModel === 'function') window.rackLocatorLoadStandardModel(id);
 
-    // 更新计算结果中的标准值
     if (document.getElementById('d-sx')) {
       document.getElementById('d-sx').textContent = parseFloat(sx).toFixed(2);
       document.getElementById('d-sy').textContent = parseFloat(sy).toFixed(2);
       document.getElementById('d-sz').textContent = parseFloat(sz).toFixed(2);
     }
-
-    // 自动加载该配方保存的 ROI 并显示在画布上
     loadRecipeRoi(id);
   }
 
-  // ── 监听配方下拉框 ──
-  // 只在选择改变时加载，失焦不能清空正在编辑的 ROI。
   (function setupRecipeSelectEvents() {
     const sel = document.getElementById('recipe-select');
     if (!sel) return;
-
-    // change 事件：正常切换时触发
-    sel.addEventListener('change', function () {
-      applyRecipeFromDropdown();
-    });
-
+    sel.addEventListener('change', applyRecipeFromDropdown);
   })();
 
-  // 初始化：在外部 JS (rack_locator_workbench.js) 加载完成后再应用第一个配方，
-  // 确保 window.rackLocatorSetRoi 已经就绪。
-  // 注：这个函数会在下方 <script src="..."> 的 onload 回调中调用。
   function initFirstRecipeOnJsReady() {
     const select = document.getElementById('recipe-select');
     if (!select) return;
     const requestedRecipeId = new URLSearchParams(window.location.search).get('recipe_id');
     if (requestedRecipeId) {
-      const requestedOption = Array.from(select.options).find(option => option.value === requestedRecipeId);
-      if (requestedOption) select.value = requestedRecipeId;
+      const opt = Array.from(select.options).find(o => o.value === requestedRecipeId);
+      if (opt) select.value = requestedRecipeId;
     }
-    if (select.options.length > 0 && select.value) {
-      applyRecipeFromDropdown();
-    }
+    if (select.options.length > 0 && select.value) applyRecipeFromDropdown();
   }
   window._rlInitFirstRecipe = initFirstRecipeOnJsReady;
 
-  // 兼容性：保留旧的selectRecipeCard函数（供外部调用）
-  function selectRecipeCard(el) {
-    console.warn('selectRecipeCard is deprecated, use dropdown instead');
-  }
+  function selectRecipeCard(el) { console.warn('selectRecipeCard is deprecated'); }
   window.selectRecipeCard = selectRecipeCard;
 
-  // ── 加载配方保存的 ROI 并显示在画布上 ──────────────────────
+  // ── 加载配方 ROI ──────────────────────────────────
   let recipeRoiLoadSeq = 0;
   async function loadRecipeRoi(recipeId) {
     if (!recipeId) return;
@@ -1363,215 +764,69 @@
       && String(document.getElementById('recipe-id')?.value) === String(recipeId)
       && revision === window.rackLocatorRoiRevision?.();
     try {
-      // 1. 查询该配方保存的 3D ROI 参数（点云空间坐标框）
-      const query = new URLSearchParams({ recipe_id: recipeId });
-      const res = await fetch(`{% url "vision:api_vision_3d_rois" %}?${query.toString()}`);
-      const contentType1 = res.headers.get('content-type');
-      if (!contentType1 || !contentType1.includes('application/json')) {
-        console.warn('api_vision_3d_rois returned non-JSON:', res.status);
-      } else {
+      // 1. 3D ROI 参数
+      const res = await fetch(`{% url "vision:api_vision_3d_rois" %}?` + new URLSearchParams({ recipe_id: recipeId }));
+      const ct1 = res.headers.get('content-type');
+      if (ct1 && ct1.includes('application/json')) {
         const data = await res.json();
         if (!isCurrent()) return;
-        if (data.success && data.data && data.data.rois && data.data.rois.length > 0) {
+        if (data.success && data.data?.rois?.length > 0) {
           const roi = data.data.rois[0];
-          const roiFields = {
-            'roi-x-min': roi.x_min, 'roi-x-max': roi.x_max,
-            'roi-y-min': roi.y_min, 'roi-y-max': roi.y_max,
-            'roi-z-min': roi.z_min, 'roi-z-max': roi.z_max,
-          };
-          Object.entries(roiFields).forEach(([id, value]) => {
-            const input = document.getElementById(id);
-            if (input && value != null) input.value = Number(value).toFixed(3);
-          });
-          console.log('已加载配方 3D ROI 参数');
+          const fields = { 'roi-x-min': roi.x_min, 'roi-x-max': roi.x_max, 'roi-y-min': roi.y_min, 'roi-y-max': roi.y_max, 'roi-z-min': roi.z_min, 'roi-z-max': roi.z_max };
+          Object.entries(fields).forEach(([id, v]) => { const inp = document.getElementById(id); if (inp && v != null) inp.value = Number(v).toFixed(3); });
         }
       }
-
-      // 2. 获取完整配方信息（含 roi_config 中保存的 2D 像素 target_roi）
-      // 注意：正确 URL 是 ?id=，不是 /recipes/{id}/ 路径（后者会 404）
-      const recipeDetailRes = await fetch(`{% url "vision:api_vision_3d_recipes" %}?id=${encodeURIComponent(recipeId)}`);
-      const contentType2 = recipeDetailRes.headers.get('content-type');
-      if (!contentType2 || !contentType2.includes('application/json')) {
-        console.warn('api_vision_3d_recipes returned non-JSON:', recipeDetailRes.status);
-        return;
-      }
-      const recipeDetailData = await recipeDetailRes.json();
+      // 2. 完整配方（含 roi_config）
+      const r2 = await fetch(`{% url "vision:api_vision_3d_recipes" %}?id=${encodeURIComponent(recipeId)}`);
+      const ct2 = r2.headers.get('content-type');
+      if (!ct2 || !ct2.includes('application/json')) return;
+      const d2 = await r2.json();
       if (!isCurrent()) return;
-      if (recipeDetailData.success) {
-        // 后端返回 {success, recipes:[...], data:{recipes:[...]}}，取第一条
-        const recipeList = recipeDetailData.recipes
-          || (recipeDetailData.data && recipeDetailData.data.recipes)
-          || [];
+      if (d2.success) {
+        const recipeList = d2.recipes || (d2.data?.recipes) || [];
         const recipe = recipeList[0] || null;
         if (recipe) {
-          const targetRoi = (recipe.roi_config || {}).target_roi;
-          const localTemplateRois = (recipe.roi_config || {}).local_template_rois;
-          const layerSpacingLine = (recipe.roi_config || {}).layer_spacing_line;
-          const validTargetRoi = targetRoi && targetRoi.x != null && targetRoi.y != null &&
-            targetRoi.w != null && targetRoi.h != null
-            ? targetRoi
-            : null;
-          if (validTargetRoi) {
-            console.log('[loadRecipeRoi] 找到配方 2D ROI，调用统一接口:', targetRoi);
-          }
-          // 无 ROI 的配方也必须调用统一接口，显式清除上一配方的框选状态。
+          const targetRoi          = (recipe.roi_config || {}).target_roi;
+          const localTemplateRois  = (recipe.roi_config || {}).local_template_rois;
+          const layerSpacingLine   = (recipe.roi_config || {}).layer_spacing_line;
+          const validTargetRoi = targetRoi && targetRoi.x != null && targetRoi.y != null && targetRoi.w != null && targetRoi.h != null ? targetRoi : null;
           if (typeof window.rackLocatorSetRoi === 'function') {
             window.rackLocatorSetRoi(validTargetRoi, localTemplateRois, layerSpacingLine);
           } else {
-            window.tempPendingRoi = validTargetRoi;
+            window.tempPendingRoi              = validTargetRoi;
             window.tempPendingLocalTemplateRois = localTemplateRois || null;
-            window.tempPendingLayerSpacingLine = layerSpacingLine || null;
+            window.tempPendingLayerSpacingLine  = layerSpacingLine  || null;
           }
         }
       }
-    } catch (e) {
-      console.warn('加载配方 ROI 失败：', e);
-    }
+    } catch (e) { console.warn('加载配方 ROI 失败：', e); }
   }
 
-  // ── 在画布上显示 ROI 框（即使没有点云图像）──────────────────
-  function showRoiOnCanvas(targetRoi) {
-    const image = document.getElementById('rl-depth-image');
-    const canvas = document.getElementById('rl-canvas');
-    const placeholder = document.getElementById('rl-placeholder');
-    const roiReadout = document.getElementById('rl-roi-readout');
-
-    // 如果已经有点云图像，直接在上面绘制
-    if (image && image.style.display !== 'none' && image.src) {
-      // 使用外部 JS 的状态管理
-      if (window.rackLocatorSetRoi) {
-        window.rackLocatorSetRoi(targetRoi);
-      }
-      console.log('在现有点云上显示 ROI');
-    } else {
-      // 没有点云图像时，创建一个占位画布显示 ROI 框
-      const stage = document.getElementById('rl-stage');
-      if (!stage) return;
-
-      // 隐藏占位符，显示画布
-      if (placeholder) placeholder.style.display = 'none';
-
-      // 设置画布大小（使用默认尺寸）
-      const defaultWidth = 640;
-      const defaultHeight = 480;
-      canvas.width = defaultWidth;
-      canvas.height = defaultHeight;
-      canvas.style.display = 'block';
-
-      // 设置图像元素（虽然没有src，但需要设置尺寸用于坐标计算）
-      image.dataset.naturalWidth = defaultWidth;
-      image.dataset.naturalHeight = defaultHeight;
-
-      // 在画布上绘制提示和 ROI 框
-      const ctx = canvas.getContext('2d');
-
-      // 绘制深色背景
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // 绘制中央提示文字
-      ctx.fillStyle = '#64748b';
-      ctx.font = '16px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('配方 ROI 预览（采集点云后将显示实际图像）', canvas.width / 2, 40);
-
-      // 计算 ROI 在画布上的位置（假设 targetRoi 是像素坐标）
-      const scale = Math.min(canvas.width / defaultWidth, canvas.height / defaultHeight);
-      const roiX = (targetRoi.x || 0) * scale;
-      const roiY = (targetRoi.y || 0) * scale;
-      const roiW = (targetRoi.w || 100) * scale;
-      const roiH = (targetRoi.h || 100) * scale;
-
-      // 根据 ROI 类型绘制（多边形或矩形）
-      if (targetRoi.polygon && Array.isArray(targetRoi.polygon) && targetRoi.polygon.length >= 3) {
-        // ── 多边形 ROI ──
-        const pts = targetRoi.polygon;
-        ctx.strokeStyle = '#a855f7';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([6, 3]);
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x * scale, pts[0].y * scale);
-        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * scale, pts[i].y * scale);
-        ctx.closePath();
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(168,85,247,0.14)';
-        ctx.fill();
-        ctx.setLineDash([]);
-        pts.forEach((pt) => {
-          ctx.beginPath();
-          ctx.arc(pt.x * scale, pt.y * scale, 4, 0, Math.PI * 2);
-          ctx.fillStyle = '#a855f7';
-          ctx.fill();
-        });
-        ctx.fillStyle = '#a855f7';
-        ctx.font = '14px sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(`✐ target ROI (${pts.length}点)`, pts[0].x * scale + 8, Math.max(pts[0].y * scale - 4, 18));
-      } else {
-        // ── 矩形 ROI ──
-        ctx.strokeStyle = '#22c55e';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([8, 4]);
-        ctx.strokeRect(roiX, roiY, roiW, roiH);
-        ctx.fillStyle = 'rgba(34, 197, 94, 0.16)';
-        ctx.fillRect(roiX, roiY, roiW, roiH);
-        ctx.fillStyle = '#22c55e';
-        ctx.font = '14px sans-serif';
-        ctx.textAlign = 'left';
-        ctx.setLineDash([]);
-        ctx.fillText('target ROI', roiX + 8, Math.max(roiY + 18, 18));
-      }
-
-      // 更新 ROI 读数显示
-      if (roiReadout) {
-        roiReadout.textContent = `配方 ROI: x=${targetRoi.x} y=${targetRoi.y} w=${targetRoi.w} h=${targetRoi.h}`;
-        roiReadout.style.display = 'block';
-      }
-
-      // 保存到待应用状态（采集点云后自动应用）
-      // 将 ROI 保存到全局状态，以便采集点云后自动应用
-      if (typeof state !== 'undefined') {
-        state.pendingRoi = targetRoi;
-      } else if (window.state) {
-        window.state.pendingRoi = targetRoi;
-      } else {
-        // 创建临时全局状态
-        window.tempPendingRoi = targetRoi;
-      }
-
-      const status = document.getElementById('rl-status');
-      if (status) {
-        status.textContent = `已加载配方 ROI (${targetRoi.w}×${targetRoi.h})，采集点云后将自动显示框选区域。`;
-      }
-
-      console.log('配方 ROI 已绘制在占位画布上');
-    }
-  }
-
-  // ── 工作台配置传入 ─────────────────────────────────
+  // ── 工作台配置 ──────────────────────────────────────
   window.rackLocatorConfig = {
-    captureEndpoint: 'api_vision_3d_capture',
-    testLocateEndpoint: 'api_vision_3d_test_locate',
-    captureUrl: '{% url "vision:api_vision_3d_capture" %}',
-    autoAlignUrl: '{% url "vision:api_vision_3d_auto_align" %}',
-    testLocateUrl: '{% url "vision:api_vision_3d_test_locate" %}',
-    currentRecipeUrl: '{% url "vision:api_vision_3d_recipe_current" %}',
-    locateUrl: '{% url "vision:api_vision_3d_locate" %}',
-    saveRoiUrl: '{% url "vision:api_vision_3d_rois" %}',
-    writePlcUrl: '{% url "vision:api_vision_3d_write_plc" %}',
-    results3dUrl: '{% url "vision:api_vision_3d_results" %}',
-    resultsLatestUrl: '{% url "vision:api_vision_3d_results_latest" %}',
-    legacyCaptureUrl: '{% url "vision:api_rack_location_workbench_capture" %}',
-    legacyCalculateUrl: '{% url "vision:api_rack_location_workbench_calculate" %}',
-    legacySaveUrl: '{% url "vision:api_rack_location_workbench_save" %}',
-    triggerUrl: '{% url "vision:api_rack_location_trigger" %}',
-    resultsUrl: '{% url "vision:api_rack_location_results" %}',
-    recipeApiUrl: '{% url "vision:api_vision_3d_recipes" %}',
-    recipeDetailUrlTemplate: '{% url "vision:api_rack_location_recipe_detail" 0 %}'.replace('/0/', '/__RECIPE_ID__/'),
+    captureEndpoint:           'api_vision_3d_capture',
+    testLocateEndpoint:        'api_vision_3d_test_locate',
+    captureUrl:                '{% url "vision:api_vision_3d_capture" %}',
+    autoAlignUrl:              '{% url "vision:api_vision_3d_auto_align" %}',
+    testLocateUrl:             '{% url "vision:api_vision_3d_test_locate" %}',
+    currentRecipeUrl:          '{% url "vision:api_vision_3d_recipe_current" %}',
+    locateUrl:                 '{% url "vision:api_vision_3d_locate" %}',
+    saveRoiUrl:                '{% url "vision:api_vision_3d_rois" %}',
+    writePlcUrl:               '{% url "vision:api_vision_3d_write_plc" %}',
+    results3dUrl:              '{% url "vision:api_vision_3d_results" %}',
+    resultsLatestUrl:          '{% url "vision:api_vision_3d_results_latest" %}',
+    legacyCaptureUrl:          '{% url "vision:api_rack_location_workbench_capture" %}',
+    legacyCalculateUrl:        '{% url "vision:api_rack_location_workbench_calculate" %}',
+    legacySaveUrl:             '{% url "vision:api_rack_location_workbench_save" %}',
+    triggerUrl:                '{% url "vision:api_rack_location_trigger" %}',
+    resultsUrl:                '{% url "vision:api_rack_location_results" %}',
+    recipeApiUrl:              '{% url "vision:api_vision_3d_recipes" %}',
+    recipeDetailUrlTemplate:   '{% url "vision:api_rack_location_recipe_detail" 0 %}'.replace('/0/', '/__RECIPE_ID__/'),
     calibrateStandardUrlTemplate: '{% url "vision:api_rack_location_calibrate_standard" 0 %}'.replace('/0/', '/__RECIPE_ID__/'),
-    offlinePackagesUrl: '{% url "vision:offline_packages" %}',
+    offlinePackagesUrl:        '{% url "vision:offline_packages" %}',
   };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=56" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=59" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
 <script src="{% static 'vision/js/offline_package_manager.js' %}?v=21"></script>
+<script src="{% static 'vision/js/rack_dual_point.js' %}?v=12"></script>
 {% endblock %}

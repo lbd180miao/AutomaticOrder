@@ -45,6 +45,7 @@ from .algorithms.rack_opening_rectangle import (
     standard_geometry,
 )
 from .coordinate_transform import CoordinateTransformService
+from .rack_input import capture_input, plane_roi, cloud_identity
 from .models import RackLocationROI3D, RackLocationRecipe, RackLocationResult, VisionImage, VisionTask
 from .rack_compensation import (
     combine_compensations,
@@ -1327,11 +1328,11 @@ class Rack3DLocator:
             return global_roi, 'global'
         return None, 'missing'
 
-    def _persist_frame(self, pointcloud):
+    def _persist_frame(self, pointcloud, capture_metadata=None):
         return RackLocationService(
             frame_provider=self.frame_provider,
             plc_writer=self.plc_writer,
-        )._persist_workbench_frame(pointcloud)
+        )._persist_workbench_frame(pointcloud, capture_metadata=capture_metadata)
 
     def _load_pointcloud(self, token):
         return RackLocationService(
@@ -1486,45 +1487,19 @@ class Rack3DLocator:
         requested_side = rack_side or getattr(recipe, 'rack_side', RackSide.LEFT)
         side_key = requested_side if requested_side in {RackSide.LEFT, RackSide.RIGHT} else RackSide.LEFT
 
-        pointcloud = None
-        source = 'sample'
+        probe_recipe = recipe or RackLocationRecipe(
+            recipe_name='VISION-3D-CAPTURE', rack_side=RackSide.BOTH,
+            position_no=position_no, layer_no=layer_no, layer_count=layer_count,
+            hand_eye_config={'matrix': 'identity'},
+        )
+        frame, pointcloud = capture_input(self.frame_provider, probe_recipe, position_no, layer_no)
+        source = frame['source']
         fallback_reason = ''
-        try:
-            probe_recipe = recipe or RackLocationRecipe(
-                recipe_name='VISION-3D-CAPTURE',
-                rack_side=RackSide.BOTH,
-                position_no=position_no,
-                layer_no=layer_no,
-                layer_count=layer_count,
-                hand_eye_config={'matrix': 'identity'},
-            )
-            frame = self.frame_provider.capture(probe_recipe, position_no, layer_no)
-            fallback_reason = frame.get('fallback_reason', '') or ''
-            cloud = frame.get('organized_pointcloud')
-            if cloud is not None:
-                arr = np.asarray(cloud, dtype=float)
-                if arr.ndim == 3 and arr.shape[2] == 3:
-                    pointcloud = arr
-                    source = frame.get('source', 'rvc_camera')
-        except (DMCameraConfigurationError, RvcCameraConfigurationError):
-            raise
-        except Exception as exc:  # noqa: BLE001
-            fallback_reason = str(exc)
-
-        if pointcloud is None:
-            # 使用配方ID+层号的哈希作为固定种子，确保同一配方每次生成相同的模拟点云，
-            # 消除因随机性导致多次计算结果不一致的问题。
-            _sim_seed = hash((str(recipe_id or 'default'), int(layer_no))) & 0x7FFFFFFF
-            pointcloud = build_sample_pointcloud(
-                side=side_key, layer_count=layer_count, seed=_sim_seed,
-                local_template_geometry=True,
-            )
-            source = 'sample'
 
         # 2D 相机原图 URL（与组织化点云像素一一对应，直接用于前端显示和 ROI 绘制）
         raw_rgb_url = frame.get('preview_url', '') if source not in ('sample', 'sample_forced', 'sample_fallback') else ''
 
-        token, preview_url, width, height = self._persist_frame(pointcloud)
+        token, preview_url, width, height = self._persist_frame(pointcloud, capture_metadata={'source': source})
         payload = {
             'pointcloud_token': token,
             'pointcloud_preview_url': preview_url,    # 深度伪彩图（备用）
@@ -2570,8 +2545,10 @@ class RackLocationService:
             'error': 'ROI projects outside the image',
         }
 
-    def _persist_workbench_frame(self, pointcloud) -> tuple[str, str, int, int]:
+    def _persist_workbench_frame(self, pointcloud, image_2d=None, capture_metadata=None) -> tuple[str, str, int, int]:
         """把组织化点云持久化为 .npy，并渲染像素一一对应的伪彩预览图。
+        
+        如果提供了 image_2d，也会保存为 image2d.png。
 
         返回 (npy 相对路径 token, 预览图 URL, 宽, 高)。
         """
@@ -2588,8 +2565,28 @@ class RackLocationService:
         npy_name = f'rack_workbench_{stamp}.npy'
         np.save(os.path.join(abs_dir, npy_name), cloud)
         with open(os.path.join(abs_dir, npy_name.replace('.npy', '.units.json')), 'w', encoding='utf-8') as marker:
-            json.dump({'unit': 'mm'}, marker)
+            json.dump({'unit': 'mm', 'capture_metadata': {
+                'source': (capture_metadata or {}).get('source', 'unknown'),
+                'captured_at': timezone.now().isoformat(), **cloud_identity(cloud),
+            }}, marker)
         npy_rel = f'{rel_dir}/{npy_name}'
+
+        # 保存2D图像（如果有）
+        if image_2d is not None:
+            try:
+                from PIL import Image
+                # 确保是PIL Image对象
+                if not isinstance(image_2d, Image.Image):
+                    # 如果是numpy数组，转换为PIL Image
+                    if isinstance(image_2d, np.ndarray):
+                        image_2d = Image.fromarray(image_2d)
+                
+                image_2d_name = npy_name.replace('.npy', '_image2d.png')
+                image_2d_path = os.path.join(abs_dir, image_2d_name)
+                image_2d.save(image_2d_path, format='PNG')
+                logger.info('Saved 2D image: %s', image_2d_path)
+            except Exception as exc:
+                logger.warning('Failed to save 2D image: %s', exc)
 
         preview = image_io.pointcloud_to_preview(cloud)
         preview_rel, _, _ = image_io.save_image(
@@ -2637,8 +2634,7 @@ class RackLocationService:
         return recipe
 
     def capture_workbench(self, recipe_id=None) -> dict:
-        """采集一帧用于工作台：真实 3D 相机优先，离线回退到模拟场景；
-        持久化组织化点云并返回预览图与 token。"""
+        """采集真实组织化点云；离线数据必须通过显式加载入口选择。"""
         recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first() if recipe_id else None
         position_no = int(getattr(recipe, 'position_no', 1) or 1)
         layer_no = int(getattr(recipe, 'layer_no', 1) or 1)
@@ -2646,40 +2642,19 @@ class RackLocationService:
         side = getattr(recipe, 'rack_side', RackSide.LEFT) or RackSide.LEFT
         side_key = side if side in {RackSide.LEFT, RackSide.RIGHT} else RackSide.LEFT
 
-        pointcloud = None
-        source = 'sample'
+        probe_recipe = recipe or RackLocationRecipe(
+            recipe_name='WORKBENCH', position_no=1, layer_no=layer_no,
+            layer_count=layer_count, hand_eye_config={'matrix': 'identity'},
+        )
+        frame, pointcloud = capture_input(self.frame_provider, probe_recipe, position_no, layer_no)
+        source = frame['source']
         fallback_reason = ''
-        try:
-            probe_recipe = recipe or RackLocationRecipe(
-                recipe_name='WORKBENCH', position_no=1, layer_no=layer_no,
-                layer_count=layer_count, hand_eye_config={'matrix': 'identity'},
-            )
-            frame = self.frame_provider.capture(probe_recipe, position_no, layer_no)
-            # provider 内部回退（相机未连接 / 采集异常）时会带上原因，透传给前端排查。
-            fallback_reason = frame.get('fallback_reason', '') or ''
-            cloud = frame.get('organized_pointcloud')
-            if cloud is not None:
-                arr = np.asarray(cloud, dtype=float)
-                if arr.ndim == 3 and arr.shape[2] == 3:
-                    pointcloud = arr
-                    source = frame.get('source', 'rvc_camera')
-        except (DMCameraConfigurationError, RvcCameraConfigurationError):
-            raise
-        except Exception as exc:  # noqa: BLE001 - 任何非配置相机异常都回退到模拟点云
-            pointcloud = None
-            fallback_reason = str(exc)
-
-        if pointcloud is None:
-            # 优先使用 3d_SDK/pic 目录中的真实离线点云，失败才回退合成数据
-            real_cloud = _load_offline_pic_pointcloud()
-            if real_cloud is not None:
-                pointcloud = real_cloud
-                source = 'docs_pic_offline'
-            else:
-                pointcloud = build_sample_pointcloud(side=side_key, layer_count=layer_count)
-                source = 'sample'
-
-        token, preview_url, width, height = self._persist_workbench_frame(pointcloud)
+        # NumPy images must not be evaluated as booleans: that used to trigger fallback.
+        image_2d = frame.get('image_2d')
+        if image_2d is None:
+            image_2d = frame.get('image')
+        token, preview_url, width, height = self._persist_workbench_frame(
+            pointcloud, image_2d, capture_metadata={'source': source})
         payload = {
             'pointcloud_token': token,
             'preview_image_url': preview_url,
@@ -2697,6 +2672,22 @@ class RackLocationService:
         if source not in ('dm_camera', 'rvc_camera') and fallback_reason:
             payload['fallback_reason'] = fallback_reason
         return payload
+
+    @staticmethod
+    def _frame_metadata(token, cloud):
+        metadata = {'source': 'unknown_legacy_frame'}
+        root = os.path.realpath(settings.MEDIA_ROOT)
+        path = os.path.realpath(os.path.join(root, str(token or '')))
+        if os.path.commonpath([root, path]) != root:
+            raise ValueError('点云路径不在当前数据目录内')
+        marker = os.path.splitext(path)[0] + '.units.json'
+        if os.path.isfile(marker):
+            with open(marker, encoding='utf-8') as stream:
+                metadata.update(json.load(stream).get('capture_metadata') or {})
+        identity = cloud_identity(cloud)
+        if metadata.get('pointcloud_sha256') and metadata['pointcloud_sha256'] != identity['pointcloud_sha256']:
+            raise ValueError('点云内容与采集记录不一致，请重新加载或采集')
+        return {**metadata, **identity}
 
     def _explicit_local_template_regions(self, pointcloud, roi_config) -> dict[str, dict]:
         """校验并规范化用户明确示教的 Π1/Π2/Π3 三个像素 ROI。"""
@@ -2716,8 +2707,7 @@ class RackLocationService:
             if not raw:
                 missing.append(name)
                 continue
-            x, y, w, h = self.estimator.processor._normalized_roi(raw, width, height)
-            regions[name] = {'x': x, 'y': y, 'w': w, 'h': h}
+            regions[name] = plane_roi(raw, width, height, name)
         if missing:
             labels = {'plane1': 'Π1 顶部横梁', 'plane2': 'Π2 左侧立柱', 'plane3': 'Π3 底部横梁'}
             raise ValueError('请先框选三块基准区域：' + '、'.join(labels[name] for name in missing))
@@ -2725,10 +2715,12 @@ class RackLocationService:
 
     @staticmethod
     def _crop_local_template_clouds(pointcloud, regions) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        if pointcloud.ndim != 3 or pointcloud.shape[2] != 3:
+            raise ValueError('平面 ROI 需要 H×W×3 组织化点云')
         clouds = []
         diagnostics = {}
         for name in ('plane1', 'plane2', 'plane3'):
-            roi = regions[name]
+            roi = plane_roi(regions[name], pointcloud.shape[1], pointcloud.shape[0], name)
             points = pointcloud[
                 roi['y']:roi['y'] + roi['h'],
                 roi['x']:roi['x'] + roi['w'],
@@ -2844,7 +2836,7 @@ class RackLocationService:
         }
 
     @staticmethod
-    def _robot_compensation_payload(camera_compensation, transform_context) -> Optional[dict]:
+    def _robot_compensation_payload(camera_compensation, transform_context, reference_transform_context=None) -> Optional[dict]:
         """Express a frozen camera-frame delta in the robot base frame."""
         hand_eye = transform_context.get('T_flange_camera')
         base_flange = transform_context.get('T_base_flange')
@@ -2859,7 +2851,16 @@ class RackLocationService:
         T_flange_camera = CoordinateTransformService.parse_matrix_from_json(hand_eye)
         T_base_flange = CoordinateTransformService.parse_matrix_from_json(base_flange)
         T_base_camera = T_base_flange @ T_flange_camera
-        delta_base = T_base_camera @ delta_camera @ np.linalg.inv(T_base_camera)
+        reference_camera = T_base_camera
+        if reference_transform_context is not None:
+            reference_hand_eye = reference_transform_context.get('T_flange_camera')
+            reference_flange = (reference_transform_context.get('T_base_flange')
+                                or reference_transform_context.get('capture_pose'))
+            if not reference_hand_eye or not reference_flange:
+                raise ValueError('标准帧缺少拍照位姿或手眼矩阵，无法进行跨位姿换算')
+            reference_camera = (CoordinateTransformService.parse_matrix_from_json(reference_flange)
+                                @ CoordinateTransformService.parse_matrix_from_json(reference_hand_eye))
+        delta_base = T_base_camera @ delta_camera @ np.linalg.inv(reference_camera)
         pose = CoordinateTransformService.matrix_to_pose(delta_base)
         return {
             'meaning': 'standard_rack_to_current_rack_in_robot_base_frame',
@@ -2875,7 +2876,9 @@ class RackLocationService:
             'source': 'hand_eye_workspace_transform',
             'transform_context_source': transform_context.get('configuration_source', ''),
             'T_base_camera': T_base_camera.tolist(),
-            'formula': 'delta_T_base = T_base_camera * delta_T_camera * inverse(T_base_camera)',
+            'T_base_camera_standard': reference_camera.tolist(),
+            'capture_pose_mode': 'per_frame' if reference_transform_context is not None else 'same_pose_assumed',
+            'formula': 'delta_T_base = T_base_camera_current * delta_T_camera * inverse(T_base_camera_standard)',
         }
 
     def _calculate_local_template_workbench(self, *, token, roi_config, recipe, layer_no, save_record) -> dict:
@@ -2885,6 +2888,7 @@ class RackLocationService:
         pointcloud = self._load_workbench_pointcloud(token)
         if pointcloud.ndim != 3 or pointcloud.shape[2] != 3:
             raise ValueError('三平面算法需要组织化点云 H×W×3，请重新采集')
+        capture_metadata = self._frame_metadata(token, pointcloud)
         regions = self._explicit_local_template_regions(pointcloud, roi_config)
         roi1, roi2, roi3 = self._crop_local_template_clouds(pointcloud, regions)
         timings['load_crop_ms'] = round((perf_counter() - started) * 1000, 1)
@@ -2894,7 +2898,7 @@ class RackLocationService:
         weights = recipe.roi_weights or {}
         try:
             ransac_distance_threshold_mm = float(
-                (roi_config or {}).get('ransac_distance_threshold_mm', 2.0)
+                (roi_config or {}).get('ransac_distance_threshold_mm', 1.0)
             )
         except (TypeError, ValueError):
             raise ValueError('RANSAC距离阈值必须是数字（mm）')
@@ -2991,6 +2995,7 @@ class RackLocationService:
         transform_context = self._recipe_transform_context(recipe)
         robot_rack_compensation = self._robot_compensation_payload(
             rack_compensation, transform_context,
+            (recipe.local_template_std or {}).get('transform_context') or None,
         )
         preview = image_io.pointcloud_to_preview(pointcloud)
         depth_rel, _, _ = image_io.save_image(
@@ -3025,6 +3030,7 @@ class RackLocationService:
         result_data = {
             'algorithm_version': 'LOCAL_TEMPLATE_3D_V2',
             'source': 'workbench_three_explicit_rois',
+            'capture_metadata': capture_metadata,
             'measured_layer_spacing': measured_layer_spacing,
             'diagnostic_layer_spacing': diagnostic_layer_spacing,
             'layer_spacing_method': layer_spacing_method,
@@ -3138,7 +3144,10 @@ class RackLocationService:
         logger.warning('工作台计算耗时 recipe=%s timings=%s', recipe.id, timings)
         return {
             'timings': timings,
+            'capture_metadata': capture_metadata,
+            'groups': result_data.get('groups', {}),
             'robot_groups': result_data.get('robot_groups', {}),
+            'quality_warnings': result_data.get('quality_warnings', []),
             'robot_conversion_error': result_data.get('robot_conversion_error', ''),
             'robot_groups_status': result_data.get('robot_groups_status', ''),
             'robot_groups_message': result_data.get('robot_groups_message', ''),

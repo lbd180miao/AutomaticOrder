@@ -621,6 +621,79 @@
     setHtml('tpl-cur-p2', formatPlane(curTpl?.plane2));
     setHtml('tpl-std-p3', formatPlane(stdTpl?.plane3));
     setHtml('tpl-cur-p3', formatPlane(curTpl?.plane3));
+    
+    // 渲染交点位置数据
+    renderIntersectionPoints(stdTpl, result);
+  }
+
+  function renderIntersectionPoints(stdResult, curResult) {
+    const setHtml = (id, html) => {
+      const node = $(id);
+      if (node) node.innerHTML = html;
+    };
+
+    const formatPoint = (origin) => {
+      if (!origin || !Array.isArray(origin) || origin.length !== 3) return '—';
+      return `(${origin[0].toFixed(2)}, ${origin[1].toFixed(2)}, ${origin[2].toFixed(2)})`;
+    };
+
+    const formatDelta = (stdOrigin, curOrigin) => {
+      if (!stdOrigin || !curOrigin || !Array.isArray(stdOrigin) || !Array.isArray(curOrigin)) {
+        return '—';
+      }
+      const dx = curOrigin[0] - stdOrigin[0];
+      const dy = curOrigin[1] - stdOrigin[1];
+      const dz = curOrigin[2] - stdOrigin[2];
+      const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+      return `(${dx >= 0 ? '+' : ''}${dx.toFixed(2)}, ${dy >= 0 ? '+' : ''}${dy.toFixed(2)}, ${dz >= 0 ? '+' : ''}${dz.toFixed(2)}) <span style="color:#7c3aed; font-weight:600;">|Δ|=${dist.toFixed(2)}mm</span>`;
+    };
+
+    // 从标准模板中提取 groups
+    const stdGroups = stdResult?.groups 
+      || stdResult?.dual_axis_standard?.groups 
+      || {};
+    
+    // 从当前结果中提取 groups（尝试多个可能的路径）
+    let curGroups = curResult?.groups 
+      || curResult?.result_data?.groups 
+      || curResult?.local_template_cur?.groups
+      || curResult?.plc_payload?.groups
+      || {};
+    
+    if (!curGroups.A && !curGroups.B) {
+      // 检查是否有错误信息
+      const robotStatus = curResult?.robot_groups_status || curResult?.result_data?.robot_groups_status || '';
+      const robotError = curResult?.robot_conversion_error || curResult?.result_data?.robot_conversion_error || '';
+      const robotMsg = curResult?.robot_groups_message || curResult?.result_data?.robot_groups_message || '';
+      console.warn('[renderIntersectionPoints] 未找到groups数据', 
+        { robotStatus, robotError, robotMsg });
+    }
+
+    // A 组交点
+    const stdOriginA = stdGroups.A?.origin;
+    const curOriginA = curGroups.A?.origin;
+    setHtml('intersection-std-a', formatPoint(stdOriginA));
+    setHtml('intersection-cur-a', formatPoint(curOriginA));
+    setHtml('intersection-delta-a', formatDelta(stdOriginA, curOriginA));
+
+    // B 组交点
+    const stdOriginB = stdGroups.B?.origin;
+    const curOriginB = curGroups.B?.origin;
+    setHtml('intersection-std-b', formatPoint(stdOriginB));
+    setHtml('intersection-cur-b', formatPoint(curOriginB));
+    setHtml('intersection-delta-b', formatDelta(stdOriginB, curOriginB));
+
+    // 更新状态
+    const statusNode = $('intersection-status');
+    if (statusNode) {
+      if (curOriginA && curOriginB) {
+        statusNode.textContent = '已计算';
+        statusNode.className = 'badge badge-ok';
+      } else {
+        statusNode.textContent = '未计算';
+        statusNode.className = 'badge badge-muted';
+      }
+    }
   }
 
   function renderLayerSpacing(result) {
@@ -753,7 +826,11 @@
     }
     setButton('btn-spatial-preview', hasCloud);
     setButton('btn-calculate', true);
-    $('btn-calculate').title = hasCloud && !state.pointcloudConsumed
+    const reuseFrame = Boolean($('rl-reuse-frame')?.checked);
+    if ($('rl-reuse-frame')) $('rl-reuse-frame').disabled = state.busy;
+    if (!state.busy) $('btn-calculate').textContent = reuseFrame && hasCloud
+      ? '🎯 复算当前点云' : hasCloud && !state.pointcloudConsumed ? '🎯 计算当前点云' : '🎯 采集新帧并计算';
+    $('btn-calculate').title = hasCloud && (!state.pointcloudConsumed || reuseFrame)
       ? '使用当前点云与所选配方计算'
       : '自动采集新点云，再使用所选配方计算';
     setButton('btn-auto-align', hasCloud);
@@ -1817,6 +1894,10 @@
 
   // ── 采集点云 ─────────────────────────────────────────────
   async function captureWorkbenchFrame() {
+    // A failed fresh capture must not leave an older token eligible for calculation.
+    state.token = null;
+    state.pointcloudConsumed = true;
+    state.lastResultOk = false;
     showLoading('3D 相机采集中...');
     try {
       await roiSaveChain;
@@ -1831,6 +1912,9 @@
       const data = apiPayload(raw);
       if (!data.success) throw new Error(data.error || '采集失败');
       if (!data.pointcloud_token) throw new Error('相机未返回有效点云，请重新采集');
+      if (data.source !== 'sample_forced' && /^(sample|docs_pic_offline)/.test(data.source || '')) {
+        throw new Error('实时采集返回了模拟或历史点云，已停止计算；请检查相机或显式加载离线数据');
+      }
       console.log('[DEBUG capture] raw_rgb_image_url=' + data.raw_rgb_image_url + ' | pointcloud_preview_url=' + data.pointcloud_preview_url + ' | source=' + data.source);
       state.spatialProjection = null;
       state.token = data.pointcloud_token;
@@ -1892,9 +1976,7 @@
         draw();
       }
       if (data.source && data.source.indexOf('sample') === 0) {
-        setStatus('⚠ 未取到真实相机数据，已回退模拟点云'
-          + (data.fallback_reason ? '：' + data.fallback_reason : '（相机未连接）')
-          + '。请检查相机连接后重试。');
+        setStatus('当前为显式模拟演示模式，结果不代表真实相机测量。');
       } else if (roiLoaded) {
         setStatus('点云已采集，配方已加载，可点击「开始计算」。');
       }
@@ -1905,6 +1987,7 @@
     } finally { hideLoading(); refreshActionState(); }
   }
 
+  $('rl-reuse-frame')?.addEventListener('change', refreshActionState);
   $('btn-capture').addEventListener('click', async () => {
     if (state.busy) return;
     state.busy = true;
@@ -2167,7 +2250,9 @@
     refreshActionState();
     try {
       // 新页面和已使用过的点云统一执行完整采集流程，等待图像及配方 ROI 就绪。
-      if (!state.token || state.pointcloudConsumed) {
+      const reuseFrame = Boolean($('rl-reuse-frame')?.checked);
+      if (reuseFrame && !state.token) throw new Error('请先采集或加载一份点云，再使用固定点云复算');
+      if (!state.token || (state.pointcloudConsumed && !reuseFrame)) {
         setStatus('正在采集3D点云，完成后自动计算…');
         if (!(await captureWorkbenchFrame())) return;
       }
@@ -2228,7 +2313,7 @@
           + (robotError ? ' · A/B 未完成：' + robotError : '')
           + (!robotError && robotMessage ? ' · ' + robotMessage : '')
           + (data.result.warning_message ? ' · ' + data.result.warning_message : '。')
-          + ' 再次计算将重新采集点云。');
+          + (reuseFrame ? ' 固定点云复算中；本次未重新采集，不代表连续拍摄精度。' : ' 再次计算将重新采集点云。'));
       } else {
         setStatus(data.result.locate_ok
           ? '计算完成：定位 OK，本次3D记录已自动保存。'
@@ -2364,6 +2449,11 @@
   // ── 渲染结果 ─────────────────────────────────────────────
   function renderResult(r) {
     renderRobotGroups(r);
+    const identity = $('rl-frame-identity');
+    const frame = r.capture_metadata || r.result_data?.capture_metadata;
+    if (identity) identity.textContent = frame
+      ? `来源：${frame.source || '未知'} · 分辨率：${frame.image_width}×${frame.image_height} · 点云指纹：${(frame.pointcloud_sha256 || '').slice(0, 16)}。同帧、相同配方参数与标准用于验证算法一致性。`
+      : '历史记录未保存点云来源信息，请重新计算以查看数据指纹。';
     state.lastResult = r || null;
     if (r?.result_id || r?.id) {
       state.lastResultId = r.result_id || r.id;
@@ -2377,10 +2467,22 @@
       : Boolean(ok);
 
 
-    const isSpatialResult = r.algorithm_version === 'RACK_DUAL_AXIS_3D_V1';
-    ['rl-template-panel', 'rl-comp-panel'].forEach(id => {
+    const isSpatialResult = ['RACK_DUAL_AXIS_3D_V1', 'RACK_DUAL_PLANE_3D_V2'].includes(r.algorithm_version);
+    // spatial模式隐藏local_template面板,但保留交点表格面板
+    ['rl-template-panel'].forEach(id => {
       if ($(id)) $(id).style.display = isSpatialResult ? 'none' : '';
     });
+    // 补偿面板只在非spatial模式显示(spatial模式使用robot_groups)
+    ['rl-comp-panel'].forEach(id => {
+      const panel = $(id);
+      if (panel && id !== 'rl-intersection-panel') {
+        panel.style.display = isSpatialResult ? 'none' : '';
+      }
+    });
+    // 交点表格在两种模式下都显示
+    if ($('rl-intersection-panel')) {
+      $('rl-intersection-panel').style.display = '';
+    }
     if (!isSpatialResult) $('spatial-results').replaceChildren();
     if (isSpatialResult) {
       renderSpatialResults(r);
@@ -2503,6 +2605,7 @@
       return {
         pointcloud_token: state.token,
         source: state.source,
+        raw_rgb_image_url: state.rawRgbImageUrl || '',
         roi_config: state.currentRecipe?.roi_config?.spatial_rois ? state.currentRecipe.roi_config : {
           ...currentRoi3D(),
           ...measurementConfigPatch('all'),
@@ -2691,8 +2794,8 @@
     const warnings = result?.quality_warnings || result?.result_data?.quality_warnings || [];
     const warningBox = $('robot-groups-warning');
     if (warningBox) {
-      warningBox.hidden = !warnings.length;
-      warningBox.textContent = warnings.length ? '⚠ 质量警告（已继续计算）\n' + warnings.join('\n') : '';
+      warningBox.hidden = warnings.length === 0;
+      warningBox.textContent = warnings.length ? '测量稳定性提示（已保留当前测量）\n' + warnings.join('\n') : '';
     }
     const groups = result?.robot_groups || result?.result_data?.robot_groups || {};
     const ready = ['A', 'B'].every(group =>
@@ -2730,7 +2833,7 @@
     badge.className = ready ? 'badge badge-ok' : 'badge badge-muted';
     const context = result?.transform_context || result?.result_data?.transform_context || {};
     note.textContent = ready
-      ? `标定：${context.hand_eye_calibration_name || '配方手眼配置'}；使用本次计算时保存的配置快照。数值为机器人基坐标补偿矩阵的平移和旋转分量。`
+      ? `标定：${context.hand_eye_calibration_name || '配方手眼配置'}；使用本次计算时保存的配置快照。数值为机器人基坐标补偿矩阵的平移和旋转分量。${groupMessage || ''}`
       : (message || groupMessage || result?.robot_conversion_error || result?.result_data?.robot_conversion_error
         || (result ? '当前结果没有 A/B 两组机器人偏差，请使用双组空间配方重新计算。' : '计算后显示两组机器人偏差；无有效换算结果时显示 —。'));
     if (result) {
@@ -2754,15 +2857,78 @@
     Object.entries(result.groups).forEach(([key,v])=>{
       const row=table.insertRow();
       [key==='A'?'A · 上层 Π1–Π2':'B · 中层 Π2–Π3',
-       v.translation_mm ? Object.values(v.translation_mm).map(x=>x.toFixed(3)).join(' / ') : '标准帧预览',
+       v.translation_mm ? Object.values(v.translation_mm).map(x=>x.toFixed(3)).join(' / ') : '无标准模板，暂不计算误差',
        v.rotation_deg ? Object.values(v.rotation_deg).map(x=>x.toFixed(3)).join(' / ') : '—',
-       `${v.angle_deg.toFixed(2)}° / ${v.gap_mm.toFixed(3)} mm`].forEach(t=>row.insertCell().textContent=t);
+       `${v.angle_deg.toFixed(2)}° / ${Number.isFinite(v.gap_mm) ? v.gap_mm.toFixed(3) + ' mm' : '—'}`].forEach(t=>row.insertCell().textContent=t);
     });
     host.append(table);
     const note=document.createElement('p');
     note.textContent=`层距 ${Number(result.layer_spacing_mm).toFixed(3)} mm · 相机坐标系。位移为各组基准点变化，完整刚体变换保存在各组 delta_T。`;
     host.append(note);
     if (result.warning_message) {const warning=document.createElement('p');warning.textContent=result.warning_message;host.append(warning);}
+    
+    // 渲染交点位置表格(spatial模式下也显示)
+    renderIntersectionPointsForSpatial(result);
+  }
+  
+  function renderIntersectionPointsForSpatial(result) {
+    console.log('[renderIntersectionPointsForSpatial] 收到的result:', JSON.stringify(result, null, 2));
+    
+    const setHtml = (id, html) => {
+      const node = $(id);
+      if (node) node.innerHTML = html;
+    };
+
+    const formatPoint = (origin) => {
+      if (!origin || !Array.isArray(origin) || origin.length !== 3) return '—';
+      return `(${origin[0].toFixed(2)}, ${origin[1].toFixed(2)}, ${origin[2].toFixed(2)})`;
+    };
+
+    const formatDelta = (stdOrigin, curOrigin) => {
+      if (!stdOrigin || !curOrigin || !Array.isArray(stdOrigin) || !Array.isArray(curOrigin)) {
+        return '—';
+      }
+      const dx = curOrigin[0] - stdOrigin[0];
+      const dy = curOrigin[1] - stdOrigin[1];
+      const dz = curOrigin[2] - stdOrigin[2];
+      const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+      return `(${dx >= 0 ? '+' : ''}${dx.toFixed(2)}, ${dy >= 0 ? '+' : ''}${dy.toFixed(2)}, ${dz >= 0 ? '+' : ''}${dz.toFixed(2)}) <span style="color:#7c3aed; font-weight:600;">|Δ|=${dist.toFixed(2)}mm</span>`;
+    };
+
+    // spatial模式: 标准在dual_axis_standard中, 当前在groups中
+    const stdGroups = result?.dual_axis_standard?.groups || state.currentRecipe?.local_template_std?.groups || {};
+    const curGroups = result?.groups || {};
+    
+    console.log('[renderIntersectionPointsForSpatial] stdGroups:', stdGroups);
+    console.log('[renderIntersectionPointsForSpatial] curGroups:', curGroups);
+
+    // A 组交点
+    const stdOriginA = stdGroups.A?.origin;
+    const curOriginA = curGroups.A?.origin;
+    console.log('[renderIntersectionPointsForSpatial] A组 - std:', stdOriginA, 'cur:', curOriginA);
+    setHtml('intersection-std-a', formatPoint(stdOriginA));
+    setHtml('intersection-cur-a', formatPoint(curOriginA));
+    setHtml('intersection-delta-a', formatDelta(stdOriginA, curOriginA));
+
+    // B 组交点
+    const stdOriginB = stdGroups.B?.origin;
+    const curOriginB = curGroups.B?.origin;
+    console.log('[renderIntersectionPointsForSpatial] B组 - std:', stdOriginB, 'cur:', curOriginB);
+    setHtml('intersection-std-b', formatPoint(stdOriginB));
+    setHtml('intersection-cur-b', formatPoint(curOriginB));
+    setHtml('intersection-delta-b', formatDelta(stdOriginB, curOriginB));
+
+    // 更新状态
+    const statusNode = $('intersection-status');
+    if (statusNode) {
+      if (curOriginA && curOriginB) {
+        statusNode.textContent = '已计算';
+        statusNode.className = 'badge badge-ok';
+      } else {
+        statusNode.textContent = '未计算';
+        statusNode.className = 'badge badge-muted';
+      }
+    }
   }
   $('btn-spatial-preview').addEventListener('click', async()=>{
     if(state.busy) return;

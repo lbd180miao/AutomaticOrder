@@ -1,0 +1,868 @@
+{
+  "success": true,
+  "result": {
+    "success": true,
+    "compensation_valid": false,
+    "plc_publish_allowed": false,
+    "algorithm_version": "rack_dual_point_v2",
+    "measurement_only": true,
+    "lines": [
+      {
+        "success": true,
+        "line_abc": [
+          0.9999953412461384,
+          0.003052455735807284,
+          -366.33801813717287
+        ],
+        "edge_points": [
+          [
+            365.94906862613306,
+            81.99958728387278
+          ],
+          [
+            365.45805967515554,
+            96.99821988807726
+          ],
+          [
+            365.7741970735747,
+            111.99933320764524
+          ],
+          [
+            366.0436462338711,
+            127.00030303374429
+          ],
+          [
+            365.97983946850826,
+            142.00024861796282
+          ],
+          [
+            365.9283544292553,
+            157.00023207225942
+          ],
+          [
+            365.973922482436,
+            172.00051381335078
+          ],
+          [
+            366.0529375653299,
+            187.00089835185992
+          ],
+          [
+            366.48583323841206,
+            202.00237052090543
+          ],
+          [
+            365.8764594179892,
+            232.0007810283037
+          ],
+          [
+            365.65223989943496,
+            247.00023359365193
+          ],
+          [
+            365.65023147289594,
+            262.0003691113177
+          ],
+          [
+            365.23770172208384,
+            276.99924291658533
+          ],
+          [
+            365.2807707437104,
+            291.9995169770547
+          ],
+          [
+            365.1856896604673,
+            306.99936644155355
+          ],
+          [
+            365.25603412228077,
+            321.99972433143455
+          ],
+          [
+            365.14185655445823,
+            336.99951510404594
+          ]
+        ],
+        "inlier_points": [
+          [
+            365.94906862613306,
+            81.99958728387278
+          ],
+          [
+            365.45805967515554,
+            96.99821988807726
+          ],
+          [
+            365.7741970735747,
+            111.99933320764524
+          ],
+          [
+            366.0436462338711,
+            127.00030303374429
+          ],
+          [
+            365.97983946850826,
+            142.00024861796282
+          ],
+          [
+            365.9283544292553,
+            157.00023207225942
+          ],
+          [
+            365.973922482436,
+            172.00051381335078
+          ],
+          [
+            366.0529375653299,
+            187.00089835185992
+          ],
+          [
+            366.48583323841206,
+            202.00237052090543
+          ],
+          [
+            365.8764594179892,
+            232.0007810283037
+          ],
+          [
+            365.65223989943496,
+            247.00023359365193
+          ],
+          [
+            365.65023147289594,
+            262.0003691113177
+          ],
+          [
+            365.23770172208384,
+            276.99924291658533
+          ],
+          [
+            365.2807707437104,
+            291.9995169770547
+          ],
+          [
+            365.1856896604673,
+            306.99936644155355
+          ],
+          [
+            365.25603412228077,
+            321.99972433143455
+          ],
+          [
+            365.14185655445823,
+            336.99951510404594
+          ]
+        ],
+        "total_calipers": 20,
+        "valid_calipers": 17,
+        "valid_count": 17,
+        "inlier_count": 17,
+        "inlier_ratio": 1.0,
+        "fit_residual": 0.2844047898352899,
+        "residual": 0.2844047898352899,
+        "line_angle": 90.17489310240698,
+        "angle": 90.17489310240698,
+        "confidence": 0.85,
+        "error_code": "",
+        "target": "P1_horizontal",
+        "algorithm": "Projection",
+        "roi": [
+          341,
+          60,
+          451,
+          361
+        ]
+      },
+      {
+        "success": true,
+        "line_abc": [
+          0.005855946389297306,
+          0.9999828537989468,
+          -579.0357871544294
+        ],
+        "edge_points": [
+          [
+            324.5072702365416,
+            578.3309690686601
+          ],
+          [
+            332.50024287681765,
+            577.1521449345613
+          ],
+          [
+            340.49707641127134,
+            576.5936200617253
+          ],
+          [
+            348.49245053982384,
+            575.8006240118136
+          ],
+          [
+            355.9962560074119,
+            576.3653364896093
+          ],
+          [
+            363.4990354716343,
+            576.7652091400236
+          ],
+          [
+            371.5000913870056,
+            576.885060737373
+          ],
+          [
+            379.5007212199906,
+            576.9364570553562
+          ],
+          [
+            387.504208301178,
+            577.4469047919029
+          ],
+          [
+            395.0040340939623,
+            577.3722344668477
+          ],
+          [
+            402.4993974931676,
+            576.5806267399529
+          ],
+          [
+            410.50153369326694,
+            576.8740391208632
+          ],
+          [
+            418.49988128128473,
+            576.558765231885
+          ],
+          [
+            426.49840101721816,
+            576.2711489838593
+          ],
+          [
+            434.0009354382046,
+            576.6316524800823
+          ],
+          [
+            441.49983891411546,
+            576.4088008144008
+          ],
+          [
+            449.5010063131907,
+            576.5465636146994
+          ],
+          [
+            457.4984064908057,
+            576.0790768066591
+          ]
+        ],
+        "inlier_points": [
+          [
+            324.5072702365416,
+            578.3309690686601
+          ],
+          [
+            332.50024287681765,
+            577.1521449345613
+          ],
+          [
+            340.49707641127134,
+            576.5936200617253
+          ],
+          [
+            348.49245053982384,
+            575.8006240118136
+          ],
+          [
+            355.9962560074119,
+            576.3653364896093
+          ],
+          [
+            363.4990354716343,
+            576.7652091400236
+          ],
+          [
+            371.5000913870056,
+            576.885060737373
+          ],
+          [
+            379.5007212199906,
+            576.9364570553562
+          ],
+          [
+            387.504208301178,
+            577.4469047919029
+          ],
+          [
+            395.0040340939623,
+            577.3722344668477
+          ],
+          [
+            402.4993974931676,
+            576.5806267399529
+          ],
+          [
+            410.50153369326694,
+            576.8740391208632
+          ],
+          [
+            418.49988128128473,
+            576.558765231885
+          ],
+          [
+            426.49840101721816,
+            576.2711489838593
+          ],
+          [
+            434.0009354382046,
+            576.6316524800823
+          ],
+          [
+            441.49983891411546,
+            576.4088008144008
+          ],
+          [
+            449.5010063131907,
+            576.5465636146994
+          ],
+          [
+            457.4984064908057,
+            576.0790768066591
+          ]
+        ],
+        "total_calipers": 20,
+        "valid_calipers": 18,
+        "valid_count": 18,
+        "inlier_count": 18,
+        "inlier_ratio": 1.0,
+        "fit_residual": 0.5044800989185056,
+        "residual": 0.5044800989185056,
+        "line_angle": 179.66447706918834,
+        "angle": 179.66447706918834,
+        "confidence": 0.9,
+        "error_code": "",
+        "target": "P1_vertical",
+        "algorithm": "Projection",
+        "roi": [
+          314,
+          458,
+          470,
+          657
+        ]
+      },
+      {
+        "success": true,
+        "line_abc": [
+          0.9998207152857039,
+          0.01893508081798201,
+          -1054.929291394127
+        ],
+        "edge_points": [
+          [
+            1053.2562254215306,
+            53.98683641139479
+          ],
+          [
+            1053.164003402444,
+            74.99205626246106
+          ],
+          [
+            1052.8303201658384,
+            95.99290231977577
+          ],
+          [
+            1052.7598035510093,
+            116.99851533941168
+          ],
+          [
+            1052.4743702514108,
+            137.50007133325124
+          ],
+          [
+            1052.6302107553806,
+            158.00962049727605
+          ],
+          [
+            1052.040105483797,
+            179.00582176274438
+          ],
+          [
+            1051.6482438547773,
+            200.0056139850299
+          ],
+          [
+            1057.0188927943761,
+            221.1097874946181
+          ],
+          [
+            1042.6835141682666,
+            241.35684480038572
+          ],
+          [
+            1051.8235734402354,
+            262.0291328104822
+          ],
+          [
+            1050.9877560143489,
+            283.02088328134175
+          ],
+          [
+            1049.989058008221,
+            304.0096833568068
+          ],
+          [
+            1049.0768670245886,
+            325.0000504080303
+          ],
+          [
+            1048.1119685285596,
+            345.4892986670664
+          ],
+          [
+            1047.5719340831838,
+            365.9862428523845
+          ],
+          [
+            1047.491123923043,
+            386.9916694162217
+          ],
+          [
+            1046.0243996675217,
+            407.9719917315471
+          ]
+        ],
+        "inlier_points": [
+          [
+            1053.2562254215306,
+            53.98683641139479
+          ],
+          [
+            1053.164003402444,
+            74.99205626246106
+          ],
+          [
+            1052.8303201658384,
+            95.99290231977577
+          ],
+          [
+            1052.7598035510093,
+            116.99851533941168
+          ],
+          [
+            1052.4743702514108,
+            137.50007133325124
+          ],
+          [
+            1052.6302107553806,
+            158.00962049727605
+          ],
+          [
+            1052.040105483797,
+            179.00582176274438
+          ],
+          [
+            1051.6482438547773,
+            200.0056139850299
+          ],
+          [
+            1051.8235734402354,
+            262.0291328104822
+          ],
+          [
+            1050.9877560143489,
+            283.02088328134175
+          ],
+          [
+            1049.989058008221,
+            304.0096833568068
+          ],
+          [
+            1049.0768670245886,
+            325.0000504080303
+          ],
+          [
+            1048.1119685285596,
+            345.4892986670664
+          ],
+          [
+            1047.5719340831838,
+            365.9862428523845
+          ],
+          [
+            1047.491123923043,
+            386.9916694162217
+          ],
+          [
+            1046.0243996675217,
+            407.9719917315471
+          ]
+        ],
+        "total_calipers": 20,
+        "valid_calipers": 18,
+        "valid_count": 18,
+        "inlier_count": 16,
+        "inlier_ratio": 0.8888888888888888,
+        "fit_residual": 0.7472852044652661,
+        "residual": 0.7472852044652661,
+        "line_angle": 91.08496505560117,
+        "angle": 91.08496505560117,
+        "confidence": 0.7111111111111111,
+        "error_code": "",
+        "target": "P2_horizontal",
+        "algorithm": "Projection",
+        "roi": [
+          985,
+          24,
+          1066,
+          440
+        ]
+      },
+      {
+        "success": true,
+        "line_abc": [
+          0.014229091545352323,
+          0.9998987613522652,
+          -590.5131903802287
+        ],
+        "edge_points": [
+          [
+            963.0023908224528,
+            576.2870684233133
+          ],
+          [
+            972.0053118163017,
+            576.5665848208504
+          ],
+          [
+            981.0064275310845,
+            576.6274294245611
+          ],
+          [
+            989.984876610616,
+            573.9426853360603
+          ],
+          [
+            998.979184078156,
+            573.1788532095838
+          ],
+          [
+            1008.0152538972271,
+            577.4736563349951
+          ],
+          [
+            1017.0043894784869,
+            576.0833583775322
+          ],
+          [
+            1025.9985329926667,
+            575.2996667312337
+          ],
+          [
+            1035.5185100955828,
+            577.6410461137364
+          ],
+          [
+            1045.0043549246063,
+            575.8480145349354
+          ],
+          [
+            1053.9953876006327,
+            574.6875099226663
+          ],
+          [
+            1062.9975898651212,
+            574.8799672934448
+          ],
+          [
+            1072.0001319039673,
+            575.1135812198327
+          ],
+          [
+            1080.9973198486107,
+            574.6986586370768
+          ],
+          [
+            1090.000194153593,
+            574.9725196551058
+          ],
+          [
+            1098.9995035472286,
+            574.8145662387006
+          ],
+          [
+            1108.0003467164306,
+            574.8423976467499
+          ],
+          [
+            1117.0041830033967,
+            575.2327826581982
+          ]
+        ],
+        "inlier_points": [
+          [
+            963.0023908224528,
+            576.2870684233133
+          ],
+          [
+            972.0053118163017,
+            576.5665848208504
+          ],
+          [
+            981.0064275310845,
+            576.6274294245611
+          ],
+          [
+            1008.0152538972271,
+            577.4736563349951
+          ],
+          [
+            1017.0043894784869,
+            576.0833583775322
+          ],
+          [
+            1025.9985329926667,
+            575.2996667312337
+          ],
+          [
+            1035.5185100955828,
+            577.6410461137364
+          ],
+          [
+            1045.0043549246063,
+            575.8480145349354
+          ],
+          [
+            1053.9953876006327,
+            574.6875099226663
+          ],
+          [
+            1062.9975898651212,
+            574.8799672934448
+          ],
+          [
+            1072.0001319039673,
+            575.1135812198327
+          ],
+          [
+            1080.9973198486107,
+            574.6986586370768
+          ],
+          [
+            1090.000194153593,
+            574.9725196551058
+          ],
+          [
+            1098.9995035472286,
+            574.8145662387006
+          ],
+          [
+            1108.0003467164306,
+            574.8423976467499
+          ],
+          [
+            1117.0041830033967,
+            575.2327826581982
+          ]
+        ],
+        "total_calipers": 20,
+        "valid_calipers": 18,
+        "valid_count": 18,
+        "inlier_count": 16,
+        "inlier_ratio": 0.8888888888888888,
+        "fit_residual": 0.6786209686814668,
+        "residual": 0.6786209686814668,
+        "line_angle": 179.1847055948593,
+        "angle": 179.1847055948593,
+        "confidence": 0.7111111111111111,
+        "error_code": "",
+        "target": "P2_vertical",
+        "algorithm": "Projection",
+        "roi": [
+          950,
+          490,
+          1132,
+          654
+        ]
+      }
+    ],
+    "pixels": [
+      [
+        364.5787221665097,
+        576.9107255300335
+      ],
+      [
+        1044.2153265258,
+        575.7132393358665
+      ]
+    ],
+    "points": [
+      {
+        "name": "P1",
+        "success": true,
+        "pixel": [
+          364.5787221665097,
+          576.9107255300335
+        ],
+        "xyz": [
+          -338.86463733448153,
+          28.903979941581177,
+          1509.4115131627336
+        ],
+        "model_type": "local_camera_pointmap",
+        "valid_points": 262,
+        "geometry_residual": 0.7134676467889642
+      },
+      {
+        "name": "P2",
+        "success": true,
+        "pixel": [
+          1044.2153265258,
+          575.7132393358665
+        ],
+        "xyz": [
+          329.9129429941238,
+          28.42771496846101,
+          1547.437196085767
+        ],
+        "model_type": "local_camera_pointmap",
+        "valid_points": 264,
+        "geometry_residual": 0.6458074683742625
+      }
+    ],
+    "unit": "mm",
+    "coordinateSystem": "camera",
+    "frame_id": "2026-10-10_POS1_L1_062323",
+    "config_digest": "49c69777213119a751b862881463ccd63fd584f76c85ea066214cfbd172bb9b5",
+    "calibration_digest": "cfc2adcf723223e1abde010c557afee694b79685b8505f4ecd135e273d8c601d",
+    "projection_error_p95_px": 2.522011317902186,
+    "independent_3d_validated": false,
+    "errorCode": "",
+    "errorMessage": ""
+  },
+  "compensation": {
+    "success": false,
+    "compensation_valid": false,
+    "plc_publish_allowed": false,
+    "errorMessage": "相机坐标测量不计算机器人补偿"
+  },
+  "forensics": {
+    "stage": "before_2d",
+    "shape": [
+      1080,
+      1440,
+      3
+    ],
+    "dtype": "float32",
+    "total_points": 1555200,
+    "valid_points": 332975,
+    "valid_ratio": 0.21410429526748972,
+    "invalid_ratio": 0.7858957047325102,
+    "production_ready": false,
+    "regions": {},
+    "unit": "mm",
+    "note": "有效率不能单独区分黑色反光、遮挡、曝光或配准问题；需现场曝光/载荷对照实验",
+    "array_tile_valid_ratio": [
+      [
+        0.0,
+        0.0,
+        0.5895473251028807,
+        0.017119341563786007,
+        0.19123456790123458,
+        0.8114814814814815,
+        0.2216460905349794,
+        0.5876954732510288
+      ],
+      [
+        0.0,
+        0.06222222222222222,
+        0.6540329218106996,
+        0.11995884773662552,
+        0.23016460905349795,
+        0.8189300411522634,
+        0.23415637860082306,
+        0.7549382716049383
+      ],
+      [
+        0.0065020576131687245,
+        0.014897119341563786,
+        0.6502057613168725,
+        0.004897119341563786,
+        0.18432098765432098,
+        0.8017695473251029,
+        0.22810699588477365,
+        0.6916460905349794
+      ],
+      [
+        0.047901234567901234,
+        0.01037037037037037,
+        0.5173662551440329,
+        0.0024691358024691358,
+        0.06020576131687243,
+        0.71,
+        0.05185185185185185,
+        0.32325102880658435
+      ],
+      [
+        0.3323456790123457,
+        0.3219753086419753,
+        0.3960493827160494,
+        0.3386008230452675,
+        0.358559670781893,
+        0.397201646090535,
+        0.36185185185185187,
+        0.5045679012345679
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.017530864197530863,
+        0.010452674897119341,
+        0.019876543209876543,
+        0.39497942386831275
+      ],
+      [
+        0.0,
+        0.0,
+        0.013415637860082305,
+        0.0411522633744856,
+        0.07213991769547325,
+        0.053415637860082306,
+        0.12094650205761318,
+        0.13020576131687242
+      ],
+      [
+        0.005185185185185185,
+        0.0069958847736625515,
+        0.025555555555555557,
+        0.0,
+        0.04864197530864198,
+        0.0001234567901234568,
+        0.1120164609053498,
+        0.02
+      ]
+    ],
+    "tile_coordinates": "array_indices_not_verified_image_registration",
+    "xyz_percentiles_mm": [
+      [
+        -793.96216796875,
+        -970.6851635742188,
+        135.3584698486328
+      ],
+      [
+        293.7065734863281,
+        -256.3025207519531,
+        1803.7867431640625
+      ],
+      [
+        1113.62640625,
+        450.7282580566408,
+        3386.010341796875
+      ]
+    ],
+    "geometry_blocker": "尚未指定目标横杆三维取证区域；全场景统计不能证明横杆可测"
+  },
+  "reference": null,
+  "teach_token": ".eJztmVtv20gShf8Lnxmiqy_V3X6d113sAPMYBIJM0Y52ZUmQ5WwyQf77ftWUPPElTnZmsRes48CZIYvd1VWnTp0iP3eH6fZuc-wuPne3d-M43d52F8fD3dR34-5mP21vl8f1brv4sNysV93F1XJzy639Zlzs7y4369v3i-Vms_v79Nu95eZ6d1gf398sPkyHW57tLrrDcvzbYnW33Cz2u_X2uPjgu767mZa3d4fpZuLCbrv5dN53s95OOPH2iUN2Y7G8HLnnhmp_Uojio0oosXeDc8ElH1PKIRWXPRffBNUhhOKkSMjCtfyu76bV9TR7Yvu8DZqGGqvTop61gtO-iG2QCg8EfuXyrm9mkYVT1ZwkpRT7qpgVL7UUNsxeT2Y5R6nZ4UeOuRdpq4UQvMsacbGZ6eBi0Kge_7JILz5zBM7AT8gx-npareZaQo1akitee4ne7HwsKrmqL_5sh7PJnvMphV5SW87bpt6nGu_Ncqiepz2794TErBIh5OTJnU6Kb8nXkJOm4GvtpbTFCo4kKalWfzKLJRXORQLEEzfvbDkfMo-76lIMp02LHbxGHC7V9zhly-UiDp9dyCcrTd4HLGoMsbJaPB0hpMptqeHejosSyU5l0d5rWy5oJdRB8nk5_MiOE3pXDCE-W7qqJ0KiqaRwXs5b8lyOIMRhVufki1aupnhejXNrqaouag49KGlJVY0RMISUzosldQZL31btg2-rZaKNxyHe20m0BUERmPKsF3TeNeGDs1i9A6nr7WY9HV6x-orV_36sHndHCH6kUewh_u7Cu75rbeOra5Lvr-3utsf5wgnkT68crPdwZWClq_VxQataWxfpLhxxiGydW5YJbe27l-_OzWN7vZm6i-oGybHUQEqj01roWt-8M-62V-vVtB0nW7gk2sfhsDN3V1zpaGTH5eF6wvPuZ1m8p_f9utsSie6rVmj3Dru_TqP1Um4cdmuKmcj36vqYpA8q7770L3c8kF8SsdYALCkMIDy3weLBh4GVsuvfpFwHRzFTp63A4jMNz8eB8vEZZGqKoj3mtElXtTGLOrHEA_xktUvT1CJZE2Z5kOQlxgo64B8zi26IRiAaBVqQEDHTwarAO0fZ-zSbFczozi5RNVaEmFFrmBBpsf7cGClR9BAFwATkIrUthpdgjryoO9VVYLHKMWMWDTE0KzykkCVaFba1stgBuARpET1tVgVqUujOfppRNaPsBWpkydkI52OioKgVbfQBpyQXrTjxNZcWiRgJV8xVqpv5ryaSFKkovOQMoVkFajpgqiW2Yo_QDr6HmgmiaJ43hKshdNiuprZWFMeGYseuwavWOaols3yFvooG38wsqlC6ePsb8xyJRDcgGEE4rFl5yK8WwmwMQ6jnPUmWRCsRSNJCQcUbNVWiGoqHOpqV4iRtgESRNbOK0rYEhdACGJvNoitmAjT43cwsrkJ6AzRXXZ4di5oUsBM5A-Zbgjx7pvQ02tVs5TL2SkQ0VXm-Db4i-BXB_0sI_qHmWB43x_KkOZYfao4k2o5LS6BvG2y6l-9-3RyRPYMJBfQEGqUUqqF74dbD9lhf7o5MhMf1-EO9USKNsfQxu15T_m5zbG3Q0fLohRmA2Tgo9HFkKCnNdlP6N4JEQnryI4hUav1pb8QkmC5ChkYPeq2cwlCLlmD0wGPZ0N3MRIEKteJjjH1m5eoJJwqPkdTpbOUHE43sjoozyqjGDr6aJkSypVZQzSynWqADJBX4RYc3uZ6sfvBUtJztomk_5xPQdaVnqm0MAWvBdkmaXm92GpwXlyEAYIjCLlQGJe1gOsSlS2c7Z0WVYoFGkP8mHtAZHrL06Ppw2lYGbSK8QFeZEoUXzQ7-xEe44xSSbEFHnWREcVbpPYJSXEWLRMQJZdvMmAnUtDm0zYygpp1lgKZKgyV7ZH_elYJlmqci-feknS13UIXDn5MZ2S-EEs6n_kvtkemYUc1mh8jK81kpZyDP4YwHPJrLxRYSZoJkpVrOVla5SojBX1FEsXEihyVQxead2awM6HceNsAxZfV0EwYMMkvzoTx0zgNDQcrMAjwKlYXSt6GG2Y2WlKyFpLNZZB5gnvB4hcAuln0x0hSQKDNIIrxCDmguDHVc7KPLTEiQvuQg1kie7ZWviP4DiH6F4O-A4L-q2enjZsf89ejP096XbdRGRiFYEuwiD3vf07sPBkO6aWGapytaLm0U_fadh50PJfLgz0uN0P9TYyJ4hCF76k97YPj9OVGipxwr6UD8-YCKm_sjEAXeyXuOzpzIrJuasKGc_LMvRisi1aRoNbRGYDaLLqQoXO0DssiQWNtrmRRMAVOictJJSJ9CgTiqyYBYCxFEJPmMJaFMszSjJBlRvUlxaVZWIRFHjW-ayoOqUH_2BkRRvW3DWuw9kyC6cpE0GyFpsUE9Gyk1rDr4AT0AW-AhSnFWvDmYfgvRXl80M7H3NvAANMjGOst1ZxUJgeDsqcR9auxlb5isZ-Wm_b0VApqXsglzgYQ02EsnozwkrJ9lNjRL5UC1bH4qyqazIRTmCY4V5kmC9ifkLJp-PTOyveQmHKZCvW0a6Z05ObwwN2YmgJNqzYkEK3wpvpmVjHPZU_i01WY2vz6bU141z5viVSo2OUBV8xGKoYUzWR7IwmlTWxvJblPSvFp1bTXoIdkrr2ZFoBOMZJSfTlalvSlqcw4g09k1TqlMFzbTtKYilitrPMowFFuHMjMwVhnKFPXQ6FjmXMFi2NoR5iTgODqCU6Dynu2A_34cv6Lv_xZ9_9Hmp5nGboJCOSUD-8Pm9_Tu48EPTrV3BjXaQP1g7nt05480vx-fAkldz1iNdgyeMTC--0KA9-uP0-b0MSQO9qITeUKVMmfMbz4Ma4hEy9JJ28TBhK_1vVRa1hCXZNeqjActa_dk8bnbLm-mNq7ixqM-27a26fRHNu4-fvoV2zchlKGAI-qPaqBhITbBJVVAjYDfArDQqSwz2NsIKgQ2Cfb-p7shfpvF8dPeHNrsxgasm-mwnMntZrnvzkA6HwCB2nfX0-5mOh4-PRRGYgg3QDOiQWCmI85n9d8-6_fDdz4p7EQMjAbtXBSYnROizIJwKjZBSG8acbCPF1Vh1Kz5954yfuOUap-9ckRSw8jqkyHmbrs26N3cdAbc3WG13i6P0y-fbo-TAW_ejHtXB_5rYd-5O--8vhHH38XPf_lFFn-SBUTHqbsT9q8Xq_X1dGvrxjra55fsSZ3UZU5ySZ0Vq7EwjisNVytayFXWsaRpiYzzEsery5Vkf3lZL5MtyekuD_On9vt1x6vRL1fjVWZfHyZZXq4mJpsxpby8miaU-WU2-X9pb3Gu4jSuYNMJ7KzKiEZdse7-vqYWc0Xua1rsPxLAAR3o2hcoJjcpjW1W037i1_a4CKv5iz9h-u3Lflvhp_uSbv_7ZxCzvG5XvhjZjDBci2D58g9D6cFa:1xG4nE:aK0bPVkbddr34a-7aOAmcJnTqzucuiyZ3YCRcNUTvhw",
+  "plc_publish_allowed": false
+}

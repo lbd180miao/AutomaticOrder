@@ -3,12 +3,22 @@ from django.shortcuts import render
 
 from . import views
 from . import rack_spatial_service
+from . import rack_dual_point_views
 from . import offline_data_views
 from . import views_foam_profile
 
 app_name = 'vision'
 
 urlpatterns = [
+    path('api/rack-location/dual-point/prepare/', rack_dual_point_views.prepare, name='rack_dual_point_prepare'),
+    path('api/rack-location/dual-point/image/', rack_dual_point_views.original_image, name='rack_dual_point_image'),
+    path('api/rack-location/dual-point/depth/', rack_dual_point_views.depth_preview, name='rack_dual_point_depth'),
+    path('api/rack-location/dual-point/test/', rack_dual_point_views.test_2d, name='rack_dual_point_test'),
+    path('api/rack-location/dual-point/save/', rack_dual_point_views.save_config, name='rack_dual_point_save'),
+    path('api/rack-location/dual-point/forensics/', rack_dual_point_views.forensics, name='rack_dual_point_forensics'),
+    path('api/rack-location/dual-point/evaluate/', rack_dual_point_views.evaluate, name='rack_dual_point_evaluate'),
+    path('api/rack-location/dual-point/teach/', rack_dual_point_views.teach, name='rack_dual_point_teach'),
+    path('api/rack-location/dual-point/recompute-robot/', rack_dual_point_views.recompute_robot_deviation, name='rack_dual_point_recompute_robot'),
     path('api/rack-location/workbench/spatial-teach/', rack_spatial_service.teach, name='rack_spatial_teach'),
     # 3D 料架定位离线数据包（新增旁路，不改变现有离线测试 API）。
     path('offline/packages/', offline_data_views.packages, name='offline_packages'),

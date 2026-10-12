@@ -1,0 +1,210 @@
+{
+  "target_roi": {
+    "x": 259,
+    "y": 11,
+    "w": 873,
+    "h": 665,
+    "feature_type": "rack_reference"
+  },
+  "camera_roi": {
+    "x_min": -734.6951904296875,
+    "x_max": 980.3716430664062,
+    "y_min": -713.44921875,
+    "y_max": 223.71092224121094,
+    "z_min": 899.0392456054688,
+    "z_max": 2473.966064453125
+  },
+  "target_roi_updated_at": "2026-10-10T07:31:19.790802+00:00",
+  "local_template_rois": {
+    "plane1": {
+      "x": 350,
+      "y": 28,
+      "w": 74,
+      "h": 527
+    },
+    "plane2": {
+      "x": 331,
+      "y": 555,
+      "w": 722,
+      "h": 85
+    },
+    "plane3": {
+      "x": 983,
+      "y": 11,
+      "w": 72,
+      "h": 529
+    }
+  },
+  "layer_spacing_line": {
+    "x1": 365,
+    "y1": 209,
+    "x2": 998,
+    "y2": 205,
+    "sample_radius": 10,
+    "depth_window_mm": 25
+  },
+  "roi_teaching_updated_at": "2026-10-10T07:31:19.790802+00:00",
+  "local_template_rois_updated_at": "2026-10-10T07:31:19.790802+00:00",
+  "layer_spacing_line_updated_at": "2026-10-10T07:31:19.790802+00:00",
+  "ransac_distance_threshold_mm": 5,
+  "ransac_distance_threshold_mm_updated_at": "2026-10-10T07:31:19.790802+00:00",
+  "margin_mm": 5.0,
+  "voxel_mm": 0.0,
+  "dual_point": {
+    "algorithm": "Projection",
+    "rois": [
+      {
+        "edgePolarity": "dark_to_light",
+        "edgeMode": "single",
+        "edgeSide": "upper",
+        "gradientThreshold": 10,
+        "caliperCount": 20,
+        "caliperWidth": 3,
+        "expectedSlope": 0,
+        "expectedWidth": 20,
+        "widthTolerance": 5,
+        "id": "roi1",
+        "target": "P1_horizontal",
+        "x": 341.76301375597535,
+        "y": 60.13509646811519,
+        "width": 109.12645483686737,
+        "height": 300.30383406049475,
+        "expectedPosition": 210.28701349836257,
+        "searchHalfWidth": 148.15191703024738
+      },
+      {
+        "edgePolarity": "dark_to_light",
+        "edgeMode": "single",
+        "edgeSide": "left",
+        "gradientThreshold": 10,
+        "caliperCount": 20,
+        "caliperWidth": 3,
+        "expectedSlope": 0,
+        "expectedWidth": 20,
+        "widthTolerance": 5,
+        "id": "roi2",
+        "target": "P1_vertical",
+        "x": 314.75155731943534,
+        "y": 458.7619622961483,
+        "width": 154.5057495270878,
+        "height": 197.72646048220764,
+        "expectedPosition": 392.00443208297924,
+        "searchHalfWidth": 75.2528747635439
+      },
+      {
+        "edgePolarity": "dark_to_light",
+        "edgeMode": "single",
+        "edgeSide": "upper",
+        "gradientThreshold": 10,
+        "caliperCount": 20,
+        "caliperWidth": 3,
+        "expectedSlope": 0,
+        "expectedWidth": 20,
+        "widthTolerance": 5,
+        "id": "roi3",
+        "target": "P2_horizontal",
+        "x": 985.7172200486052,
+        "y": 24.411976522343995,
+        "width": 79.95398504362788,
+        "height": 414.9014261660443,
+        "expectedPosition": 231.86268960536614,
+        "searchHalfWidth": 205.45071308302215
+      },
+      {
+        "edgePolarity": "dark_to_light",
+        "edgeMode": "single",
+        "edgeSide": "left",
+        "gradientThreshold": 10,
+        "caliperCount": 20,
+        "caliperWidth": 3,
+        "expectedSlope": 0,
+        "expectedWidth": 20,
+        "widthTolerance": 5,
+        "id": "roi4",
+        "target": "P2_vertical",
+        "x": 950.0620366182211,
+        "y": 490.09565000818105,
+        "width": 181.5172875718663,
+        "height": 163.1513643042585,
+        "expectedPosition": 1040.8206804041542,
+        "searchHalfWidth": 88.75864378593315
+      }
+    ],
+    "imageSize": [
+      1440,
+      1080
+    ],
+    "lineQuality": {
+      "min_points": 6,
+      "ransac_px": 2,
+      "iterations": 200,
+      "min_inlier_ratio": 0.6,
+      "min_valid_ratio": 0.4,
+      "max_residual_px": 1.5,
+      "max_tilt_deg": 20
+    },
+    "intersectionBounds": {
+      "P1": [
+        0,
+        0,
+        1439,
+        1079
+      ],
+      "P2": [
+        0,
+        0,
+        1439,
+        1079
+      ]
+    },
+    "minIntersectionSine": 0.2,
+    "compareAlgorithms": false,
+    "maxAlgorithmDifferencePx": null,
+    "geometry": {},
+    "forensics": {
+      "regions": {}
+    },
+    "maxOffsetMm": null,
+    "placementTransfer": {
+      "verified": false,
+      "calibrationVersion": "",
+      "evidence": "",
+      "inputFrame": "robot_base",
+      "outputFrame": "",
+      "layers": {
+        "1": {
+          "k_layer": null,
+          "axisMap": null,
+          "maxPlacementOffsetMm": null
+        },
+        "2": {
+          "k_layer": null,
+          "axisMap": null,
+          "maxPlacementOffsetMm": null
+        }
+      }
+    },
+    "acceptance": {
+      "verified": false,
+      "evidence": "",
+      "minFrames": 30,
+      "exploratoryThreeSigmaMm": [
+        [
+          0.5,
+          0.5,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.5
+        ]
+      ],
+      "maxThreeSigmaMm": null,
+      "maxGrrPercentTolerance": null,
+      "toleranceWidthMm": null,
+      "maxFailureRate": null
+    },
+    "validationStatus": "2d_draft_not_production_validated"
+  }
+}

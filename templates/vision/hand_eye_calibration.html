@@ -159,6 +159,48 @@
       </div>
       <div class="he-error" id="detailError" hidden></div>
     </section>
+
+    {# ── Dual-point record detail panel ── #}
+    <section class="he-detail" id="dpRecordDetail" hidden aria-live="polite" style="padding:16px 20px;">
+      <div class="he-detail-head"><h3 id="dpDetailTitle">双交点定位记录</h3><span class="he-detail-status ok" id="dpDetailStatus">双交点结果</span></div>
+      <p style="font-size:13px;color:#64748b;margin-bottom:12px;">该记录为四 ROI 双交点定位结果。P1/P2 为相机坐标系下的交点坐标（mm）。</p>
+
+      <h4 style="font-size:13px;font-weight:600;margin-bottom:6px;">交点坐标对比（相机坐标系 mm）</h4>
+      <div style="overflow-x:auto;margin-bottom:16px;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;" id="dpXyzTable">
+          <thead><tr style="background:#f1f5f9;">
+            <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0;">交点</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;">标准模板 XYZ</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;">当前 XYZ</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;">差值 ΔXYZ</th>
+          </tr></thead>
+          <tbody id="dpXyzBody"></tbody>
+        </table>
+      </div>
+
+      <h4 style="font-size:13px;font-weight:600;margin-bottom:6px;">机器人坐标系偏差（mm）</h4>
+      <div style="overflow-x:auto;margin-bottom:12px;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;" id="dpRobotTable">
+          <thead><tr style="background:#f1f5f9;">
+            <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0;">交点</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;">ΔX</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;">ΔY</th>
+            <th style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;">ΔZ</th>
+          </tr></thead>
+          <tbody id="dpRobotBody"></tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <button type="button" id="dpRecomputeBtn"
+                style="padding:7px 18px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">
+          🔄 用当前手眼标定重新计算机器人偏差
+        </button>
+        <span id="dpRecomputeStatus" style="font-size:13px;color:#64748b;"></span>
+      </div>
+      <p id="dpCalibNote" style="font-size:12px;color:#94a3b8;margin-top:6px;"></p>
+      <div class="he-error" id="dpDetailError" hidden></div>
+    </section>
   </div>
 </div>
 
@@ -275,9 +317,82 @@
     if(context.T_flange_camera){try{state.handEyeMatrix=matrixFrom(context.T_flange_camera);const contextCalibrationId=Number(context.hand_eye_calibration_id);if(Number.isInteger(contextCalibrationId)&&contextCalibrationId>0)state.calibrationId=contextCalibrationId;renderMatrix('handEyeMatrix',state.handEyeMatrix);$('handEyeBadge').textContent=context.context_source==='record_snapshot'?'记录快照':'配置回退';$('handEyeBadge').className='he-pill ok';$('handEyeNote').textContent=context.hand_eye_calibration_name?`手眼标定：${context.hand_eye_calibration_name}`:'已载入记录关联的手眼矩阵';}catch(_){/* keep current valid matrix */}}
   }
   async function selectRecord(id) {
-    if(state.selectedId===id){state.selectedId=null;$('recordDetail').hidden=true;renderRecords();return;}
+    if(state.selectedId===id){state.selectedId=null;$('recordDetail').hidden=true;$('dpRecordDetail').hidden=true;renderRecords();return;}
     const record=state.records.find(item=>item.id===id);if(!record)return;
-    state.selectedId=id;renderRecords();$('recordDetail').hidden=false;$('detailTitle').textContent=`记录 #${record.id} · ${record.recipe_name||'3D料架定位'} · POS${record.position_no}/L${record.layer_no}`;showDetailError('');
+    state.selectedId=id;renderRecords();showDetailError('');
+
+    // ── Dual-point evaluate record ──
+    if(record.result_data?.source==='dual_point_evaluate'){
+      $('recordDetail').hidden=true;
+      const dp=$('dpRecordDetail');dp.hidden=false;
+      $('dpDetailTitle').textContent=`记录 #${record.id} · ${record.recipe_name||'双交点定位'} · POS${record.position_no}/L${record.layer_no}`;
+      const f3=v=>typeof v==='number'?v.toFixed(3):'—';
+      const fArr=arr=>Array.isArray(arr)?arr.map(f3).join(' / '):'—';
+
+      // Fill XYZ table
+      const xyzBody=$('dpXyzBody');xyzBody.replaceChildren();
+      const res=record.result_data?.result||{};
+      const refPts={};(res.reference?.points||[]).forEach(p=>{refPts[p.name]=p;});
+      (res.points||[]).forEach(pt=>{
+        const ref=refPts[pt.name]||{};
+        const cur=pt.xyz,std=ref.xyz;
+        const delta=cur&&std&&cur.length===3&&std.length===3?[cur[0]-std[0],cur[1]-std[1],cur[2]-std[2]]:null;
+        const tr=document.createElement('tr');
+        [`<strong>${pt.name}</strong>`,fArr(std),fArr(cur),fArr(delta)].forEach((html,i)=>{
+          const td=document.createElement(i===0?'th':'td');
+          td.innerHTML=html;td.style.cssText='padding:6px 10px;'+(i>0?'text-align:right;':'');
+          td.style.borderBottom='1px solid #e2e8f0';tr.appendChild(td);});
+        xyzBody.appendChild(tr);
+      });
+
+      // Fill robot table from stored robot_result (if available)
+      const robotBody=$('dpRobotBody');
+      function fillRobotTable(robotResult){
+        robotBody.replaceChildren();
+        if(robotResult?.success){
+          (robotResult.offsets||[]).forEach((offset,i)=>{
+            const tr=document.createElement('tr');
+            [`<strong>P${i+1}</strong>`,f3(offset[0]),f3(offset[1]),f3(offset[2])].forEach((html,j)=>{
+              const td=document.createElement(j===0?'th':'td');td.innerHTML=html;
+              td.style.cssText='padding:6px 10px;'+(j>0?'text-align:right;':'');
+              td.style.borderBottom='1px solid #e2e8f0';tr.appendChild(td);});
+            robotBody.appendChild(tr);
+          });
+        } else {
+          const tr=document.createElement('tr');const td=document.createElement('td');
+          td.colSpan=4;td.textContent=robotResult?.errorMessage||'未计算';
+          td.style.cssText='padding:6px 10px;color:#94a3b8;';tr.appendChild(td);robotBody.appendChild(tr);
+        }
+      }
+      fillRobotTable(record.result_data?.robot_result);
+
+      // Wire recompute button
+      const btn=$('dpRecomputeBtn'),status=$('dpRecomputeStatus'),note=$('dpCalibNote');
+      btn.onclick=async()=>{
+        btn.disabled=true;status.textContent='计算中…';
+        try{
+          const resp=await fetch("{% url 'vision:rack_dual_point_recompute_robot' %}",{
+            method:'POST',headers:{'Content-Type':'application/json',
+              'X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]')?.value||''},
+            body:JSON.stringify({result_id:record.id})});
+          const data=await resp.json();
+          if(!data.success)throw new Error(data.errorMessage||data.error||'计算失败');
+          fillRobotTable(data.robot_result);
+          note.textContent=`使用手眼标定：${data.calibration_name||'—'}`;
+          status.textContent='✅ 计算完成';
+          // Update stored record so re-clicking doesn't lose it
+          record.result_data=record.result_data||{};
+          record.result_data.robot_result=data.robot_result;
+        }catch(e){status.textContent='❌ '+e.message;}
+        finally{btn.disabled=false;}
+      };
+      return;
+    }
+
+    // ── Standard three-plane record ──
+    $('dpRecordDetail').hidden=true;
+    $('recordDetail').hidden=false;
+    $('detailTitle').textContent=`记录 #${record.id} · ${record.recipe_name||'3D料架定位'} · POS${record.position_no}/L${record.layer_no}`;
     const comp=cameraComp(record),storedRobotComp=robotComp(record);
     if(!comp?.matrix){renderMatrix('cameraDeltaMatrix',identity);renderMatrix('baseDeltaMatrix',identity);renderPoseStrip('cameraPoseStrip',{});renderPoseStrip('basePoseStrip',{});setDetailStatus('无法换算','error');showDetailError('该历史记录没有相机坐标系误差矩阵。请在3D工作台使用三平面模板重新计算。');return;}
     applyRecordContext(record);renderMatrix('cameraDeltaMatrix',matrixFrom(comp.matrix));renderPoseStrip('cameraPoseStrip',comp.pose6d||{});

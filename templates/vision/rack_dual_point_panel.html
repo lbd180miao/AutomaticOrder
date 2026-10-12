@@ -1,0 +1,120 @@
+<section id="dp-panel" class="dp-dual-only" style="margin:0 0 14px;"
+         data-prepare-url="{% url 'vision:rack_dual_point_prepare' %}"
+         data-test-url="{% url 'vision:rack_dual_point_test' %}"
+         data-save-url="{% url 'vision:rack_dual_point_save' %}"
+         data-forensics-url="{% url 'vision:rack_dual_point_forensics' %}"
+         data-evaluate-url="{% url 'vision:rack_dual_point_evaluate' %}"
+         data-teach-url="{% url 'vision:rack_dual_point_teach' %}">
+
+  <!-- ROI 目标标签 -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+    <div id="dp-targets" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+    <button type="button" id="dp-save-recipe" class="btn btn-success" disabled>保存配方</button>
+    <span id="dp-draft-status" style="font-size:13px;color:var(--text-muted);" role="status"></span>
+  </div>
+
+  <!-- 状态行 -->
+  <div id="dp-status" role="status"
+       style="padding:8px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;white-space:pre-wrap;font-size:13px;margin-bottom:10px;">
+    选择配方并采集点云后，点击「开始计算」。
+  </div>
+
+  <!-- 主体：图像 + 结果 -->
+  <div class="dp-layout">
+
+    <!-- 图像列 -->
+    <div class="dp-image-column">
+      <div style="padding:8px 10px;background:#f1f5f9;border:1px solid #dbe2ea;color:#475569;font-size:12px;border-radius:6px 6px 0 0;">
+        在原图拖动框选 · 框内拖动移动 · 右下角调整大小 · 坐标按原始像素保存
+      </div>
+      <div class="dp-image-scroll">
+        <div id="dp-empty">
+          先采集点云，再点击「开始计算」
+          <small>在真实 2D 原图上测边，P1 / P2 将叠加在图上</small>
+        </div>
+        <canvas id="dp-canvas" hidden style="display:none;width:100%;max-width:none;touch-action:none;cursor:crosshair;"></canvas>
+      </div>
+    </div>
+
+    <!-- 结果列 -->
+    <aside class="dp-results" aria-label="双交点结果">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <h3 style="margin:0;">定位结果 <span id="dp-result-state" class="badge badge-muted">待检测</span></h3>
+        <button type="button" id="dp-save-standard" class="btn btn-success btn-sm" disabled>保存为标准模板</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table aria-label="双交点标准模板与当前坐标对比">
+          <thead><tr><th>交点</th><th>标准模板 XYZ</th><th>当前 XYZ</th><th>差值 ΔXYZ</th></tr></thead>
+          <tbody id="dp-point-results"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:18px;">
+        <h3>机器人坐标系偏差（mm）</h3>
+        <table aria-label="P1 P2 机器人坐标偏差">
+          <thead><tr><th>交点</th><th>ΔX</th><th>ΔY</th><th>ΔZ</th></tr></thead>
+          <tbody id="dp-robot-results"></tbody>
+        </table>
+        <p id="dp-robot-status">计算后显示两组偏差。</p>
+      </div>
+      <div class="dp-depth-result">
+        <p id="dp-depth-source">采集或导入后显示对应点云</p>
+        <canvas id="dp-depth-canvas" hidden aria-label="对应点云伪彩图，叠加四个 ROI 和 P1、P2 交点"></canvas>
+      </div>
+    </aside>
+  </div><!-- /.dp-layout -->
+
+</section>
+
+<style>
+  /* 双交点面板布局 */
+  .dp-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr);
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+  .dp-image-column, .dp-results { min-width: 0; }
+  .dp-image-scroll {
+    overflow: auto;
+    max-height: 660px;
+    background: #151f30;
+    border-radius: 0 0 7px 7px;
+    border: 1px solid #dbe2ea;
+    border-top: 0;
+  }
+  #dp-empty {
+    min-height: 290px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    color: #e2e8f0;
+    gap: 10px;
+  }
+  #dp-empty[hidden] { display: none; }
+  #dp-empty small { color: #94a3b8; display: block; margin-top: 6px; font-size: 12px; }
+  .dp-results {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    background: #fafcff;
+  }
+  .dp-results h3 { font-size: 14px; margin: 0 0 10px; }
+  .dp-results { display: flex; flex-direction: column; }
+  .dp-depth-result { margin-top: auto; padding-top: 20px; }
+  #dp-depth-canvas { display: block; width: 100%; height: auto; background: #151f30; border-radius: 6px; }
+  #dp-depth-canvas[hidden] { display: none; }
+  .dp-results p  { font-size: 13px; color: #526479; line-height: 1.6; }
+  .dp-results table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .dp-results td, .dp-results th {
+    padding: 8px 7px;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+    vertical-align: top;
+  }
+  .dp-results th { color: #475569; background: #f1f5f9; white-space: nowrap; }
+  #dp-point-results td { font-variant-numeric: tabular-nums; white-space: pre-line; }
+  @media (max-width: 1100px) { .dp-layout { grid-template-columns: minmax(0, 1fr); } }
+</style>

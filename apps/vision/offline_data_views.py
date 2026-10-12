@@ -200,9 +200,11 @@ def raw_preview(request, package_name):
     """获取原始数据包的预览图（专用端点）"""
     try:
         service = OfflineDataPackageService()
-        path = (service.get_2d_image(package_name)
-                if request.GET.get('image') == '2d'
-                else service.get_raw_preview(package_name))
+        if request.GET.get('image') == '2d':
+            # 优先返回相机 2D 原图；旧数据包没有 image2d.png 时降级到 preview.png
+            path = service.get_2d_image(package_name) or service.get_raw_preview(package_name)
+        else:
+            path = service.get_raw_preview(package_name)
         return FileResponse(
             path.open("rb"),
             content_type="image/png"

@@ -156,9 +156,9 @@ class LocalTemplate3D:
         self,
         w1: float = 0.5,
         w3: float = 0.5,
-        ransac_distance_threshold: float = 2.0,
-        ransac_num_iterations: int = 300,
-        ransac_min_inliers: int = 50,
+        ransac_distance_threshold: float = 1.0,
+        ransac_num_iterations: int = 500,
+        ransac_min_inliers: int = 100,
         reference_normal_tolerance_deg: float = 10.0,
         deterministic: bool = True,
         ransac_max_search_points: int = 20000,
@@ -167,9 +167,9 @@ class LocalTemplate3D:
         Args:
             w1: 区域1（上水平面）法向量权重
             w3: 区域3（下水平面）法向量权重
-            ransac_distance_threshold: RANSAC 平面拟合距离阈值 (mm)
-            ransac_num_iterations: RANSAC 迭代次数
-            ransac_min_inliers: 最小内点数，低于此值拟合失败
+            ransac_distance_threshold: RANSAC 平面拟合距离阈值 (mm) [优化: 2.0→1.0 提升精度]
+            ransac_num_iterations: RANSAC 迭代次数 [优化: 300→500 更充分搜索]
+            ransac_min_inliers: 最小内点数，低于此值拟合失败 [优化: 50→100 保证点云质量]
             reference_normal_tolerance_deg: 生产阶段候选平面相对标准法向的最大优选角度
             deterministic: 使用可复现的 NumPy RANSAC；生产定位必须保持为 True
             ransac_max_search_points: RANSAC 假设搜索最多使用的确定性采样点数；最终精拟合仍使用全部点
@@ -183,7 +183,7 @@ class LocalTemplate3D:
         self.deterministic = deterministic
         self.ransac_max_search_points = max(int(ransac_max_search_points), self.ransac_min_inliers)
 
-    FIT_ALGORITHM_VERSION = "deterministic_numpy_ransac_v1"
+    FIT_ALGORITHM_VERSION = "robust_irls_plane_v2"
 
     def input_signature(self, *clouds: np.ndarray) -> str:
         """Return a stable signature for point-cloud/parameter traceability.
@@ -426,91 +426,16 @@ class LocalTemplate3D:
         cloud: np.ndarray,
         expected_normal: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, float, float]:
-        """纯 numpy RANSAC 平面拟合（open3d 不可用时的备选方案）"""
-        # 固定输入顺序 + 固定本地 RNG，保证相同点集、参数和版本逐次一致。
-        sort_index = np.lexsort((cloud[:, 2], cloud[:, 1], cloud[:, 0]))
-        cloud = cloud[sort_index]
-        best_normal = None
-        best_d = 0.0
-        best_score = None
-        best_unconstrained = None
-        n = len(cloud)
-        if n > self.ransac_max_search_points:
-            # Evenly sample the sorted cloud so search cost is bounded and
-            # repeatable.  The winning model is refined and scored again on
-            # every original point below, so this does not reduce output
-            # precision.
-            search_indices = np.linspace(
-                0, n - 1, self.ransac_max_search_points, dtype=np.int64,
-            )
-            search_cloud = cloud[search_indices]
-        else:
-            search_cloud = cloud
-        search_count = len(search_cloud)
-        rng = np.random.default_rng(42)
-
-        reference = None
-        if expected_normal is not None:
-            reference = np.asarray(expected_normal, dtype=np.float64)
-            reference /= np.linalg.norm(reference)
-
-        for _ in range(self.ransac_num_iterations):
-            idx = rng.choice(search_count, 3, replace=False)
-            p0, p1, p2 = search_cloud[idx]
-            v1 = p1 - p0
-            v2 = p2 - p0
-            normal = np.cross(v1, v2)
-            norm = np.linalg.norm(normal)
-            if norm < 1e-10:
-                continue
-            normal = normal / norm
-            d = -np.dot(normal, p0)
-            distances = np.abs(search_cloud @ normal + d)
-            inlier_mask = distances < self.ransac_distance_threshold
-            inlier_count = int(inlier_mask.sum())
-            if inlier_count < 3:
-                continue
-            rmse = float(np.sqrt(np.mean(np.square(distances[inlier_mask]))))
-            angle = 0.0
-            if reference is not None:
-                cosine = float(np.clip(abs(np.dot(normal, reference)), 0.0, 1.0))
-                angle = float(np.degrees(np.arccos(cosine)))
-            score = (inlier_count, -rmse, -angle)
-            if best_unconstrained is None or score > best_unconstrained[0]:
-                best_unconstrained = (score, normal, d)
-            if reference is not None and angle > self.reference_normal_tolerance_deg:
-                continue
-            if best_score is None or score > best_score:
-                best_score = score
-                best_normal = normal
-                best_d = d
-
-        if best_unconstrained is not None and (
-            best_score is None
-            or best_score[0] < 0.8 * best_unconstrained[0][0]
-        ):
-            # Do not let a very weak plane win merely because its normal is
-            # close to a stale/invalid standard.  The validator will report
-            # the reference mismatch and allow a good current frame to be
-            # used for re-teaching.
-            _, best_normal, best_d = best_unconstrained
-
-        if best_normal is None:
-            raise RuntimeError("RANSAC 平面拟合失败，无法找到有效平面")
-
-        # 用所有内点重新最小二乘拟合
-        distances = np.abs(cloud @ best_normal + best_d)
-        inlier_mask = distances < self.ransac_distance_threshold
-        inlier_cloud = cloud[inlier_mask]
-        centroid = inlier_cloud.mean(axis=0)
-        cov = (inlier_cloud - centroid).T @ (inlier_cloud - centroid)
-        _, _, Vt = np.linalg.svd(cov)
-        refined_normal = Vt[-1]
-        refined_d = -np.dot(refined_normal, centroid)
-
-        final_distances = np.abs(cloud @ refined_normal + refined_d)
-        inlier_ratio = float((final_distances < self.ransac_distance_threshold).mean())
-        return refined_normal, refined_d, inlier_ratio
+        """Use the same robust estimator as the A/B intersection workbench."""
+        from .robust_rack_geometry import robust_plane
+        plane, _ = robust_plane(
+            cloud, threshold_mm=self.ransac_distance_threshold,
+            min_points=self.ransac_min_inliers, iterations=self.ransac_num_iterations,
+            expected_normal=expected_normal,
+            normal_tolerance_deg=self.reference_normal_tolerance_deg,
+            max_search_points=min(6000, self.ransac_max_search_points),
+        )
+        return np.asarray(plane['normal']), plane['offset'], plane['inlier_ratio']
 
     def _compute_axes(
         self,

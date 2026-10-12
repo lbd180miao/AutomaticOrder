@@ -81,6 +81,24 @@ class VisionService:
         task.error_message = message
         task.save(update_fields=['status', 'finished_at', 'error_message', 'updated_at'])
 
+    @staticmethod
+    def _cleanup_old_foam_results(position_index, keep=3):
+        """每个 position_index 只保留最近 keep 条 FoamInspectionResult，删除其余旧记录（含关联 VisionTask）。"""
+        keep_ids = (
+            FoamInspectionResult.objects
+            .filter(position_index=position_index)
+            .order_by('-created_at', '-id')
+            .values_list('id', flat=True)[:keep]
+        )
+        old_qs = FoamInspectionResult.objects.filter(
+            position_index=position_index
+        ).exclude(id__in=list(keep_ids))
+        task_ids = list(old_qs.values_list('vision_task_id', flat=True).distinct())
+        old_qs.delete()
+        if task_ids:
+            from .models import VisionTask
+            VisionTask.objects.filter(id__in=task_ids, foam_results__isnull=True).delete()
+
     def _foam_calibration_config(self, camera_code):
         profile = (
             CalibrationProfile.objects
@@ -393,6 +411,7 @@ class VisionService:
                 result_data=data.get('result_data', {}),
             )
             self._save_images(task, data)
+            self._cleanup_old_foam_results(position_index)
             task.status = ResultStatus.SUCCESS if result.is_passed else ResultStatus.FAILED
             task.finished_at = timezone.now()
             if not result.is_passed:

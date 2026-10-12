@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -18,6 +19,8 @@ from .pointcloud_units import load_pointcloud_mm, to_millimeters
 from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 
 class OfflineDataPackageError(ValueError):
@@ -208,7 +211,7 @@ class OfflineDataPackageService:
 
         workbench_service = RackLocationService()
         token, preview_url, width, height = workbench_service._persist_workbench_frame(
-            cloud
+            cloud, capture_metadata={'source': f'offline_package:{package_name}'}
         )
         preview_url = reverse('vision:offline_raw_preview', args=[package_name]) + '?image=2d'
         payload = {
@@ -590,7 +593,9 @@ class OfflineDataPackageService:
         for name in ('image2d.png', 'image.png', 'rgb.png', 'color.png'):
             if name in files:
                 return files[name]
-        raise OfflineDataPackageError(f'数据包缺少2D原图（image2d.png / Image.png）：{package_name}')
+        # 旧数据包可能没有2D图像，返回 None 而不是报错
+        logger.warning(f'数据包缺少2D原图：{package_name}，将使用深度伪彩图代替')
+        return None
 
     def get_raw_preview(self, package_name: str) -> Path:
         """获取原始数据包的预览图路径（不区分大小写）"""
@@ -628,7 +633,8 @@ class OfflineDataPackageService:
         cloud = package["pointcloud"]
         from apps.vision.rack_location import RackLocationService
         token, _generated_preview_url, width, height = (
-            RackLocationService()._persist_workbench_frame(cloud)
+            RackLocationService()._persist_workbench_frame(
+                cloud, capture_metadata={'source': f'offline_package:{package_name}'})
         )
 
         metadata = dict(package["metadata"] or {})

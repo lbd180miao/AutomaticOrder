@@ -351,4 +351,25 @@ class RackPositioningService:
             result_data=result.get('algorithm_details', {}),
         )
         logger.info("定位结果已保存: result_id=%d, task_id=%d", record.id, task.id)
+        if recipe is not None:
+            RackPositioningService._cleanup_old_rack_results(recipe.id, layer_no)
         return {'result_id': record.id, 'task_id': task.id}
+
+    @staticmethod
+    def _cleanup_old_rack_results(recipe_id: int, layer_no: int, keep: int = 3):
+        """每个 recipe + layer_no 只保留最近 keep 条 RackLocationResult，删除其余旧记录（含关联 VisionTask）。"""
+        from apps.vision.models import RackLocationResult, VisionTask
+
+        keep_ids = list(
+            RackLocationResult.objects
+            .filter(recipe_id=recipe_id, layer_no=layer_no)
+            .order_by('-created_at', '-id')
+            .values_list('id', flat=True)[:keep]
+        )
+        old_qs = RackLocationResult.objects.filter(
+            recipe_id=recipe_id, layer_no=layer_no
+        ).exclude(id__in=keep_ids)
+        task_ids = list(old_qs.values_list('vision_task_id', flat=True).distinct())
+        old_qs.delete()
+        if task_ids:
+            VisionTask.objects.filter(id__in=task_ids, rack_results__isnull=True).delete()

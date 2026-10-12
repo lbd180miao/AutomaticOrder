@@ -2622,38 +2622,32 @@ function formatTemplatePlane(label, plane) {
 
 function render3DWorkbenchData(recipe) {
   const roiConfig = recipe?.roi_config || {};
-  const localRois = roiConfig.local_template_rois || {};
-  const template = recipe?.local_template_std || null;
-  const origin = Array.isArray(template?.origin) ? template.origin : [];
-  const builtAt = template?.build_timestamp
-    ? new Date(template.build_timestamp).toLocaleString('zh-CN', { hour12: false })
-    : '';
-
-  const templateHtml = template ? `
-    <div class="rack3d-template-ok">✔ 已保存坐标标准模板</div>
-    <div class="rack3d-template-detail">
-      原点：X=${format3DNumber(origin[0])}, Y=${format3DNumber(origin[1])}, Z=${format3DNumber(origin[2])}<br>
-      ${escape3DHtml(formatTemplatePlane('Π1', template.plane1))}<br>
-      ${escape3DHtml(formatTemplatePlane('Π2', template.plane2))}<br>
-      ${escape3DHtml(formatTemplatePlane('Π3', template.plane3))}<br>
-      来源记录：${template.source_result_id ? `#${format3DNumber(template.source_result_id)}` : '—'}
-      ${builtAt ? ` · 保存时间：${escape3DHtml(builtAt)}` : ''}
-    </div>
-  ` : '<div class="rack3d-template-empty">未保存坐标标准模板，请在 3D 工作台计算后点击「保存为标准模板」。</div>';
-
+  const rois = roiConfig.dual_point?.rois || [];
+  const reference = roiConfig.dual_point_camera_reference;
+  const measurement = reference?.measurement;
+  const valid = measurement?.success && measurement.coordinateSystem === 'camera' && measurement.unit === 'mm';
+  const labels = [['P1_horizontal', 'ROI1 · P1 横杆'], ['P1_vertical', 'ROI2 · P1 立柱'],
+                  ['P2_horizontal', 'ROI3 · P2 横杆'], ['P2_vertical', 'ROI4 · P2 立柱']];
+  const templateRows = ['P1', 'P2'].map(name => {
+    const point = valid ? measurement.points?.find(item => item.name === name && item.success) : null;
+    const coords = point?.xyz;
+    const text = Array.isArray(coords) && coords.length === 3 && coords.every(Number.isFinite)
+      ? [-coords[1], coords[2], -coords[0]].map(value => format3DNumber(value)).join(' / ') : '—';
+    return `<div class="rack3d-template-detail">${name}：${text}</div>`;
+  }).join('');
   return `
     <div class="rack3d-data-block">
-      <div class="rack3d-data-title">四个 ROI 框（图像像素）</div>
-      <div class="rack3d-roi-grid">
-        <div class="rack3d-roi-item">外框：${formatPixelRoi(roiConfig.target_roi)}</div>
-        <div class="rack3d-roi-item plane1">Π1 顶部横梁：${formatPixelRoi(localRois.plane1)}</div>
-        <div class="rack3d-roi-item plane2">Π2 左侧立柱：${formatPixelRoi(localRois.plane2)}</div>
-        <div class="rack3d-roi-item plane3">Π3 底部横梁：${formatPixelRoi(localRois.plane3)}</div>
-      </div>
+      <div class="rack3d-data-title">四个 ROI 框（2D 原图像素）</div>
+      <div class="rack3d-roi-grid">${labels.map(([target, label]) => {
+        const roi = rois.find(item => item.target === target);
+        return `<div class="rack3d-roi-item">${label}：${formatPixelRoi(roi ? {...roi, w: roi.width ?? roi.w, h: roi.height ?? roi.h} : null)}</div>`;
+      }).join('')}</div>
     </div>
     <div class="rack3d-data-block">
-      <div class="rack3d-data-title">三平面坐标标准模板</div>
-      ${templateHtml}
+      <div class="rack3d-data-title">双交点标准模板（X 向右 / Y 远离相机 / Z 向上 · mm）</div>
+      ${valid ? '<div class="rack3d-template-ok">✔ 已保存标准模板</div>' : '<div class="rack3d-template-empty">尚未示教，标准模板为空。</div>'}
+      ${templateRows}
+      ${reference?.taught_at ? `<div class="rack3d-template-detail">保存时间：${escape3DHtml(new Date(reference.taught_at).toLocaleString('zh-CN', {hour12:false}))}</div>` : ''}
     </div>
   `;
 }
@@ -2669,7 +2663,7 @@ async function load3DRecipes() {
     const res = await fetch('{% url "vision:api_vision_3d_recipes" %}');
     const data = await res.json();
     if (data.success) {
-      rack3DRecipes = data.recipes || [];
+      rack3DRecipes = data.recipes || data.data?.recipes || [];
       render3DRecipeCards();
       renderRackMasterDetail();
     } else {
@@ -2713,18 +2707,6 @@ function render3DRecipeCards() {
           <button class="recipe-rename-button recipe-delete-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); delete3DRecipe(${recipe.id})">删除</button>
         </summary>
         <div class="recipe-card-body">
-          <div class="recipe-card-row">
-            <strong>标准坐标（mm）：</strong>
-            X: ${recipe.standard_x}, Y: ${recipe.standard_y}, Z: ${recipe.standard_z}, Rz: ${recipe.standard_rz || 0}
-          </div>
-          <div class="recipe-card-row">
-            <strong>点云范围（相机坐标 mm）：</strong>
-            ${cameraRoi.x_min !== null && cameraRoi.x_min !== undefined ?
-              `X(${format3DNumber(cameraRoi.x_min)} ~ ${format3DNumber(cameraRoi.x_max)}) ` +
-              `Y(${format3DNumber(cameraRoi.y_min)} ~ ${format3DNumber(cameraRoi.y_max)}) ` +
-              `Z(${format3DNumber(cameraRoi.z_min)} ~ ${format3DNumber(cameraRoi.z_max)})` :
-              '<span style="color:#cbd5e1;">未配置</span>'}
-          </div>
           ${render3DWorkbenchData(recipe)}
           <div class="recipe-card-actions">
             <button class="btn btn-sm" onclick="edit3DRecipe(${recipe.id})">编辑</button>

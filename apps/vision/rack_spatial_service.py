@@ -34,9 +34,14 @@ def robot_group_results(service, recipe, groups):
     context = {}
     try:
         context = service._recipe_transform_context(recipe)
+        reference_context = (recipe.local_template_std or {}).get('transform_context')
         converted = {}
         for name in ('A', 'B'):
-            compensation = service._robot_compensation_payload({'matrix': groups[name]['delta_T']}, context)
+            if reference_context:
+                compensation = service._robot_compensation_payload(
+                    {'matrix': groups[name]['delta_T']}, context, reference_context)
+            else:
+                compensation = service._robot_compensation_payload({'matrix': groups[name]['delta_T']}, context)
             if compensation is None:
                 return {'robot_groups': {}, 'robot_conversion_error': '缺少手眼标定矩阵或拍照位姿，请在手眼标定页面配置并保存。',
                         'transform_context': context}
@@ -44,7 +49,9 @@ def robot_group_results(service, recipe, groups):
                 raise ValueError('机器人偏差矩阵包含无效数值')
             compensation.update(reference_point_motion(groups[name], compensation))
             converted[name] = compensation
-        return {'robot_groups': converted, 'robot_conversion_error': '', 'transform_context': context}
+        return {'robot_groups': converted, 'robot_conversion_error': '', 'transform_context': context,
+                'robot_groups_message': ('使用标准帧与当前帧各自保存的拍照位姿换算；相机移动后须更新拍照位姿。'
+                    if reference_context else '旧标准未保存拍照位姿，当前按相同拍照位姿换算；跨距离使用前请重新保存标准并更新当前拍照位姿。')}
     except (ValueError, TypeError, KeyError, np.linalg.LinAlgError) as exc:
         return {'robot_groups': {}, 'robot_conversion_error': f'手眼坐标换算失败：{exc}',
                         'transform_context': context}
@@ -61,7 +68,8 @@ def reference_point_motion(group, compensation):
     delta = np.asarray(group['delta_T'], dtype=float)
     reference = np.linalg.solve(delta, current)
     base_camera = np.asarray(compensation['T_base_camera'], dtype=float)
-    displacement = base_camera[:3, :3] @ (current[:3] - reference[:3])
+    reference_camera = np.asarray(compensation.get('T_base_camera_standard', base_camera), dtype=float)
+    displacement = (base_camera @ current - reference_camera @ reference)[:3]
     matrix_translation = np.asarray(compensation['matrix'], dtype=float)[:3, 3]
     return {
         'reference_point_displacement_mm': dict(zip('xyz', displacement.tolist())),
@@ -71,14 +79,35 @@ def reference_point_motion(group, compensation):
 
 
 def legacy_axis_frames(service, points, rois, voxel_mm, frame_label, reference=None):
+    import logging
+    _logger = logging.getLogger(__name__)
     try:
         cropped = service._crop_local_template_clouds(points, rois)
     except ValueError as exc:
         raise ValueError(f'{frame_label} · {exc}') from exc
-    axes = [spatial.fit_region(part, voxel_mm, name, frame_label)
-            for name, part in zip(spatial.NAMES, cropped)]
-    return {key: spatial.fit_pair(axes[index], axes[1], (reference or {}).get(key), key, frame_label)
-            for key, index in [('A', 0), ('B', 2)]}
+    # Reference normals prefer the same physical face but do not force weak matches.
+    reference = reference or {}
+    reference_planes = [reference.get('A', {}).get('plane_models', {}).get('beam'),
+                        reference.get('A', {}).get('plane_models', {}).get('pillar'),
+                        reference.get('B', {}).get('plane_models', {}).get('beam')]
+    planes = [spatial.fit_region(part, name, frame_label, ref)
+              for name, part, ref in zip(spatial.NAMES, cropped, reference_planes)]
+    _logger.info('[legacy_axis_frames] %s 三平面拟合成功: %s',
+                 frame_label,
+                 {p['label'] if 'label' in p else name: {
+                     'normal': [round(x,3) for x in p['normal']],
+                     'rms_mm': round(p.get('rms_mm',0),3)
+                  } for name, p in zip(spatial.NAMES, planes)})
+    result = {}
+    for key, index in [('A', 0), ('B', 2)]:
+        try:
+            result[key] = spatial.fit_pair(planes[index], planes[1], reference.get(key), key, frame_label)
+            _logger.info('[legacy_axis_frames] %s %s组 fit_pair成功, origin=%s',
+                         frame_label, key, [round(x,2) for x in result[key]['origin']])
+        except ValueError as exc:
+            _logger.warning('[legacy_axis_frames] %s %s组 fit_pair失败: %s', frame_label, key, exc)
+            raise
+    return result
 
 
 def reference_axes_from_record(service, recipe, record):
@@ -102,7 +131,15 @@ def legacy_robot_groups(service, recipe, cloud, regions):
     metadata = {'robot_groups_recipe_id': recipe.pk, 'robot_groups_reference_result_id': source_id}
 
     def pending_standard(reason=''):
-        return {**metadata, 'robot_groups': {}, 'robot_conversion_error': '',
+        try:
+            current = legacy_axis_frames(service, cloud, regions,
+                float((recipe.roi_config or {}).get('voxel_mm', 0)), '当前帧')
+        except (ValueError, TypeError, KeyError, OSError, np.linalg.LinAlgError) as exc:
+            return {**metadata, 'groups': {}, 'robot_groups': {},
+                    'robot_groups_status': 'calculation_failed',
+                    'robot_conversion_error': f'当前帧交点计算失败：{exc}'}
+        return {**metadata, 'groups': current, 'robot_groups': {}, 'robot_conversion_error': '',
+                'quality_warnings': list(dict.fromkeys(w for g in current.values() for w in g.get('quality_warnings', []))),
                 'robot_groups_status': 'standard_unavailable' if source_id else 'standard_not_set',
                 'robot_groups_message': (
                     f'旧标准 #{source_id} 暂不可用；' if source_id else '尚未保存双组标准；'
@@ -133,22 +170,49 @@ def legacy_robot_groups(service, recipe, cloud, regions):
                                       for group in collection.values() for message in group.get('quality_warnings', [])))
         converted = robot_group_results(service, recipe, current)
         return {**converted, **metadata, 'quality_warnings': warnings,
+                'groups': current,  # 添加当前帧的 groups 数据
                 'robot_groups_status': 'ready' if converted.get('robot_groups') else 'conversion_unavailable'}
     except (ValueError, TypeError, KeyError, OSError, RackLocationResult.DoesNotExist, np.linalg.LinAlgError) as exc:
-        return {'robot_groups': {}, 'robot_conversion_error': f'双组偏差计算失败：{exc}',
+        import logging
+        logging.getLogger(__name__).warning(
+            '[legacy_robot_groups] 双组偏差计算失败 recipe=%s regions_keys=%s error=%s',
+            recipe.pk,
+            list(regions.keys()) if isinstance(regions, dict) else type(regions).__name__,
+            exc)
+        # 即使有标准但计算失败，仍然尝试单独算出当前帧的交点位置供前端显示
+        try:
+            current_only = legacy_axis_frames(service, cloud, regions,
+                float((recipe.roi_config or {}).get('voxel_mm', 0)), '当前帧（无偏差）')
+        except Exception:
+            current_only = {}
+        return {'robot_groups': {}, 'groups': current_only,
+                'robot_conversion_error': f'双组偏差计算失败：{exc}',
                 'robot_groups_status': 'calculation_failed', **metadata}
 
 
 def calculate(service, *, token, recipe, layer_no=1, save_record=False, cloud=None):
+    import logging
+    logger = logging.getLogger(__name__)
+    
     config = spatial_config(recipe.roi_config)
     if cloud is None:
         cloud = service._load_workbench_pointcloud(token)
+    capture_metadata = service._frame_metadata(token, cloud)
     standard = recipe.local_template_std or {}
-    if standard.get('algorithm_version') != spatial.VERSION:
-        raise ValueError('请先预览并保存双组轴线标准配方')
-    result = spatial.compute(cloud, config, standard)
-    if not result['has_standard']:
-        raise ValueError('配方缺少 A/B 双组标准轴线，请重新示教')
+    
+    # 即使没有标准模板,也计算当前的groups(允许查看当前交点位置)
+    has_standard = bool(standard.get('algorithm_version') == spatial.VERSION and standard.get('groups'))
+    
+    logger.info(f"[spatial.calculate] has_standard={has_standard}, algorithm_version={standard.get('algorithm_version')}, spatial.VERSION={spatial.VERSION}")
+    
+    if has_standard:
+        result = spatial.compute(cloud, config, standard)
+        logger.info(f"[spatial.calculate] 有标准模板, groups keys: {list(result.get('groups', {}).keys())}")
+    else:
+        # 无标准模板:只计算当前frame,交点位置仍然会被计算
+        result = spatial.compute(cloud, config, standard=None)
+        logger.info(f"[spatial.calculate] 无标准模板, 只计算当前frame, groups keys: {list(result.get('groups', {}).keys())}")
+    
     visual = spatial.preview(cloud, config, result)
     image = image_io.pointcloud_to_preview(cloud) if np.asarray(cloud).ndim == 3 else None
     image_path = ''
@@ -163,16 +227,32 @@ def calculate(service, *, token, recipe, layer_no=1, save_record=False, cloud=No
             cv2.line(image, tuple(a), tuple(b), (70,230,80), 2)
             cv2.putText(image, f"{result['layer_spacing_mm']:.1f} mm", tuple(a), cv2.FONT_HERSHEY_SIMPLEX, .6, (70,230,80), 2)
         image_path, _, _ = image_io.save_image(image, 'rack_dual_axis', rel_dir='vision/rack_workbench')
-    # Two outputs must not silently collapse into the legacy one-pose PLC format.
+    
+    # 基础payload(无论是否有标准都包含当前groups)
     payload = {**result, 'recipe_id': recipe.pk, 'layer_no': int(layer_no), 'locate_ok': True,
-               'is_success': True, 'direct_detection_mode': True, 'confidence': min(a['linearity'] for a in result['axes'].values()),
+               'capture_metadata': capture_metadata,
+               'is_success': True, 'has_standard': has_standard, 'direct_detection_mode': True, 
+               'confidence': min(1.0 - p['rms_mm']/100 for p in result.get('planes', {}).values()),
                'measured_layer_spacing': result['layer_spacing_mm'], 'layer_spacing_method': 'dual_axis_origins_3d',
                'spatial_rois': config['spatial_rois'], 'spatial_preview': visual,
                'result_image_url': settings.MEDIA_URL + image_path if image_path else '',
-               'warning_message': '；'.join(filter(None, [result.get('warning_message'), visual['projection_warning']])),
+               'warning_message': '；'.join(filter(None, [
+                   result.get('warning_message'), 
+                   visual['projection_warning'],
+                   '当前仅显示测量值,需要建立标准模板才能计算偏差' if not has_standard else None
+               ])),
                'plc_payload': {'compensation_valid': False, 'groups': result['groups'],
-                               'reason': '双组补偿需要分别绑定放置层，不能写入旧单组补偿寄存器'}}
-    payload.update(robot_group_results(service, recipe, result['groups']))
+                               'reason': '双组补偿需要分别绑定放置层，不能写入旧单组补偿寄存器' if has_standard else '未建立标准模板,无法计算补偿'}}
+    
+    # 只有存在标准时才进行机器人坐标转换
+    if has_standard:
+        payload.update(robot_group_results(service, recipe, result['groups']))
+    
+    else:
+        payload.update(robot_groups={}, robot_groups_status='standard_not_set',
+                       robot_conversion_error='',
+                       robot_groups_message='当前交点已计算；未保存标准模板，暂不计算误差。')
+
     if save_record:
         with transaction.atomic():
             task = VisionTask.objects.create(task_type=VisionTaskType.RACK_LOCATING, status=ResultStatus.SUCCESS,
@@ -222,6 +302,7 @@ def teach(request):
         config = spatial_config({'spatial_rois': spatial.teach_boxes(cloud, data.get('local_template_rois'), data.get('margin_mm', 0)),
                                  'voxel_mm': data.get('voxel_mm', 0), 'margin_mm': data.get('margin_mm', 0)})
         standard = spatial.compute(cloud, config)
+        standard['transform_context'] = service._recipe_transform_context(recipe)
         # Persist editor positions for reload; spatial_config keeps them out of computation.
         editor_config = {key: (data.get('roi_config') or recipe.roi_config or {}).get(key)
                          for key in ('target_roi', 'local_template_rois', 'layer_spacing_line')}
