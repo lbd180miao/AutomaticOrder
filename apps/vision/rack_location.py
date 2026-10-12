@@ -1237,6 +1237,22 @@ class PlcVisionResultWriter:
             result.save(update_fields=['plc_write_status', 'plc_error_message', 'updated_at'])
             return {'success': False, 'skipped': True, 'error': result.plc_error_message}
 
+        # New DB contract requires both robot-base groups, validated together.
+        from apps.devices.plc_position_debug import dual_group_position
+        converted = dual_group_position(
+            {**(result.result_data or {}), 'locate_ok': result.is_success}, result.recipe,
+        )
+        if not converted['is_success']:
+            result.plc_write_status = 'REJECTED'
+            result.plc_error_message = converted['error_message']
+            result.save(update_fields=['plc_write_status', 'plc_error_message', 'updated_at'])
+            return {'success': False, 'rejected': True, 'error': result.plc_error_message}
+        payload = {**payload, **{key: value for key, value in converted.items()
+                                if key.startswith('compensation_')},
+                   'compensation_valid': True,
+                   **{f'offset_{axis}': converted[f'compensation_{axis}'] for axis in 'xyz'},
+                   'offset_rz': result.result_data['robot_groups']['A']['rotation_deg']['rz']}
+
         # ── 二次校验：按当前配方阈值重新检查 ──
         rejection = self._validate_plc_payload(payload)
         if rejection:

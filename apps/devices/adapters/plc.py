@@ -186,53 +186,16 @@ class PLCAdapter(BaseDeviceAdapter):
         raise NotImplementedError
 
     def send_rack_offsets(self, payload: dict) -> dict:
-        """下发料架三轴补偿数据到 PLC。
-
-        兼容两种 payload 格式：
-
-        旧格式（双料架全扫描，由 RackLocator.plc_payload 提供）：
-            side            : 'LEFT' | 'RIGHT'
-            offset_x/y/z    : float (mm)
-            layer_count     : int
-            layer_heights   : list[float]
-            layer_spacings  : list[float]
-            confidence      : float (0~1)
-            recipe_matched  : bool
-            product_code    : str
-
-        新格式（3D 单点位补偿，由 RackLocationOutput.to_payload 提供）：
-            task_kind       : 'RACK_3D_LOCATION'
-            side            : 'LEFT' | 'RIGHT' | 'BOTH'
-            position_no     : int
-            layer_no        : int
-            locate_ok       : bool
-            offset_x/y/z    : float (mm)
-            offset_rz       : float (deg)
-            confidence      : float (0~1)
-            compensation_valid : bool
-
-        返回：
-            {success: bool, sent_at: str, echo: payload}
-        """
-        # 提取三轴补偿值
-        delta_x = payload.get('layer_delta_x', payload.get('compensation_x', payload.get('offset_x', 0.0)))
-        delta_y = payload.get('layer_delta_y', payload.get('compensation_y', payload.get('offset_y', 0.0)))
-        delta_z = payload.get('layer_delta_z', payload.get('compensation_z', payload.get('offset_z', 0.0)))
-
-        # 写入PLC DB2
-        self.write_point('layer_delta_x', delta_x)
-        self.write_point('layer_delta_y', delta_y)
-        self.write_point('layer_delta_z', delta_z)
-
-        return {
-            'success': True,
-            'echo': payload,
-            'sent': {
-                'layer_delta_x': delta_x,
-                'layer_delta_y': delta_y,
-                'layer_delta_z': delta_z,
-            }
-        }
+        """下发两组 XYZ；缺少任一轴时拒绝写入，避免旧补偿残留。"""
+        from apps.devices.plc_db100 import position_values
+        values = position_values(payload)
+        for axis, value in values.items():
+            self.write_point(f'layer_delta_{axis}', value)
+        for axis, value in values.items():
+            if self.read_point(f'layer_delta_{axis}') != value:
+                raise ValueError(f'{axis} 写后回读不一致')
+        return {'success': True, 'echo': payload,
+                'sent': {f'layer_delta_{axis}': value for axis, value in values.items()}}
 
     def send_offsets(self, product_code, side, x, y, z):
         """已废弃，请改用 send_rack_offsets()。保留以兼容旧代码。"""

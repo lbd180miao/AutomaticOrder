@@ -68,14 +68,14 @@
       : data.phase === 'WAIT_RESET' ? '本次已处理，等待PLC复位' : data.phase;
     status.textContent = `${data.message}\n状态：${phase} · DB2.DBX46.2=${data.trigger ? 1 : 0}`
       + ` · 完成=${data.done ? 1 : 0} · 结果=${data.ok ? 'OK' : data.done ? 'NG' : '未完成'}`
-      + (data.values ? `\n最近回写：X=${data.values.x}，Y=${data.values.y}，Z=${data.values.z}` : '')
+      + (data.values ? `\n最近回写：X=${data.values.x}，Y=${data.values.y}，Z=${data.values.z}；B组 X=${data.values.x2}，Y=${data.values.y2}，Z=${data.values.z2}` : '')
       + (data.error ? '\n' + data.error : '');
     if (data.count > lastCount) {
       lastCount = data.count;
       const history = $('position-history');
       if (lastCount === 1) history.replaceChildren();
       const row = document.createElement('tr');
-      [data.completed_at, data.count, ...['x', 'y', 'z'].map(axis => data.values ? Number(data.values[axis]).toFixed(3) : '—'),
+      [data.completed_at, data.count, ...['x', 'y', 'z', 'x2', 'y2', 'z2'].map(axis => data.values ? Number(data.values[axis]).toFixed(3) : '—'),
         data.ok ? 'OK' : data.error || 'NG'].forEach(value => {
         const cell = document.createElement('td');
         cell.textContent = value;

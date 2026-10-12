@@ -10,7 +10,7 @@
 <p>S7-1200 · {{ plc.address|default:"未配置 IP" }}:{{ plc.configuration.tcp_port|default:102 }} · Rack {{ plc.configuration.rack|default:0 }} / Slot {{ plc.configuration.slot|default:1 }} · DB{{ db_number }}</p>
 <p class="hint">{% if simulated %}当前为模拟模式，操作内存 PLC。{% else %}当前为真实设备模式，写入将发送至上述 PLC。{% endif %} Bool 单独修改指定位；Real 使用 32 位浮点数。自动流程可能覆盖手动写入值。</p>
 <section class="panel">
-<h2>3D 自动联调 · PLC 触发 → 拍照计算 → 三轴回写</h2>
+<h2>3D 自动联调 · PLC 触发 → 拍照计算 → 双组三轴回写</h2>
 <p class="hint">选择已完成标定与 ROI 示教的 3D 配方和层号。开始后需保持本页打开；关闭页面或断网后停止接收新触发（空闲时最长 15 秒，另一路操作占用期间顺延）。正在执行的拍照会完成本次回写。监听期间暂停工位 Worker 的 PLC 操作，并禁止手动写入。</p>
 <form onsubmit="return false" id="position-form"><div class="panels">
 <div><label for="position-recipe">3D 定位配方</label><select id="position-recipe" required><option value="">请选择配方</option>{% for recipe in position_recipes %}<option value="{{ recipe.pk }}" data-layers="{{ recipe.layer_count }}">{{ recipe.recipe_name }}（{{ recipe.layer_count }} 层）</option>{% endfor %}</select></div>
@@ -18,10 +18,10 @@
 <button id="position-start" type="submit" disabled>开始监听 PLC 3D 触发</button>
 <button id="position-stop" type="button" disabled>停止监听</button>
 </form>
-<p class="hint">触发 DB2.DBX46.2 → 第1组（A组，机器人基坐标）ΔX / ΔY / ΔZ 写入 DBD50 / DBD54 / DBD58（mm）→ 结果 DBX49.2 → 完成 DBX49.1。无法计算时三轴均返回 999，结果为 0；写入并回读确认后，完成置 1。PLC 读取结果后撤销触发，系统复位完成和结果。启动时先等待触发为 0，同一次触发只拍照一次。双组配方使用与3D工作台相同的计算流程；仅回写A组，B组暂不写入PLC。</p>
+<p class="hint">触发 DB2.DBX46.2 → 第1组（A组，机器人基坐标）ΔX / ΔY / ΔZ 写入 DBD50 / DBD54 / DBD58（mm）→ 结果 DBX49.2 → 完成 DBX49.1。无法计算时六轴均返回 999，结果为 0；写入并回读确认后，完成置 1。PLC 读取结果后撤销触发，系统复位完成和结果。启动时先等待触发为 0，同一次触发只拍照一次。双组配方使用与3D工作台相同的计算流程；B组 ΔX2 / ΔY2 / ΔZ2 写入 DBD62 / DBD66 / DBD70（mm），两组全部回读通过后才置完成。</p>
 <output id="position-status" aria-live="polite">调试脚本加载中；若此提示持续存在，请检查静态文件部署并强制刷新。</output>
 <p id="position-progress" class="hint" role="status">开始监听前会先检查PLC通信；通信失败不会启动拍照。</p>
-<div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>ΔX（mm）</th><th>ΔY（mm）</th><th>ΔZ（mm）</th><th>结果 / 错误</th></tr></thead><tbody id="position-history"><tr><td colspan="6">暂无定位结果</td></tr></tbody></table></div>
+<div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>ΔX（mm）</th><th>ΔY（mm）</th><th>ΔZ1（mm）</th><th>ΔX2（mm）</th><th>ΔY2（mm）</th><th>ΔZ2（mm）</th><th>结果 / 错误</th></tr></thead><tbody id="position-history"><tr><td colspan="9">暂无定位结果</td></tr></tbody></table></div>
 </section>
 <section class="panel">
 <h2>2D 相机与 PLC 联调 · 泡棉视觉检测</h2>
@@ -32,7 +32,7 @@
 <button id="foam-start" type="submit" disabled>开始监听 PLC 2D 触发</button>
 <button id="foam-stop" type="button" disabled>停止监听</button>
 </form>
-<p class="hint">泡棉视觉检测触发 DB{{ db_number }}.DBX46.3 → 2D 相机拍照检测 → 泡棉检测结果 DBX62.1（1=OK，0=NG）→ 泡棉检测完成确认 DBX62.0。无论检测结果 OK 或 NG，结果回读确认后，完成确认均写入 TRUE，表示本次检查已结束，不代表合格；拍照或检测异常返回 NG，并显示错误。完成确认保持 TRUE，直到 PLC 读取后撤销触发，系统才将完成和结果复位为 FALSE；启动时触发已为 1，须先复位再触发。</p>
+<p class="hint">泡棉视觉检测触发 DB{{ db_number }}.DBX46.3 → 2D 相机拍照检测 → 泡棉检测结果 DBX74.1（检测完成后 OK、NG 均写 TRUE；异常写 FALSE）→ 泡棉检测完成确认 DBX74.0。无论检测结果 OK 或 NG，结果回读确认后，完成确认均写入 TRUE，表示本次检查已结束，实际 OK/NG 保留在界面与记录中；拍照或检测异常结果位返回 FALSE，并显示错误。完成确认保持 TRUE，直到 PLC 读取后撤销触发，系统才将完成和结果复位为 FALSE；启动时触发已为 1，须先复位再触发。</p>
 <output id="foam-status" aria-live="polite">调试脚本加载中；若此提示持续存在，请检查静态文件部署并强制刷新。</output>
 <p id="foam-progress" class="hint" role="status">开始监听前检查配方与PLC通信；通信失败不会启动拍照。</p>
 <div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>记录 ID</th><th>评分</th><th>缺陷</th><th>结果 / 错误</th></tr></thead><tbody id="foam-history"><tr><td colspan="6">暂无泡棉检测结果</td></tr></tbody></table></div>

@@ -23,7 +23,7 @@ class DB100Point:
 
 
 DB_NUMBER = 2
-DB_SIZE = 63
+DB_SIZE = 75
 POSITION_FAILURE_OFFSET = 999.0  # 3D 联调失败哨兵值（不是有效补偿）
 
 
@@ -51,14 +51,17 @@ DB100_POINTS = (
     _point('boxing_allowed', 49, 'BOOL', 'OUT', '可装箱结果', 1, 0),
     _point('position_done', 49, 'BOOL', 'OUT', '3D 定位完成确认', 1, 1),
     _point('position_success', 49, 'BOOL', 'OUT', '3D 定位结果', 1, 2),
-    _point('layer_delta_x', 50, 'REAL', 'OUT', '当前层视觉补偿 ΔX', 4, 0),
-    _point('layer_delta_y', 54, 'REAL', 'OUT', '当前层视觉补偿 ΔY', 4, 0),
-    _point('layer_delta_z', 58, 'REAL', 'OUT', '当前层视觉补偿 ΔZ', 4, 0),
-    _point('foam_done', 62, 'BOOL', 'OUT', '泡棉检测完成确认', 1, 0),
-    _point('foam_passed', 62, 'BOOL', 'OUT', '泡棉检测结果', 1, 1),
-    _point('mes_upload_done', 62, 'BOOL', 'OUT', 'MES 封箱上传完成确认', 1, 2),
-    _point('mes_upload_success', 62, 'BOOL', 'OUT', 'MES 封箱上传结果', 1, 3),
-    _point('workstation_locked', 62, 'BOOL', 'OUT', '工位锁定', 1, 4),
+    _point('layer_delta_x', 50, 'REAL', 'OUT', '当前层视觉补偿 ΔX1', 4, 0),
+    _point('layer_delta_y', 54, 'REAL', 'OUT', '当前层视觉补偿 ΔY1', 4, 0),
+    _point('layer_delta_z', 58, 'REAL', 'OUT', '当前层视觉补偿 ΔZ1', 4, 0),
+    _point('layer_delta_x2', 62, 'REAL', 'OUT', '当前层视觉补偿 ΔX2', 4, 0),
+    _point('layer_delta_y2', 66, 'REAL', 'OUT', '当前层视觉补偿 ΔY2', 4, 0),
+    _point('layer_delta_z2', 70, 'REAL', 'OUT', '当前层视觉补偿 ΔZ2', 4, 0),
+    _point('foam_done', 74, 'BOOL', 'OUT', '泡棉检测完成确认', 1, 0),
+    _point('foam_passed', 74, 'BOOL', 'OUT', '泡棉检测结果', 1, 1),
+    _point('mes_upload_done', 74, 'BOOL', 'OUT', 'MES 封箱上传完成确认', 1, 2),
+    _point('mes_upload_success', 74, 'BOOL', 'OUT', 'MES 封箱上传结果', 1, 3),
+    _point('workstation_locked', 74, 'BOOL', 'OUT', '工位锁定', 1, 4),
 )
 
 POINTS_BY_NAME = {point.name: point for point in DB100_POINTS}
@@ -101,3 +104,16 @@ def decode_value(point: DB100Point, data: bytes) -> Any:
             raise ValueError(f'{point.name} 的 S7 STRING 头无效: max={maximum}, len={current}')
         return data[2:2 + current].decode('ascii').strip()
     raise ValueError(f'不支持的数据类型: {point.data_type}')
+
+
+def position_values(payload):
+    """Validate all six offsets before writing any, rounding to Siemens REAL."""
+    values = {}
+    for axis in ('x', 'y', 'z', 'x2', 'y2', 'z2'):
+        keys = (f'layer_delta_{axis}', f'compensation_{axis}', f'offset_{axis}')
+        key = next((key for key in keys if key in payload), None)
+        if key is None:
+            raise ValueError(f'缺少补偿 {axis}，必须提供两组 XYZ')
+        point = POINTS_BY_NAME[f'layer_delta_{axis}']
+        values[axis] = decode_value(point, encode_value(point, payload[key]))
+    return values

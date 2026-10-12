@@ -40,13 +40,13 @@ class ExistingVisionGateway:
             'USE_SIMULATED_DEVICES', True,
         )
 
-    def calculate_position_delta_z(self, cycle):
+    def calculate_position_offsets(self, cycle):
         if self.simulated:
-            return 0.0
+            return {axis: 0.0 for axis in ('x', 'y', 'z', 'x2', 'y2', 'z2')}
 
         from apps.production.rack_recipe_service import RackPositionResolver
         from apps.vision.models import RackLocationRecipe
-        from apps.vision.rack_3d.services import RackPositioningService
+        from apps.devices.plc_position_debug import capture_position
 
         conf = getattr(settings, 'AUTOMATIC_ORDER', {})
         recipe_id = conf.get('VISION_POSITION_RECIPE_ID')
@@ -93,18 +93,13 @@ class ExistingVisionGateway:
             target_layer_no = recipe.layer_no if recipe else None
         if recipe is None:
             raise StationStepError('未找到可用的 3D 定位配方', AlarmSource.RECIPE)
-        result = RackPositioningService().execute_positioning(
-            recipe.id, target_layer_no, save=True,
-        )
+        result = capture_position(recipe.id, target_layer_no)
         if not result.get('is_success'):
             raise StationStepError(
                 result.get('error_message') or '3D 定位失败', AlarmSource.VISION,
             )
-        if result.get('compensation_z') is not None:
-            return float(result['compensation_z'])
-        if result.get('offset_z') is not None:
-            return float(result['offset_z'])
-        return float(result['compensation_matrix'][2][3])
+        return {axis: float(result[f'compensation_{axis}'])
+                for axis in ('x', 'y', 'z', 'x2', 'y2', 'z2')}
 
     def measure_recipe(self, cycle):
         rack = cycle.rack or cycle.product.rack
@@ -151,7 +146,7 @@ class StationWorkflowService:
     OUTPUTS = (
         'mark_read_done', 'product_barcode_valid', 'rack_done', 'rack_result',
         'boxing_allowed', 'recipe_verify_done', 'position_done',
-        'position_success', 'layer_delta_x', 'layer_delta_y', 'layer_delta_z', 'foam_done', 'foam_passed',
+        'position_success', 'layer_delta_x', 'layer_delta_y', 'layer_delta_z', 'layer_delta_x2', 'layer_delta_y2', 'layer_delta_z2', 'foam_done', 'foam_passed',
         'product_mes_upload_done', 'product_mes_upload_success',
         'mes_upload_success', 'mes_upload_done', 'workstation_locked',
     )
@@ -288,11 +283,25 @@ class StationWorkflowService:
 
     def _write_failure_result(self, phase):
         """Expose a deterministic NG + done handshake before locking the station."""
+        if phase == StationPhase.WAIT_POSITION:
+            from apps.devices.plc_db100 import POSITION_FAILURE_OFFSET
+            try:
+                self._write('position_done', False, 49)
+                self._write('position_success', False, 49)
+                for axis in ('x', 'y', 'z', 'x2', 'y2', 'z2'):
+                    name = f'layer_delta_{axis}'
+                    self._write(name, POSITION_FAILURE_OFFSET, POINTS_BY_NAME[name].offset)
+                    if self.plc.read_point(name) != POSITION_FAILURE_OFFSET:
+                        return
+                self._write('position_done', True, 49)
+            except Exception:
+                pass
+            return
         failure_outputs = {
-            StationPhase.WAIT_FOAM: (('foam_passed', False, 62), ('foam_done', True, 62)),
+            StationPhase.WAIT_FOAM: (('foam_passed', False, 74), ('foam_done', True, 74)),
             StationPhase.WAIT_PRODUCT: (('product_barcode_valid', False, 26), ('mark_read_done', True, 25)),
             StationPhase.WAIT_RACK: (('rack_result', False, 52), ('rack_done', True, 51)),
-            StationPhase.WAIT_POSITION: (('position_success', False, 58), ('position_done', True, 57)),
+            StationPhase.WAIT_POSITION: (('position_success', False, 49), ('position_done', True, 49)),
             StationPhase.WAIT_RECIPE_VERIFY: (('boxing_allowed', False, 55), ('recipe_verify_done', True, 54)),
         }
         for name, value, offset in failure_outputs.get(phase, ()):
@@ -407,17 +416,28 @@ class StationWorkflowService:
         if not snapshot.get('position_trigger'):
             return False
         self._record_input('position_trigger', True, 46)
-        delta_z = Decimal(str(self.vision.calculate_position_delta_z(cycle)))
-        self._write('layer_delta_z', float(delta_z), 58)
+        values = self.vision.calculate_position_offsets(cycle)
+        from apps.devices.plc_db100 import position_values
+        values = position_values({f'compensation_{axis}': value for axis, value in values.items()})
+        self._write('position_done', False, 49)
+        self._write('position_success', False, 49)
+        for axis, value in values.items():
+            name = f'layer_delta_{axis}'
+            self._write(name, value, POINTS_BY_NAME[name].offset)
+        for axis, value in values.items():
+            if self.plc.read_point(f'layer_delta_{axis}') != value:
+                raise StationStepError(f'{axis} 写后回读不一致', AlarmSource.DEVICE)
+        delta_z = Decimal(str(values['z']))
         cycle.position_delta_z = delta_z
-        cycle.positioning_matrix = []
+        cycle.positioning_matrix = [[values[a] for a in ('x', 'y', 'z')],
+                                    [values[a] for a in ('x2', 'y2', 'z2')]]
         cycle.save(update_fields=['position_delta_z', 'positioning_matrix', 'updated_at'])
         self._write('position_success', True, 49)
         self._write('position_done', True, 49)
         self._set_phase(
             cycle, StationPhase.WAIT_POSITION_RESET, event_type='POSITIONED',
-            source=EventSource.VISION, message=f'当前层 ΔZ={delta_z:.3f}mm 已写入 DB2.DBD58',
-            payload={'delta_z': float(delta_z)}, workflow_state=WorkflowState.RACK_LOCATED,
+            source=EventSource.VISION, message='当前层两组 XYZ 已写入 DB2.DBD50～70',
+            payload=values, workflow_state=WorkflowState.RACK_LOCATED,
         )
         return True
 
@@ -479,16 +499,17 @@ class StationWorkflowService:
         if not snapshot.get('foam_trigger'):
             return False
         passed, _ = self.vision.inspect_foam(cycle)
-        self._write('foam_passed', passed, 62)
+        self._write('foam_passed', True, 74)
         self._record_input('foam_trigger', True, 46)
         cycle.foam_passed = passed
         if passed:
             cycle.loaded_quantity += 1
         cycle.save(update_fields=['foam_passed', 'loaded_quantity', 'updated_at'])
         # Completion is independent of the verdict, including NG before station locking.
-        self._write('foam_done', True, 62)
+        self._write('foam_done', True, 74)
         if not passed:
-            raise StationStepError('泡棉检测不合格，工位已锁定', AlarmSource.VISION)
+            self._lock(cycle, '泡棉检测不合格，工位已锁定', AlarmSource.VISION)
+            return True
         self._set_phase(
             cycle, StationPhase.WAIT_FOAM_RESET, event_type='FOAM_INSPECTED',
             source=EventSource.VISION, message='泡棉视觉检测完成：合格',
@@ -500,8 +521,8 @@ class StationWorkflowService:
     def _foam_reset(self, cycle, snapshot):
         if snapshot.get('foam_trigger'):
             return False
-        self._write('foam_done', False, 62)
-        self._write('foam_passed', False, 62)
+        self._write('foam_done', False, 74)
+        self._write('foam_passed', False, 74)
         if cycle.foam_passed is False:
             cycle.foam_passed = None
             cycle.save(update_fields=['foam_passed', 'updated_at'])
@@ -538,8 +559,8 @@ class StationWorkflowService:
         bin_code = response.get('bin_code', '') or ''
         cycle.mes_upload_success = succeeded
         cycle.save(update_fields=['mes_upload_success', 'updated_at'])
-        self._write('mes_upload_success', succeeded, 62)
-        self._write('mes_upload_done', True, 62)
+        self._write('mes_upload_success', succeeded, 74)
+        self._write('mes_upload_done', True, 74)
         if succeeded:
             done_message = (
                 f'整框封箱已上传 MES，区位号 {bin_code}' if bin_code
@@ -559,8 +580,8 @@ class StationWorkflowService:
     def _boxing_reset(self, cycle, snapshot):
         if snapshot.get('boxing_trigger'):
             return False
-        self._write('mes_upload_done', False, 62)
-        self._write('mes_upload_success', False, 62)
+        self._write('mes_upload_done', False, 74)
+        self._write('mes_upload_success', False, 74)
         cycle.finished_at = timezone.now()
         cycle.save(update_fields=['finished_at', 'updated_at'])
         self._set_phase(
@@ -655,7 +676,7 @@ class StationWorkflowService:
                 message=message, success=False,
             )
         try:
-            self._write('workstation_locked', True, 62)
+            self._write('workstation_locked', True, 74)
         except Exception:
             pass
 
@@ -674,7 +695,7 @@ class StationWorkflowService:
             resume = cycle.resume_phase or StationPhase.WAIT_RACK
         # PLC unlock is part of the operation: do it before committing database
         # state so a communication failure cannot show a false unlocked status.
-        self._write('workstation_locked', False, 62)
+        self._write('workstation_locked', False, 74)
         cycle.is_locked = False
         cycle.last_error = ''
         cycle.phase = resume

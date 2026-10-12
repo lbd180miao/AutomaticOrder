@@ -102,7 +102,7 @@ def step(state, plc, capture, save=lambda: None):
     if phase in ('ARMING', 'WAIT_RESET', 'CAPTURING'):
         state['message'] = '等待 PLC 将 DB2.DBX46.2 复位为 0'
         return
-    state.update(phase='CAPTURING', message='正在采集点云并计算三轴补偿', error='', values=None, result_id=None)
+    state.update(phase='CAPTURING', message='正在采集点云并计算双组三轴补偿', error='', values=None, result_id=None)
     save()
     try:
         plc.write_point('position_done', False)
@@ -112,12 +112,12 @@ def step(state, plc, capture, save=lambda: None):
         if not result.get('is_success'):
             raise ValueError(result.get('error_message') or '3D 定位失败')
         values = {}
-        for axis in 'xyz':
+        for axis in ('x', 'y', 'z', 'x2', 'y2', 'z2'):
             value = float(result[f'compensation_{axis}'])
             if not math.isfinite(value):
-                raise ValueError('三轴补偿包含无效数值')
+                raise ValueError('双组三轴补偿包含无效数值')
             values[axis] = struct.unpack('>f', struct.pack('>f', value))[0]
-        # All three values are validated before writing; done is always last.
+        # All six values are validated before writing; done is always last.
         for axis, value in values.items():
             plc.write_point(f'layer_delta_{axis}', value)
         for axis, value in values.items():
@@ -129,15 +129,15 @@ def step(state, plc, capture, save=lambda: None):
         plc.write_point('position_done', True)
         if plc.read_point('position_done') is not True:
             raise ValueError('定位完成标志写后回读不一致')
-        state.update(values=values, ok=True, done=True, message='定位成功，三轴补偿已回写；等待 PLC 复位')
+        state.update(values=values, ok=True, done=True, message='定位成功，双组三轴补偿已回写；等待 PLC 复位')
     except Exception as exc:
-        state.update(ok=False, done=False, values=None, error=str(exc), message='定位失败，正在回写三轴失败值999')
+        state.update(ok=False, done=False, values=None, error=str(exc), message='定位失败，正在回写双组三轴失败值999')
         try:
             plc.write_point('position_done', False)
             plc.write_point('position_success', False)
             if plc.read_point('position_success') is not False:
                 raise ValueError('定位失败标志写后回读不一致')
-            failed_values = dict.fromkeys('xyz', POSITION_FAILURE_OFFSET)
+            failed_values = dict.fromkeys(('x', 'y', 'z', 'x2', 'y2', 'z2'), POSITION_FAILURE_OFFSET)
             for axis, value in failed_values.items():
                 plc.write_point(f'layer_delta_{axis}', value)
             for axis, value in failed_values.items():
@@ -148,7 +148,7 @@ def step(state, plc, capture, save=lambda: None):
             if plc.read_point('position_done') is not True:
                 raise ValueError('定位完成标志写后回读不一致')
             state['done'] = True
-            state['message'] = '定位失败，X/Y/Z已回写999；等待PLC复位后重试'
+            state['message'] = '定位失败，两组X/Y/Z已回写999；等待PLC复位后重试'
         except Exception as write_exc:
             state['error'] += f'；失败信号回写失败：{write_exc}'
             state['message'] = '定位失败且PLC失败结果未完整回写，请检查连接'
@@ -160,7 +160,6 @@ def step(state, plc, capture, save=lambda: None):
 
 def capture_position(recipe_id, layer_no):
     from apps.vision.models import RackLocationRecipe
-    from apps.vision.rack_3d.services import RackPositioningService
     simulated = getattr(settings, 'AUTOMATIC_ORDER', {}).get('USE_SIMULATED_DEVICES', True)
     recipe = RackLocationRecipe.objects.get(pk=recipe_id, enabled=True)
     if not 1 <= layer_no <= recipe.layer_count:
@@ -177,35 +176,38 @@ def capture_position(recipe_id, layer_no):
             token=captured['pointcloud_token'], roi_config=recipe.roi_config,
             recipe_id=recipe_id, layer_no=layer_no, save_record=True,
         )
-        return first_group_position(result, recipe)
-    # Never allow the global MOCK camera default to feed a real PLC.
-    return RackPositioningService(mode='MOCK' if simulated else 'REAL').execute_positioning(
-        recipe_id, layer_no, save=True,
-    )
+        return dual_group_position(result, recipe)
+    return {'is_success': False, 'error_message': '当前配方未配置双组定位，请完成双组标准与标定'}
 
 
-def first_group_position(result, recipe):
-    """PLC 调试固定映射第 1 组 A 的机器人基坐标平移，单位 mm。"""
+def dual_group_position(result, recipe):
+    """Map A/B robot-base translations to both PLC XYZ groups (mm)."""
     try:
         if not result.get('locate_ok'):
             raise ValueError(result.get('error_message') or '3D 定位失败')
-        group = (result.get('robot_groups') or {}).get('A')
-        if not group:
-            raise ValueError(result.get('robot_conversion_error') or '缺少第1组（A组）机器人补偿，请重新保存双组标准及手眼标定')
-        if group.get('coordinate_system') != 'robot_base':
-            raise ValueError('第1组补偿不是机器人基坐标，禁止回写')
-        values = {axis: float(group['translation_mm'][axis]) for axis in 'xyz'}
-        for axis, value in values.items():
-            limit = float(getattr(recipe, f'max_offset_{axis}'))
-            if not math.isfinite(value) or not math.isfinite(limit) or abs(value) > limit:
-                raise ValueError(f'第1组 Δ{axis.upper()}={value} mm 超出配方限值 {limit} mm 或数值无效')
-        rz = float(group['rotation_deg']['rz'])
-        limit = float(recipe.max_offset_rz)
-        if not math.isfinite(rz) or not math.isfinite(limit) or abs(rz) > limit:
-            raise ValueError('第1组 Rz 超出配方限值或数值无效')
+        values = {}
+        for name, suffix in (('A', ''), ('B', '2')):
+            group = (result.get('robot_groups') or {}).get(name)
+            if not group:
+                raise ValueError(f'缺少{name}组机器人补偿，请保存双组标准及手眼标定')
+            if group.get('coordinate_system') != 'robot_base':
+                raise ValueError(f'{name}组补偿不是机器人基坐标，禁止回写')
+            for axis in 'xyz':
+                value = float(group['translation_mm'][axis])
+                limit = float(getattr(recipe, f'max_offset_{axis}'))
+                if not math.isfinite(value) or not math.isfinite(limit) or abs(value) > limit:
+                    raise ValueError(f'{name}组 Δ{axis.upper()} 超出配方限值或数值无效')
+                values[f'compensation_{axis}{suffix}'] = value
+            rz = float(group['rotation_deg']['rz'])
+            limit = float(recipe.max_offset_rz)
+            if not math.isfinite(rz) or not math.isfinite(limit) or abs(rz) > limit:
+                raise ValueError(f'{name}组 Rz 超出配方限值或数值无效')
         return {'result_id': result.get('result_id'), 'is_success': True,
-                'error_message': '', 'compensation_group': 'A',
-                **{f'compensation_{axis}': value for axis, value in values.items()}}
+                'error_message': '', 'compensation_group': 'A+B', **values}
     except (ValueError, TypeError, KeyError, OverflowError) as exc:
         return {'result_id': result.get('result_id'), 'is_success': False,
-                'error_message': str(exc), 'compensation_group': 'A'}
+                'error_message': str(exc), 'compensation_group': 'A+B'}
+
+
+# Compatibility for callers using the previous helper name.
+first_group_position = dual_group_position

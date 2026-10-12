@@ -1694,25 +1694,47 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
 document.getElementById('btn-upload-left').addEventListener('click', () => {
   document.getElementById('file-upload-preview').click();
 });
-document.getElementById('file-upload-preview').addEventListener('change', (e) => {
+async function previewImportedFile(file) {
+  stopLivePreview();
+  if (!(await waitForCameraPreviewIdle())) {
+    throw new Error('相机预览尚未结束，请稍后重新导入');
+  }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('无法读取所选图片'));
+    reader.readAsDataURL(file);
+  });
+  const decoded = new Image();
+  decoded.src = dataUrl;
+  try { await decoded.decode(); }
+  catch (_) { throw new Error('浏览器无法显示此图片，请使用 PNG、JPEG 或 BMP 格式'); }
+  pendingFile = file;
+  pendingFileDataUrl = dataUrl;
+  lastCameraCaptureToken = '';
+  const img = document.getElementById('preview-image');
+  img.onload = () => refreshPreviewRecipeRoi();
+  img.src = dataUrl;
+  img.style.display = 'block';
+  document.getElementById('camera-placeholder').style.display = 'none';
+  setPendingBadge(file.name);
+  updateCaptureButtonText();
+  // A new input must not retain an annotated image from the previous inspection.
+  const resultImage = document.getElementById('result-image');
+  resultImage.onload = resultImage.onerror = null;
+  resultImage.removeAttribute('src');
+  resultImage.style.display = 'none';
+  const placeholder = document.getElementById('result-placeholder');
+  placeholder.textContent = '原图已导入，检测完成后显示标注结果图';
+  placeholder.style.display = '';
+}
+
+document.getElementById('file-upload-preview').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    // 显示在左侧预览区，可在图上标定 ROI
-    const img = document.getElementById('preview-image');
-    img.src = ev.target.result;
-    img.style.display = 'block';
-    document.getElementById('camera-placeholder').style.display = 'none';
-    refreshPreviewRecipeRoi();
-    // 暂存文件和DataURL，等待「拍照检测」调用
-    pendingFile = file;
-    pendingFileDataUrl = ev.target.result;
-    setPendingBadge(file.name);
-    updateCaptureButtonText();
-  };
-  reader.readAsDataURL(file);
-  e.target.value = '';
+  try { await previewImportedFile(file); }
+  catch (error) { showDetectionFeedback(error.message, true); }
+  finally { e.target.value = ''; }
 });
 
 // ============================================================
@@ -1951,13 +1973,19 @@ function updateCaptureButtonText() {
   }
 }
 
-// ── 右侧「导入图片检测」：直接上传并检测，不显示在左侧预览 ───────────
+// ── 右侧「导入图片检测」：先显示原图，再上传并检测 ───────────
 document.getElementById('btn-upload').addEventListener('click', () => {
   document.getElementById('file-upload').click();
 });
 document.getElementById('file-upload').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  try { await previewImportedFile(file); }
+  catch (error) {
+    showDetectionFeedback(error.message, true);
+    e.target.value = '';
+    return;
+  }
   if (!(await ensureStandardTemplateForDetection(file))) {
     e.target.value = '';
     return;
@@ -2094,12 +2122,25 @@ function renderResult(r) {
     finalText.textContent = '✗ 不合格 - ' + reason;
   }
 
-  // 结果图
+  // Only hide the placeholder after the annotated image actually loads.
+  const resultImg = document.getElementById('result-image');
+  const resultPlaceholder = document.getElementById('result-placeholder');
+  resultImg.style.display = 'none';
+  resultPlaceholder.style.display = '';
+  resultPlaceholder.textContent = r.result_image_url ? '正在加载标注结果图…' : '本次检测未生成标注结果图';
+  resultImg.onload = () => {
+    resultImg.style.display = 'block';
+    resultPlaceholder.style.display = 'none';
+  };
+  resultImg.onerror = () => {
+    resultImg.style.display = 'none';
+    resultPlaceholder.style.display = '';
+    resultPlaceholder.textContent = '标注结果图加载失败，请检查图片服务；导入原图仍显示在左侧。';
+  };
   if (r.result_image_url) {
-    const img = document.getElementById('result-image');
-    img.src = r.result_image_url + '?t=' + Date.now();
-    img.style.display = 'block';
-    document.getElementById('result-placeholder').style.display = 'none';
+    resultImg.src = r.result_image_url + (r.result_image_url.includes('?') ? '&' : '?') + 't=' + Date.now();
+  } else {
+    resultImg.removeAttribute('src');
   }
 
   // 详细数值（保留原有显示）

@@ -43,13 +43,16 @@ PLC_SCENES = (
     },
     {
         'key': 'position', 'number': 2, 'name': '料架定位补偿',
-        'subtitle': '3D 定位与当前层 ΔZ 写入',
+        'subtitle': '3D 定位与两组 XYZ 写入',
         'phases': ('WAIT_POSITION', 'WAIT_POSITION_RESET'),
         'points': (
             ('3D 定位触发', 'position_trigger', 'DBX46.2', 'IN', 'trigger'),
             ('当前层补偿 ΔX', 'layer_delta_x', 'DBD50', 'OUT', 'real'),
             ('当前层补偿 ΔY', 'layer_delta_y', 'DBD54', 'OUT', 'real'),
             ('当前层补偿 ΔZ', 'layer_delta_z', 'DBD58', 'OUT', 'real'),
+            ('当前层补偿 ΔX2', 'layer_delta_x2', 'DBD62', 'OUT', 'real'),
+            ('当前层补偿 ΔY2', 'layer_delta_y2', 'DBD66', 'OUT', 'real'),
+            ('当前层补偿 ΔZ2', 'layer_delta_z2', 'DBD70', 'OUT', 'real'),
             ('3D 定位结果', 'position_success', 'DBX49.2', 'OUT', 'result'),
             ('3D 定位完成', 'position_done', 'DBX49.1', 'OUT', 'done'),
         ),
@@ -66,8 +69,8 @@ PLC_SCENES = (
             ('单件 MES 上传完成', 'product_mes_upload_done', 'DBX48.3', 'OUT', 'done'),
             ('单件 MES 上传结果', 'product_mes_upload_success', 'DBX48.4', 'OUT', 'result'),
             ('泡棉视觉检测触发', 'foam_trigger', 'DBX46.3', 'IN', 'trigger'),
-            ('泡棉检测结果', 'foam_passed', 'DBX62.1', 'OUT', 'result'),
-            ('泡棉记录完成', 'foam_done', 'DBX62.0', 'OUT', 'done'),
+            ('泡棉检测结果', 'foam_passed', 'DBX74.1', 'OUT', 'result'),
+            ('泡棉记录完成', 'foam_done', 'DBX74.0', 'OUT', 'done'),
         ),
     },
     {
@@ -76,9 +79,9 @@ PLC_SCENES = (
         'phases': ('WAIT_BOXING', 'WAIT_BOXING_RESET', 'COMPLETED'),
         'points': (
             ('装箱完成 / 上传触发', 'boxing_trigger', 'DBX46.4', 'IN', 'trigger'),
-            ('MES 上传结果', 'mes_upload_success', 'DBX62.3', 'OUT', 'result'),
-            ('MES 上传完成', 'mes_upload_done', 'DBX62.2', 'OUT', 'done'),
-            ('工位锁定', 'workstation_locked', 'DBX62.4', 'OUT', 'lock'),
+            ('MES 上传结果', 'mes_upload_success', 'DBX74.3', 'OUT', 'result'),
+            ('MES 上传完成', 'mes_upload_done', 'DBX74.2', 'OUT', 'done'),
+            ('工位锁定', 'workstation_locked', 'DBX74.4', 'OUT', 'lock'),
         ),
     },
 )
@@ -125,7 +128,6 @@ def _build_station_snapshot(plc, plc_connected, heartbeat_age, cycle, recent_sig
         'position_success': True if cycle and cycle.position_delta_z is not None else None,
         'product_barcode': product.product_code if product else None,
         'product_barcode_valid': True if product else None,
-        'foam_passed': cycle.foam_passed if cycle else None,
         'mes_upload_success': cycle.mes_upload_success if cycle else None,
         'workstation_locked': cycle.is_locked if cycle else False,
     }
