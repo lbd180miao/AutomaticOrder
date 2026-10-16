@@ -1,0 +1,72 @@
+[
+  {
+    "mode": "before",
+    "processing_ms": 2307.9,
+    "metrics": {
+      "is_passed": false,
+      "coverage_ratio": 0.0,
+      "offset_x_px": 852.9,
+      "offset_y_px": 218.7,
+      "score": 0.0,
+      "defect_type": "MISSING",
+      "quality_analysis": {
+        "mean_brightness": 93.9,
+        "std_brightness": 48.7,
+        "contrast": 244.0,
+        "sharpness_score": 190.8,
+        "noise_level": 123.81,
+        "white_ratio": 0.1004,
+        "suggestions": {
+          "lighting": "normal",
+          "white_min_v_adjust": 0,
+          "white_min_l_adjust": 0,
+          "contrast": "good",
+          "use_clahe": false,
+          "coverage_threshold_adjust": 0,
+          "sharpness": "sharp",
+          "morphology_iterations_adjust": 0,
+          "noise": "high",
+          "denoise": true
+        },
+        "config_adjusted": true,
+        "adjustments": {}
+      }
+    },
+    "display_bytes": 29731162
+  },
+  {
+    "mode": "after",
+    "processing_ms": 396.4,
+    "metrics": {
+      "is_passed": false,
+      "coverage_ratio": 0.0,
+      "offset_x_px": 852.9,
+      "offset_y_px": 218.7,
+      "score": 0.0,
+      "defect_type": "MISSING",
+      "quality_analysis": {
+        "mean_brightness": 93.9,
+        "std_brightness": 48.7,
+        "contrast": 244.0,
+        "sharpness_score": 190.8,
+        "noise_level": 123.81,
+        "white_ratio": 0.1004,
+        "suggestions": {
+          "lighting": "normal",
+          "white_min_v_adjust": 0,
+          "white_min_l_adjust": 0,
+          "contrast": "good",
+          "use_clahe": false,
+          "coverage_threshold_adjust": 0,
+          "sharpness": "sharp",
+          "morphology_iterations_adjust": 0,
+          "noise": "high",
+          "denoise": true
+        },
+        "config_adjusted": true,
+        "adjustments": {}
+      }
+    },
+    "display_bytes": 175489
+  }
+]

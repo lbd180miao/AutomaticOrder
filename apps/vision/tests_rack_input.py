@@ -12,6 +12,26 @@ from .models import RackLocationRecipe
 
 
 class RackInputTests(SimpleTestCase):
+    def test_sample_depth_scene_returns_image_and_regions(self):
+        from .algorithms.image_io import generate_depth_scene
+        for layers in (1, 3):
+            image, pillar, region = generate_depth_scene(layer_count=layers)
+            self.assertEqual(image.shape, (480, 640, 3))
+            self.assertEqual(len(pillar), 4)
+            self.assertEqual(len(region), 4)
+
+    @override_settings(VISION_RACK_LOCATION_FORCE_SAMPLE=False)
+    def test_sdk_error_is_not_masked_by_sample_generation(self):
+        from .rack_location import RVCCameraRackFrameProvider
+        fallback = Mock()
+        fallback.capture.side_effect = TypeError('cannot unpack non-iterable NoneType object')
+        camera = Mock(is_connected=False)
+        camera.ensure_connected.side_effect = RuntimeError('RVC SDK: device not found')
+        with patch('apps.rvc_camera.services.RvcCameraService', return_value=camera):
+            with self.assertRaisesRegex(ValueError, 'RVC SDK: device not found'):
+                capture_input(RVCCameraRackFrameProvider(fallback_provider=fallback), self.recipe, 1, 1)
+        fallback.capture.assert_not_called()
+
     def setUp(self):
         yy, xx = np.mgrid[:12, :12]
         self.cloud = np.stack([xx, yy, np.full_like(xx, 1500)], axis=2).astype(float)

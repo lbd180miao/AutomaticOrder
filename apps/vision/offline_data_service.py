@@ -148,37 +148,60 @@ class OfflineDataPackageService:
             "package_path": str(package_dir),
         }
 
+    @staticmethod
+    def _pointcloud_shape(package_dir: Path, raw: bool = False) -> tuple:
+        """Read array dimensions / PLY header without decoding point coordinates."""
+        ply_path = package_dir / "PointCloud.ply"
+        if raw and ply_path.is_file():
+            with ply_path.open("rb") as stream:
+                if stream.readline(256).strip() != b"ply":
+                    raise OfflineDataPackageError("Invalid PLY header")
+                count = None
+                for _ in range(4096):
+                    fields = stream.readline(4096).split()
+                    if fields[:2] == [b"element", b"vertex"]:
+                        count = int(fields[2])
+                    if fields == [b"end_header"]:
+                        if count is not None and count >= 0:
+                            return (count, 3)
+                        break
+            raise OfflineDataPackageError("Invalid PLY vertex count")
+        cloud = np.load(package_dir / "pointcloud.npy", mmap_mode="r", allow_pickle=False)
+        try:
+            return tuple(cloud.shape)
+        finally:
+            cloud._mmap.close()
+
     def package_detail(self, package_name: str) -> Dict[str, Any]:
-        """获取数据包详情，支持标准数据包和原始数据包"""
+        """Inspect metadata only; validate and decode coordinates when loading."""
         package_dir = self._package_dir(package_name)
-        
-        # 检查是否为原始数据包
         is_raw = self._is_raw_package(package_dir) and not (package_dir / "metadata.json").is_file()
-        
-        if is_raw:
-            # 原始数据包，返回简化信息
-            package = self.load_raw_package(package_name)
-            metadata = package["metadata"]
-            return {
-                **self._raw_package_summary(package_dir),
-                "metadata": metadata,
-                "roi_config": package["roi_config"],
-                "result": package["result"],
-                "pointcloud_shape": list(package["pointcloud"].shape),
-                "is_raw": True,
-            }
-        else:
-            # 标准数据包
-            package = self.load_package(package_name)
-            metadata = package["metadata"]
-            return {
-                **self._summary(metadata),
-                "metadata": metadata,
-                "roi_config": package["roi_config"],
-                "result": package["result"],
-                "pointcloud_shape": list(package["pointcloud"].shape),
-                "is_raw": False,
-            }
+        try:
+            shape = self._pointcloud_shape(package_dir, raw=is_raw)
+            if is_raw:
+                summary = self._raw_package_summary(package_dir)
+                if len(shape) == 2:
+                    from PIL import Image
+                    with Image.open(self.get_raw_preview(package_name)) as preview:
+                        width, height = preview.size
+                    if width * height != shape[0]:
+                        raise OfflineDataPackageError("点云数量与预览图不一致")
+                    shape = (height, width, 3)
+                metadata = {**summary, "camera": {"width": shape[1], "height": shape[0]}}
+                roi_config, result = {}, None
+            else:
+                missing = [name for name in self.REQUIRED_FILES if not (package_dir / name).is_file()]
+                if missing:
+                    raise OfflineDataPackageError(f"数据包文件缺失: {', '.join(missing)}")
+                metadata = self._read_json(package_dir / "metadata.json")
+                summary = self._summary(metadata)
+                roi_config = self._read_json(package_dir / "roi_config.json")
+                result_path = package_dir / "result.json"
+                result = self._read_json(result_path) if result_path.is_file() else None
+            return {**summary, "metadata": metadata, "roi_config": roi_config,
+                    "result": result, "pointcloud_shape": list(shape), "is_raw": is_raw}
+        except (OSError, ValueError, KeyError, IndexError) as exc:
+            raise OfflineDataPackageError(f"数据包详情读取失败: {package_name}: {exc}") from exc
 
     def list_packages(self, limit: int = 100, include_raw: bool = False) -> List[Dict[str, Any]]:
         summaries: List[Dict[str, Any]] = []
@@ -211,7 +234,8 @@ class OfflineDataPackageService:
 
         workbench_service = RackLocationService()
         token, preview_url, width, height = workbench_service._persist_workbench_frame(
-            cloud, capture_metadata={'source': f'offline_package:{package_name}'}
+            cloud, capture_metadata={'source': f'offline_package:{package_name}'},
+            generate_preview=False
         )
         preview_url = reverse('vision:offline_raw_preview', args=[package_name]) + '?image=2d'
         payload = {
@@ -438,24 +462,14 @@ class OfflineDataPackageService:
         except Exception:
             created_at = ""
         
-        # 尝试获取点云点数
+        # Count from headers only, including ASCII PLY files.
         point_count = 0
         try:
-            ply_path = package_dir / "PointCloud.ply"
-            npy_path = package_dir / "pointcloud.npy"
-            if npy_path.is_file():
-                cloud = np.load(npy_path, allow_pickle=False)
-                point_count = int(cloud.reshape(-1, 3).shape[0])
-            elif ply_path.is_file():
-                try:
-                    from plyfile import PlyData
-                    plydata = PlyData.read(str(ply_path))
-                    point_count = len(plydata['vertex'])
-                except (ImportError, Exception):
-                    pass
-        except Exception:
+            shape = self._pointcloud_shape(package_dir, raw=True)
+            point_count = int(np.prod(shape[:-1]))
+        except (OSError, ValueError, IndexError):
             pass
-        
+
         # 检查是否有预览图
         preview_files = ["image2d.png", "Image.png", "image.png", "preview.png"]
         preview_url = None
@@ -601,7 +615,9 @@ class OfflineDataPackageService:
         """获取原始数据包的预览图路径（不区分大小写）"""
         package_dir = self._package_dir(package_name)
         try:
-            return self.get_2d_image(package_name)
+            image = self.get_2d_image(package_name)
+            if image is not None:
+                return image
         except OfflineDataPackageError:
             pass
         
@@ -634,7 +650,8 @@ class OfflineDataPackageService:
         from apps.vision.rack_location import RackLocationService
         token, _generated_preview_url, width, height = (
             RackLocationService()._persist_workbench_frame(
-                cloud, capture_metadata={'source': f'offline_package:{package_name}'})
+                cloud, capture_metadata={'source': f'offline_package:{package_name}'},
+                generate_preview=False)
         )
 
         metadata = dict(package["metadata"] or {})

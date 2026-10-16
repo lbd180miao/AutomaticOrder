@@ -997,8 +997,9 @@
     <!-- 右栏：检测结果 -->
     <div class="foam-panel foam-result-panel">
       <div class="foam-panel-head">
-        <h2>检测结果</h2>
+        <h2>检测结果</h2><small>检测数据自动保存到 2d_SDK\pic；图片仅在内存中暂存最近一次检测，保存原图后才写入磁盘。</small>
         <div class="upload-zone">
+          <button id="btn-save-detection-images" class="btn btn-secondary btn-sm" type="button" disabled>保存本次原图</button>
           <button id="btn-save-result-standard" class="btn btn-primary btn-sm" type="button" style="display:none;" title="保存本次原图中 ROI 内左右泡棉的掩膜、质心和边界框">🎯 保存本次结果为标准模板</button>
           <button id="btn-upload" class="btn btn-secondary btn-sm">📂 导入图片检测</button>
           <input type="file" id="file-upload" accept="image/*" style="display:none;">
@@ -1008,6 +1009,7 @@
 
         <div id="detection-feedback" role="status" aria-live="polite" hidden
              style="padding:12px;margin-bottom:12px;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere;"></div>
+        <div id="detection-timing" role="status" style="margin-bottom:10px;color:var(--text-muted);font-size:13px;"></div>
         <!-- 判定大横幅 -->
         <div id="verdict-banner" class="verdict-banner idle">
           <div class="verdict-icon" id="verdict-icon">⏳</div>
@@ -1205,6 +1207,20 @@ let livePreviewTimer = null;
 let lastCameraCaptureToken = '';
 let currentTemplateReady = false;
 let lastDetectionResult = null;
+document.getElementById('btn-save-detection-images').addEventListener('click', async function () {
+  const resultId = lastDetectionResult?.result_id;
+  if (!resultId) return;
+  this.disabled = true;
+  try {
+    const response = await fetch(`/vision/api/foam/records/${resultId}/save-images/`, {
+      method: 'POST', headers: {'X-CSRFToken': getCsrf()}
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || '保存失败');
+    showDetectionFeedback('本次原始图片已保存到：' + data.directory, false);
+  } catch (error) { showDetectionFeedback(error.message, true); }
+  finally { this.disabled = false; }
+});
 
 function stopLivePreview() {
   livePreviewEnabled = false;
@@ -1535,6 +1551,7 @@ function refreshPreviewRecipeRoi() {
 }
 
 async function requestDetection(url, options) {
+  const requestStarted = performance.now();
   let response;
   let data;
   try {
@@ -1566,6 +1583,8 @@ async function requestDetection(url, options) {
   if (data.result.timings_ms) {
     console.info('泡棉检测分段耗时(ms):', data.result.timings_ms);
   }
+  data.result.browser_request_started = requestStarted;
+  data.result.browser_response_received = performance.now();
   return { ok: true, result: data.result };
 }
 
@@ -1595,6 +1614,8 @@ function renderDetectionResultSafely(result) {
 document.getElementById('btn-capture-inspect').addEventListener('click', async () => {
   const captureButton = document.getElementById('btn-capture-inspect');
   if (captureButton.disabled) return;
+  const clickStarted = performance.now();
+  document.getElementById('detection-timing').textContent = '正在计时…';
   captureButton.disabled = true;
   captureButton.textContent = '⏳ 正在检测…';
   showDetectionFeedback('正在检查配方并准备检测…');
@@ -1626,7 +1647,8 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
           headers: { 'X-CSRFToken': getCsrf() },
           body: fd,
         });
-        if (outcome.ok && renderDetectionResultSafely(outcome.result)) {
+        if (outcome.ok) outcome.result.browser_click_started = clickStarted;
+      if (outcome.ok && renderDetectionResultSafely(outcome.result)) {
           // 自动递增配方到下一个POS
           autoIncrementRecipe();
         
@@ -1656,7 +1678,6 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
       // 若预览帧正在采集，先等它释放相机，避免正式检测触发 SDK busy 后
       // 进入 1s/2s 退避重试。
       await waitForCameraPreviewIdle();
-      const previewCaptureToken = lastCameraCaptureToken || '';
       const outcome = await requestDetection(API.captureAndInspect, {
         method: 'POST',
         headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
@@ -1664,9 +1685,9 @@ document.getElementById('btn-capture-inspect').addEventListener('click', async (
           position_index: detectionPos,
           recipe_id: currentDetectionRecipe()?.id,
           use_recipe: true,
-          preview_capture_token: previewCaptureToken,
         }),
       });
+      if (outcome.ok) outcome.result.browser_click_started = clickStarted;
       if (outcome.ok && renderDetectionResultSafely(outcome.result)) {
         // 自动递增配方到下一个POS
         autoIncrementRecipe();
@@ -2020,9 +2041,25 @@ document.getElementById('file-upload').addEventListener('change', async (e) => {
 
 
 // ── 渲染检测结果 ──────────────────────────────────────────
+function showDetectionTiming(r, imageLoaded = false) {
+  const started = r.browser_click_started ?? r.browser_request_started;
+  if (started == null) return;
+  const seconds = ms => (ms / 1000).toFixed(2) + '秒';
+  const timing = r.timings_ms || {};
+  const parts = [imageLoaded ? '点击至结果图显示 ' + seconds(performance.now() - started)
+                            : '点击至判定返回 ' + seconds(r.browser_response_received - started)];
+  parts.push('准备 ' + seconds(r.browser_request_started - started));
+  parts.push('请求 ' + seconds(r.browser_response_received - r.browser_request_started));
+  if (timing.camera_request != null) parts.push('其中取图 ' + seconds(timing.camera_request));
+  if (timing.algorithm_and_archive != null) parts.push('计算及出图 ' + seconds(timing.algorithm_and_archive));
+  document.getElementById('detection-timing').textContent = parts.join(' · ');
+}
+
 function renderResult(r) {
+  showDetectionTiming(r);
   console.log('渲染检测结果:', r);
   lastDetectionResult = r;
+  document.getElementById('btn-save-detection-images').disabled = false;
   if (FOAM_RECIPE_TEACHING) {
     recipeValidationCompleted = Boolean(r.is_passed);
     const recipeState = document.getElementById('foam-recipe-save-state');
@@ -2131,6 +2168,7 @@ function renderResult(r) {
   resultImg.onload = () => {
     resultImg.style.display = 'block';
     resultPlaceholder.style.display = 'none';
+    showDetectionTiming(r, true);
   };
   resultImg.onerror = () => {
     resultImg.style.display = 'none';

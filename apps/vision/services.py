@@ -410,8 +410,8 @@ class VisionService:
                 defect_type=data.get('defect_type', 'NONE'),
                 result_data=data.get('result_data', {}),
             )
-            self._save_images(task, data)
-            self._cleanup_old_foam_results(position_index)
+            from .foam_archive import archive
+            archive(result, data)
             task.status = ResultStatus.SUCCESS if result.is_passed else ResultStatus.FAILED
             task.finished_at = timezone.now()
             if not result.is_passed:

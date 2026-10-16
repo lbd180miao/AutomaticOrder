@@ -56,6 +56,7 @@ def get_plc_adapter():
         rack=config.get('rack', 0),
         slot=config.get('slot', 1),
         tcp_port=config.get('tcp_port', 102),
+        heartbeat_interval=config.get('heartbeat_interval', 1),
     )
 
 

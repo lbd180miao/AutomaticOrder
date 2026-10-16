@@ -32,7 +32,7 @@
 <button id="foam-start" type="submit" disabled>开始监听 PLC 2D 触发</button>
 <button id="foam-stop" type="button" disabled>停止监听</button>
 </form>
-<p class="hint">泡棉视觉检测触发 DB{{ db_number }}.DBX46.3 → 2D 相机拍照检测 → 泡棉检测结果 DBX74.1（检测完成后 OK、NG 均写 TRUE；异常写 FALSE）→ 泡棉检测完成确认 DBX74.0。无论检测结果 OK 或 NG，结果回读确认后，完成确认均写入 TRUE，表示本次检查已结束，实际 OK/NG 保留在界面与记录中；拍照或检测异常结果位返回 FALSE，并显示错误。完成确认保持 TRUE，直到 PLC 读取后撤销触发，系统才将完成和结果复位为 FALSE；启动时触发已为 1，须先复位再触发。</p>
+<p class="hint">泡棉视觉检测触发 DB{{ db_number }}.DBX46.3 → 2D 相机拍照检测 → 泡棉检测结果 DBX74.1（OK 写 TRUE，NG 或异常写 FALSE）→ 泡棉检测完成确认 DBX74.0。无论检测结果 OK 或 NG，结果回读确认后，完成确认均写入 TRUE，表示本次检查已结束，实际 OK/NG 同时写入结果位并保留在界面与记录中；拍照或检测异常结果位返回 FALSE，并显示错误。完成确认保持 TRUE，直到 PLC 读取后撤销触发，系统才将完成和结果复位为 FALSE；启动时触发已为 1，须先复位再触发。</p>
 <output id="foam-status" aria-live="polite">调试脚本加载中；若此提示持续存在，请检查静态文件部署并强制刷新。</output>
 <p id="foam-progress" class="hint" role="status">开始监听前检查配方与PLC通信；通信失败不会启动拍照。</p>
 <div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>记录 ID</th><th>评分</th><th>缺陷</th><th>结果 / 错误</th></tr></thead><tbody id="foam-history"><tr><td colspan="6">暂无泡棉检测结果</td></tr></tbody></table></div>

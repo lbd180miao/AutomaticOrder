@@ -101,18 +101,6 @@ class RvcCameraService:
         """连接相机（config_id 仅为对齐旧接口，RVC 不使用数据库配置）。"""
         result = self._client.connect(sn=device_sn, ip=ip)
         self._status_cache_at = 0
-        # 连接后应用 settings 中的默认模式/曝光
-        cfg = _rvc_cfg()
-        try:
-            if cfg.get("DEFAULT_MODE"):
-                self._client.set_mode(cfg["DEFAULT_MODE"])
-            self._client.set_exposure(
-                exposure_2d=cfg.get("EXPOSURE_2D"),
-                exposure_3d=cfg.get("EXPOSURE_3D"),
-                projector_brightness=cfg.get("PROJECTOR_BRIGHTNESS"),
-            )
-        except RvcCameraError as exc:
-            logger.warning("连接后应用默认采集参数失败: %s", exc)
         return result
 
     def ensure_connected(self) -> None:
@@ -126,13 +114,6 @@ class RvcCameraService:
             camera_id=cfg.get("CAMERA_ID", 0),
         )
         self._status_cache_at = 0
-        if cfg.get("DEFAULT_MODE"):
-            self._client.set_mode(cfg["DEFAULT_MODE"])
-        self._client.set_exposure(
-            exposure_2d=cfg.get("EXPOSURE_2D"),
-            exposure_3d=cfg.get("EXPOSURE_3D"),
-            projector_brightness=cfg.get("PROJECTOR_BRIGHTNESS"),
-        )
 
     def start_stream(self) -> Dict[str, str]:
         """RVC 为单次触发采集，无需开启数据流；保留方法以兼容旧调用。"""

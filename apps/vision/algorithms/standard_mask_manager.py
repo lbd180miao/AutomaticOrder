@@ -154,9 +154,41 @@ class StandardMaskManager:
         extracted['path'] = self._stored_path(target)
         return extracted
 
+    def _extract_layer_set(self, image, recipe, cfg):
+        from .foam_inspector import _inspect_layer_sides, _resolve_side_roi_config
+        config = dict(cfg, standard_mask_space='layer-v3', _teach_layer=True)
+        rois = _resolve_side_roi_config(config, recipe.pos)
+        sides = _inspect_layer_sides(image, rois, config)
+        masks = {side: data['mask'] for side, data in sides.items()}
+        for side, mask in masks.items():
+            if not np.any(mask):
+                raise ValueError(f'{side} 标准框内未识别到泡棉，请检查图片和框的位置')
+            if sides[side]['coverage_ratio'] < 0.01:
+                raise ValueError(f'{side} 标准区域与泡棉重叠过小，请检查框的位置')
+        # Validate through the production path before writing any templates.
+        check = _inspect_layer_sides(image, rois, dict(
+            config, _teach_layer=False, standard_masks=masks))
+        extracted = {}
+        for side, mask in masks.items():
+            data = check[side]
+            if (abs(data['offset_x_px']) > 0.01 or abs(data['offset_y_px']) > 0.01
+                    or data['coverage_ratio'] != 1.0):
+                raise ValueError('标准原图自检失败：模板与检测结果不一致')
+            center = compute_mask_centroid(mask)
+            x, y, w, h = cv2.boundingRect(cv2.findNonZero(mask))
+            extracted[side] = {
+                'mask': mask, 'side': side, 'pixels': int(np.count_nonzero(mask)),
+                'search_area': mask.size, 'coverage_ratio': float(np.count_nonzero(mask) / mask.size),
+                'centroid_x': float(center[0]), 'centroid_y': float(center[1]),
+                'bounding_box': {'x': x, 'y': y, 'width': w, 'height': h},
+                'roi_snapshot': deepcopy(recipe.roi_config[self._roi_key(side)]),
+            }
+        return extracted
+
     def create_set_from_sample(self, image, recipe, version, cfg=None):
         """Teach left and right templates from the same qualified image."""
-        extracted = {
+        layer_mode = bool((cfg or {}).get('layer_search_roi'))
+        extracted = self._extract_layer_set(image, recipe, cfg) if layer_mode else {
             side: self._extract_side(image, recipe, side, cfg)
             for side in self.SIDES
         }
@@ -168,16 +200,16 @@ class StandardMaskManager:
             for side in self.SIDES
         }
         source_target = self.base_dir / (
-            f'foam_recipe_{recipe.pk}_pos{recipe.pos}_{version}_source.jpg'
+            f'foam_recipe_{recipe.pk}_pos{recipe.pos}_{version}_source.png'
         )
 
         for side in self.SIDES:
             self._write_mask(extracted[side].pop('mask'), targets[side])
             extracted[side]['path'] = self._stored_path(targets[side])
 
-        source_temp = self.base_dir / f'.{source_target.stem}_{uuid4().hex}.jpg'
+        source_temp = self.base_dir / f'.{source_target.stem}_{uuid4().hex}.png'
         try:
-            if not cv2.imwrite(str(source_temp), image, [cv2.IMWRITE_JPEG_QUALITY, 92]):
+            if not cv2.imwrite(str(source_temp), image, [cv2.IMWRITE_PNG_COMPRESSION, 3]):
                 raise OSError('failed to archive standard sample image')
             os.replace(source_temp, source_target)
         finally:
@@ -186,7 +218,9 @@ class StandardMaskManager:
         height, width = image.shape[:2]
         return {
             'version': version,
-            'mask_algorithm_version': FOAM_MASK_ALGORITHM_VERSION,
+            'mask_algorithm_version': 'layer-v3' if layer_mode else FOAM_MASK_ALGORITHM_VERSION,
+            'mask_space': 'layer-v3' if layer_mode else 'side',
+            'self_check_passed': layer_mode,
             'image_width': int(recipe.image_width),
             'image_height': int(recipe.image_height),
             'source_image_width': int(width),

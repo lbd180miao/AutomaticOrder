@@ -93,7 +93,7 @@ class NewDBContractTests(SimpleTestCase):
             plc.send_rack_offsets({'offset_x': 99})
         self.assertEqual(bytes(plc.transport.buffer), before)
 
-    def test_foam_ok_and_ng_both_report_true_then_reset(self):
+    def test_foam_result_matches_verdict_then_reset(self):
         from .adapters.plc import PLCAdapter, MemoryPLCTransport
         from .plc_foam_debug import step
         for passed in (True, False):
@@ -101,7 +101,7 @@ class NewDBContractTests(SimpleTestCase):
             plc.write_point('foam_trigger', True)
             state = {'phase':'WAIT_TRIGGER', 'recipe_id':1}
             step(state, plc, lambda _: {'is_passed':passed})
-            self.assertTrue(plc.read_point('foam_passed'))
+            self.assertEqual(plc.read_point('foam_passed'), passed)
             self.assertTrue(plc.read_point('foam_done'))
             self.assertEqual(state['ok'], passed)
             step(state, plc, lambda _: self.fail('duplicate capture'))
@@ -147,13 +147,13 @@ class StationContractTests(SimpleTestCase):
         self.assertTrue(service.plc.read_point('position_done'))
         self.assertEqual(cycle.positioning_matrix,[[1,2,3],[4,5,6]])
 
-    def test_station_ng_keeps_true_plc_result(self):
+    def test_station_ng_reports_false_result_and_true_completion(self):
         from unittest.mock import Mock
         service = self.service()
         service.vision.inspect_foam.return_value = (False, None)
         cycle = Mock(loaded_quantity=0)
         self.assertTrue(service._foam_trigger(cycle, {'foam_trigger':True}))
-        self.assertTrue(service.plc.read_point('foam_passed'))
+        self.assertFalse(service.plc.read_point('foam_passed'))
         self.assertTrue(service.plc.read_point('foam_done'))
         self.assertFalse(cycle.foam_passed)
         self.assertEqual(cycle.loaded_quantity,0)

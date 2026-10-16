@@ -1,0 +1,40 @@
+{
+  "self": {
+    "ms": 2843.4,
+    "sides": {
+      "left": {
+        "coverage_ratio": 1.0,
+        "offset_x_px": 0.0,
+        "offset_y_px": 0.0,
+        "is_aligned": true,
+        "is_present": true
+      },
+      "right": {
+        "coverage_ratio": 1.0,
+        "offset_x_px": 0.0,
+        "offset_y_px": 0.0,
+        "is_aligned": true,
+        "is_present": true
+      }
+    }
+  },
+  "shifted": {
+    "ms": 1921.7,
+    "sides": {
+      "left": {
+        "coverage_ratio": 0.9661,
+        "offset_x_px": 36.4,
+        "offset_y_px": -1.25,
+        "is_aligned": true,
+        "is_present": true
+      },
+      "right": {
+        "coverage_ratio": 0.9823,
+        "offset_x_px": 36.83,
+        "offset_y_px": -8.95,
+        "is_aligned": true,
+        "is_present": true
+      }
+    }
+  }
+}

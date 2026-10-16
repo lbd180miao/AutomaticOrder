@@ -10,6 +10,8 @@ from . import views_foam_profile
 app_name = 'vision'
 
 urlpatterns = [
+    path('api/foam/records/<int:result_id>/save-images/', views.api_foam_save_images, name='api_foam_save_images'),
+    path('api/foam/records/<int:result_id>/image/<str:kind>/', views.api_foam_record_image, name='api_foam_record_image'),
     path('api/rack-location/dual-point/prepare/', rack_dual_point_views.prepare, name='rack_dual_point_prepare'),
     path('api/rack-location/dual-point/image/', rack_dual_point_views.original_image, name='rack_dual_point_image'),
     path('api/rack-location/dual-point/depth/', rack_dual_point_views.depth_preview, name='rack_dual_point_depth'),

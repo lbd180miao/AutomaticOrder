@@ -1127,7 +1127,7 @@ def sample_scene_median_xyz(target_roi: dict, *, side: str = 'LEFT',
 
 
 class RVCCameraRackFrameProvider:
-    """Frame provider backed by the RVC 3D camera service, with sample fallback.
+    """Frame provider backed by the RVC 3D camera service.
 
     现役 RVC 相机的 PyRVC 运行在独立进程 ``rvc_service`` 中（Django 只通过
     HTTP 调用）。RvcCameraService.capture_frame_data() 把点云放在 'data' 键，
@@ -1150,7 +1150,7 @@ class RVCCameraRackFrameProvider:
             service = RvcCameraService()
             if not service.is_connected:
                 # 工作台采集不要求事先在相机页面手动连接：相机服务未连接时
-                # 自动补连（IP/SN 取自 settings RVC_CAMERA），失败再回退模拟。
+                # 自动补连（IP/SN 取自 settings RVC_CAMERA），失败保留原始错误。
                 service.ensure_connected()
             # RVC 为单次触发采集，无需 start_stream
             frame = service.capture_frame_data(frame_type='POINTCLOUD', save_record=False)
@@ -1183,11 +1183,9 @@ class RVCCameraRackFrameProvider:
         except (DMCameraConfigurationError, RvcCameraConfigurationError):
             # 配置类错误（如不支持的采集模式）不得静默回退模拟数据
             raise
-        except Exception as exc:  # noqa: BLE001 - hardware fallback is intentional
-            frame = self.fallback_provider.capture(recipe, position_no, layer_no)
-            frame['source'] = 'sample_fallback'
-            frame['fallback_reason'] = str(exc)
-            return frame
+        except Exception:  # Preserve the real SDK/network error and traceback.
+            logger.exception('RVC 实时采集失败')
+            raise
 
 
 # 旧类名保留为别名，兼容既有测试与导入
@@ -2561,10 +2559,11 @@ class RackLocationService:
             'error': 'ROI projects outside the image',
         }
 
-    def _persist_workbench_frame(self, pointcloud, image_2d=None, capture_metadata=None) -> tuple[str, str, int, int]:
+    def _persist_workbench_frame(self, pointcloud, image_2d=None, capture_metadata=None, *, generate_preview=True) -> tuple[str, str, int, int]:
         """把组织化点云持久化为 .npy，并渲染像素一一对应的伪彩预览图。
         
         如果提供了 image_2d，也会保存为 image2d.png。
+        generate_preview=False 用于已有预览图的离线包，返回空预览 URL。
 
         返回 (npy 相对路径 token, 预览图 URL, 宽, 高)。
         """
@@ -2603,6 +2602,9 @@ class RackLocationService:
                 logger.info('Saved 2D image: %s', image_2d_path)
             except Exception as exc:
                 logger.warning('Failed to save 2D image: %s', exc)
+
+        if not generate_preview:
+            return npy_rel, "", width, height
 
         preview = image_io.pointcloud_to_preview(cloud)
         preview_rel, _, _ = image_io.save_image(

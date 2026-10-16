@@ -43,6 +43,9 @@ def write_compensation_to_plc(request):
         "compensation_x": -2.23,
         "compensation_y": 4.60,
         "compensation_z": 2.05,
+        "compensation_x2": 1.0,
+        "compensation_y2": 2.0,
+        "compensation_z2": 3.0,
         "compensation_rz": 0.0,
         "confidence_x": 1.0,
         "confidence_y": 1.0,
@@ -78,7 +81,9 @@ def write_compensation_to_plc(request):
             position_no=data.get('position_no'),
             rack_side=data.get('rack_side', 'BOTH'),
             recipe_id=data.get('recipe_id'),
-            validate=data.get('validate', True)
+            validate=data.get('validate', True),
+            second_group={axis: data[f'compensation_{axis}2'] for axis in 'xyz'
+                          if f'compensation_{axis}2' in data},
         )
         
         if result.get('success'):
@@ -254,7 +259,9 @@ def complete_positioning_and_write(request):
                 position_no=data.get('position_no'),
                 rack_side=data.get('rack_side', 'BOTH'),
                 recipe_id=data['recipe_id'],
-                validate=data.get('validate', True)
+                validate=data.get('validate', True),
+                second_group={axis: data[f'compensation_{axis}2'] for axis in 'xyz'
+                              if f'compensation_{axis}2' in data},
             )
             
             response_data['plc_write_success'] = write_result.get('success')
@@ -309,7 +316,7 @@ def get_plc_write_status(request):
             'result_id': result.id,
             'plc_write_status': result.plc_write_status,
             'plc_error_message': result.plc_error_message,
-            'plc_written_at': result.plc_written_at.isoformat() if result.plc_written_at else None,
+            'plc_written_at': (result.result_data or {}).get('plc_written_at'),
             'plc_payload': result.result_data.get('plc_payload') if result.result_data else None
         }
         
@@ -352,7 +359,7 @@ def get_plc_write_history(request):
         if layer_no:
             query = query.filter(layer_no=layer_no)
         
-        results = query.order_by('-plc_written_at')[:limit]
+        results = query.order_by('-result_data__plc_written_at')[:limit]
         
         history = []
         for result in results:
@@ -362,7 +369,7 @@ def get_plc_write_history(request):
                 'position_no': result.position_no,
                 'plc_write_status': result.plc_write_status,
                 'plc_error_message': result.plc_error_message,
-                'plc_written_at': result.plc_written_at.isoformat() if result.plc_written_at else None,
+                'plc_written_at': (result.result_data or {}).get('plc_written_at'),
                 'offset_x': float(result.offset_x),
                 'offset_y': float(result.offset_y),
                 'offset_z': float(result.offset_z),

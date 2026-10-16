@@ -171,6 +171,50 @@ def measure_profile(profile, valid, prior, roi):
 
 
 def detect_line(image, roi, algorithm, quality):
+    """Track taught single edges inside their ROI without changing the recipe."""
+    try:
+        return _detect_line_local(image, roi, algorithm, quality)
+    except LocalizationError as original:
+        if (roi.get('edgeSelection') != 'taught' or roi.get('edgeMode') != 'single'
+                or original.code not in ('INSUFFICIENT_EDGES', 'LINE_FIT_FAILED', 'LINE_QUALITY')):
+            raise
+        x0, y0, x1, y1 = image_roi(roi, image.shape)
+        horizontal = roi.get('imageDirection',
+            'horizontal' if roi['target'].endswith('horizontal') else 'vertical') == 'horizontal'
+        gray = image if image.ndim == 2 else cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        patch = gray[y0:y1, x0:x1].astype(np.float32)
+        if not horizontal:
+            patch = patch.T
+        profile = np.median(np.gradient(cv2.GaussianBlur(patch, (3, 3), 0), axis=0), axis=1)
+        response = profile if roi['edgePolarity'] == 'dark_to_light' else -profile
+        peaks = [i for i in range(3, len(response)-3)
+                 if response[i] >= response[i-1] and response[i] > response[i+1]
+                 and response[i] >= roi['gradientThreshold']]
+        candidates = []
+        origin = y0 if horizontal else x0
+        along = (x0+x1-1)/2 if horizontal else (y0+y1-1)/2
+        for peak in peaks:
+            trial = {**roi, 'expectedPosition': float(origin+peak)}
+            try:
+                line = _detect_line_local(image, trial, algorithm, quality)
+            except LocalizationError:
+                continue
+            a, b, c = line['line_abc']
+            position = float((-a*along-c)/b if horizontal else (-b*along-c)/a)
+            if any(abs(position-p) < 2 for p, _ in candidates):
+                continue
+            candidates.append((position, line))
+        if not candidates:
+            raise LocalizationError(original.code, original.stage,
+                f'{original}；已搜索整个 ROI，未找到满足原极性、阈值和直线质量的边缘') from original
+        require(len(candidates) == 1, 'AMBIGUOUS_EDGE', '2d',
+                f"{roi['target']}：ROI 内有 {len(candidates)} 条合格同极性边缘，无法唯一匹配示教边缘，请缩小 ROI")
+        position, line = candidates[0]
+        return {**line, 'reacquired': True,
+                'edge_shift_px': position-float(roi['expectedPosition'])}
+
+
+def _detect_line_local(image, roi, algorithm, quality):
     x0, y0, x1, y1 = image_roi(roi, image.shape)
     direction = roi.get('imageDirection', 'horizontal' if roi['target'].endswith('horizontal') else 'vertical')
     require(direction in ('horizontal', 'vertical'), 'INVALID_CONFIG', '2d', '图像边缘方向无效')

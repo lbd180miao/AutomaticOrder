@@ -10,6 +10,27 @@ from .tests_dual_point import fixture
 
 
 class CameraPointTests(unittest.TestCase):
+    def test_reacquire_translated_edge_preserves_recipe_and_quality(self):
+        _, _, config, *_ = fixture()
+        roi = dict(config['rois'][0], x=0, y=0, width=160, height=100,
+                   imageDirection='horizontal', expectedPosition=20, expectedSlope=0,
+                   edgeSelection='taught', searchHalfWidth=8)
+        before = copy.deepcopy(roi)
+        image = np.zeros((100, 160), np.uint8)
+        image[50:] = 200
+        for algorithm in ('Projection', 'CaliperFit'):
+            line = detect_line(image, roi, algorithm, config['lineQuality'])
+            self.assertTrue(line['reacquired'])
+            self.assertAlmostEqual(line['edge_shift_px'], 29.5, delta=1)
+        self.assertEqual(roi, before)
+        for invalid in (np.zeros_like(image), 200-image):
+            with self.assertRaises(LocalizationError):
+                detect_line(invalid, roi, 'Projection', config['lineQuality'])
+        image[65:80] = 0  # Two distinct rising edges: do not guess identity.
+        with self.assertRaises(LocalizationError) as caught:
+            detect_line(image, roi, 'Projection', config['lineQuality'])
+        self.assertEqual(caught.exception.code, 'AMBIGUOUS_EDGE')
+
     def test_explicit_image_direction_is_independent_of_part_name(self):
         image, _, config, *_ = fixture()
         roi = copy.deepcopy(config['rois'][1])

@@ -2,7 +2,6 @@
 import json
 import math
 import os
-import struct
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -87,75 +86,72 @@ def ownership(mode=None):
 
 
 def step(state, plc, capture, save=lambda: None):
-    """One scan. Persist the consumed trigger before any camera operation."""
-    if time.time() - state.get('heartbeat_at', 0) >= 1:
-        plc.tick_heartbeat()
-        state['heartbeat_at'] = time.time()
+    """Capture once; persist and retry the result until PLC acknowledges the writes."""
+    plc.tick_heartbeat()
     trigger = plc.read_point('position_trigger')
     state['trigger'] = trigger
     phase = state['phase']
     if not trigger:
         plc.write_point('position_done', False)
         plc.write_point('position_success', False)
+        state.pop('pending_result', None)
         state.update(phase='WAIT_TRIGGER', message='等待 PLC 3D 触发', done=False, ok=False)
         return
-    if phase in ('ARMING', 'WAIT_RESET', 'CAPTURING'):
+    if phase in ('ARMING', 'WAIT_RESET'):
         state['message'] = '等待 PLC 将 DB2.DBX46.2 复位为 0'
         return
-    state.update(phase='CAPTURING', message='正在采集点云并计算双组三轴补偿', error='', values=None, result_id=None)
-    save()
-    try:
-        plc.write_point('position_done', False)
-        plc.write_point('position_success', False)
-        result = capture(state['recipe_id'], state['layer_no'])
-        state['result_id'] = result.get('result_id')
-        if not result.get('is_success'):
-            raise ValueError(result.get('error_message') or '3D 定位失败')
-        values = {}
-        for axis in ('x', 'y', 'z', 'x2', 'y2', 'z2'):
-            value = float(result[f'compensation_{axis}'])
-            if not math.isfinite(value):
-                raise ValueError('双组三轴补偿包含无效数值')
-            values[axis] = struct.unpack('>f', struct.pack('>f', value))[0]
-        # All six values are validated before writing; done is always last.
-        for axis, value in values.items():
-            plc.write_point(f'layer_delta_{axis}', value)
-        for axis, value in values.items():
-            if plc.read_point(f'layer_delta_{axis}') != value:
-                raise ValueError(f'Δ{axis.upper()} 写后回读不一致')
-        plc.write_point('position_success', True)
-        if plc.read_point('position_success') is not True:
-            raise ValueError('定位成功标志写后回读不一致')
-        plc.write_point('position_done', True)
-        if plc.read_point('position_done') is not True:
-            raise ValueError('定位完成标志写后回读不一致')
-        state.update(values=values, ok=True, done=True, message='定位成功，双组三轴补偿已回写；等待 PLC 复位')
-    except Exception as exc:
-        state.update(ok=False, done=False, values=None, error=str(exc), message='定位失败，正在回写双组三轴失败值999')
+    if phase == 'CAPTURING':
+        # A previous request died after consuming the trigger. Never capture it twice.
+        state['pending_result'] = {
+            'ok': False, 'error': '上次采集被中断，回写失败结果',
+            'values': dict.fromkeys(('x', 'y', 'z', 'x2', 'y2', 'z2'), POSITION_FAILURE_OFFSET),
+        }
+    elif phase != 'WRITE_PENDING':
+        state.update(phase='CAPTURING', message='正在采集点云并计算双组三轴补偿',
+                     error='', values=None, result_id=None, done=False, ok=False)
+        save()
         try:
             plc.write_point('position_done', False)
             plc.write_point('position_success', False)
-            if plc.read_point('position_success') is not False:
-                raise ValueError('定位失败标志写后回读不一致')
-            failed_values = dict.fromkeys(('x', 'y', 'z', 'x2', 'y2', 'z2'), POSITION_FAILURE_OFFSET)
-            for axis, value in failed_values.items():
-                plc.write_point(f'layer_delta_{axis}', value)
-            for axis, value in failed_values.items():
-                if plc.read_point(f'layer_delta_{axis}') != value:
-                    raise ValueError(f'Δ{axis.upper()} 失败值999写后回读不一致')
-            state['values'] = failed_values
-            plc.write_point('position_done', True)
-            if plc.read_point('position_done') is not True:
-                raise ValueError('定位完成标志写后回读不一致')
-            state['done'] = True
-            state['message'] = '定位失败，两组X/Y/Z已回写999；等待PLC复位后重试'
-        except Exception as write_exc:
-            state['error'] += f'；失败信号回写失败：{write_exc}'
-            state['message'] = '定位失败且PLC失败结果未完整回写，请检查连接'
-    finally:
-        state['phase'] = 'WAIT_RESET'
-        state['count'] = state.get('count', 0) + 1
-        state['completed_at'] = time.strftime('%Y-%m-%d %H:%M:%S')
+            result = capture(state['recipe_id'], state['layer_no'])
+            state['result_id'] = result.get('result_id')
+            if not result.get('is_success'):
+                raise ValueError(result.get('error_message') or '3D 定位失败')
+            from .plc_db100 import position_values
+            values = position_values(result)
+            pending = {'ok': True, 'error': '', 'values': values}
+        except Exception as exc:
+            pending = {'ok': False, 'error': str(exc),
+                       'values': dict.fromkeys(('x', 'y', 'z', 'x2', 'y2', 'z2'), POSITION_FAILURE_OFFSET)}
+        state['pending_result'] = pending
+    state['phase'] = 'WRITE_PENDING'
+    save()
+    pending = state['pending_result']
+
+    def verified(name, value):
+        plc.write_point(name, value)
+        if plc.read_point(name) != value:
+            raise ValueError(f'{name} 写后回读不一致')
+
+    try:
+        verified('position_done', False)
+        verified('position_success', False)
+        for axis, value in pending['values'].items():
+            verified(f'layer_delta_{axis}', value)
+        verified('position_success', pending['ok'])
+        verified('position_done', True)
+    except Exception as exc:
+        state.update(done=False, ok=False, error=f"{pending['error']}；PLC回写失败：{exc}".lstrip('；'),
+                     message='结果尚未完整回写，将重试回写，不重复拍照')
+        save()
+        return
+    state.update(phase='WAIT_RESET', values=pending['values'], ok=pending['ok'], done=True,
+                 error=pending['error'], count=state.get('count', 0) + 1,
+                 completed_at=time.strftime('%Y-%m-%d %H:%M:%S'),
+                 message=('定位成功，双组三轴补偿已回写；等待 PLC 复位' if pending['ok'] else
+                          '定位失败，两组X/Y/Z已回写999；等待PLC复位后重试'))
+    state.pop('pending_result', None)
+    save()
 
 
 def capture_position(recipe_id, layer_no):

@@ -6,6 +6,11 @@ PLC补偿值写入服务
 import logging
 from typing import Dict, Optional
 from datetime import datetime
+from django.utils import timezone
+from apps.devices.services import get_plc_adapter
+from apps.devices.adapters.plc import MemoryPLCTransport
+from apps.devices.plc_db100 import position_values
+from apps.devices.plc_position_debug import ownership, active, dual_group_position
 
 from apps.devices.services import DeviceService
 from apps.alarms.services import AlarmService
@@ -36,7 +41,8 @@ class PLCCompensationWriter:
         rack_side: str = 'BOTH',
         recipe_id: Optional[int] = None,
         result_id: Optional[int] = None,
-        validate: bool = True
+        validate: bool = True,
+        second_group: Optional[Dict] = None,
     ) -> Dict:
         """
         写入补偿值到PLC
@@ -94,24 +100,42 @@ class PLCCompensationWriter:
             'timestamp': datetime.now().isoformat()
         }
         
-        # 写入PLC（模拟模式）
+        # DB2 requires both XYZ groups; never silently reuse the previous B group.
+        adapter = None
         try:
-            # TODO: 实现实际PLC写入
-            warning_msg = "PLC适配器未实现，跳过实际写入（模拟模式）"
-            self.logger.warning(warning_msg)
-            
+            if second_group:
+                for axis in 'xyz':
+                    plc_payload[f'offset_{axis}2'] = second_group[axis]
+            values = position_values(plc_payload)
+            with ownership() as (state, save):
+                if active(state):
+                    raise ValueError('自动联调运行中，请先停止监听再写入补偿')
+                adapter = get_plc_adapter()
+
+                def verified(name, value):
+                    adapter.write_point(name, value)
+                    if adapter.read_point(name) != value:
+                        raise ValueError(f'{name} 写后回读不一致')
+
+                verified('position_done', False)
+                verified('position_success', False)
+                adapter.send_rack_offsets({f'offset_{axis}': value for axis, value in values.items()})
+                verified('position_success', True)
+                verified('position_done', True)
+            simulated = isinstance(adapter.transport, MemoryPLCTransport)
+            message = '补偿已写入模拟PLC并回读验证' if simulated else '双组补偿已写入PLC并回读验证'
             if result_id:
                 self._update_result_plc_status(
-                    result_id, 
-                    'SIMULATED', 
-                    warning_msg,
+                    result_id,
+                    'SIMULATED' if simulated else 'WRITTEN',
+                    '',
                     plc_payload
                 )
             
             return {
                 'success': True,
-                'simulated': True,
-                'message': warning_msg,
+                'simulated': simulated,
+                'message': message,
                 'plc_payload': plc_payload,
                 'written_at': datetime.now().isoformat()
             }
@@ -127,6 +151,12 @@ class PLCCompensationWriter:
                 'success': False,
                 'error': error_msg
             }
+        finally:
+            if adapter is not None and not isinstance(adapter.transport, MemoryPLCTransport):
+                try:
+                    adapter.disconnect()
+                except Exception:
+                    self.logger.exception('PLC补偿连接释放失败')
     
     def write_compensation_from_result(
         self,
@@ -146,29 +176,27 @@ class PLCCompensationWriter:
                     'skipped': True,
                     'error': error_msg
                 }
+
+            grouped = dual_group_position(
+                {'locate_ok': True, **(result.result_data or {})}, result.recipe,
+            )
+            if not grouped['is_success']:
+                error_msg = grouped['error_message']
+                self._update_result_plc_status(result_id, 'REJECTED', error_msg)
+                return {'success': False, 'rejected': True, 'error': error_msg}
             
-            # 获取补偿值
-            compensation_dict = self.compensation_service.get_compensation_from_result(result_id)
-            
-            if not compensation_dict:
-                error_msg = "未找到补偿值数据"
-                self._update_result_plc_status(result_id, 'ERROR', error_msg)
-                return {
-                    'success': False,
-                    'error': error_msg
-                }
-            
-            # 重建CompensationData对象
+            # Current workbench results store robot_groups, not the old single-group
+            # compensation record. The group validator above checks both recipe limits.
+            confidence = float(result.confidence)
             compensation = CompensationData(
-                compensation_x=compensation_dict['compensation_x'],
-                compensation_y=compensation_dict['compensation_y'],
-                compensation_z=compensation_dict['compensation_z'],
-                compensation_rz=compensation_dict.get('compensation_rz', 0.0),
-                confidence_x=compensation_dict['confidence_x'],
-                confidence_y=compensation_dict['confidence_y'],
-                confidence_z=compensation_dict['confidence_z'],
-                is_valid=compensation_dict['is_valid'],
-                validation_message=compensation_dict.get('validation_message', '')
+                compensation_x=grouped['compensation_x'],
+                compensation_y=grouped['compensation_y'],
+                compensation_z=grouped['compensation_z'],
+                compensation_rz=0.0,
+                confidence_x=confidence,
+                confidence_y=confidence,
+                confidence_z=confidence,
+                is_valid=True,
             )
             
             # 写入PLC
@@ -179,7 +207,8 @@ class PLCCompensationWriter:
                 rack_side=result.side,
                 recipe_id=result.recipe_id,
                 result_id=result_id,
-                validate=validate
+                validate=validate,
+                second_group={axis: grouped[f'compensation_{axis}2'] for axis in 'xyz'},
             )
         
         except RackLocationResult.DoesNotExist:
@@ -212,6 +241,9 @@ class PLCCompensationWriter:
             
             if layers is None:
                 layers = list(range(1, recipe.layer_count + 1))
+            if len(layers) != 1:
+                return {'success': False, 'rejected': True,
+                        'error': 'DB2 仅存储当前层双组补偿，不支持连续批量覆盖；请按PLC握手逐层写入'}
             
             results = {}
             success_count = 0
@@ -286,13 +318,13 @@ class PLCCompensationWriter:
                 if not result.result_data:
                     result.result_data = {}
                 result.result_data['plc_payload'] = plc_payload
-                result.plc_written_at = datetime.now()
+                # The dedicated column was removed by migration 0016.
+                result.result_data['plc_written_at'] = timezone.now().isoformat()
             
             result.save(update_fields=[
                 'plc_write_status', 
                 'plc_error_message', 
                 'result_data',
-                'plc_written_at',
                 'updated_at'
             ])
             

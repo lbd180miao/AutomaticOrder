@@ -1,0 +1,15 @@
+{
+  "minCoverage": 0.7,
+  "coverage_threshold": 0.7,
+  "pixels_per_mm_x": 12,
+  "pixels_per_mm_y": 12,
+  "max_offset_x_mm": 4,
+  "max_offset_y_mm": 4,
+  "maxOffsetXMm": 4,
+  "maxOffsetYMm": 4,
+  "requireStandardTemplate": true,
+  "standardMaskPaths": {
+    "left": "standard_masks/foam_recipe_11_pos0_v20261016073727355553_left.png",
+    "right": "standard_masks/foam_recipe_11_pos0_v20261016073727355553_right.png"
+  }
+}

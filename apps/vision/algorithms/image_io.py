@@ -489,6 +489,9 @@ def generate_depth_scene(side='LEFT', layer_count=3, width=640, height=480):
             ly = region[1] + i * lh + lh // 2
             _put_label(color, f'L{layer_count - i}', (region[2] + 4, ly),
                        COLOR_TEXT, scale=0.4)
+    return color, pillar, region
+
+
 def pointcloud_to_preview(pointcloud):
     """将组织化点云 (H x W x 3, mm) 渲染为伪彩 BGR 预览图（按 Z 通道着色）。
 

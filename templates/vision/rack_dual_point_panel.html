@@ -42,15 +42,18 @@
         <h3 style="margin:0;">定位结果 <span id="dp-result-state" class="badge badge-muted">待检测</span></h3>
         <button type="button" id="dp-save-standard" class="btn btn-success btn-sm" disabled>保存为标准模板</button>
       </div>
+      <h3>原始相机坐标系（mm）</h3>
+      <p>按相机原始 X / Y / Z 顺序显示；偏差 ΔXYZ = 当前 − 标准模板，正值表示沿相机对应轴正方向偏移。</p>
       <div style="overflow-x:auto;">
-        <table aria-label="双交点标准模板与当前坐标对比">
+        <table aria-label="双交点原始相机坐标系标准模板与当前坐标对比，单位毫米">
           <thead><tr><th>交点</th><th>标准模板 XYZ</th><th>当前 XYZ</th><th>差值 ΔXYZ</th></tr></thead>
           <tbody id="dp-point-results"></tbody>
         </table>
       </div>
       <div style="margin-top:18px;">
-        <h3>机器人坐标系偏差（mm）</h3>
-        <table aria-label="P1 P2 机器人坐标偏差">
+        <h3>机器人基坐标系偏差（mm）</h3>
+        <p>偏差 ΔXYZ = 当前 − 标准模板，正值表示沿机器人基坐标系对应轴正方向偏移。</p>
+        <table aria-label="P1 P2 机器人基坐标系偏差，单位毫米">
           <thead><tr><th>交点</th><th>ΔX</th><th>ΔY</th><th>ΔZ</th></tr></thead>
           <tbody id="dp-robot-results"></tbody>
         </table>

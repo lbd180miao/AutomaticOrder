@@ -13,7 +13,7 @@
       <tr>
         <td>
           {% with img=r.vision_task.images.all|first %}
-          {% if img %}<a class="thumb-link" href="{% url 'vision:task_detail' r.vision_task.pk %}"><img class="thumb" src="{{ img.file.url }}" alt="画面"></a>{% else %}-{% endif %}
+          {% if r.saved_image_url %}<a href="{{ r.saved_image_url }}" target="_blank"><img class="thumb" src="{{ r.saved_image_url }}" alt="已手动保存的原图"></a>{% elif img %}<a class="thumb-link" href="{% url 'vision:task_detail' r.vision_task.pk %}"><img class="thumb" src="{{ img.file.url }}" alt="画面"></a>{% else %}仅检测数据{% endif %}
           {% endwith %}
         </td>
         <td>{{ r.created_at|date:"m-d H:i:s" }}</td>

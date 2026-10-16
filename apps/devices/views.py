@@ -19,6 +19,25 @@ PLC_POINT_DEFINITIONS = DB100_POINTS
 logger = logging.getLogger(__name__)
 
 
+@require_POST
+def api_plc_global(request):
+    from apps.workflow.listener import start_listener, stop_listener, listener_running, listener_stopping
+    action = request.POST.get('action')
+    if action not in ('start', 'stop'):
+        return JsonResponse({'error': '请选择启动或关闭'}, status=400)
+    if action == 'start' and not _get_plc_device():
+        return JsonResponse({'error': '请先配置并启用 PLC 设备'}, status=400)
+    try:
+        if action == 'start':
+            start_listener(manual=True)
+        else:
+            stop_listener(wait=False)
+    except Exception:
+        logger.exception('PLC 全局监听操作失败')
+        return JsonResponse({'error': '操作失败，请检查服务日志后重试'}, status=500)
+    return JsonResponse({'running': listener_running(), 'stopping': listener_stopping()})
+
+
 def _close_debug_plc(adapter):
     if adapter is not None and not getattr(settings, 'AUTOMATIC_ORDER', {}).get('USE_SIMULATED_DEVICES', True):
         try:
@@ -103,6 +122,7 @@ def _format_signal_value(value, kind):
 
 
 def _build_station_snapshot(plc, plc_connected, heartbeat_age, cycle, recent_signals):
+    from apps.workflow.listener import listener_running, listener_stopping
     from apps.workflow.models import StationPhase
 
     records_by_name = {}
@@ -178,6 +198,8 @@ def _build_station_snapshot(plc, plc_connected, heartbeat_age, cycle, recent_sig
         'address': plc.address if plc and plc.address else '—',
         'heartbeat_age': heartbeat_age,
         'last_seen': plc.last_seen_at.strftime('%H:%M:%S') if plc and plc.last_seen_at else '—',
+        'global_running': listener_running(),
+        'global_stopping': listener_stopping(),
         'phase': phase,
         'phase_label': cycle.get_phase_display() if cycle else '等待料框到位',
         'cycle_id': cycle.pk if cycle else None,
@@ -299,10 +321,12 @@ def plc_config(request):
 
 def api_plc_status(request):
     """Return one operator-facing station snapshot for the 2-second UI poll."""
+    from apps.workflow.listener import listener_running, listener_stopping
     plc = _get_plc_device()
     if not plc:
         return JsonResponse({
             'connected': False, 'connection_label': 'PLC 未配置',
+            'global_running': listener_running(), 'global_stopping': listener_stopping(),
             'error': '未找到 PLC 设备配置', 'scenes': [], 'events': [],
         })
 
@@ -573,14 +597,18 @@ def api_plc_position_debug(request, mode="position"):
             plc = None
             try:
                 plc = get_plc_adapter()
-                if foam:
-                    plc_foam_debug.step(state, plc, plc_foam_debug.capture_foam, save)
-                else:
-                    step(state, plc, capture_position, save)
+                with plc.maintain_heartbeat():
+                    if foam:
+                        plc_foam_debug.step(state, plc, plc_foam_debug.capture_foam, save)
+                    else:
+                        step(state, plc, capture_position, save)
             except Exception as exc:
-                state.update(expires=0, error=str(exc), message='PLC 通讯失败，监听已停止')
-                save()
-                return JsonResponse({'success': False, 'error': str(exc), 'stopped': True})
+                if not foam and state.get('phase') == 'WRITE_PENDING':
+                    state.update(error=str(exc), message='PLC 通讯失败，保留本次结果，等待重连回写')
+                else:
+                    state.update(expires=0, error=str(exc), message='PLC 通讯失败，监听已停止')
+                    save()
+                    return JsonResponse({'success': False, 'error': str(exc), 'stopped': True})
             finally:
                 _close_debug_plc(plc)
             state['expires'] = time.time()+15

@@ -7,6 +7,11 @@
     <p class="page-subtitle">只展示当前流程位置，以及每个场景与 PLC 的交互结果</p>
   </div>
   <div class="toolbar-actions">
+    <form id="plc-global-form" action="{% url 'devices:api_plc_global' %}" method="post">
+      {% csrf_token %}
+      <button id="plc-global-button" class="btn btn-primary" type="submit">PLC全局</button>
+      <span id="plc-global-state" role="status" aria-live="polite">未启用</span>
+    </form>
     <a href="{% url 'mes:record_list' %}?tab=bindings" class="btn btn-secondary">料框与条码管理</a>
     <a href="{% url 'workflow:history' %}" class="btn btn-secondary">流程历史</a>
     <a href="{% url 'devices:signals' %}" class="btn btn-secondary">原始通信日志</a>
@@ -86,6 +91,41 @@
   let selectedSceneKey = null;
   let manualSelection = false;
   let snapshot = initial;
+  const globalForm = document.getElementById('plc-global-form');
+  const globalButton = document.getElementById('plc-global-button');
+  const globalState = document.getElementById('plc-global-state');
+  let globalPending = false;
+  let globalRunning = false;
+
+  function renderGlobal(running, stopping = false) {
+    if (globalPending) return;
+    globalRunning = running;
+    globalButton.disabled = stopping;
+    globalButton.setAttribute('aria-pressed', String(running));
+    globalButton.title = running ? '点击关闭完整自动流程' : '点击启动完整自动流程';
+    globalState.textContent = stopping ? '正在关闭，等待当前操作完成…' : running ? '已启用（点击关闭）' : '未启用（点击启动）';
+  }
+
+  globalForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (globalPending) return;
+    globalPending = true;
+    globalButton.disabled = true;
+    globalState.textContent = globalRunning ? '正在关闭…' : '正在启动…';
+    try {
+      const body = new FormData(globalForm);
+      body.set('action', globalRunning ? 'stop' : 'start');
+      const response = await fetch(globalForm.action, {method: 'POST', body});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || '操作失败，请重试');
+      globalPending = false;
+      renderGlobal(data.running, data.stopping);
+    } catch (error) {
+      globalPending = false;
+      globalButton.disabled = false;
+      globalState.textContent = error.message;
+    }
+  });
 
   const escapeHtml = value => String(value == null ? '' : value)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -168,6 +208,7 @@
 
   function render(data) {
     snapshot = data;
+    renderGlobal(Boolean(data.global_running), Boolean(data.global_stopping));
     renderHeader(data);
     renderFlow(data);
     renderDetail(data);

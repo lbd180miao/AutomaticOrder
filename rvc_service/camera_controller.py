@@ -25,6 +25,10 @@
 """
 from __future__ import annotations
 
+import json
+import logging
+import sys
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -113,26 +117,21 @@ class CaptureState:
     pointcloud_scale: float = 1000.0  # RVC SDK PointMap: m -> mm
     
     @classmethod
-    def from_json_config(cls, json_path: Path) -> "CaptureState":
+    def from_json_config(cls, json_path: Path, config=None) -> "CaptureState":
         """从 RVC JSON 配置文件加载参数（RVCManager 导出格式）。"""
         import json
         
-        if not json_path.exists():
-            return cls()
         
-        with open(json_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
+        if config is None:
+            with open(json_path, 'r', encoding='utf-8-sig') as f:
+                config = json.load(f)
         
-        # RVC JSON 配置中的字段映射
-        mode_map = {
-            1: "Fast",
-            2: "Normal", 
-            4: "Normal",  # capture_mode=4 对应 Normal
-            3: "Ultra",
-        }
-        
+        mode_map = {int(getattr(RVC, attr)): name for name, attr in _MODE_ENUM_ATTR.items() if name != "Robust" and hasattr(RVC, attr)}
+        mode_value = config.get("capture_mode", 2)
+        if mode_value not in mode_map:
+            raise RvcConfigError(f"不支持的 capture_mode: {mode_value}")
         return cls(
-            mode=mode_map.get(config.get("capture_mode", 2), "Normal"),
+            mode=mode_map[mode_value],
             exposure_2d=int(config.get("exposure_time_2d", 10)),
             exposure_3d=int(config.get("exposure_time_3d", 50)),
             gain_2d=float(config.get("gain_2d", 1.0)),
@@ -160,45 +159,65 @@ class RvcCameraController:
         self._inited = False
         self._dev: Optional[_Device] = None
         
-        # 尝试从配置文件加载参数，否则使用默认值
-        if config_path and Path(config_path).exists():
-            try:
-                self.state = CaptureState.from_json_config(Path(config_path))
-                import logging
-                logger = logging.getLogger("rvc_service")
-                logger.info(
-                    "已从配置文件加载参数: mode=%s, exp_2d=%s, exp_3d=%s, brightness=%s",
-                    self.state.mode, self.state.exposure_2d, self.state.exposure_3d,
-                    self.state.projector_brightness
-                )
-            except Exception as exc:
-                import logging
-                logger = logging.getLogger("rvc_service")
-                logger.warning("加载配置文件失败，使用默认参数: %s", exc)
-                self.state = CaptureState()
-        else:
-            # 尝试从标准位置加载（rvc_service/rvc.json）
-            default_config = Path(__file__).parent / "rvc.json"
-            if default_config.exists():
-                try:
-                    self.state = CaptureState.from_json_config(default_config)
-                    import logging
-                    logger = logging.getLogger("rvc_service")
-                    logger.info(
-                        "已从 rvc.json 加载参数: mode=%s, exp_2d=%s, exp_3d=%s, brightness=%s",
-                        self.state.mode, self.state.exposure_2d, self.state.exposure_3d,
-                        self.state.projector_brightness
-                    )
-                except Exception as exc:
-                    import logging
-                    logger = logging.getLogger("rvc_service")
-                    logger.warning("加载 rvc.json 失败，使用默认参数: %s", exc)
-                    self.state = CaptureState()
-            else:
-                self.state = CaptureState()
-        
+        root = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
+        if getattr(sys, "frozen", False) and not (root / "3d_SDK" / "rvc.json").exists():
+            root = Path(getattr(sys, "_MEIPASS", root))
+        self.config_path = Path(config_path) if config_path is not None else root / "3d_SDK" / "rvc.json"
+        self.unsupported_config_fields = []
+        self._reload_config()
+
         self.capture_count = 0
         self.last_error: str = ""
+
+    def _reload_config(self):
+        try:
+            config = json.loads(self.config_path.read_text(encoding="utf-8-sig"))
+            if not isinstance(config, dict):
+                raise ValueError("配置必须是 JSON 对象")
+            state = CaptureState.from_json_config(self.config_path, config)
+        except (OSError, ValueError, TypeError) as exc:
+            raise RvcConfigError(f"无法加载相机参数 {self.config_path}: {exc}") from exc
+        self.json_config = config
+        self.state = state
+
+    def _save_config(self, updates):
+        self._reload_config()
+        data = dict(self.json_config, **updates)
+        temp = self.config_path.with_suffix(".json.tmp")
+        try:
+            temp.write_text(json.dumps(data, ensure_ascii=False, indent=4) + "\n", encoding="utf-8")
+            temp.replace(self.config_path)
+        except OSError as exc:
+            raise RvcConfigError(f"无法保存相机参数: {exc}") from exc
+        self._reload_config()
+
+    def _apply_json_options(self, options):
+        unsupported = []
+        for key, value in self.json_config.items():
+            try:
+                if key == "capture_mode":
+                    continue
+                if key.startswith("roi_") and key[4:] in {"x", "y", "width", "height"}:
+                    setattr(options.roi, key[4:], int(value))
+                    continue
+                hdr = re.fullmatch(r"hdr_(exposuretime|gain_3d|projector_brightness|scan_times)_content_([123])", key)
+                if hdr is None:
+                    hdr = re.fullmatch(r"hdr_(gain_3d|projector_brightness|scan_times)_([123])", key)
+                if hdr:
+                    method = {"exposuretime": "SetHDRExposureTimeContent", "gain_3d": "SetHDRGainContent", "projector_brightness": "SetHDRProjectorBrightnessContent", "scan_times": "SetHDRScanTimesContent"}[hdr[1]]
+                    if not getattr(options, method)(int(hdr[2])-1, value):
+                        raise ValueError("SDK 拒绝 HDR 参数")
+                    continue
+                if hasattr(options, key) and not callable(getattr(options, key)):
+                    current = getattr(options, key)
+                    setattr(options, key, type(current)(value))
+                else:
+                    unsupported.append(key)
+            except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+                raise RvcConfigError(f"相机参数 {key}={value!r} 无法应用: {exc}") from exc
+        self.unsupported_config_fields = unsupported
+        if unsupported:
+            logging.getLogger("rvc_service").warning("SDK CaptureOptions 未应用字段: %s", ", ".join(unsupported))
 
     # ── 系统生命周期 ────────────────────────────────────────────────────
     def system_init(self) -> None:
@@ -484,7 +503,7 @@ class RvcCameraController:
     def set_mode(self, mode: str) -> Dict[str, Any]:
         native = self.resolve_mode(mode)
         with self._lock:
-            self.state.mode = native
+            self._save_config({"capture_mode": int(self._mode_enum(native))})
             return {"mode": native}
 
     def set_exposure(
@@ -496,16 +515,13 @@ class RvcCameraController:
         projector_brightness: Optional[int] = None,
     ) -> Dict[str, Any]:
         with self._lock:
-            if exposure_2d is not None:
-                self.state.exposure_2d = float(exposure_2d)
-            if exposure_3d is not None:
-                self.state.exposure_3d = float(exposure_3d)
-            if gain_2d is not None:
-                self.state.gain_2d = float(gain_2d)
-            if gain_3d is not None:
-                self.state.gain_3d = float(gain_3d)
-            if projector_brightness is not None:
-                self.state.projector_brightness = int(projector_brightness)
+            updates = {key: value for key, value in {
+                "exposure_time_2d": exposure_2d, "exposure_time_3d": exposure_3d,
+                "gain_2d": gain_2d, "gain_3d": gain_3d,
+                "projector_brightness": projector_brightness,
+            }.items() if value is not None}
+            if updates:
+                self._save_config(updates)
             return {
                 "exposure_2d": self.state.exposure_2d,
                 "exposure_3d": self.state.exposure_3d,
@@ -517,6 +533,8 @@ class RvcCameraController:
     # ── 采集 ────────────────────────────────────────────────────────────
     def _build_options(self, family: str, overrides: Dict[str, Any]):
         options = RVC.X2_CaptureOptions() if family == "X2" else RVC.X1_CaptureOptions()
+        self._apply_json_options(options)
+        overrides = {k: v for k, v in overrides.items() if v is not None}
         native_mode = self.resolve_mode(overrides.get("mode") or self.state.mode)
         options.capture_mode = self._mode_enum(native_mode)
 
@@ -536,14 +554,10 @@ class RvcCameraController:
                     "projector_brightness", self.state.projector_brightness
                 )
             )
-        # 2D/3D 一起采；点云变换到相机坐标系；不算法线（省时间，PLY 用 PointsOnly）
-        options.enable_2d_in_capture = bool(
-            overrides.get("save_2d", self.state.save_2d)
-        )
+        # 是否采集 2D 由 JSON 决定；点云保留算法要求的相机坐标系。
+        options.enable_2d_in_capture = self.state.save_2d
         if hasattr(options, "transform_to_camera"):
             self._set_transform_camera(options, family)
-        if hasattr(options, "calc_normal"):
-            options.calc_normal = False
         return options, native_mode
 
     def _set_transform_camera(self, options, family=None):
@@ -582,6 +596,7 @@ class RvcCameraController:
             if not self._dev.camera.IsOpen():
                 raise RvcControllerError("相机连接已断开，请一键恢复连接")
 
+            self._reload_config()
             native_mode = self.resolve_mode(mode or self.state.mode)
             if native_mode in LINE_SCAN_MODES:
                 raise RvcControllerError(
@@ -594,85 +609,8 @@ class RvcCameraController:
             stamp = time.strftime("%Y%m%d_%H%M%S")
             token = f"{stamp}_{self.capture_count + 1:06d}"
 
-            # ── 采集：优先使用相机内部参数（SDK 推荐 Method 3：直接 Capture()）──
-            # 如果需要覆盖参数（模式/曝光）则使用 LoadCaptureOptionParameters + 修改后 Capture(options)
-            any_override = any([
-                mode is not None,
-                exposure_2d is not None,
-                exposure_3d is not None,
-                projector_brightness is not None,
-            ])
-            
-            # 默认沿用设备内部参数。仅在调用方要求覆盖时传 CaptureOptions，
-            # 避免本地通用模式覆盖设备已配置的激光拍摄模式。
-            if any_override:
-                # Method 2：从相机读取当前参数，按需修改后采集
-                try:
-                    load_ret = self._dev.camera.LoadCaptureOptionParameters()
-                    ok_load = load_ret[0] if isinstance(load_ret, tuple) else bool(load_ret)
-                    options = load_ret[1] if isinstance(load_ret, tuple) and len(load_ret) > 1 else None
-                except Exception:
-                    ok_load, options = False, None
-
-                if ok_load and options is not None:
-                    # ⚠️ 必须始终覆盖 capture_mode：LoadCaptureOptionParameters() 读回的
-                    # capture_mode 可能是相机内部不同枚举的整数值（如 2 或 4），直接传给
-                    # Capture(options) 会报 "capture_mode[2] not support!" 或 "capture_mode[4] not support!"。
-                    # 即使调用方没有指定 mode，也要用当前 state.mode 对应的枚举覆盖。
-                    try:
-                        mode_enum_attr = _MODE_ENUM_ATTR.get(native_mode)
-                        if mode_enum_attr and hasattr(RVC, mode_enum_attr):
-                            options.capture_mode = getattr(RVC, mode_enum_attr)
-                            import logging
-                            logger = logging.getLogger("rvc_service")
-                            logger.debug("设置采集模式: %s -> %s", native_mode, mode_enum_attr)
-                    except Exception as exc:
-                        import logging
-                        logger = logging.getLogger("rvc_service")
-                        logger.warning("设置采集模式失败: %s", exc)
-                    
-                    # 应用曝光参数（优先使用调用方传入值，其次使用 state 中的值）
-                    if hasattr(options, "exposure_time_2d"):
-                        options.exposure_time_2d = int(exposure_2d if exposure_2d is not None else self.state.exposure_2d)
-                    if hasattr(options, "exposure_time_3d"):
-                        options.exposure_time_3d = int(exposure_3d if exposure_3d is not None else self.state.exposure_3d)
-                    if hasattr(options, "projector_brightness"):
-                        options.projector_brightness = int(
-                            projector_brightness if projector_brightness is not None else self.state.projector_brightness
-                        )
-                    if hasattr(options, "gain_2d"):
-                        options.gain_2d = float(self.state.gain_2d)
-                    if hasattr(options, "gain_3d"):
-                        options.gain_3d = float(self.state.gain_3d)
-                    if hasattr(options, "enable_2d_in_capture"):
-                        options.enable_2d_in_capture = save_2d
-                    if hasattr(options, "calc_normal"):
-                        options.calc_normal = False
-                    if hasattr(options, "transform_to_camera"):
-                        self._set_transform_camera(options)
-                    
-                    import logging
-                    logger = logging.getLogger("rvc_service")
-                    logger.info(
-                        "采集参数: mode=%s exp_2d=%s exp_3d=%s brightness=%s gain_2d=%s gain_3d=%s",
-                        native_mode, options.exposure_time_2d, options.exposure_time_3d,
-                        getattr(options, "projector_brightness", "N/A"),
-                        getattr(options, "gain_2d", "N/A"),
-                        getattr(options, "gain_3d", "N/A")
-                    )
-                    ok = bool(self._dev.camera.Capture(options))
-                else:
-                    # 读取参数失败，退回无参采集
-                    import logging
-                    logger = logging.getLogger("rvc_service")
-                    logger.warning("LoadCaptureOptionParameters 失败，使用默认参数采集")
-                    ok = bool(self._dev.camera.Capture())
-            else:
-                # Method 3（SDK 推荐）：直接使用相机内部参数采集
-                import logging
-                logger = logging.getLogger("rvc_service")
-                logger.info("使用相机内部参数直接采集")
-                ok = bool(self._dev.camera.Capture())
+            options, native_mode = self._build_options(self._dev.family, overrides)
+            ok = bool(self._dev.camera.Capture(options))
 
             if not ok:
                 self.last_error = RVC.GetLastErrorMessage() or "Capture 返回 False"
@@ -685,6 +623,8 @@ class RvcCameraController:
             )
 
             result: Dict[str, Any] = {
+                "config_path": str(self.config_path),
+                "unsupported_config_fields": list(self.unsupported_config_fields),
                 "frame_index": self.capture_count + 1,
                 "mode": native_mode,
                 "family": self._dev.family,
@@ -798,6 +738,8 @@ class RvcCameraController:
                 "exposure_2d": self.state.exposure_2d,
                 "exposure_3d": self.state.exposure_3d,
                 "projector_brightness": self.state.projector_brightness,
+                "config_path": str(self.config_path),
+                "unsupported_config_fields": self.unsupported_config_fields,
                 "capture_count": self.capture_count,
                 "last_error": self.last_error,
             }

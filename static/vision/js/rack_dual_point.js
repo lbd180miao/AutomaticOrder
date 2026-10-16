@@ -17,10 +17,8 @@
   const status = text => { $('dp-status').textContent = text; };
   const currentFrame = () => window.rackLocatorOfflineBridge?.snapshot();
   const fmt = (value, digits = 3) => Number.isFinite(value) ? value.toFixed(digits) : '—';
-  // Upright view: right = -camera Y, depth = camera Z, up = -camera X.
-  // Keep persisted measurements in camera coordinates; map only at presentation.
-  const toRackDisplayXYZ = cameraXYZ => [-cameraXYZ[1], cameraXYZ[2], -cameraXYZ[0]];
-  const xyz = values => Array.isArray(values) ? toRackDisplayXYZ(values).map(v => fmt(v)).join(' / ') : '—';
+  // Show native camera XYZ in the same axis order and signs as the measurement.
+  const xyz = values => Array.isArray(values) ? values.map(v => fmt(v)).join(' / ') : '—';
   function cell(row, text, header = false) {
     const item = document.createElement(header ? 'th' : 'td'); item.textContent = text; row.appendChild(item); return item;
   }
@@ -56,7 +54,7 @@
       ? ''
       : robot?.errorMessage || '计算后显示两组偏差。';
     $('dp-result-state').textContent = state.evaluation
-      ? result?.success ? '已计算' : '三维校验未通过'
+      ? result?.success ? '已计算' : `${({'2d':'二维找边失败', '3d':'三维测量失败', input:'输入校验失败', configuration:'配置校验失败', calibration:'标定校验失败'})[result?.stage] || '计算失败'}：${result?.errorMessage || result?.errorCode || '未知原因'}`
       : result ? '二维完成，待计算三维' : '待检测';
   }
   function checkFrame() {

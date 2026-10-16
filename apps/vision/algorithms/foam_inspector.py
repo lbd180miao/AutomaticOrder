@@ -25,6 +25,7 @@ from django.conf import settings
 from django.db import models
 
 from . import image_io
+from .. import foam_archive
 
 
 FOAM_MASK_ALGORITHM_VERSION = 'neutral-anchor-v2'
@@ -536,19 +537,23 @@ def _analyze_image_quality(image, roi):
     gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
     
     # 1. 亮度分析
-    mean_brightness = np.mean(gray)
-    std_brightness = np.std(gray)
+    brightness_mean, brightness_std = cv2.meanStdDev(gray)
+    mean_brightness = float(brightness_mean[0, 0])
+    std_brightness = float(brightness_std[0, 0])
     
     # 2. 对比度分析
-    min_val = np.min(gray)
-    max_val = np.max(gray)
+    min_val, max_val, _, _ = cv2.minMaxLoc(gray)
     contrast = max_val - min_val
     
     # 3. 清晰度分析（基于Laplacian方差）
-    laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
+    # A 3x3 (ksize=1) Laplacian of uint8 fits exactly in int16. OpenCV
+    # reductions avoid NumPy's full-frame float64 variance temporaries.
+    _, laplacian_std = cv2.meanStdDev(cv2.Laplacian(gray, cv2.CV_16S))
+    laplacian_var = float(laplacian_std[0, 0] ** 2)
     
     # 4. 噪声水平估计
-    noise_level = np.std(cv2.GaussianBlur(gray, (5, 5), 0) - gray)
+    _, noise_std = cv2.meanStdDev(cv2.GaussianBlur(gray, (5, 5), 0) - gray)
+    noise_level = float(noise_std[0, 0])
     
     # 5. 白色像素初步统计
     _, white_mask = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
@@ -890,19 +895,40 @@ def _inspect_layer_sides(image, side_roi_config, cfg):
         raise ValueError('本层搜索 ROI 无效或超出图像')
     shape = (y2 - y1, x2 - x1)
     standards = {}
+    references = {}
+    unified = cfg.get('standard_mask_space') == 'layer-v3'
+    teaching = cfg.get('_teach_layer', False)
     for side in ('left', 'right'):
         box = _ratio_box_to_pixels(side_roi_config[side], width, height)
         a, b, c, d = box
         if not (x1 <= a < c <= x2 and y1 <= b < d <= y2):
             raise ValueError('本层搜索大框必须包含左右标准 ROI')
-        local = _load_standard_mask_for_side(cfg, side, (d-b, c-a))
-        if local is None:
-            if cfg.get('require_standard_template'):
+        reference = np.zeros(shape, np.uint8)
+        reference[b-y1:d-y1, a-x1:c-x1] = 255
+        polygons = next(iter(cfg.get('polygon_rois', {}).values()), {})
+        polygon = polygons.get(side)
+        if unified and polygon:
+            reference[:] = 0
+            points = np.rint(np.asarray(polygon) * [width, height] - [x1, y1]).astype(np.int32)
+            cv2.fillPoly(reference, [points], 255)
+        if teaching:
+            standard = reference.copy()
+        elif unified:
+            standard = _load_standard_mask_for_side(cfg, side, shape)
+            if standard is None:
                 raise StandardMaskConfigurationError('请先建立左右标准模板')
-            local = np.full((d-b, c-a), 255, np.uint8)
-        standard = np.zeros(shape, np.uint8)
-        standard[b-y1:d-y1, a-x1:c-x1] = local
+        else:
+            local = _load_standard_mask_for_side(cfg, side, (d-b, c-a))
+            if local is None:
+                if cfg.get('require_standard_template'):
+                    raise StandardMaskConfigurationError('请先建立左右标准模板')
+                local = np.full((d-b, c-a), 255, np.uint8)
+            standard = np.zeros(shape, np.uint8)
+            standard[b-y1:d-y1, a-x1:c-x1] = local
         standards[side] = (standard, box)
+        # Use the same fixed geometric anchors in teaching and inspection.
+        # Templates are comparison data, not inputs to component selection.
+        references[side] = reference if unified else standard
 
     hsv = cv2.cvtColor(image[y1:y2, x1:x2], cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, (0, 0, int(cfg.get('foam_min_v', 140))),
@@ -921,31 +947,48 @@ def _inspect_layer_sides(image, side_roi_config, cfg):
     # Reflections can connect the two foams. Split only components that
     # substantially intersect BOTH standards, using distance to their masks.
     # Distinct candidates remain free to move throughout the layer.
-    left_standard = standards['left'][0]
-    right_standard = standards['right'][0]
-    distances = [cv2.distanceTransform((standard == 0).astype(np.uint8), cv2.DIST_L2, 5)
-                 for standard in (left_standard, right_standard)]
-    next_label = count
-    for index in range(1, count):
-        component = labels == index
-        overlaps = [np.count_nonzero(component & (standard > 0)) / max(np.count_nonzero(standard), 1)
-                    for standard in (left_standard, right_standard)]
-        if min(overlaps) >= 0.2:
-            right_part = component & (distances[1] < distances[0])
-            if np.any(right_part) and np.any(component & ~right_part):
-                labels[right_part] = next_label
-                next_label += 1
-    if next_label != count:
-        count = next_label
-        stats = np.zeros((count, 5), np.int32)
-        centers = np.zeros((count, 2), np.float64)
-        for index in range(1, count):
-            ys, xs = np.nonzero(labels == index)
-            if xs.size:
-                stats[index] = [xs.min(), ys.min(), xs.max()-xs.min()+1, ys.max()-ys.min()+1, xs.size]
-                centers[index] = [xs.mean(), ys.mean()]
+    left_standard = references['left']
+    right_standard = references['right']
+    # Count label overlap in two passes instead of scanning the entire layer
+    # once per component (hundreds of reflections on full-resolution images).
+    overlaps = []
+    for standard in (left_standard, right_standard):
+        selected = labels[standard > 0]
+        overlaps.append(np.bincount(selected, minlength=count) / max(selected.size, 1))
+    split_candidates = np.flatnonzero((overlaps[0] >= 0.2) & (overlaps[1] >= 0.2))
+    split_candidates = split_candidates[split_candidates != 0]
+    extra_stats, extra_centers = [], []
+    if split_candidates.size:
+        distances = [cv2.distanceTransform((standard == 0).astype(np.uint8), cv2.DIST_L2, 5)
+                     for standard in (left_standard, right_standard)]
+        for index in split_candidates:
+            x, y, w, h = stats[index, :4]
+            local_labels = labels[y:y+h, x:x+w]
+            component = local_labels == index
+            right_part = component & (distances[1][y:y+h, x:x+w] < distances[0][y:y+h, x:x+w])
+            left_part = component & ~right_part
+            if not np.any(right_part) or not np.any(left_part):
+                continue
+            local_labels[right_part] = count + len(extra_stats)
+            # Only the two split pieces changed; all other OpenCV statistics
+            # remain valid. Coordinates must stay relative to the layer ROI.
+            for part, original in ((left_part, True), (right_part, False)):
+                ys, xs = np.nonzero(part)
+                part_stats = [x + xs.min(), y + ys.min(), xs.max()-xs.min()+1,
+                              ys.max()-ys.min()+1, xs.size]
+                part_center = [x + xs.mean(), y + ys.mean()]
+                if original:
+                    stats[index] = part_stats
+                    centers[index] = part_center
+                else:
+                    extra_stats.append(part_stats)
+                    extra_centers.append(part_center)
+    if extra_stats:
+        stats = np.concatenate((stats, np.asarray(extra_stats, dtype=stats.dtype)))
+        centers = np.concatenate((centers, np.asarray(extra_centers, dtype=centers.dtype)))
+        count = len(stats)
     choices, costs = {}, {}
-    for side, (standard, _) in standards.items():
+    for side, standard in references.items():
         area = np.count_nonzero(standard)
         center = compute_mask_centroid(standard)
         costs[side] = {}
@@ -1076,22 +1119,15 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
 
 
 def _save_or_reuse_original(image, prefix, camera_image_path=''):
-    """复用相机已经落盘的原图，避免再次编码一份千万像素 PNG。"""
-    source_value = str(camera_image_path or '')
-    if source_value and not source_value.startswith('upload:'):
-        source_path = Path(source_value)
-        if not source_path.is_absolute():
-            source_path = Path(settings.BASE_DIR) / source_path
-        try:
-            resolved_source = source_path.resolve(strict=True)
-            media_root = Path(settings.MEDIA_ROOT).resolve(strict=True)
-            relative_path = resolved_source.relative_to(media_root)
+    # The camera has already saved a lossless BMP. Keep those exact bytes,
+    # avoiding another full-resolution encode (and preserving monochrome size).
+    if camera_image_path:
+        path = Path(camera_image_path)
+        if path.suffix.lower() == '.bmp' and path.is_file():
             height, width = image.shape[:2]
-            return relative_path.as_posix(), width, height
-        except (FileNotFoundError, OSError, ValueError):
-            # 非 media 文件或路径不可用时，沿用原来的归档行为。
-            pass
-    return image_io.save_image(image, prefix)
+            return path.read_bytes(), width, height
+    return foam_archive.save_image(image, prefix)
+
 
 
 class FoamDefectType(models.TextChoices):
@@ -1191,7 +1227,7 @@ class FoamInspector:
                     details.pop('mask', None)
                     details.pop('standard_mask', None)
                 
-                result_path, _, _ = image_io.save_image(
+                result_path, _, _ = foam_archive.save_image(
                     annotated,
                     f'foam_result_p{position_index}',
                     rel_dir='vision/results',
@@ -1317,7 +1353,7 @@ class FoamInspector:
         annotated = image_io.annotate_foam(scene, roi, foam, result)
         result.pop('mask', None)
         
-        result_path, _, _ = image_io.save_image(
+        result_path, _, _ = foam_archive.save_image(
             annotated,
             f'foam_result_p{position_index}',
             rel_dir='vision/results',

@@ -1,0 +1,2 @@
+pyinstaller>=6.0,<7
+waitress>=3.0,<4

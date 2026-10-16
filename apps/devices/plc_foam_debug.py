@@ -30,9 +30,7 @@ def capture_foam(recipe_id):
 
 
 def step(state, plc, capture=capture_foam, save=lambda: None):
-    if time.time() - state.get('heartbeat_at', 0) >= 1:
-        plc.tick_heartbeat()
-        state['heartbeat_at'] = time.time()
+    plc.tick_heartbeat()
     trigger = plc.read_point('foam_trigger')
     state['trigger'] = trigger
 
@@ -62,13 +60,13 @@ def step(state, plc, capture=capture_foam, save=lambda: None):
             state.update(result_id=result.get('result_id'), score=result.get('score'),
                          defect_type=result.get('defect_type', ''))
             passed = result['is_passed']
-            plc_result = True
+            plc_result = passed
         except Exception as exc:
             passed = False
             plc_result = False
             state['error'] = str(exc)
         write_verified('foam_passed', plc_result)
-        # Completed inspections report TRUE for both OK and NG; errors report FALSE.
+        # Completion is independent of OK/NG; the result bit carries the verdict.
         write_verified('foam_done', True)
         state.update(ok=passed, done=True, message='检测完成，结果已回写；等待 PLC 复位')
     except Exception as exc:

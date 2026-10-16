@@ -185,6 +185,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # 3D 深度相机料架定位运行模式：'MOCK'（模拟，无需硬件）/ 'REAL'（真实相机+机器人）
 RACK_3D_POSITIONING_MODE = os.environ.get('RACK_3D_POSITIONING_MODE', 'MOCK').upper()
+PLC_LISTENER_AUTO_START = env_bool('PLC_LISTENER_AUTO_START', False)
 
 AUTOMATIC_ORDER = {
     'USE_SIMULATED_DEVICES': env_bool('USE_SIMULATED_DEVICES', False),
@@ -214,7 +215,7 @@ AUTOMATIC_ORDER = {
         'apps.vision.rack_measurement.measure_rack_recipe',
     ),
     'HIK_CAMERA': {
-        'OUTPUT_DIR': Path(os.environ.get('HIK_CAMERA_OUTPUT_DIR', MEDIA_ROOT / 'hik_captures')),
+        'OUTPUT_DIR': Path(os.environ.get('HIK_CAMERA_OUTPUT_DIR', BASE_DIR / '2d_SDK' / 'pic' / '.camera_cache')),
         'SDK_LIB_DIR': os.environ.get(
             'HIK_CAMERA_SDK_LIB_DIR',
             'C:/Program Files (x86)/Common Files/MVS/Runtime/Win64_x64',
@@ -232,6 +233,7 @@ AUTOMATIC_ORDER = {
         )),
         'QUALITY': 5,
         'RUN_IN_SUBPROCESS': True,
+        'PERSISTENT_WORKER': True,  # Hold connection; acquire only on request.
     },
     'DM_CAMERA': {
         'OUTPUT_DIR': Path(os.environ.get('DM_CAMERA_OUTPUT_DIR', MEDIA_ROOT / 'dm_captures')),

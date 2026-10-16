@@ -250,6 +250,11 @@ def foam_results(request):
         .prefetch_related('vision_task__images')
         .order_by('-created_at')[:200]
     )
+    for result in results:
+        result.saved_image_url = (
+            f'/vision/api/foam/records/{result.id}/image/original/'
+            if (foam_archive.root() / f'{result.id}_original.png').is_file() else ''
+        )
     return render(request, 'vision/foam_result_detail.html', {'results': results})
 
 
@@ -285,6 +290,9 @@ def _as_bool(value, default=True):
     if isinstance(value, bool):
         return value
     return str(value).lower() in {'1', 'true', 'yes', 'on'}
+
+
+from . import foam_archive
 
 
 def _result_payload(foam_result):
@@ -323,6 +331,9 @@ def _result_payload(foam_result):
             payload[key] = foam_result.result_data[key]
     if foam_result.result_data.get('recipe'):
         payload['recipe'] = foam_result.result_data['recipe']
+    for kind in ('original', 'result'):
+        if foam_archive.has_image(foam_result.id, kind):
+            payload[f'{kind}_image_url'] = f'/vision/api/foam/records/{foam_result.id}/image/{kind}/'
     return payload
 
 
@@ -599,13 +610,12 @@ def api_foam_standard_template_from_result(request, recipe_id, result_id):
             raise ValueError('不能保存为模板：' + '、'.join(missing) + '泡棉未有效检出')
 
         original = inspection.vision_task.images.filter(image_type='ORIGINAL').first()
-        if original is None or not original.file:
-            raise ValueError('本次检测没有可用的原图')
-        try:
-            original_path = Path(original.file.path)
-        except (NotImplementedError, ValueError):
-            raise ValueError('本次检测原图不在本地存储，无法建立模板')
-        image = cv2.imread(str(original_path), cv2.IMREAD_COLOR)
+        original_path = foam_archive.image_path(inspection.id, 'original')
+        content = foam_archive.image_bytes(inspection.id, 'original')
+        if content is not None:
+            image = cv2.imdecode(np.frombuffer(content, dtype=np.uint8), cv2.IMREAD_COLOR)
+        else:
+            image = cv2.imread(str(original.file.path), cv2.IMREAD_COLOR) if original else None
         if image is None:
             raise ValueError('无法读取本次检测原图')
 
@@ -616,7 +626,7 @@ def api_foam_standard_template_from_result(request, recipe_id, result_id):
                 'type': 'inspection_result',
                 'result_id': inspection.id,
                 'task_id': inspection.vision_task_id,
-                'original_image': original.file.name,
+                'original_image': str(original_path),
             },
         )
         return JsonResponse({
@@ -1575,29 +1585,8 @@ def api_foam_capture_inspect(request):
         position_index = int(body.get('position_index', 0))
         recipe_id = body.get('recipe_id') or None
         use_recipe = _as_bool(body.get('use_recipe'), True)
-        captured_image_path = None
-        preview_capture_token = body.get('preview_capture_token') or ''
-        if preview_capture_token:
-            try:
-                token_data = signing.loads(
-                    preview_capture_token,
-                    salt='foam-camera-preview',
-                    max_age=10,
-                )
-                candidate = Path(token_data['image_path']).resolve(strict=True)
-                output_dir = Path(
-                    getattr(settings, 'AUTOMATIC_ORDER', {})
-                    .get('HIK_CAMERA', {})
-                    .get('OUTPUT_DIR', Path(settings.MEDIA_ROOT) / 'hik_captures')
-                ).resolve(strict=True)
-                candidate.relative_to(output_dir)
-                if candidate.suffix.lower() not in {'.bmp', '.png', '.jpg', '.jpeg', '.tif', '.tiff'}:
-                    raise ValueError('unsupported camera image format')
-                captured_image_path = str(candidate)
-            except (signing.BadSignature, signing.SignatureExpired, KeyError, OSError, ValueError):
-                # 令牌失效时自动回退为重新拍照，检测功能不受影响。
-                logger.info('Camera preview token unavailable; falling back to a fresh capture')
-        
+        # A production inspection always acquires a new frame after the click.
+        # Preview tokens remain available for recipe teaching, never inspection.
         vision_service = VisionService()
         foam_result = vision_service.inspect_foam(
             product=None,
@@ -1607,7 +1596,6 @@ def api_foam_capture_inspect(request):
             use_camera=True,
             recipe_id=recipe_id,
             use_recipe=use_recipe,
-            captured_image_path=captured_image_path,
         )
         
         payload = _result_payload(foam_result)
@@ -1709,19 +1697,8 @@ def api_foam_upload_inspect(request):
             result_data=result.get('result_data', {}),
         )
         
-        # 保存图片记录
-        original_img = VisionImage.objects.create(
-            vision_task=task,
-            image_type='ORIGINAL',
-            file=result['original_image'],
-        )
-        
-        result_img = VisionImage.objects.create(
-            vision_task=task,
-            image_type='RESULT',
-            file=result['result_image'],
-        )
-        
+        foam_archive.archive(foam_result, result)
+
         return JsonResponse({'success': True, 'result': _result_payload(foam_result)})
         
     except ValueError as e:
@@ -1751,8 +1728,9 @@ def api_foam_inspection_records(request):
             task = r.vision_task
             original_img = task.images.filter(image_type='ORIGINAL').first()
             result_img = task.images.filter(image_type='RESULT').first()
-            if not original_img:
-                continue  # 没有原图则跳过（无法重新检测）
+            saved_original = foam_archive.root() / f'{r.id}_original.png'
+            if not original_img and not saved_original.is_file():
+                continue  # 数据记录没有永久图片，不能用于导入
             data.append({
                 'id': r.id,
                 'task_id': task.id,
@@ -1762,7 +1740,7 @@ def api_foam_inspection_records(request):
                 'is_present': r.is_present,
                 'score': float(r.score),
                 'coverage_ratio': float(r.coverage_ratio),
-                'original_image_url': original_img.file.url,
+                'original_image_url': original_img.file.url if original_img else f'/vision/api/foam/records/{r.id}/image/original/',
                 'result_image_url': result_img.file.url if result_img else '',
             })
         return JsonResponse({'success': True, 'records': data})
@@ -3576,3 +3554,28 @@ def api_rack_location_tcp_verification(request, result_id):
 def roi_3d_workbench(request):
     """3D ROI裁剪工作台页面"""
     return render(request, 'vision/roi_3d_workbench.html')
+
+
+@require_POST
+def api_foam_save_images(request, result_id):
+    try:
+        if not FoamInspectionResult.objects.filter(pk=result_id).exists():
+            return JsonResponse({'success': False, 'error': '检测记录不存在'}, status=404)
+        directory = foam_archive.save_images(result_id)
+        return JsonResponse({'success': True, 'directory': directory})
+    except (ValueError, OSError) as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+def api_foam_record_image(request, result_id, kind):
+    from django.http import HttpResponse, Http404
+    try:
+        content = foam_archive.image_bytes(result_id, kind)
+        if content is None:
+            raise Http404('图片不存在或缓存已过期')
+        mime = 'image/jpeg' if content.startswith(b'\xff\xd8') else ('image/bmp' if content.startswith(b'BM') else 'image/png')
+        response = HttpResponse(content, content_type=mime)
+        response['Cache-Control'] = 'no-store'
+        return response
+    except (ValueError, OSError):
+        raise Http404('图片不存在或缓存已过期')

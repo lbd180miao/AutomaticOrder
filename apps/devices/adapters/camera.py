@@ -1,3 +1,4 @@
+import atexit
 import importlib
 import json
 import logging
@@ -51,6 +52,64 @@ class CameraAdapter(BaseDeviceAdapter):
     # 预览和正式检测可能由 Django 的不同请求线程同时触发。海康相机采用独占
     # 打开方式，进程内串行化比让 SDK busy 后进行 1s/2s 退避重试更快且稳定。
     _capture_lock = threading.Lock()
+    _worker = None
+    _worker_key = None
+
+    @classmethod
+    def close_worker(cls):
+        worker, cls._worker = cls._worker, None
+        cls._worker_key = None
+        if worker is not None:
+            try:
+                if worker.stdin:
+                    worker.stdin.close()
+            except OSError:
+                pass
+            try:
+                worker.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                worker.kill()
+                worker.wait(timeout=5)
+
+    def _persistent_capture(self, command, payload, result_path):
+        cls = type(self)
+        key_payload = {k: v for k, v in payload.items() if k != 'result_path'}
+        feature = Path(payload['feature_file'])
+        key_payload['feature_mtime'] = feature.stat().st_mtime_ns
+        key = json.dumps(key_payload, sort_keys=True)
+        for attempt in range(2):
+            if cls._worker is None or cls._worker.poll() is not None or cls._worker_key != key:
+                cls.close_worker()
+                startup = dict(payload, persistent_worker=True)
+                cls._worker = subprocess.Popen(
+                    command + [json.dumps(startup)], cwd=str(settings.BASE_DIR),
+                    stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    text=True, encoding='utf-8',
+                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+                )
+                cls._worker_key = key
+            worker = cls._worker
+            try:
+                worker.stdin.write(json.dumps({'result_path': str(result_path)}) + '\n')
+                worker.stdin.flush()
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline:
+                    if result_path.is_file():
+                        result = json.loads(result_path.read_text(encoding='utf-8'))
+                        if not result.get('success'):
+                            cls.close_worker()
+                            raise RuntimeError(result.get('error', '相机取图失败'))
+                        return result['image_path']
+                    if worker.poll() is not None:
+                        break
+                    time.sleep(0.01)
+                else:
+                    cls.close_worker()
+                    raise RuntimeError('相机捕获超时(30秒)，采集进程已重置')
+            except (BrokenPipeError, OSError):
+                pass
+            cls.close_worker()
+        raise RuntimeError('相机采集进程异常退出，请检查 MVS SDK 和相机连接')
 
     def _prepare_runtime(self, sdk_lib_dir):
         """Expose the MVS runtime DLL directory to Python and Windows loader."""
@@ -152,12 +211,15 @@ class CameraAdapter(BaseDeviceAdapter):
             'sdk_lib_dir': str(sdk_lib_dir) if sdk_lib_dir else '',
             'result_path': result_path.as_posix(),
         }
-        command = [
-            sys.executable,
-            '-m',
-            'apps.devices.adapters.hik_capture_worker',
-            json.dumps(payload),
-        ]
+        command = ([sys.executable, '--hik-capture']
+                   if getattr(sys, 'frozen', False)
+                   else [sys.executable, '-m', 'apps.devices.adapters.hik_capture_worker'])
+        if feature_file and getattr(settings, 'AUTOMATIC_ORDER', {}).get('HIK_CAMERA', {}).get('PERSISTENT_WORKER', False):
+            try:
+                return self._persistent_capture(command, payload, result_path)
+            finally:
+                result_path.unlink(missing_ok=True)
+        command.append(json.dumps(payload))
         try:
             completed = subprocess.run(
                 command,
@@ -369,6 +431,12 @@ class CameraAdapter(BaseDeviceAdapter):
                         task_type,
                     )
 
+                # Only prune the dedicated temporary acquisition directory.
+                cache_root = (Path(settings.BASE_DIR) / '2d_SDK' / 'pic' / '.camera_cache').resolve()
+                if output_dir == cache_root:
+                    from apps.vision.foam_archive import prune
+                    prune(output_dir, keep=3)
+
                 return {
                     'success': True,
                     'image_path': image_path,
@@ -413,3 +481,6 @@ class CameraAdapter(BaseDeviceAdapter):
             raise last_error
 
         raise RuntimeError(f'Hik camera capture failed for {camera_code} ({task_type}): Unknown error')
+
+
+atexit.register(CameraAdapter.close_worker)

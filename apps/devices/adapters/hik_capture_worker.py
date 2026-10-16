@@ -8,7 +8,12 @@ from ctypes import POINTER, byref, cast, memset, sizeof
 from pathlib import Path
 
 
+_dll_directory_handles = []
+_mvs_runtime = None
+
+
 def _prepare_runtime(sdk_lib_dir):
+    global _mvs_runtime
     if not sdk_lib_dir:
         return
 
@@ -20,13 +25,27 @@ def _prepare_runtime(sdk_lib_dir):
 
     if hasattr(os, 'add_dll_directory'):
         try:
-            os.add_dll_directory(sdk_lib_dir)
+            _dll_directory_handles.append(os.add_dll_directory(sdk_lib_dir))
         except (OSError, FileNotFoundError) as exc:
             raise RuntimeError(
                 f'SDK目录无效: {sdk_lib_dir}\n'
                 f'错误: {exc}\n'
                 '请检查 SDK_LIB_DIR 配置是否正确'
             ) from exc
+
+    if sys.platform == 'win32':
+        import ctypes
+        dll = Path(sdk_lib_dir) / 'MvCameraControl.dll'
+        if not dll.is_file():
+            raise RuntimeError(f'MVS Runtime DLL 不存在: {dll}')
+        # Frozen applications also contain PyRVC's older MVS DLLs. Select the
+        # installed MVS runtime before importing either Python binding.
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel32.SetDllDirectoryW.argtypes = [ctypes.c_wchar_p]
+        kernel32.SetDllDirectoryW.restype = ctypes.c_int
+        if not kernel32.SetDllDirectoryW(str(dll.parent)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        _mvs_runtime = ctypes.WinDLL(str(dll), winmode=0x00000008)
 
 
 def _add_project_venv_site_packages(base_dir):
@@ -93,6 +112,14 @@ def _is_camera_busy_ret(ret: int) -> bool:
 
 
 def _capture_with_official_mvs(payload, max_open_retries=3, open_retry_delay=1.0):
+    session = _official_mvs_session(payload, max_open_retries, open_retry_delay)
+    try:
+        return next(session)
+    finally:
+        session.close()
+
+
+def _official_mvs_session(payload, max_open_retries=3, open_retry_delay=1.0):
     """Capture one frame with Hikrobot's official Python wrapper.
 
     The bundled ``chg_hik`` 0.4.1 binding calls the older
@@ -142,13 +169,17 @@ def _capture_with_official_mvs(payload, max_open_retries=3, open_retry_delay=1.0
         initialized = True
 
         devices = mvs.MV_CC_DEVICE_INFO_LIST()
-        layer_types = (
-            mvs.MV_GIGE_DEVICE | mvs.MV_USB_DEVICE |
-            mvs.MV_GENTL_CAMERALINK_DEVICE | mvs.MV_GENTL_CXP_DEVICE |
-            mvs.MV_GENTL_XOF_DEVICE
-        )
+        # These cameras use GigE/USB; unrelated frame-grabber producers may
+        # not be installed on the deployment PC.
+        layer_types = mvs.MV_GIGE_DEVICE | mvs.MV_USB_DEVICE
         ret = mvs.MvCamera.MV_CC_EnumDevices(layer_types, devices)
         if ret != 0:
+            if ret & 0xffffffff == 0x8000000c:
+                raise RuntimeError(
+                    'MVS enumerate devices failed: 0x8000000c（动态加载 DLL 失败）。'
+                    '请检查目标机 MVS Runtime 安装及 HIK_CAMERA_SDK_LIB_DIR；'
+                    '当前尚未连接相机或设置曝光。'
+                )
             raise RuntimeError(f'MVS enumerate devices failed: 0x{ret & 0xffffffff:08x}')
         if devices.nDeviceNum == 0:
             raise RuntimeError('No Hikrobot camera was found')
@@ -247,38 +278,51 @@ def _capture_with_official_mvs(payload, max_open_retries=3, open_retry_delay=1.0
             ret = cam.MV_CC_SetEnumValue('TriggerMode', mvs.MV_TRIGGER_MODE_OFF)
             if ret != 0:
                 raise RuntimeError(f'MVS set continuous trigger mode failed: 0x{ret & 0xffffffff:08x}')
-        ret = cam.MV_CC_StartGrabbing()
-        if ret != 0:
-            raise RuntimeError(f'MVS start grabbing failed: 0x{ret & 0xffffffff:08x}')
-        grabbing = True
+        while True:
+            # Idle means connected, but NOT streaming. Start only on request.
+            image_path = output_dir / f'preview_{uuid.uuid4().hex}.{extension}'
+            ret = cam.MV_CC_StartGrabbing()
+            if ret != 0:
+                raise RuntimeError(f'MVS start grabbing failed: 0x{ret & 0xffffffff:08x}')
+            grabbing = True
+            # MVS permits clearing buffers only after StartGrabbing.
+            ret = cam.MV_CC_ClearImageBuffer()
+            if ret != 0:
+                raise RuntimeError(f'MVS clear image buffer failed: 0x{ret & 0xffffffff:08x}')
 
-        frame = mvs.MV_FRAME_OUT()
-        memset(byref(frame), 0, sizeof(frame))
-        ret = cam.MV_CC_GetImageBuffer(frame, 10000)
-        if ret != 0 or not frame.pBufAddr:
-            raise RuntimeError(f'MVS get image buffer failed: 0x{ret & 0xffffffff:08x}')
+            frame = mvs.MV_FRAME_OUT()
+            memset(byref(frame), 0, sizeof(frame))
+            ret = cam.MV_CC_GetImageBuffer(frame, 10000)
+            if ret != 0 or not frame.pBufAddr:
+                raise RuntimeError(f'MVS get image buffer failed: 0x{ret & 0xffffffff:08x}')
 
-        image = mvs.MV_CC_IMAGE()
-        memset(byref(image), 0, sizeof(image))
-        image.nWidth = frame.stFrameInfo.nExtendWidth or frame.stFrameInfo.nWidth
-        image.nHeight = frame.stFrameInfo.nExtendHeight or frame.stFrameInfo.nHeight
-        image.enPixelType = frame.stFrameInfo.enPixelType
-        image.pImageBuf = frame.pBufAddr
-        image.nImageBufSize = frame.stFrameInfo.nFrameLenEx or frame.stFrameInfo.nFrameLen
-        image.nImageLen = image.nImageBufSize
+            image = mvs.MV_CC_IMAGE()
+            memset(byref(image), 0, sizeof(image))
+            image.nWidth = frame.stFrameInfo.nExtendWidth or frame.stFrameInfo.nWidth
+            image.nHeight = frame.stFrameInfo.nExtendHeight or frame.stFrameInfo.nHeight
+            image.enPixelType = frame.stFrameInfo.enPixelType
+            image.pImageBuf = frame.pBufAddr
+            image.nImageBufSize = frame.stFrameInfo.nFrameLenEx or frame.stFrameInfo.nFrameLen
+            image.nImageLen = image.nImageBufSize
 
-        save = mvs.MV_CC_SAVE_IMAGE_PARAM()
-        memset(byref(save), 0, sizeof(save))
-        save.enImageType = image_type
-        save.iMethodValue = 1
-        save.nQuality = 95 if extension == 'jpg' else 0
-        save.nEndian = 0
-        ret = cam.MV_CC_SaveImageToFileEx2(image, save, str(image_path))
-        if ret != 0:
-            raise RuntimeError(f'MVS save image failed: 0x{ret & 0xffffffff:08x}')
-        if not image_path.is_file() or image_path.stat().st_size == 0:
-            raise RuntimeError(f'MVS reported success but image is missing: {image_path}')
-        return str(image_path)
+            save = mvs.MV_CC_SAVE_IMAGE_PARAM()
+            memset(byref(save), 0, sizeof(save))
+            save.enImageType = image_type
+            save.iMethodValue = 1
+            save.nQuality = 95 if extension == 'jpg' else 0
+            save.nEndian = 0
+            ret = cam.MV_CC_SaveImageToFileEx2(image, save, str(image_path))
+            if ret != 0:
+                raise RuntimeError(f'MVS save image failed: 0x{ret & 0xffffffff:08x}')
+            if not image_path.is_file() or image_path.stat().st_size == 0:
+                raise RuntimeError(f'MVS reported success but image is missing: {image_path}')
+            cam.MV_CC_FreeImageBuffer(frame)
+            frame = None
+            ret = cam.MV_CC_StopGrabbing()
+            if ret != 0:
+                raise RuntimeError(f'MVS stop grabbing failed: 0x{ret & 0xffffffff:08x}')
+            grabbing = False
+            yield str(image_path)
     finally:
         if cam is not None and frame is not None and getattr(frame, 'pBufAddr', None):
             cam.MV_CC_FreeImageBuffer(frame)
@@ -318,6 +362,9 @@ def capture(payload):
             f'输出目录不可写 {output_dir}: {exc}'
         ) from exc
 
+    if payload.get('feature_file'):
+        return _capture_with_official_mvs(payload)
+
     try:
         chg_hik = importlib.import_module('chg_hik')
     except ImportError as exc:
@@ -331,12 +378,6 @@ def capture(payload):
     # Prefer the compatibility API when present.  On the installed chg_hik
     # build it can acquire a frame but cannot save it; transparently fall back
     # to Hikrobot's current official Python wrapper in that case.
-    # The compatibility binding cannot load GenApi .mfs files.  When one is
-    # configured, always use the official MVS wrapper so all tuned parameters
-    # are applied before acquisition starts.
-    if payload.get('feature_file'):
-        return _capture_with_official_mvs(payload)
-
     if getattr(chg_hik, 'capture_images', None):
         try:
             legacy_image_path = _capture_with_legacy_api(chg_hik, payload)
@@ -413,11 +454,38 @@ def write_result(result_path, result):
     tmp_path.replace(result_path)
 
 
-def main():
+def serve(payload):
+    """Hold the device connection until parent stdin closes, acquiring on demand."""
+    _add_project_venv_site_packages(payload.get('base_dir') or Path.cwd())
+    _prepare_runtime(payload.get('sdk_lib_dir') or '')
+    session = None
+    try:
+        for line in sys.stdin:
+            request = json.loads(line)
+            result_path = Path(request['result_path'])
+            try:
+                if session is None:
+                    session = _official_mvs_session(payload)
+                image_path = next(session)
+                write_result(result_path, {'success': True, 'image_path': image_path})
+            except Exception as exc:
+                if session is not None:
+                    session.close()
+                    session = None
+                write_result(result_path, {'success': False, 'error': str(exc)})
+    finally:
+        if session is not None:
+            session.close()
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
     result_path = None
     image_path = None
     try:
-        payload = json.loads(sys.argv[1])
+        payload = json.loads(argv[0])
+        if payload.get('persistent_worker'):
+            return serve(payload)
         result_path = Path(payload['result_path'])
         image_path = capture(payload)
         # 捕获成功，写入结果

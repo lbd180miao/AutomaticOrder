@@ -6,6 +6,10 @@ DB simulator used for offline end-to-end testing.
 """
 from __future__ import annotations
 
+import threading
+import time
+from contextlib import contextmanager
+
 from apps.devices.plc_db100 import (
     DB_NUMBER, DB_SIZE, POINTS_BY_NAME, decode_value, encode_value,
 )
@@ -100,8 +104,9 @@ class MemoryPLCTransport:
 class PLCAdapter(BaseDeviceAdapter):
     """Typed read/write facade for the fixed DB2 contract."""
 
-    def __init__(self, transport=None, *, address='', rack=0, slot=1, tcp_port=102):
+    def __init__(self, transport=None, *, address='', rack=0, slot=1, tcp_port=102, heartbeat_interval=1):
         self.transport = transport or Snap7Transport(address, rack, slot, tcp_port)
+        self.heartbeat_interval = max(1, min(10, float(heartbeat_interval)))
 
     def connect(self):
         return self.transport.connect()
@@ -130,37 +135,87 @@ class PLCAdapter(BaseDeviceAdapter):
             self.connect()
 
     def read_point(self, name):
+        from apps.devices.plc_io import plc_io
         point = POINTS_BY_NAME[name]
-        self._ensure_connected()
-        data = self.transport.read(DB_NUMBER, point.offset, point.size)
+        with plc_io(self.transport):
+            self._ensure_connected()
+            data = self.transport.read(DB_NUMBER, point.offset, point.size)
         return decode_value(point, data)
 
     def write_point(self, name, value):
+        from apps.devices.plc_io import plc_io
         point = POINTS_BY_NAME[name]
-        self._ensure_connected()
         data = encode_value(point, value)
-        if point.data_type == 'BOOL':
-            current = bytearray(self.transport.read(DB_NUMBER, point.offset, 1))
-            mask = 1 << point.bit
-            current[0] = (current[0] | mask) if bool(value) else (current[0] & ~mask)
-            data = bytes(current)
-        self.transport.write(DB_NUMBER, point.offset, data)
+        with plc_io(self.transport):
+            self._ensure_connected()
+            if point.data_type == 'BOOL':
+                current = bytearray(self.transport.read(DB_NUMBER, point.offset, 1))
+                mask = 1 << point.bit
+                current[0] = (current[0] | mask) if bool(value) else (current[0] & ~mask)
+                data = bytes(current)
+            self.transport.write(DB_NUMBER, point.offset, data)
 
     def read_snapshot(self):
-        self._ensure_connected()
-        raw = self.transport.read(DB_NUMBER, 0, DB_SIZE)
+        from apps.devices.plc_io import plc_io
+        with plc_io(self.transport):
+            self._ensure_connected()
+            raw = self.transport.read(DB_NUMBER, 0, DB_SIZE)
         return {
             name: decode_value(point, raw[point.offset:point.offset + point.size])
             for name, point in POINTS_BY_NAME.items()
-            if point.direction == 'IN' or name == 'heartbeat'
+            if point.direction == 'IN' or name in ('heartbeat', 'workstation_locked')
         }
 
     def tick_heartbeat(self):
-        """Toggle heartbeat BOOL signal."""
-        current = self.read_point('heartbeat')
-        value = not current
-        self.write_point('heartbeat', value)
-        return value
+        """One scheduled toggle per endpoint, shared by all processes/channels."""
+        from apps.devices.plc_io import plc_io
+        point = POINTS_BY_NAME['heartbeat']
+        with plc_io(self.transport) as handle:
+            self._ensure_connected()
+            now = time.time()
+            if handle is None:
+                previous = getattr(self.transport, '_heartbeat_at', None)
+            else:
+                handle.seek(1)
+                saved = handle.read().strip()
+                previous = float(saved) if saved else None
+            data = bytearray(self.transport.read(DB_NUMBER, point.offset, 1))
+            if previous is None or now < previous or now - previous >= self.heartbeat_interval:
+                data[0] ^= 1 << point.bit
+                self.transport.write(DB_NUMBER, point.offset, data)
+                if handle is None:
+                    self.transport._heartbeat_at = now
+                else:
+                    handle.seek(1)
+                    handle.write(str(now).encode('ascii'))
+                    handle.truncate()
+                    handle.flush()
+            return decode_value(point, data)
+
+    @contextmanager
+    def maintain_heartbeat(self):
+        """Keep heartbeat alive during camera/MES work, using serialized PLC I/O."""
+        self.tick_heartbeat()
+        stop = threading.Event()
+        errors = []
+
+        def run():
+            while not stop.wait(self.heartbeat_interval):
+                try:
+                    self.tick_heartbeat()
+                except Exception as exc:
+                    errors.append(exc)
+                    return
+
+        thread = threading.Thread(target=run, name='plc-heartbeat', daemon=True)
+        thread.start()
+        try:
+            yield
+        finally:
+            stop.set()
+            thread.join()
+        if errors:
+            raise ConnectionError(f'PLC 心跳失败：{errors[0]}') from errors[0]
 
     def read_signal(self, signal_name):
         return self.read_point(signal_name)

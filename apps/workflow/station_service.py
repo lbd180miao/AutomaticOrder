@@ -192,7 +192,8 @@ class StationWorkflowService:
             with ownership() as (state, save):
                 if active(state):
                     return self.active_cycle(), False
-                return self._poll_once_owned()
+                with self.plc.maintain_heartbeat():
+                    return self._poll_once_owned()
         except DebugBusy:
             return self.active_cycle(), False
 
@@ -499,7 +500,7 @@ class StationWorkflowService:
         if not snapshot.get('foam_trigger'):
             return False
         passed, _ = self.vision.inspect_foam(cycle)
-        self._write('foam_passed', True, 74)
+        self._write('foam_passed', bool(passed), 74)
         self._record_input('foam_trigger', True, 46)
         cycle.foam_passed = passed
         if passed:

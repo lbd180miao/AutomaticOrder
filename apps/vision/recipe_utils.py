@@ -375,6 +375,7 @@ def build_foam_inspection_config(recipe):
         raise ValueError('本层搜索大框必须在图像内并包含左右标准 ROI')
     pos_str = str(recipe.pos)
     return {
+        'standard_mask_space': (recipe.standard_template_config or {}).get('mask_space', 'side'),
         'layer_search_roi': layer_ratio,
         'layer_search_polygon': _extract_polygon_points(layer) if layer else None,
         'foam_rois': {

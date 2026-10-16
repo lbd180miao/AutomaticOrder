@@ -13,6 +13,9 @@ def positive_threads(value):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    if argv[:1] == ['--hik-capture']:
+        from apps.devices.adapters.hik_capture_worker import main as hik_main
+        return hik_main(argv[1:])
     # Frozen executables cannot interpret Python's -m option.
     if argv[:1] == ['--rvc-service']:
         from rvc_service.__main__ import main as camera_main
@@ -34,7 +37,13 @@ def main(argv=None):
     from django.core.wsgi import get_wsgi_application
     from django.conf import settings
     print(f'AutomaticOrder: threads={args.threads}, media={settings.MEDIA_ROOT}', flush=True)
-    serve(get_wsgi_application(), host=args.host, port=args.port, threads=args.threads)
+    application = get_wsgi_application()
+    from apps.workflow.listener import start_listener, stop_listener
+    start_listener()
+    try:
+        serve(application, host=args.host, port=args.port, threads=args.threads)
+    finally:
+        stop_listener()
     return 0
 
 

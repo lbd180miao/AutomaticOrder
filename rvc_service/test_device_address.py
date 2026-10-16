@@ -10,7 +10,7 @@ import PyRVC as RVC
 
 
 class DeviceAddressTests(unittest.TestCase):
-    def test_default_capture_uses_device_parameters(self):
+    def test_default_capture_passes_json_parameters(self):
         controller = RvcCameraController()
         camera = Mock()
         camera.GetPointMap.return_value.IsValid.return_value = False
@@ -19,7 +19,10 @@ class DeviceAddressTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as folder:
             with self.assertRaisesRegex(RvcControllerError, '点云无效'):
                 controller.capture(folder)
-        camera.Capture.assert_called_once_with()
+        camera.Capture.assert_called_once()
+        options = camera.Capture.call_args.args[0]
+        self.assertEqual(options.exposure_time_3d, 50)
+        self.assertEqual(options.roi.width, 1440)
         camera.LoadCaptureOptionParameters.assert_not_called()
 
     def test_transform_type_matches_sdk_and_preview_channel(self):
