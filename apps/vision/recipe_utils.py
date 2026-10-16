@@ -61,6 +61,16 @@ def ensure_default_foam_2d_recipes():
     )
     recipes = []
     for item in DEFAULT_FOAM_2D_RECIPES:
+        # 同一 POS 可以保留多个历史配方；已有数据时不要再按唯一记录查询。
+        existing = VisionRecipe.objects.filter(
+            recipe_type='FOAM_2D',
+            foam_product_layout=layout,
+            pos=item['pos'],
+            camera_side='both',
+        ).order_by('-is_active', '-updated_at', '-id').first()
+        if existing is not None:
+            recipes.append(existing)
+            continue
         recipe, _ = VisionRecipe.objects.get_or_create(
             recipe_type='FOAM_2D',
             foam_product_layout=layout,
@@ -376,6 +386,7 @@ def build_foam_inspection_config(recipe):
     pos_str = str(recipe.pos)
     return {
         'standard_mask_space': (recipe.standard_template_config or {}).get('mask_space', 'side'),
+        'foam_segmentation': (recipe.algorithm_config or {}).get('foam_segmentation', 'fixed-threshold'),
         'layer_search_roi': layer_ratio,
         'layer_search_polygon': _extract_polygon_points(layer) if layer else None,
         'foam_rois': {

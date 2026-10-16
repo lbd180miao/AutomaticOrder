@@ -220,6 +220,7 @@ class StandardMaskManager:
             'version': version,
             'mask_algorithm_version': 'layer-v3' if layer_mode else FOAM_MASK_ALGORITHM_VERSION,
             'mask_space': 'layer-v3' if layer_mode else 'side',
+            'foam_segmentation': (cfg or {}).get('foam_segmentation', 'fixed-threshold'),
             'self_check_passed': layer_mode,
             'image_width': int(recipe.image_width),
             'image_height': int(recipe.image_height),

@@ -884,6 +884,39 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
     return result
 
 
+def _shadow_layer_mask(image, references):
+    """Recover shaded foam using geometric anchors, never the saved template.
+
+    Fit at bounded resolution; bright neutral seeds anchor the material model,
+    while a margin around the teaching ROIs allows edges to move.
+    """
+    height, width = image.shape[:2]
+    scale = min(1.0, 1024 / max(height, width))
+    size = (max(1, round(width * scale)), max(1, round(height * scale)))
+    small = cv2.resize(image, size, interpolation=cv2.INTER_AREA)
+    anchors = np.maximum.reduce(list(references.values()))
+    anchors = cv2.resize(anchors, size, interpolation=cv2.INTER_NEAREST) > 0
+    hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
+    neutral = hsv[:, :, 1] <= 80
+    bright = neutral & (hsv[:, :, 2] >= 140)
+    interior = cv2.erode(anchors.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+    seeds = bright & interior
+    if np.count_nonzero(seeds) < 16:
+        return np.zeros((height, width), np.uint8)
+    margin = max(3, round(min(size) * 0.05))
+    allowed = cv2.dilate(anchors.astype(np.uint8), np.ones((margin * 2 + 1,) * 2, np.uint8)) > 0
+    labels = np.full(anchors.shape, cv2.GC_BGD, np.uint8)
+    labels[allowed] = cv2.GC_PR_BGD
+    labels[anchors & neutral & (hsv[:, :, 2] >= 45)] = cv2.GC_PR_FGD
+    labels[seeds] = cv2.GC_FGD
+    labels[[0, -1], :] = cv2.GC_BGD
+    labels[:, [0, -1]] = cv2.GC_BGD
+    cv2.setRNGSeed(0)
+    cv2.grabCut(small, labels, None, np.zeros((1, 65)), np.zeros((1, 65)), 5, cv2.GC_INIT_WITH_MASK)
+    mask = ((labels == cv2.GC_FGD) | (labels == cv2.GC_PR_FGD)).astype(np.uint8) * 255
+    return cv2.resize(mask, (width, height), interpolation=cv2.INTER_NEAREST)
+
+
 def _inspect_layer_sides(image, side_roi_config, cfg):
     """Search the entire layer and assign distinct components to standard sides."""
     from itertools import product
@@ -934,6 +967,8 @@ def _inspect_layer_sides(image, side_roi_config, cfg):
     mask = cv2.inRange(hsv, (0, 0, int(cfg.get('foam_min_v', 140))),
                        (180, int(cfg.get('foam_max_s', 80)), 255))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    if cfg.get('foam_segmentation') == 'shadow-graphcut-v1':
+        mask = _shadow_layer_mask(image[y1:y2, x1:x2], references)
     layer_polygon = cfg.get('layer_search_polygon')
     if layer_polygon:
         points = np.rint(np.asarray(layer_polygon) * [width, height] - [x1, y1]).astype(np.int32)

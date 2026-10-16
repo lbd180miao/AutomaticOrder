@@ -6,6 +6,28 @@ from .algorithms.foam_inspector import _inspect_layer_sides
 
 
 class LayerComponentTests(TestCase):
+    def test_shadow_segmentation_recovers_dark_material_without_filling_holes(self):
+        from .algorithms.foam_inspector import _shadow_layer_mask
+        image = np.full((180, 320, 3), 20, np.uint8)
+        refs = {}
+        for side, x in [('left', 40), ('right', 200)]:
+            image[50:130, x:x+70] = 85
+            image[65:100, x+20:x+50] = 200
+            image[110:120, x+20:x+30] = 20
+            refs[side] = np.zeros((180, 320), np.uint8)
+            refs[side][45:135, x-5:x+75] = 255
+        mask = _shadow_layer_mask(image, refs)
+        self.assertGreater(np.mean(mask[50:130, 40:110] > 0), .9)
+        self.assertFalse(np.any(mask[110:120, 60:70]))
+        self.assertFalse(np.any(mask[:35]))
+        self.assertFalse(np.any(_shadow_layer_mask(np.full_like(image, 20), refs)))
+        missing_left = image.copy()
+        missing_left[45:135, 35:115] = 20
+        missing_mask = _shadow_layer_mask(missing_left, refs)
+        self.assertFalse(np.any(missing_mask[45:135, 35:115]))
+        self.assertGreater(np.count_nonzero(missing_mask[:, 200:270]), 4000)
+        np.testing.assert_array_equal(mask, _shadow_layer_mask(image, refs))
+
     def run_case(self, joined=False, noise=False):
         image = np.zeros((180, 320, 3), np.uint8)
         image[60:100, 50:100] = 200

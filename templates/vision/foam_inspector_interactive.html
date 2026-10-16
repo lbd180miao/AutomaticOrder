@@ -832,11 +832,11 @@
   {% endif %}
 
   <!-- 配方信息卡片 -->
-  <div id="recipe-info-card" class="recipe-info-card" style="display:none;">
+  <div id="recipe-info-card" class="recipe-info-card">
     <div class="recipe-info-header">
       <span class="recipe-info-icon">🧩</span>
       <span class="recipe-info-title">当前配方</span>
-      <button id="btn-temp-recipe" class="btn btn-xs btn-secondary">临时使用其他配方</button>
+      <button id="btn-temp-recipe" class="btn btn-xs btn-secondary">选择配方</button>
       <button id="btn-clear-temp" class="btn btn-xs btn-warning" style="display:none;">清除临时配方</button>
     </div>
     <div class="recipe-info-body">
@@ -2384,6 +2384,8 @@ async function loadRecipes() {
     }
   } catch (_) {
     foam2DRecipes = [];
+    renderRecipeCard();
+    document.getElementById('recipe-name').textContent = '配方加载失败，请刷新页面重试';
   }
 }
 
@@ -2440,7 +2442,17 @@ function renderRecipeCard() {
   
   if (!recipe) {
     currentTemplateReady = false;
-    card.style.display = 'none';
+    card.style.display = 'block';
+    card.classList.remove('temp');
+    card.querySelector('.recipe-info-title').textContent = '请选择配方';
+    document.getElementById('btn-clear-temp').style.display = 'none';
+    document.getElementById('recipe-pos').textContent = currentPOS();
+    document.getElementById('recipe-name').textContent = foam2DRecipes.length
+      ? '当前 POS 未匹配配方，请点击“选择配方”'
+      : '暂无可用配方，请在配方管理中检查是否已发布';
+    ['recipe-left-roi', 'recipe-right-roi', 'recipe-thresholds'].forEach(id => {
+      document.getElementById(id).textContent = '—';
+    });
     return;
   }
 

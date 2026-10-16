@@ -1,0 +1,30 @@
+{
+  "fixed-threshold": {
+    "left": {
+      "detected_pixels": 495904,
+      "coverage_ratio": 1.0,
+      "offset_x_px": 0.0,
+      "offset_y_px": 0.0
+    },
+    "right": {
+      "detected_pixels": 518579,
+      "coverage_ratio": 1.0,
+      "offset_x_px": 0.0,
+      "offset_y_px": 0.0
+    }
+  },
+  "shadow-graphcut-v1": {
+    "left": {
+      "detected_pixels": 1667862,
+      "coverage_ratio": 0.9997,
+      "offset_x_px": -91.97,
+      "offset_y_px": 103.24
+    },
+    "right": {
+      "detected_pixels": 2021815,
+      "coverage_ratio": 0.9969,
+      "offset_x_px": 485.26,
+      "offset_y_px": 129.64
+    }
+  }
+}

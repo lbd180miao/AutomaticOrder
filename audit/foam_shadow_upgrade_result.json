@@ -1,0 +1,22 @@
+{
+  "backup": "audit\\recipe11_before_shadow_20261016_165538.json",
+  "version": "v20261016085539438105",
+  "sides": {
+    "left": {
+      "before_pixels": 495904,
+      "after_pixels": 1667862,
+      "coverage_ratio": 1.0,
+      "shift_x_px": 77.07,
+      "missing_rejected": true,
+      "shift_rejected": true
+    },
+    "right": {
+      "before_pixels": 518579,
+      "after_pixels": 2021815,
+      "coverage_ratio": 1.0,
+      "shift_x_px": 55.07,
+      "missing_rejected": true,
+      "shift_rejected": true
+    }
+  }
+}
