@@ -39,6 +39,45 @@ class DualPointEditorTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         return response.json()
 
+    def test_cloud_template_roundtrip_is_isolated_from_edge_template(self):
+        from .tests_cloud_match import fixture as cloud_fixture
+        cloud, config, metadata = cloud_fixture()
+        np.save(self.root/'frame.npy', cloud)
+        cv2.imwrite(str(self.root/'frame_image2d.png'), np.zeros((80, 80, 3), np.uint8))
+        (self.root/'frame.units.json').write_text('{"unit":"mm"}')
+        prepared = self.prepare()
+        payload = {'pointcloud_token': 'frame.npy', 'source': 'rvc_camera',
+                   'recipe_id': self.recipe.pk, 'image_token': prepared['image_token'],
+                   'cloud_token': prepared['cloud_token'], 'config': config}
+        missing = self.post('cloud_match', payload)
+        self.assertEqual(missing.status_code, 400)
+        saved = self.post('cloud_match', {**payload, 'action': 'save_template'})
+        self.assertEqual(saved.status_code, 200, saved.content)
+        self.recipe.refresh_from_db()
+        self.assertIn('cloud_match_reference', self.recipe.roi_config)
+        for key, value in self.original.items():
+            self.assertEqual(self.recipe.roi_config[key], value)
+        self.assertNotIn('dual_point_camera_reference', self.recipe.roi_config)
+        result = self.post('cloud_match', payload)
+        self.assertEqual(result.status_code, 200, result.content)
+        self.assertTrue(result.json()['result']['success'])
+        self.assertFalse(result.json()['plc_publish_allowed'])
+        loaded = self.post('prepare', {**payload, 'localization_mode': 'cloud_match'}).json()
+        self.assertEqual(loaded['config'], config)
+        self.assertNotIn('points', loaded['reference'])
+        np.save(self.root/'frame.npy', cloud + [1, 0, 0])
+        self.assertEqual(self.post('cloud_match', payload).status_code, 400)
+
+    def test_cloud_config_save_does_not_attempt_gray_edge_teaching(self):
+        data = self.prepare()
+        with patch('apps.vision.rack_dual_point_views.resolved_edge_config', side_effect=AssertionError('must not find edges')):
+            response = self.post('save', {'image_token': data['image_token'], 'recipe_id': self.recipe.pk,
+                                         'config': self.config, 'localization_mode': 'cloud_match'})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.recipe.refresh_from_db()
+        self.assertEqual(self.recipe.roi_config['cloud_match_config'], self.config)
+        self.assertNotIn('dual_point', self.recipe.roi_config)
+
     def test_prepare_returns_actual_image_and_2d_draft(self):
         data = self.prepare()
         self.assertEqual([data['width'], data['height']], [320, 220])
@@ -46,6 +85,40 @@ class DualPointEditorTests(TestCase):
         response = self.client.get(data['image_url'])
         self.assertEqual(response.status_code, 200)
         response.close()
+
+    def test_auto_rois_returns_valid_draft_without_saving(self):
+        for roi in self.config['rois']:
+            if roi['target'].endswith('horizontal'):
+                roi['x'] = 75
+        data = self.prepare()
+        response = self.post('auto_rois', {'image_token': data['image_token'], 'recipe_id': self.recipe.pk,
+                                         'config': self.config})
+        self.assertEqual(response.status_code, 200, response.content)
+        result = response.json()
+        self.assertEqual(len(result['config']['rois']), 4)
+        self.assertEqual(len(result['result']['pixels']), 2)
+        self.assertFalse(result['three_d_success'])
+        self.assertNotIn('teach_token', result)
+        self.recipe.refresh_from_db()
+        self.assertEqual(self.recipe.roi_config, self.original)
+
+    def test_auto_rois_can_recover_bad_draft_from_saved_recipe(self):
+        for roi in self.config['rois']:
+            if roi['target'].endswith('horizontal'):
+                roi['x'] = 75
+        self.recipe.roi_config['dual_point'] = self.config
+        self.recipe.save(update_fields=['roi_config'])
+        data = self.prepare()
+        response = self.post('auto_rois', {'image_token': data['image_token'], 'recipe_id': self.recipe.pk,
+                                         'config': {'rois': []}})
+        self.assertEqual(response.status_code, 200, response.content)
+
+    def test_auto_rois_rejects_unsigned_image_and_missing_identity(self):
+        self.assertEqual(self.post('auto_rois', {'image_token': 'forged'}).status_code, 400)
+        data = self.prepare()
+        response = self.post('auto_rois', {'image_token': data['image_token'], 'config': {'rois': []}})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['errorCode'], 'AUTO_ROI_FAILED')
 
     def test_depth_preview_uses_same_pointcloud_and_rejects_changed_file(self):
         data = self.prepare()
@@ -102,6 +175,29 @@ class DualPointEditorTests(TestCase):
         self.recipe.refresh_from_db()
         self.assertEqual(self.recipe.roi_config, self.original)
 
+    def test_excessive_extrapolation_returns_points_with_warning(self):
+        data = self.prepare()
+        self.config['lineQuality']['max_extrapolation_px'] = 5
+        response = self.post('test', {'image_token': data['image_token'], 'config': self.config})
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertTrue(result['success'])
+        self.assertEqual(len(result['result']['pixels']), 2)
+        self.assertTrue(result['result']['warnings'])
+        self.assertFalse(result['plc_publish_allowed'])
+        self.assertNotIn('teach_token', result)
+
+    def test_changed_roi_preserves_old_camera_template_and_clears_legacy_marker(self):
+        self.recipe.roi_config['dual_point_camera_reference'] = {'measurement': {'config_digest': 'old', 'points': [1, 2]}, 'invalidated_reason': 'ROI 已改变'}
+        self.recipe.save(update_fields=['roi_config'])
+        data = self.prepare()
+        response = self.post('save', {'image_token': data['image_token'], 'recipe_id': self.recipe.pk, 'config': self.config})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.recipe.refresh_from_db()
+        reference = self.recipe.roi_config['dual_point_camera_reference']
+        self.assertEqual(reference['measurement']['points'], [1, 2])
+        self.assertNotIn('invalidated_reason', reference)
+
     def test_forged_or_changed_image_is_rejected(self):
         data = self.prepare()
         self.assertEqual(self.post('test', {'image_token': 'forged', 'config': self.config}).status_code, 400)
@@ -118,6 +214,9 @@ class DualPointEditorTests(TestCase):
         self.assertContains(response, 'dp-canvas')
         self.assertContains(response, 'dp-depth-canvas')
         self.assertContains(response, 'id="dp-save-standard"')
+        self.assertContains(response, 'id="dp-auto-rois"')
+        html = response.content.decode()
+        self.assertLess(html.index('id="dp-auto-rois"'), html.index('id="dp-save-recipe"'))
         self.assertContains(response, 'rack_dual_point.js')
         self.assertContains(response, 'rl-canvas')
         self.assertContains(response, 'data-mode="dual"')

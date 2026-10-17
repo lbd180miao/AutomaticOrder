@@ -1,0 +1,22 @@
+{
+  "success": false,
+  "compensation_valid": false,
+  "plc_publish_allowed": false,
+  "algorithm_version": "rack_dual_point_v2",
+  "measurement_only": true,
+  "errorCode": "EXCESSIVE_EXTRAPOLATION",
+  "errorMessage": "P1_horizontal：交点超出有效边缘 239.1px，允许 50.0px；请在交点附近框选同一条实体直边，禁止用远处边缘代替",
+  "stage": "2d",
+  "original_line_support_checks": [
+    {
+      "point": "P1",
+      "code": "EXCESSIVE_EXTRAPOLATION",
+      "message": "P1_horizontal：交点超出有效边缘 239.1px，允许 50.0px；请在交点附近框选同一条实体直边，禁止用远处边缘代替"
+    },
+    {
+      "point": "P2",
+      "code": "EXCESSIVE_EXTRAPOLATION",
+      "message": "P2_horizontal：交点超出有效边缘 234.1px，允许 50.0px；请在交点附近框选同一条实体直边，禁止用远处边缘代替"
+    }
+  ]
+}

@@ -38,7 +38,8 @@ def teach_image_edges(image, config):
                      and abs(profile[i]) >= max(1.0, 3*noise)]
             peaks.sort(key=lambda i: abs(profile[i]), reverse=True)
             errors = []
-            for peak in peaks[:8]:
+            candidates = []
+            for peak in peaks:
                 trial = {**roi, 'imageDirection': 'horizontal' if is_horizontal else 'vertical',
                     'edgeMode': 'single', 'edgeSide': 'upper' if is_horizontal else 'left',
                     'edgePolarity': 'dark_to_light' if profile[peak] > 0 else 'light_to_dark',
@@ -55,8 +56,15 @@ def teach_image_edges(image, config):
                 along = (x0+x1-1)/2 if is_horizontal else (y0+y1-1)/2
                 trial['expectedPosition'] = float((-a*along-c)/b if is_horizontal else (-b*along-c)/a)
                 trial['expectedSlope'] = float(-a/b if is_horizontal else -b/a)
-                roi.update(trial)
-                break
+                position = trial['expectedPosition']
+                if not any(abs(position-existing[0]['expectedPosition']) < 2 for existing in candidates):
+                    candidates.append((trial, line.get('track_score', line['confidence'])))
+            candidates.sort(key=lambda item: item[1], reverse=True)
+            peers = [item for item in candidates if candidates[0][1]-item[1] <= .08]
+            require(len(peers) <= 1, 'AMBIGUOUS_EDGE', '2d',
+                    f"{roi['target']}：ROI 内有 {len(peers)} 条连续性和拟合质量相近的边缘，不能按亮度猜测目标；请缩小 ROI 只保留目标边")
+            if candidates:
+                roi.update(candidates[0][0])
             else:
                 raise LocalizationError('INSUFFICIENT_EDGES', '2d',
                     f"{roi['target']}：框内未找到连续且高于噪声的边缘，请框住一条清晰边缘。"
@@ -74,7 +82,7 @@ def camera_pointmap_measurement(image, cloud, config, metadata):
     result = {'success': False, 'compensation_valid': False, 'plc_publish_allowed': False,
               'algorithm_version': VERSION, 'measurement_only': True}
     try:
-        result.update(locate_2d(image, config))
+        result.update(locate_2d(image, config, strict_support=False))
         camera = metadata.get('camera', {})
         require(metadata.get('source') == 'rvc_camera', 'UNVERIFIED_MAPPING', 'input',
                 '旧数据包须来自 RVC 同次采集的原图与相机点云')

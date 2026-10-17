@@ -1,0 +1,165 @@
+{
+  "algorithm": "Projection",
+  "rois": [
+    {
+      "edgePolarity": "dark_to_light",
+      "edgeMode": "single",
+      "edgeSide": "left",
+      "gradientThreshold": 1,
+      "caliperCount": 20,
+      "caliperWidth": 3,
+      "expectedSlope": -0.14078380642688038,
+      "expectedWidth": 20,
+      "widthTolerance": 5,
+      "id": "roi1",
+      "target": "P1_horizontal",
+      "x": 349,
+      "y": 528,
+      "width": 34,
+      "height": 81,
+      "expectedPosition": 365.9889573893561,
+      "searchHalfWidth": 4,
+      "imageDirection": "vertical",
+      "edgeSelection": "taught"
+    },
+    {
+      "edgePolarity": "dark_to_light",
+      "edgeMode": "single",
+      "edgeSide": "upper",
+      "gradientThreshold": 10,
+      "caliperCount": 20,
+      "caliperWidth": 3,
+      "expectedSlope": -0.0063580987666920444,
+      "expectedWidth": 20,
+      "widthTolerance": 5,
+      "id": "roi2",
+      "target": "P1_vertical",
+      "x": 287,
+      "y": 607,
+      "width": 183,
+      "height": 23,
+      "expectedPosition": 617.843935055779,
+      "searchHalfWidth": 7,
+      "imageDirection": "horizontal",
+      "edgeSelection": "taught"
+    },
+    {
+      "edgePolarity": "dark_to_light",
+      "edgeMode": "single",
+      "edgeSide": "upper",
+      "gradientThreshold": 5,
+      "caliperCount": 20,
+      "caliperWidth": 3,
+      "expectedSlope": -0.01079560244620679,
+      "expectedWidth": 20,
+      "widthTolerance": 5,
+      "id": "roi4",
+      "target": "P2_vertical",
+      "x": 971,
+      "y": 604,
+      "width": 178,
+      "height": 25,
+      "expectedPosition": 615.9438426937605,
+      "searchHalfWidth": 7,
+      "imageDirection": "horizontal",
+      "edgeSelection": "taught"
+    },
+    {
+      "edgePolarity": "light_to_dark",
+      "edgeMode": "single",
+      "edgeSide": "left",
+      "gradientThreshold": 1,
+      "caliperCount": 20,
+      "caliperWidth": 3,
+      "expectedSlope": -0.03166707766086269,
+      "expectedWidth": 20,
+      "widthTolerance": 5,
+      "id": "roi3",
+      "target": "P2_horizontal",
+      "x": 1037,
+      "y": 512,
+      "width": 31,
+      "height": 84,
+      "expectedPosition": 1052.0480044412939,
+      "searchHalfWidth": 10,
+      "imageDirection": "vertical",
+      "edgeSelection": "taught"
+    }
+  ],
+  "imageSize": [
+    1440,
+    1080
+  ],
+  "lineQuality": {
+    "min_points": 6,
+    "ransac_px": 2,
+    "iterations": 200,
+    "min_inlier_ratio": 0.6,
+    "min_valid_ratio": 0.4,
+    "max_residual_px": 1.5,
+    "max_tilt_deg": 20
+  },
+  "intersectionBounds": {
+    "P1": [
+      0,
+      0,
+      1439,
+      1079
+    ],
+    "P2": [
+      0,
+      0,
+      1439,
+      1079
+    ]
+  },
+  "minIntersectionSine": 0.2,
+  "compareAlgorithms": false,
+  "maxAlgorithmDifferencePx": null,
+  "geometry": {},
+  "forensics": {
+    "regions": {}
+  },
+  "maxOffsetMm": null,
+  "placementTransfer": {
+    "verified": false,
+    "calibrationVersion": "",
+    "evidence": "",
+    "inputFrame": "robot_base",
+    "outputFrame": "",
+    "layers": {
+      "1": {
+        "k_layer": null,
+        "axisMap": null,
+        "maxPlacementOffsetMm": null
+      },
+      "2": {
+        "k_layer": null,
+        "axisMap": null,
+        "maxPlacementOffsetMm": null
+      }
+    }
+  },
+  "acceptance": {
+    "verified": false,
+    "evidence": "",
+    "minFrames": 30,
+    "exploratoryThreeSigmaMm": [
+      [
+        0.5,
+        0.5,
+        0.5
+      ],
+      [
+        0.5,
+        0.5,
+        0.5
+      ]
+    ],
+    "maxThreeSigmaMm": null,
+    "maxGrrPercentTolerance": null,
+    "toleranceWidthMm": null,
+    "maxFailureRate": null
+  },
+  "validationStatus": "2d_draft_not_production_validated"
+}

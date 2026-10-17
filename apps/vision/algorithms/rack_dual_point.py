@@ -123,18 +123,19 @@ def fit_line(points, quality, total):
             'angle': angle, 'confidence': ratio*float(best.sum()/total), 'error_code': ''}
 
 
-def _peak(gradient, expected, half_width, polarity, threshold):
+def _peaks(gradient, expected, half_width, polarity, threshold):
     response = gradient if polarity == 'dark_to_light' else -gradient
     indices = np.arange(1, len(response)-1)
     candidates = indices[(response[1:-1] >= response[:-2]) &
                          (response[1:-1] > response[2:]) &
                          (response[1:-1] >= threshold)]
     candidates = candidates[np.abs(candidates-expected) <= half_width]
-    if not len(candidates):
-        return None
-    # Stable edge identity: select near the taught search position, not global max.
-    index = int(candidates[np.argmin(np.abs(candidates-expected))])
-    return subpixel_peak(response, index)
+    return [subpixel_peak(response, int(index)) for index in candidates]
+
+
+def _peak(gradient, expected, half_width, polarity, threshold):
+    peaks = _peaks(gradient, expected, half_width, polarity, threshold)
+    return min(peaks, key=lambda p: abs(p-expected)) if peaks else None
 
 
 def sample_profile(patch, along, width, slope, prior):
@@ -149,7 +150,7 @@ def sample_profile(patch, along, width, slope, prior):
     return samples.mean(axis=1), valid
 
 
-def measure_profile(profile, valid, prior, roi):
+def measure_profile(profile, valid, prior, roi, *, all_candidates=False):
     """Shared gradient, polarity, subpixel and two-edge identity kernel."""
     gradient = np.gradient(profile)
     support = valid.copy()
@@ -160,7 +161,8 @@ def measure_profile(profile, valid, prior, roi):
     half = number(roi['searchHalfWidth'], 'searchHalfWidth')
     threshold = number(roi['gradientThreshold'], 'gradientThreshold')
     if roi['edgeMode'] == 'single':
-        return _peak(gradient, prior, half, roi['edgePolarity'], threshold)
+        peaks = _peaks(gradient, prior, half, roi['edgePolarity'], threshold)
+        return peaks if all_candidates else (min(peaks, key=lambda p: abs(p-prior)) if peaks else None)
     width = number(roi['expectedWidth'], 'expectedWidth')
     first = _peak(gradient, prior-width/2, half, roi['edgePolarity'], threshold)
     other = 'light_to_dark' if roi['edgePolarity'] == 'dark_to_light' else 'dark_to_light'
@@ -170,48 +172,100 @@ def measure_profile(profile, valid, prior, roi):
     return (first+second)/2
 
 
+def fit_candidate_track(groups, roi, quality, total, horizontal):
+    """One vote per caliper. Rank coherent tracks, never individual peaks."""
+    populated = [(i, np.asarray(g, float)) for i, g in enumerate(groups) if g]
+    require(len(populated) >= int(quality['min_points']), 'INSUFFICIENT_EDGES', '2d', '有效边缘点不足')
+    along_axis, normal_axis = (0, 1) if horizontal else (1, 0)
+    slope = float(roi.get('expectedSlope', 0))
+    tolerance = number(quality['ransac_px'], 'ransac_px')
+    seeds = []
+    for _, group in populated:
+        for p in group:
+            seeds.append((slope, p[normal_axis]-slope*p[along_axis]))
+    rng = np.random.default_rng(42)
+    for _ in range(int(quality['iterations'])):
+        i, j = rng.choice(len(populated), 2, replace=False)
+        g, h = populated[i][1], populated[j][1]
+        p, q = g[rng.integers(len(g))], h[rng.integers(len(h))]
+        delta = q[along_axis]-p[along_axis]
+        if abs(delta) < 1:
+            continue
+        m = (q[normal_axis]-p[normal_axis])/delta
+        if abs(np.degrees(np.arctan(m))) <= quality['max_tilt_deg']:
+            seeds.append((m, p[normal_axis]-m*p[along_axis]))
+    models = []
+    seen = set()
+    center_along = float(np.mean([g[:, along_axis].mean() for _, g in populated]))
+    for m, intercept in seeds:
+        selected, indices = [], []
+        for i, group in populated:
+            errors = np.abs(group[:, normal_axis]-m*group[:, along_axis]-intercept)/np.hypot(1, m)
+            k = int(np.argmin(errors))
+            if errors[k] <= tolerance:
+                selected.append(group[k]); indices.append(i)
+        key = tuple(tuple(p) for p in selected)
+        if len(selected) < quality['min_points'] or key in seen:
+            continue
+        seen.add(key)
+        # Require distributed, consecutive evidence; isolated strong speckles cannot win.
+        longest = run = 1
+        for left, right in zip(indices, indices[1:]):
+            run = run+1 if right-left <= 2 else 1
+            longest = max(longest, run)
+        if longest < max(3, int(np.ceil(total*quality['min_valid_ratio']))):
+            continue
+        try:
+            line = fit_line(selected, quality, total)
+        except LocalizationError:
+            continue
+        a, b, c = line['line_abc']
+        denom = b if horizontal else a
+        if abs(denom) < 1e-9:
+            continue
+        fitted_slope = -a/b if horizontal else -b/a
+        if abs(np.degrees(np.arctan(fitted_slope))) > quality['max_tilt_deg']:
+            continue
+        position = (-a*center_along-c)/b if horizontal else (-b*center_along-c)/a
+        if any(abs(position-other['position']) < tolerance and abs(fitted_slope-other['slope']) < .02 for other in models):
+            continue
+        roi_center = (float(roi['x'])+float(roi.get('width', roi.get('w')))/2 if horizontal
+                      else float(roi['y'])+float(roi.get('height', roi.get('h')))/2)
+        prior_distance = abs(position-(float(roi['expectedPosition'])+slope*(center_along-roi_center)))
+        coverage = (indices[-1]-indices[0]+1)/total
+        score = line['inlier_count']/total + .2*coverage + .2*longest/total - .1*line['residual']/tolerance
+        models.append(dict(line=line, position=position, slope=fitted_slope, score=score,
+                           prior_distance=prior_distance, longest=longest))
+    require(bool(models), 'LINE_QUALITY', '2d', '候选边缘缺少连续且一致的直线支撑')
+    models.sort(key=lambda item: (-item['score'], item['prior_distance']))
+    best = models[0]
+    # Only similarly supported, distinct tracks are ambiguous. A taught prior can
+    # disambiguate equal evidence when one track is clearly closer to that prior.
+    peers = [m for m in models if best['score']-m['score'] <= .08]
+    peers.sort(key=lambda item: item['prior_distance'])
+    best = peers[0]
+    require(not any(abs(m['position']-best['position']) > 2*tolerance and
+                    abs(m['prior_distance']-best['prior_distance']) <= tolerance+1e-6 for m in peers[1:]),
+            'AMBIGUOUS_EDGE', '2d', '存在两条连续且拟合质量相近的候选直线，示教位置也无法区分；请缩小 ROI')
+    return {**best['line'], 'candidate_tracks': len(models), 'continuous_calipers': best['longest'], 'track_score': best['score']}
+
+
 def detect_line(image, roi, algorithm, quality):
-    """Track taught single edges inside their ROI without changing the recipe."""
+    """Never replace a missing taught edge with an unrelated edge elsewhere."""
     try:
         return _detect_line_local(image, roi, algorithm, quality)
-    except LocalizationError as original:
-        if (roi.get('edgeSelection') != 'taught' or roi.get('edgeMode') != 'single'
-                or original.code not in ('INSUFFICIENT_EDGES', 'LINE_FIT_FAILED', 'LINE_QUALITY')):
-            raise
-        x0, y0, x1, y1 = image_roi(roi, image.shape)
-        horizontal = roi.get('imageDirection',
-            'horizontal' if roi['target'].endswith('horizontal') else 'vertical') == 'horizontal'
-        gray = image if image.ndim == 2 else cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        patch = gray[y0:y1, x0:x1].astype(np.float32)
-        if not horizontal:
-            patch = patch.T
-        profile = np.median(np.gradient(cv2.GaussianBlur(patch, (3, 3), 0), axis=0), axis=1)
-        response = profile if roi['edgePolarity'] == 'dark_to_light' else -profile
-        peaks = [i for i in range(3, len(response)-3)
-                 if response[i] >= response[i-1] and response[i] > response[i+1]
-                 and response[i] >= roi['gradientThreshold']]
-        candidates = []
-        origin = y0 if horizontal else x0
-        along = (x0+x1-1)/2 if horizontal else (y0+y1-1)/2
-        for peak in peaks:
-            trial = {**roi, 'expectedPosition': float(origin+peak)}
-            try:
-                line = _detect_line_local(image, trial, algorithm, quality)
-            except LocalizationError:
-                continue
-            a, b, c = line['line_abc']
-            position = float((-a*along-c)/b if horizontal else (-b*along-c)/a)
-            if any(abs(position-p) < 2 for p, _ in candidates):
-                continue
-            candidates.append((position, line))
-        if not candidates:
-            raise LocalizationError(original.code, original.stage,
-                f'{original}；已搜索整个 ROI，未找到满足原极性、阈值和直线质量的边缘') from original
-        require(len(candidates) == 1, 'AMBIGUOUS_EDGE', '2d',
-                f"{roi['target']}：ROI 内有 {len(candidates)} 条合格同极性边缘，无法唯一匹配示教边缘，请缩小 ROI")
-        position, line = candidates[0]
-        return {**line, 'reacquired': True,
-                'edge_shift_px': position-float(roi['expectedPosition'])}
+    except LocalizationError as exc:
+        direction = roi.get('imageDirection', 'horizontal' if roi.get('target', '').endswith('horizontal') else 'vertical')
+        details = (
+            f"\nROI {roi.get('target')}（原图像素）：x={roi.get('x')}，y={roi.get('y')}，"
+            f"width={roi.get('width', roi.get('w'))}，height={roi.get('height', roi.get('h'))}；"
+            f"原图宽×高={image.shape[1]}×{image.shape[0]}。"
+            f"\n实际算法={roi.get('algorithm', algorithm)}，图像方向={direction}，"
+            f"搜索轴={'Y' if direction == 'horizontal' else 'X'}。"
+            '\n完整 ROI 参数：' + json.dumps(roi, ensure_ascii=False, sort_keys=True)
+            + '\n直线质量阈值：' + json.dumps(quality, ensure_ascii=False, sort_keys=True)
+        )
+        raise LocalizationError(exc.code, exc.stage, str(exc) + details) from exc
 
 
 def _detect_line_local(image, roi, algorithm, quality):
@@ -239,6 +293,7 @@ def _detect_line_local(image, roi, algorithm, quality):
     origin = y0 if horizontal else x0
     expected = number(roi['expectedPosition'], 'expectedPosition', minimum=-1e9)-origin
     points = []
+    groups = []
     for index in range(count):
         lo, hi = int(index*patch.shape[1]/count), int((index+1)*patch.shape[1]/count)
         along = (lo+hi-1)/2
@@ -249,15 +304,22 @@ def _detect_line_local(image, roi, algorithm, quality):
         width = hi-lo if algorithm == 'Projection' else int(number(roi['caliperWidth'], 'caliperWidth'))
         require(width <= patch.shape[1], 'INVALID_CONFIG', '2d', '卡尺宽度超过 ROI')
         profile, valid = sample_profile(patch, along, width, slope, prior)
-        edge = measure_profile(profile, valid, prior, roi)
-        if edge is not None:
+        try:
+            measured = measure_profile(profile, valid, prior, roi, all_candidates=mode == 'single')
+            edges = measured if mode == 'single' else ([] if measured is None else [measured])
+        except LocalizationError as exc:
+            raise LocalizationError(exc.code, exc.stage, f"{roi['target']}：{exc}") from exc
+        group = []
+        for edge in edges:
             measured_along = along-slope*(edge-prior)
-            points.append([x0+measured_along, y0+edge] if horizontal else [x0+edge, y0+measured_along])
+            group.append([x0+measured_along, y0+edge] if horizontal else [x0+edge, y0+measured_along])
+        groups.append(group)
+        points.extend(group)
     try:
-        result = fit_line(points, quality, count)
+        result = fit_candidate_track(groups, roi, quality, count, horizontal) if mode == 'single' else fit_line(points, quality, count)
     except LocalizationError as exc:
         raise LocalizationError(exc.code, exc.stage,
-            f"{roi['target']}：{exc}（有效点 {len(points)}/{count}，至少 {quality['min_points']}；"
+            f"{roi['target']}：{exc}（有候选边缘的卡尺 {sum(bool(g) for g in groups)}/{count}，候选点 {len(points)}，最少拟合点 {quality['min_points']}；"
             f"图像方向 {direction}，极性 {roi['edgePolarity']}，梯度阈值 {roi['gradientThreshold']:.2f}）") from exc
     direction_error = min(result['angle'], 180-result['angle']) if horizontal else abs(result['angle']-90)
     require(direction_error <= number(quality['max_tilt_deg'], 'max_tilt_deg'),
@@ -277,7 +339,30 @@ def intersection(first, second, bounds, min_sine):
     return point.tolist()
 
 
-def locate_2d(image, config):
+def validate_intersection_support(point, lines, quality, *, strict=True):
+    """Bound extrapolation against measured inliers, not the drawn ROI box."""
+    warnings = []
+    max_px = number(quality.get('max_extrapolation_px', 50), 'max_extrapolation_px')
+    max_ratio = number(quality.get('max_extrapolation_ratio', .5), 'max_extrapolation_ratio')
+    for line in lines:
+        a, b, _ = line['line_abc']
+        tangent = np.array([b, -a], float)
+        tangent /= np.linalg.norm(tangent)
+        support = np.asarray(line['inlier_points']) @ tangent
+        position = np.asarray(point) @ tangent
+        span = float(np.ptp(support))
+        gap = float(max(support.min()-position, position-support.max(), 0))
+        limit = min(max_px, span*max_ratio)
+        if gap > limit:
+            message = (f"{line['target']}：交点超出有效边缘 {gap:.1f}px，建议上限 {limit:.1f}px；"
+                       '已使用拟合直线外推交点，请核对是否为同一条实体直边')
+            if strict:
+                require(False, 'EXCESSIVE_EXTRAPOLATION', '2d', message)
+            warnings.append(message)
+    return warnings
+
+
+def locate_2d(image, config, *, strict_support=True):
     require(config.get('imageSize') == [image.shape[1], image.shape[0]],
             'IMAGE_SIZE_MISMATCH', 'input', 'ROI 配置分辨率与原图不同，请重新示教')
     rois = config['rois']
@@ -285,16 +370,19 @@ def locate_2d(image, config):
             'FOUR_ROIS_REQUIRED', 'configuration', '需要 P1/P2 各一横一竖四个 ROI')
     by_target = {r['target']: r for r in rois}
     lines = [detect_line(image, by_target[name], config['algorithm'], config['lineQuality']) for name in TARGETS]
-    pixels = []
+    pixels, warnings = [], []
     for i, name in enumerate(('P1', 'P2')):
         bounds = config['intersectionBounds'][name]
         require(len(bounds) == 4 and np.isfinite(bounds).all() and
                 0 <= bounds[0] < bounds[2] < image.shape[1] and
                 0 <= bounds[1] < bounds[3] < image.shape[0],
                 'INVALID_CONFIG', 'configuration', '交点范围必须在原图内')
-        pixels.append(intersection(lines[2*i]['line_abc'], lines[2*i+1]['line_abc'],
-                                   bounds, config['minIntersectionSine']))
-    return {'lines': lines, 'pixels': pixels}
+        point = intersection(lines[2*i]['line_abc'], lines[2*i+1]['line_abc'],
+                             bounds, config['minIntersectionSine'])
+        warnings.extend(validate_intersection_support(
+            point, lines[2*i:2*i+2], config['lineQuality'], strict=strict_support))
+        pixels.append(point)
+    return {'lines': lines, 'pixels': pixels, 'warnings': warnings}
 
 
 def compare_2d_debug(image, config, primary):
@@ -459,7 +547,7 @@ def locate(image, cloud, config, metadata, hand_eye=None, robot_pose=None, pixel
     result = {'success': False, 'compensation_valid': False, 'algorithm_version': VERSION}
     try:
         require(image is not None and image.ndim in (2, 3), 'IMAGE_MISSING', 'input', '缺少原始 2D 图像')
-        result.update(locate_2d(image, config))
+        result.update(locate_2d(image, config, strict_support=not camera_only))
         if config.get('compareAlgorithms'):
             result['comparison'] = compare_2d_debug(image, config, result)
         contract, base_camera, signature = frame_contract(metadata, hand_eye, robot_pose, camera_only=camera_only)

@@ -38,7 +38,7 @@ def fixture(algorithm='Projection', z=1000):
                 'iterations': 60, 'min_inlier_ratio': .8, 'max_residual_mm': .5,
                 'max_eigenvalue_ratio': .05, 'min_ray_cosine': .1, 'max_extrapolation_mm': 600}
     config = {'algorithm': algorithm, 'rois': rois, 'imageSize': [320, 220],
-              'lineQuality': {'min_points': 8, 'ransac_px': 1.5, 'iterations': 100,
+              'lineQuality': {'max_extrapolation_px': 60, 'max_extrapolation_ratio': 1, 'min_points': 8, 'ransac_px': 1.5, 'iterations': 100,
                               'min_inlier_ratio': .7, 'min_valid_ratio': .5,
                               'max_residual_px': .7, 'max_tilt_deg': 10},
               'intersectionBounds': {'P1': [35, 40, 80, 90], 'P2': [35, 130, 80, 180]},

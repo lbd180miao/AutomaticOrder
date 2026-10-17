@@ -127,9 +127,16 @@ def prepare(request):
         cloud_token = signing.dumps({'path': str(cloud_path), 'mtime': cloud_stat.st_mtime_ns,
                                     'size': cloud_stat.st_size}, salt=SALT+'-depth')
         recipe = RackLocationRecipe.objects.get(pk=data['recipe_id']) if data.get('recipe_id') else None
-        config = (recipe.roi_config or {}).get('dual_point') if recipe else None
+        cloud_mode = data.get('localization_mode') == 'cloud_match'
+        config_key = 'cloud_match_config' if cloud_mode else 'dual_point'
+        config = (recipe.roi_config or {}).get(config_key) if recipe else None
+        if cloud_mode and not config and recipe:
+            config = (recipe.roi_config or {}).get('dual_point')
+        reference = (recipe.roi_config or {}).get('cloud_match_reference' if cloud_mode else 'dual_point_camera_reference') if recipe else None
+        if cloud_mode and reference:
+            reference = {'measurement': reference['measurement']}
         edge_hint = ''
-        if config:
+        if config and not cloud_mode:
             try:
                 config = resolved_edge_config(image, config)
             except ValueError as exc:
@@ -141,7 +148,7 @@ def prepare(request):
                              'cloud_token': cloud_token,
                              'pointcloud_name': cloud_path.parent.name+'/'+cloud_path.name,
                              'config': config or draft_config(w, h), 'recipe_id': recipe.pk if recipe else None,
-                             'reference': (recipe.roi_config or {}).get('dual_point_camera_reference') if recipe else None,
+                             'reference': reference,
                              'three_d_status': edge_hint or '原图与 ROI 已准备；点击「开始计算」获取 P1、P2 的 XYZ'})
     except (OSError, ValueError, TypeError, KeyError, RackLocationRecipe.DoesNotExist) as exc:
         return error_response(exc)
@@ -189,6 +196,22 @@ def validate_config(config, shape):
 
 
 @require_POST
+def auto_rois(request):
+    try:
+        from .rack_auto_roi import auto_roi_config
+        data = json.loads(request.body or '{}')
+        image = _read_image(_signed_image(data['image_token']))
+        recipe = RackLocationRecipe.objects.get(pk=data['recipe_id']) if data.get('recipe_id') else None
+        saved = (recipe.roi_config or {}).get('dual_point') if recipe else None
+        config, result = auto_roi_config(image, data.get('config'), saved)
+        return JsonResponse({'success': True, 'config': config, 'result': result,
+                             'three_d_success': False, 'plc_publish_allowed': False})
+    except (OSError, ValueError, KeyError, TypeError, OverflowError, cv2.error,
+            signing.BadSignature, RackLocationRecipe.DoesNotExist) as exc:
+        return error_response(exc)
+
+
+@require_POST
 def test_2d(request):
     try:
         data = json.loads(request.body or '{}')
@@ -196,7 +219,7 @@ def test_2d(request):
         config = data['config']
         validate_config(config, image.shape)
         config = resolved_edge_config(image, config)
-        result = locate_2d(image, config)
+        result = locate_2d(image, config, strict_support=False)
         if config.get('compareAlgorithms'):
             result['comparison'] = compare_2d_debug(image, config, result)
         return JsonResponse({'success': True, 'two_d_success': True, 'three_d_success': False,
@@ -213,14 +236,21 @@ def save_config(request):
         image = _read_image(_signed_image(data['image_token']))
         config = data['config']
         validate_config(config, image.shape)
-        config = resolved_edge_config(image, config)
+        cloud_mode = data.get('localization_mode') == 'cloud_match'
+        if not cloud_mode:
+            config = resolved_edge_config(image, config)
         with transaction.atomic():
             recipe = RackLocationRecipe.objects.select_for_update().get(pk=data['recipe_id'])
             # Patch one namespace only. Existing three-plane/recipe data is preserved.
-            recipe.roi_config = {**(recipe.roi_config or {}), 'dual_point': config}
+            recipe.roi_config = {**(recipe.roi_config or {}),
+                                 ('cloud_match_config' if cloud_mode else 'dual_point'): config}
+            reference = recipe.roi_config.get('dual_point_camera_reference')
+            if reference and not cloud_mode:
+                # ROI changes affect the next measurement, not saved standard XYZ.
+                reference.pop('invalidated_reason', None)
             recipe.save(update_fields=['roi_config'])
         return JsonResponse({'success': True, 'recipe_id': recipe.pk, 'config': config,
-                             'message': '四 ROI 配置已保存；配置变化后必须重新验证 XYZ 示教'})
+                             'message': '四 ROI 配置已保存；可继续使用已有标准模板计算偏差'})
     except (OSError, ValueError, KeyError, TypeError, signing.BadSignature, RackLocationRecipe.DoesNotExist) as exc:
         return error_response(exc)
 
@@ -450,4 +480,56 @@ def recompute_robot_deviation(request):
         from .models import RackLocationResult
         if isinstance(exc, RackLocationResult.DoesNotExist):
             return error_response(ValueError('记录不存在'))
+        return error_response(exc)
+
+
+@require_POST
+def cloud_match(request):
+    """Explicit experimental registration/template actions, isolated from edge templates."""
+    try:
+        from .rack_cloud_match import build_template, match_template, add_display_pixels
+        from .rack_robot_points import evaluate_robot_points, workspace_context
+        data = json.loads(request.body or '{}')
+        action = data.get('action', 'evaluate')
+        if action not in ('evaluate', 'save_template'):
+            raise ValueError('未知点云匹配操作')
+        image_path = _signed_image(data['image_token'])
+        if image_path.resolve() != _original_image(data).resolve():
+            raise ValueError('原图与点云来源不一致，请重新载入')
+        record = signing.loads(data['cloud_token'], salt=SALT+'-depth', max_age=3600)
+        cloud_path = _cloud_path(data)
+        stat = cloud_path.stat()
+        if (cloud_path.resolve() != Path(record['path']).resolve() or
+                stat.st_mtime_ns != record['mtime'] or stat.st_size != record['size']):
+            raise ValueError('点云采集帧已变化，请重新载入')
+        package = _frame_package(data)
+        image = _read_image(image_path)
+        if package['cloud'].shape[:2] != image.shape[:2]:
+            raise ValueError('原图与点云尺寸不一致')
+        recipe = RackLocationRecipe.objects.get(pk=data['recipe_id'])
+        if action == 'save_template':
+            config = data['config']
+            validate_config(config, image.shape)
+            reference = build_template(package['cloud'], config, package['metadata'])
+            try:
+                reference['measurement']['robot_transform_context'] = workspace_context()
+            except ValueError:
+                pass
+            with transaction.atomic():
+                recipe = RackLocationRecipe.objects.select_for_update().get(pk=recipe.pk)
+                recipe.roi_config = {**(recipe.roi_config or {}), 'cloud_match_reference': reference,
+                                     'cloud_match_config': config}
+                recipe.save(update_fields=['roi_config'])
+            result = reference['measurement']
+        else:
+            reference = (recipe.roi_config or {}).get('cloud_match_reference')
+            result = match_template(package['cloud'], package['metadata'], reference)
+        result = add_display_pixels(result, package['cloud'], package['metadata'])
+        robot = evaluate_robot_points(result, reference) if result['success'] else None
+        # Experimental results stay separate from legacy edge-result history.
+        return JsonResponse({'success': True, 'result': result,
+            'reference': {'measurement': reference['measurement']}, 'robot_result': robot,
+            'config': reference['config'], 'plc_publish_allowed': False})
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, ImportError,
+            signing.BadSignature, RackLocationRecipe.DoesNotExist) as exc:
         return error_response(exc)

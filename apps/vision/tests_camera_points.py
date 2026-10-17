@@ -10,7 +10,19 @@ from .tests_dual_point import fixture
 
 
 class CameraPointTests(unittest.TestCase):
-    def test_reacquire_translated_edge_preserves_recipe_and_quality(self):
+    def test_failed_edge_includes_actual_roi_and_quality_settings(self):
+        image, _, config, *_ = fixture()
+        roi = config['rois'][0]
+        with self.assertRaises(LocalizationError) as caught:
+            detect_line(np.zeros_like(image), roi, 'Projection', config['lineQuality'])
+        message = str(caught.exception)
+        for value in (f"x={roi['x']}", f"y={roi['y']}",
+                      f"width={roi['width']}", f"height={roi['height']}",
+                      '完整 ROI 参数', 'searchHalfWidth', 'expectedPosition',
+                      '直线质量阈值', 'ransac_px', '原图宽×高=320×220'):
+            self.assertIn(value, message)
+
+    def test_missing_taught_edge_never_switches_to_another_edge(self):
         _, _, config, *_ = fixture()
         roi = dict(config['rois'][0], x=0, y=0, width=160, height=100,
                    imageDirection='horizontal', expectedPosition=20, expectedSlope=0,
@@ -19,9 +31,8 @@ class CameraPointTests(unittest.TestCase):
         image = np.zeros((100, 160), np.uint8)
         image[50:] = 200
         for algorithm in ('Projection', 'CaliperFit'):
-            line = detect_line(image, roi, algorithm, config['lineQuality'])
-            self.assertTrue(line['reacquired'])
-            self.assertAlmostEqual(line['edge_shift_px'], 29.5, delta=1)
+            with self.assertRaises(LocalizationError):
+                detect_line(image, roi, algorithm, config['lineQuality'])
         self.assertEqual(roi, before)
         for invalid in (np.zeros_like(image), 200-image):
             with self.assertRaises(LocalizationError):
@@ -29,7 +40,49 @@ class CameraPointTests(unittest.TestCase):
         image[65:80] = 0  # Two distinct rising edges: do not guess identity.
         with self.assertRaises(LocalizationError) as caught:
             detect_line(image, roi, 'Projection', config['lineQuality'])
+        self.assertEqual(caught.exception.code, 'INSUFFICIENT_EDGES')
+
+    def test_auto_teaching_rejects_two_opposite_edges(self):
+        image, _, config, *_ = fixture()
+        with self.assertRaises(LocalizationError) as caught:
+            teach_image_edges(image, config)
         self.assertEqual(caught.exception.code, 'AMBIGUOUS_EDGE')
+
+    def test_search_band_rejects_multiple_same_polarity_edges(self):
+        _, _, config, *_ = fixture()
+        roi = dict(config['rois'][0], x=0, y=0, width=160, height=100,
+                   imageDirection='horizontal', expectedPosition=49, expectedSlope=0,
+                   edgeSelection='taught', searchHalfWidth=10)
+        image = np.zeros((100, 160), np.uint8)
+        image[44:49] = 200
+        image[55:] = 200
+        with self.assertRaises(LocalizationError) as caught:
+            detect_line(image, roi, 'Projection', config['lineQuality'])
+        self.assertEqual(caught.exception.code, 'AMBIGUOUS_EDGE')
+
+    def test_spurious_peaks_do_not_reject_continuous_edge(self):
+        _, _, config, *_ = fixture()
+        roi = dict(config['rois'][0], x=0, y=0, width=160, height=100,
+                   imageDirection='horizontal', expectedPosition=50, expectedSlope=0,
+                   edgeSelection='taught', searchHalfWidth=10)
+        image = np.zeros((100, 160), np.uint8)
+        image[50:] = 200
+        image[43:47, 40:60] = 220  # Only a few calipers contain a second peak.
+        for algorithm in ('Projection', 'CaliperFit'):
+            line = detect_line(image, roi, algorithm, config['lineQuality'])
+            a, b, c = line['line_abc']
+            self.assertAlmostEqual((-a*80-c)/b, 49.5, delta=.5)
+            self.assertGreaterEqual(line['inlier_count'], 14)
+
+    def test_extrapolation_uses_inliers_not_roi_extent(self):
+        from .algorithms.rack_dual_point import validate_intersection_support
+        line = {'target': 'P1_vertical', 'line_abc': [1, 0, -10],
+                'inlier_points': [[10, 0], [10, 20]], 'roi': [0, 0, 100, 500]}
+        validate_intersection_support([10, 25], [line], {})
+        for point, quality in (([10, 35], {}), ([10, 80], {'max_extrapolation_ratio': 10})):
+            with self.assertRaises(LocalizationError) as caught:
+                validate_intersection_support(point, [line], quality)
+            self.assertEqual(caught.exception.code, 'EXCESSIVE_EXTRAPOLATION')
 
     def test_explicit_image_direction_is_independent_of_part_name(self):
         image, _, config, *_ = fixture()
@@ -43,6 +96,11 @@ class CameraPointTests(unittest.TestCase):
         image = (255-image)//8  # weak, reversed polarity, original threshold cannot pass
         config['rois'][0]['edgeSelection'] = 'auto'
         quality = copy.deepcopy(config['lineQuality'])
+        for roi in config['rois']:
+            if roi['target'].endswith('horizontal'):
+                roi['height'] = 20
+            else:
+                roi['width'] = 25
         taught = teach_image_edges(image, config)
         self.assertEqual(taught['lineQuality'], quality)
         self.assertEqual(taught['rois'][0]['edgePolarity'], 'light_to_dark')
@@ -62,6 +120,10 @@ class CameraPointTests(unittest.TestCase):
         config['imageSize'] = [rotated.shape[1], rotated.shape[0]]
         config['intersectionBounds'] = {p: [0, 0, rotated.shape[1]-1, rotated.shape[0]-1] for p in ('P1', 'P2')}
         for roi in config['rois']:
+            if roi['target'].endswith('horizontal'):
+                roi['height'] = 20
+            else:
+                roi['width'] = 25
             x, y, w, h = [roi[k] for k in ('x', 'y', 'width', 'height')]
             roi.update(x=height-y-h, y=x, width=h, height=w)
         taught = teach_image_edges(rotated, config)

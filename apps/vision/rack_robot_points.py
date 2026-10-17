@@ -24,6 +24,8 @@ def workspace_context():
 
 def robot_point_difference(current, reference, context):
     from .views_hand_eye import _validate_homogeneous_matrix
+    # Saved coordinates remain usable for comparison after ROI/edge edits,
+    # including legacy templates carrying an invalidated_reason marker.
     def transform(ctx):
         matrices = []
         for key in ('T_base_flange', 'T_flange_camera'):

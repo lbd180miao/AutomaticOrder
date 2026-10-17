@@ -432,7 +432,10 @@
   <!-- 操作栏 -->
   <div class="rl-action-bar">
     <button id="btn-capture" class="btn" style="background:var(--info);">采集点云</button>
-    <label class="dp-dual-only" for="dp-algorithm">算法
+    <label class="dp-dual-only" for="dp-localization-mode">定位算法
+      <select id="dp-localization-mode"><option value="edges">四 ROI 找边</option><option value="cloud_match">点云模板匹配（实验）</option></select>
+    </label>
+    <label class="dp-dual-only" for="dp-algorithm">找边方式
       <select id="dp-algorithm"><option>Projection</option><option>CaliperFit</option></select>
     </label>
     <button type="button" id="dp-evaluate" class="btn btn-success dp-dual-only">开始计算</button>
@@ -828,5 +831,6 @@
 </script>
 <script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=59" onload="typeof window._rlInitFirstRecipe === 'function' && window._rlInitFirstRecipe()"></script>
 <script src="{% static 'vision/js/offline_package_manager.js' %}?v=21"></script>
-<script src="{% static 'vision/js/rack_dual_point.js' %}?v=14"></script>
+<script src="{% static 'vision/js/rack_dual_point.js' %}?v=24"></script>
 {% endblock %}
+

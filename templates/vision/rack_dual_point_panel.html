@@ -1,14 +1,22 @@
 <section id="dp-panel" class="dp-dual-only" style="margin:0 0 14px;"
+         data-cloud-match-url="{% url 'vision:rack_dual_point_cloud_match' %}"
          data-prepare-url="{% url 'vision:rack_dual_point_prepare' %}"
          data-test-url="{% url 'vision:rack_dual_point_test' %}"
+         data-auto-rois-url="{% url 'vision:rack_dual_point_auto_rois' %}"
          data-save-url="{% url 'vision:rack_dual_point_save' %}"
          data-forensics-url="{% url 'vision:rack_dual_point_forensics' %}"
          data-evaluate-url="{% url 'vision:rack_dual_point_evaluate' %}"
          data-teach-url="{% url 'vision:rack_dual_point_teach' %}">
 
+  <p id="dp-mode-help" style="font-size:13px;white-space:pre-wrap;"></p>
+  <details id="dp-match-details" hidden style="margin:8px 0;">
+    <summary style="cursor:pointer;">匹配详情</summary>
+    <pre id="dp-match-quality" style="white-space:pre-wrap;overflow-wrap:anywhere;"></pre>
+  </details>
   <!-- ROI 目标标签 -->
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
     <div id="dp-targets" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+    <button type="button" id="dp-auto-rois" class="btn btn-primary" title="根据当前原图和配方目标边缘自动生成四个 ROI，检查通过后作为草稿显示" disabled>自动画 ROI</button>
     <button type="button" id="dp-save-recipe" class="btn btn-success" disabled>保存配方</button>
     <span id="dp-draft-status" style="font-size:13px;color:var(--text-muted);" role="status"></span>
   </div>
