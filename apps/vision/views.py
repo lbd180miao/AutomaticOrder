@@ -1622,6 +1622,8 @@ def api_foam_capture_inspect(request):
 @require_POST
 def api_foam_upload_inspect(request):
     """上传图片并进行泡棉检测"""
+    request_started = time.perf_counter()
+    timings = {}
     try:
         uploaded_file = request.FILES.get('image')
         if not uploaded_file:
@@ -1634,7 +1636,9 @@ def api_foam_upload_inspect(request):
         recipe_id = request.POST.get('recipe_id') or None
         use_recipe = _as_bool(request.POST.get('use_recipe'), True)
         
+        phase_started = time.perf_counter()
         image = _decode_uploaded_image(uploaded_file)
+        timings['image_decode'] = round((time.perf_counter() - phase_started) * 1000, 1)
         
         # 使用真实图片进行检测
         from .algorithms.foam_inspector import FoamInspector
@@ -1660,6 +1664,7 @@ def api_foam_upload_inspect(request):
         }
         inspection_config.update(recipe_config)
         # 使用真实图像检测，simulated_pass参数不影响结果
+        phase_started = time.perf_counter()
         result = inspector.inspect(
             position_index=position_index,
             inspection_config=inspection_config,
@@ -1669,11 +1674,13 @@ def api_foam_upload_inspect(request):
         )
         if recipe:
             result.setdefault('result_data', {})['recipe'] = serialize_recipe(recipe)
+        timings['algorithm_and_archive'] = round((time.perf_counter() - phase_started) * 1000, 1)
+        result.setdefault('result_data', {})['timings_ms'] = timings
         
         # 创建视觉任务记录
         task = VisionTask.objects.create(
             task_type='FOAM_INSPECTION',
-            status='SUCCESS',
+            status='SUCCESS' if result['is_passed'] else 'FAILED',
         )
         task.started_at = task.created_at
         task.finished_at = task.created_at
@@ -1686,7 +1693,7 @@ def api_foam_upload_inspect(request):
             is_present=result['is_present'],
             is_aligned=result['is_aligned'],
             has_lifted_edge=result.get('has_lifted_edge', False),
-            score=0.0,
+            score=result.get('score', 0.0),
             is_passed=result['is_passed'],
             offset_x_px=result['offset_x_px'],
             offset_y_px=result['offset_y_px'],
@@ -1697,6 +1704,8 @@ def api_foam_upload_inspect(request):
             result_data=result.get('result_data', {}),
         )
         
+        timings['total'] = round((time.perf_counter() - request_started) * 1000, 1)
+        foam_result.save(update_fields=['result_data'])
         foam_archive.archive(foam_result, result)
 
         return JsonResponse({'success': True, 'result': _result_payload(foam_result)})

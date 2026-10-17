@@ -21,7 +21,7 @@ from apps.vision.algorithms.foam_inspector import _inspect_layer_sides, _resolve
 
 with transaction.atomic():
     recipe = VisionRecipe.objects.select_for_update().get(pk=11)
-    if recipe.algorithm_config.get('foam_segmentation') == 'shadow-graphcut-v1':
+    if recipe.algorithm_config.get('foam_segmentation') == 'shadow-graphcut-fast-v2':
         raise RuntimeError('Already migrated; refusing to replace the backup')
     backup = dict(VisionRecipe.objects.filter(pk=11).values().get())
     stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -34,7 +34,7 @@ with transaction.atomic():
     cfg = build_foam_inspection_config(recipe)
     rois = _resolve_side_roi_config(cfg, recipe.pos)
     before = _inspect_layer_sides(image, rois, cfg)
-    recipe.algorithm_config = dict(recipe.algorithm_config, foam_segmentation='shadow-graphcut-v1')
+    recipe.algorithm_config = dict(recipe.algorithm_config, foam_segmentation='shadow-graphcut-fast-v2')
     recipe.save(update_fields=['algorithm_config'])
     template = _save_foam_standard_template(recipe, image, {
         'type': 'shadow_segmentation_upgrade', 'previous_version': backup['standard_template_version'],

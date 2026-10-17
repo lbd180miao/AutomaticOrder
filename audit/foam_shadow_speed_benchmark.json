@@ -1,0 +1,59 @@
+{
+  "640": {
+    "seconds": 4.318513799997163,
+    "sides": {
+      "left": {
+        "detected_pixels": 2414161,
+        "coverage_ratio": 0.9979,
+        "iou": 0.6884,
+        "offset_x_px": -310.86,
+        "offset_y_px": -15.52
+      },
+      "right": {
+        "detected_pixels": 2015165,
+        "coverage_ratio": 0.9929,
+        "iou": 0.9892,
+        "offset_x_px": -1.09,
+        "offset_y_px": 0.42
+      }
+    }
+  },
+  "512": {
+    "seconds": 1.528785999998945,
+    "sides": {
+      "left": {
+        "detected_pixels": 2409120,
+        "coverage_ratio": 0.994,
+        "iou": 0.6853,
+        "offset_x_px": -310.35,
+        "offset_y_px": -14.48
+      },
+      "right": {
+        "detected_pixels": 2014471,
+        "coverage_ratio": 0.9924,
+        "iou": 0.9884,
+        "offset_x_px": -1.11,
+        "offset_y_px": -0.33
+      }
+    }
+  },
+  "384": {
+    "seconds": 1.272956199998589,
+    "sides": {
+      "left": {
+        "detected_pixels": 2408668,
+        "coverage_ratio": 0.9938,
+        "iou": 0.6853,
+        "offset_x_px": -312.02,
+        "offset_y_px": -15.24
+      },
+      "right": {
+        "detected_pixels": 2011227,
+        "coverage_ratio": 0.9903,
+        "iou": 0.9859,
+        "offset_x_px": -1.14,
+        "offset_y_px": 1.37
+      }
+    }
+  }
+}

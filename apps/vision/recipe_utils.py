@@ -261,6 +261,10 @@ def get_foam_standard_template_status(recipe):
     reason = ''
     roi_matches = True
     resolution_matches = True
+    algorithm_matches = template.get('foam_segmentation', 'fixed-threshold') == (
+        (recipe.algorithm_config or {}).get('foam_segmentation', 'fixed-threshold'))
+    if not algorithm_matches:
+        reason = '分割算法已修改，需要重新示教标准模板'
     if template:
         saved_roi = template.get('roi_config')
         if saved_roi is not None and saved_roi != (recipe.roi_config or {}):
@@ -296,7 +300,7 @@ def get_foam_standard_template_status(recipe):
                 + '标准模板未示教，请重新示教左右模板'
             )
 
-    ready = not missing_sides and not incomplete_sides and roi_matches and resolution_matches
+    ready = not missing_sides and not incomplete_sides and roi_matches and resolution_matches and algorithm_matches
     return {
         'ready': ready,
         'reason': reason,

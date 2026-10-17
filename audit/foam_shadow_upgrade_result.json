@@ -1,20 +1,20 @@
 {
-  "backup": "audit\\recipe11_before_shadow_20261016_165538.json",
-  "version": "v20261016085539438105",
+  "backup": "audit\\recipe11_before_shadow_20261016_170558.json",
+  "version": "v20261016090620898247",
   "sides": {
     "left": {
-      "before_pixels": 495904,
-      "after_pixels": 1667862,
+      "before_pixels": 1667862,
+      "after_pixels": 2409120,
       "coverage_ratio": 1.0,
-      "shift_x_px": 77.07,
+      "shift_x_px": 58.12,
       "missing_rejected": true,
       "shift_rejected": true
     },
     "right": {
-      "before_pixels": 518579,
-      "after_pixels": 2021815,
+      "before_pixels": 2021815,
+      "after_pixels": 2014471,
       "coverage_ratio": 1.0,
-      "shift_x_px": 55.07,
+      "shift_x_px": 55.65,
       "missing_rejected": true,
       "shift_rejected": true
     }

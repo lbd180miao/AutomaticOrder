@@ -1,0 +1,21 @@
+{
+  "512-3": {
+    "seconds": 2.5522251999973378,
+    "sides": {
+      "left": {
+        "detected_pixels": 2409120,
+        "coverage_ratio": 0.994,
+        "iou": 0.6853,
+        "offset_x_px": -310.35,
+        "offset_y_px": -14.48
+      },
+      "right": {
+        "detected_pixels": 2014471,
+        "coverage_ratio": 0.9924,
+        "iou": 0.9884,
+        "offset_x_px": -1.11,
+        "offset_y_px": -0.33
+      }
+    }
+  }
+}

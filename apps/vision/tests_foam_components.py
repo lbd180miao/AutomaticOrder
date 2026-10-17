@@ -16,17 +16,17 @@ class LayerComponentTests(TestCase):
             image[110:120, x+20:x+30] = 20
             refs[side] = np.zeros((180, 320), np.uint8)
             refs[side][45:135, x-5:x+75] = 255
-        mask = _shadow_layer_mask(image, refs)
+        mask = _shadow_layer_mask(image, refs, 512, 3)
         self.assertGreater(np.mean(mask[50:130, 40:110] > 0), .9)
         self.assertFalse(np.any(mask[110:120, 60:70]))
         self.assertFalse(np.any(mask[:35]))
-        self.assertFalse(np.any(_shadow_layer_mask(np.full_like(image, 20), refs)))
+        self.assertFalse(np.any(_shadow_layer_mask(np.full_like(image, 20), refs, 512, 3)))
         missing_left = image.copy()
         missing_left[45:135, 35:115] = 20
-        missing_mask = _shadow_layer_mask(missing_left, refs)
+        missing_mask = _shadow_layer_mask(missing_left, refs, 512, 3)
         self.assertFalse(np.any(missing_mask[45:135, 35:115]))
         self.assertGreater(np.count_nonzero(missing_mask[:, 200:270]), 4000)
-        np.testing.assert_array_equal(mask, _shadow_layer_mask(image, refs))
+        np.testing.assert_array_equal(mask, _shadow_layer_mask(image, refs, 512, 3))
 
     def run_case(self, joined=False, noise=False):
         image = np.zeros((180, 320, 3), np.uint8)

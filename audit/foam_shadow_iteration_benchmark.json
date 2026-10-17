@@ -1,0 +1,78 @@
+{
+  "1024-1": {
+    "seconds": 7.981943399998272,
+    "sides": {
+      "left": {
+        "detected_pixels": 2373103,
+        "coverage_ratio": 0.9747,
+        "iou": 0.673,
+        "offset_x_px": -311.35,
+        "offset_y_px": -5.17
+      },
+      "right": {
+        "detected_pixels": 2018207,
+        "coverage_ratio": 0.9972,
+        "iou": 0.9962,
+        "offset_x_px": -0.53,
+        "offset_y_px": 0.68
+      }
+    }
+  },
+  "1024-2": {
+    "seconds": 16.439201199998934,
+    "sides": {
+      "left": {
+        "detected_pixels": 1923217,
+        "coverage_ratio": 0.9842,
+        "iou": 0.842,
+        "offset_x_px": -115.35,
+        "offset_y_px": 11.82
+      },
+      "right": {
+        "detected_pixels": 2020461,
+        "coverage_ratio": 0.9984,
+        "iou": 0.9975,
+        "offset_x_px": 0.04,
+        "offset_y_px": 0.0
+      }
+    }
+  },
+  "1024-3": {
+    "seconds": 20.39715570000044,
+    "sides": {
+      "left": {
+        "detected_pixels": 1783058,
+        "coverage_ratio": 0.9843,
+        "iou": 0.9074,
+        "offset_x_px": -56.46,
+        "offset_y_px": 14.76
+      },
+      "right": {
+        "detected_pixels": 2020063,
+        "coverage_ratio": 0.9989,
+        "iou": 0.9986,
+        "offset_x_px": -0.49,
+        "offset_y_px": -0.52
+      }
+    }
+  },
+  "768-5": {
+    "seconds": 6.281861700001173,
+    "sides": {
+      "left": {
+        "detected_pixels": 2390488,
+        "coverage_ratio": 0.9829,
+        "iou": 0.6777,
+        "offset_x_px": -311.69,
+        "offset_y_px": -9.89
+      },
+      "right": {
+        "detected_pixels": 2017164,
+        "coverage_ratio": 0.9943,
+        "iou": 0.9909,
+        "offset_x_px": -1.43,
+        "offset_y_px": 0.71
+      }
+    }
+  }
+}
