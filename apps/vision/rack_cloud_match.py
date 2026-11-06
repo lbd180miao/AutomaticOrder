@@ -87,8 +87,13 @@ def build_template(cloud, config, metadata):
             raise ValueError(f'{name} 区域有效点不足 100，请选择有深度的稳定结构')
         anchors.append({'name': name, 'success': True, 'xyz': np.median(points, axis=0).tolist()})
         mask |= group
-    sampled = downsample(valid(data[mask]))
-    points = np.asarray(sampled.points)
+    raw_points = valid(data[mask])
+    sampled = downsample(raw_points)
+    # Voxel centroids are synthetic points, not observations. Keep the spatial
+    # sampling/filtering, but store actual measured points for final registration.
+    from scipy.spatial import cKDTree
+    indices = cKDTree(raw_points).query(np.asarray(sampled.points))[1]
+    points = raw_points[np.unique(indices)]
     if len(points) < 100:
         raise ValueError('下采样后有效点不足 100')
     eigen = np.linalg.eigvalsh(np.cov(points.T))
@@ -96,7 +101,8 @@ def build_template(cloud, config, metadata):
         raise ValueError('模板接近单一直线，请包含横杆、立柱和连接处')
     measurement = {'success': True, 'coordinateSystem': 'camera', 'unit': 'mm', 'points': anchors,
                    'algorithm_version': VERSION, 'measurement_only': True, 'plc_publish_allowed': False}
-    return {'version': VERSION, 'points': points.tolist(), 'shape': list(data.shape),
+    return {'version': VERSION, 'sampling': 'measured_points_v1',
+            'points': points.tolist(), 'shape': list(data.shape),
             'sensor_id': sensor_id(metadata), 'config': config, 'limits': dict(LIMITS),
             'measurement': measurement}
 
@@ -148,6 +154,24 @@ def match_template(cloud, metadata, template):
             o3d.pipelines.registration.HuberLoss(k=limits['max_rmse_mm'])),
         o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=40))
     transform = fit.transformation
+    if template.get('sampling') == 'measured_points_v1':
+        # Use original observations on BOTH sides for final refinement. Coarse
+        # voxel clouds only initialize the search; their centroids must not
+        # introduce a fictitious displacement when matching a frame to itself.
+        raw_target = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(target_points[inside]))
+        fit = o3d.pipelines.registration.registration_icp(
+            source, raw_target, limits['correspondence_mm'], transform,
+            o3d.pipelines.registration.TransformationEstimationPointToPoint(),
+            o3d.pipelines.registration.ICPConvergenceCriteria(
+                relative_fitness=1e-9, relative_rmse=1e-9, max_iteration=60))
+        transform = fit.transformation
+        # Estimate surface constraints on the filtered, spatially uniform cloud.
+        # Duplicate/raw pixel samples can otherwise produce degenerate normal
+        # neighborhoods and falsely make a flat surface appear constrained.
+        from scipy.spatial import cKDTree
+        nearest = cKDTree(np.asarray(target.points)).query(np.asarray(raw_target.points))[1]
+        raw_target.normals = o3d.utility.Vector3dVector(np.asarray(target.normals)[nearest])
+        target = raw_target
     fit = o3d.pipelines.registration.evaluate_registration(source, target, limits['correspondence_mm'], transform)
     moved = source_points @ transform[:3, :3].T + transform[:3, 3]
     shift = float(np.linalg.norm(moved.mean(axis=0)-source_points.mean(axis=0)))
@@ -182,9 +206,12 @@ def match_template(cloud, metadata, template):
     current = anchors @ transform[:3, :3].T + transform[:3, 3]
     summary = (f'模板覆盖率 {fit.fitness:.1%}；残差 {fit.inlier_rmse:.3f}mm；'
                f'中心位移 {shift:.3f}mm；旋转 {angle:.3f}°；约束比 {condition:.6f}')
+    warnings = [summary, '实验模式：P1/P2 为模板区域参考点的刚体变换推算；重复结构仍需人工核对。']
+    if template.get('sampling') != 'measured_points_v1':
+        warnings.append('当前为旧版质心模板；请在标准帧重新保存点云模板，以启用原始测量点精配准并消除自匹配偏差。')
     return {'success': passed, 'coordinateSystem': 'camera', 'unit': 'mm', 'algorithm_version': VERSION,
             'measurement_only': True, 'plc_publish_allowed': False, 'registration': diagnostics,
             'points': [{'name': name, 'success': passed, 'xyz': xyz.tolist()} for name, xyz in zip(('P1', 'P2'), current)],
-            'warnings': [summary, '实验模式：P1/P2 为模板区域参考点的刚体变换推算；重复结构仍需人工核对。'],
+            'warnings': warnings,
             'errorCode': '' if passed else 'REGISTRATION_QUALITY', 'stage': '3d',
             'errorMessage': '' if passed else summary+'；'+'；'.join(failures)+'；候选变换仅供查看。'}

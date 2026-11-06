@@ -21,6 +21,24 @@ def fixture():
 
 
 class CloudMatchTests(unittest.TestCase):
+    def test_serialized_template_self_match_and_small_motion(self):
+        import json
+        cloud, config, metadata = fixture()
+        # Partial image ROIs leave a larger current search cloud than template.
+        for roi in config['rois']:
+            roi['width'] = roi['height'] = 30
+        template = json.loads(json.dumps(build_template(cloud, config, metadata)))
+        anchors = np.array([p['xyz'] for p in template['measurement']['points']])
+        for delta in ([0, 0, 0], [.01, -.02, .03]):
+            result = match_template(cloud + delta, metadata, template)
+            self.assertTrue(result['success'], result['errorMessage'])
+            np.testing.assert_allclose(
+                [p['xyz'] for p in result['points']], anchors + delta, atol=1e-7, rtol=0)
+        # Old saved templates remain readable, with an explicit upgrade notice.
+        template.pop('sampling')
+        result = match_template(cloud, metadata, template)
+        self.assertTrue(any('旧版' in text for text in result['warnings']))
+
     def test_display_projection_and_invalid_mapping(self):
         yy, xx = np.mgrid[:80, :80]
         cloud = np.stack([(xx-40)*2., (yy-40)*2., np.full_like(xx, 1000.)], axis=-1)

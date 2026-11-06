@@ -16,7 +16,11 @@
   const roi = () => state.config?.rois.find(r => r.target === targets[state.selected]);
   const status = text => { $('dp-status').textContent = text; };
   const currentFrame = () => window.rackLocatorOfflineBridge?.snapshot();
-  const fmt = (value, digits = 3) => Number.isFinite(value) ? value.toFixed(digits) : '—';
+  const fmt = (value, digits = 3) => {
+    if (!Number.isFinite(value)) return '—';
+    const rounded = value.toFixed(digits);
+    return Number(rounded) === 0 ? (0).toFixed(digits) : rounded;
+  };
   // Show native camera XYZ in the same axis order and signs as the measurement.
   const xyz = values => Array.isArray(values) ? values.map(v => fmt(v)).join(' / ') : '—';
   function cell(row, text, header = false) {
