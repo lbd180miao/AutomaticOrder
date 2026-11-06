@@ -55,11 +55,11 @@ class PlcStaticTests(SimpleTestCase):
         response.close()
 
 class CaptureRouteTests(SimpleTestCase):
-    def test_spatial_only_recipe_uses_workbench_group_a(self):
+    def test_cloud_recipe_uses_shared_matcher(self):
         from unittest.mock import patch
         from .plc_position_debug import capture_position
         from django.test import override_settings
-        recipe = SimpleNamespace(roi_config={'spatial_rois':{'configured':True}}, layer_count=3,
+        recipe = SimpleNamespace(roi_config={'cloud_match_reference':{'version':'cloud_match_v1'}}, layer_count=3,
                                  max_offset_x=100,max_offset_y=100,max_offset_z=100,max_offset_rz=10)
         result = {'locate_ok':True, 'robot_groups':{'A':{'coordinate_system':'robot_base',
                    'translation_mm':{'x':1,'y':2,'z':3}, 'rotation_deg':{'rz':0}}}}
@@ -72,6 +72,21 @@ class CaptureRouteTests(SimpleTestCase):
         self.assertTrue(output['is_success'])
         self.assertEqual(output['compensation_x'],1)
         calculate.assert_called_once()
+
+    def test_plane_only_recipe_does_not_capture_or_compute(self):
+        from unittest.mock import patch
+        from .plc_position_debug import capture_position
+        recipe = SimpleNamespace(roi_config={'spatial_rois': {'configured': True}}, layer_count=3)
+        with patch('apps.vision.models.RackLocationRecipe.objects.get', return_value=recipe),              patch('apps.vision.rack_location.Rack3DLocator.capture') as capture:
+            result = capture_position(8, 1)
+        self.assertFalse(result['is_success'])
+        self.assertIn('点云标准模板', result['error_message'])
+        capture.assert_not_called()
+
+    def test_cloud_publication_gate_cannot_be_overridden_by_groups(self):
+        recipe = SimpleNamespace(max_offset_x=100, max_offset_y=100, max_offset_z=100, max_offset_rz=10)
+        result = {'locate_ok': True, 'plc_publish_allowed': False, 'robot_groups': {}}
+        self.assertFalse(first_group_position(result, recipe)['is_success'])
 
 
 class NewDBContractTests(SimpleTestCase):

@@ -178,118 +178,24 @@ def batch_write_for_recipe(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def complete_positioning_and_write(request):
-    """
-    完整流程：定位 → 补偿计算 → PLC写入
-    
-    请求体:
-    {
-        "recipe_id": 1,
-        "layer_no": 2,
-        "pointcloud": {...},  // 或 "pointcloud_file": "path"
-        "coordinate_system": "ROBOT",
-        "rack_side": "BOTH",
-        "validate": true,
-        "write_to_plc": true
-    }
-    """
+    """Calculate with the cloud template and retain its PLC publication gate."""
     try:
-        from .rack_positioning_service import RackPositioningService
-        from .compensation_service import CompensationService
-        
+        from .rack_location import RackLocationService, PlcVisionResultWriter
+        from .models import RackLocationResult
         data = json.loads(request.body)
-        
-        # 步骤1: 执行定位
-        positioning_service = RackPositioningService()
-        
-        # 获取点云数据
-        if 'pointcloud' in data:
-            pointcloud = data['pointcloud']
-        elif 'pointcloud_file' in data:
-            import numpy as np
-            pointcloud = np.load(data['pointcloud_file'])
-        else:
-            return api_response(error='缺少点云数据', status=400)
-        
-        positioning_result = positioning_service.process_layer_positioning(
-            recipe_id=data['recipe_id'],
-            layer_no=data['layer_no'],
-            pointcloud=pointcloud,
-            coordinate_system=data.get('coordinate_system', 'ROBOT'),
-            vision_task_id=data.get('vision_task_id')
+        payload = RackLocationService().calculate_workbench(
+            token=data['pointcloud_token'], recipe_id=data['recipe_id'],
+            layer_no=int(data.get('layer_no', 1)), save_record=True,
         )
-        
-        response_data = {
-            'positioning_success': positioning_result.is_success,
-            'positioning_result': {
-                'offset_x': positioning_result.offset_x,
-                'offset_y': positioning_result.offset_y,
-                'offset_z': positioning_result.offset_z,
-                'confidence_x': positioning_result.confidence_x,
-                'confidence_y': positioning_result.confidence_y,
-                'confidence_z': positioning_result.confidence_z
-            }
-        }
-        
-        if not positioning_result.is_success:
-            response_data['message'] = '定位失败'
-            return api_response(data=response_data)
-        
-        # 步骤2: 计算补偿值
-        compensation_service = CompensationService()
-        
-        compensation = compensation_service.calculate_compensation_from_positioning_result(
-            positioning_result=positioning_result,
-            rack_side=data.get('rack_side', 'BOTH')
-        )
-        
-        response_data['compensation_success'] = compensation.is_valid
-        response_data['compensation'] = {
-            'compensation_x': compensation.compensation_x,
-            'compensation_y': compensation.compensation_y,
-            'compensation_z': compensation.compensation_z,
-            'is_valid': compensation.is_valid,
-            'validation_message': compensation.validation_message
-        }
-        
-        # 步骤3: 写入PLC（如果需要）
-        if data.get('write_to_plc', True) and compensation.is_valid:
-            write_result = plc_writer.write_compensation_to_plc(
-                compensation=compensation,
-                layer_no=data['layer_no'],
-                position_no=data.get('position_no'),
-                rack_side=data.get('rack_side', 'BOTH'),
-                recipe_id=data['recipe_id'],
-                validate=data.get('validate', True),
-                second_group={axis: data[f'compensation_{axis}2'] for axis in 'xyz'
-                              if f'compensation_{axis}2' in data},
-            )
-            
-            response_data['plc_write_success'] = write_result.get('success')
-            response_data['plc_write_result'] = write_result
-        else:
-            response_data['plc_write_success'] = False
-            response_data['plc_write_result'] = {
-                'skipped': True,
-                'reason': '补偿值无效或未启用PLC写入'
-            }
-        
-        # 判断整体成功
-        overall_success = (
-            positioning_result.is_success and
-            compensation.is_valid and
-            (response_data.get('plc_write_success') or not data.get('write_to_plc', True))
-        )
-        
-        response_data['overall_success'] = overall_success
-        response_data['message'] = '完整流程执行成功' if overall_success else '流程执行失败'
-        
-        return api_response(data=response_data)
-    
-    except KeyError as e:
-        return api_response(error=f'缺少必需参数: {str(e)}', status=400)
-    except Exception as e:
-        logger.exception("完整流程执行失败")
-        return api_response(error=str(e), status=500)
+        response = {'positioning_success': payload['locate_ok'], 'positioning_result': payload,
+                    'plc_write_success': False}
+        if data.get('write_to_plc', True):
+            record = RackLocationResult.objects.get(pk=payload['result_id'])
+            written = PlcVisionResultWriter().write(record)
+            response.update(plc_write_success=written.get('success', False), plc_write_result=written)
+        return api_response(data=response)
+    except (KeyError, TypeError, ValueError) as exc:
+        return api_response(error=str(exc), status=400)
 
 
 # ========== 查询接口 ==========

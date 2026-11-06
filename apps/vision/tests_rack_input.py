@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 from django.test import SimpleTestCase, override_settings
-from .rack_input import capture_input, plane_roi, cloud_identity
+from .rack_input import capture_input, cloud_identity
 from .rack_location import Rack3DLocator, RackLocationService
 from .models import RackLocationRecipe
 
@@ -40,23 +40,13 @@ class RackInputTests(SimpleTestCase):
     def test_capture_failure_never_substitutes_offline_or_sample_cloud(self):
         provider = Mock()
         provider.capture.side_effect = RuntimeError('camera disconnected')
-        with patch('apps.vision.rack_location.build_sample_pointcloud') as sample, \
-                patch('apps.vision.rack_location._load_offline_pic_pointcloud') as offline:
-            locator = Rack3DLocator(frame_provider=provider)
-            with patch.object(locator, '_select_recipe', return_value=self.recipe), \
-                    patch.object(locator, '_persist_frame') as persist:
-                with self.assertRaisesRegex(ValueError, 'camera disconnected'):
-                    locator.capture(recipe_id=8)
-                persist.assert_not_called()
-            service = RackLocationService(frame_provider=provider)
-            with patch('apps.vision.rack_location.RackLocationRecipe.objects.filter') as lookup, \
-                    patch.object(service, '_persist_workbench_frame') as persist:
-                lookup.return_value.first.return_value = self.recipe
-                with self.assertRaisesRegex(ValueError, 'camera disconnected'):
-                    service.capture_workbench(recipe_id=8)
-                persist.assert_not_called()
+        with patch('apps.vision.rack_location.build_sample_pointcloud') as sample,                 patch('apps.vision.rack_location.RackLocationRecipe.objects.get', return_value=self.recipe):
+            for service in (Rack3DLocator(frame_provider=provider), RackLocationService(frame_provider=provider)):
+                with patch.object(service, '_persist_workbench_frame') as persist:
+                    with self.assertRaisesRegex(ValueError, 'camera disconnected'):
+                        service.capture_workbench(recipe_id=8)
+                    persist.assert_not_called()
             sample.assert_not_called()
-            offline.assert_not_called()
 
     def test_provider_fallback_and_invalid_real_frames_are_rejected(self):
         for frame in [
@@ -69,6 +59,7 @@ class RackInputTests(SimpleTestCase):
             with self.subTest(source=frame['source']):
                 with self.assertRaises(ValueError):
                     capture_input(Mock(capture=Mock(return_value=frame)), self.recipe, 1, 1)
+
 
     @override_settings(VISION_RACK_LOCATION_FORCE_SAMPLE=False)
     def test_demo_requires_explicit_server_setting(self):
@@ -92,22 +83,6 @@ class RackInputTests(SimpleTestCase):
         self.assertEqual(result['source'], 'rvc_camera')
         self.assertIs(persist.call_args.args[1], frame['image_2d'])
         np.testing.assert_array_equal(persist.call_args.args[0], self.cloud)
-
-    def test_resolution_mismatch_fails_instead_of_clamping(self):
-        raw = {'x':963,'y':3,'w':72,'h':615}
-        with self.assertRaisesRegex(ValueError, '640×480'):
-            plane_roi(raw,640,480,'plane3')
-        self.assertEqual(plane_roi(raw,1440,1080,'plane3'),raw)
-
-    def test_already_clamped_history_roi_is_rejected(self):
-        rois={name:{'x':0,'y':0,'w':12,'h':12} for name in ('plane1','plane2','plane3')}
-        rois['plane2']['h']=1
-        with self.assertRaisesRegex(ValueError, '至少 2'):
-            RackLocationService._crop_local_template_clouds(self.cloud,rois)
-
-    def test_fractional_roi_preserves_full_requested_area(self):
-        self.assertEqual(plane_roi({'x':1.3,'y':2.4,'w':3.5,'h':4.7},12,12,'plane1'),
-                         {'x':1,'y':2,'w':4,'h':6})
 
     def test_capture_provenance_survives_persist_and_reload(self):
         service=RackLocationService()

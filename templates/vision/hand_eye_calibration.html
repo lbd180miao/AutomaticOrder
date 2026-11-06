@@ -322,7 +322,7 @@
     state.selectedId=id;renderRecords();showDetailError('');
 
     // ── Dual-point evaluate record ──
-    if(record.result_data?.source==='dual_point_evaluate'){
+    if(['dual_point_evaluate','cloud_match'].includes(record.result_data?.source)){
       $('recordDetail').hidden=true;
       const dp=$('dpRecordDetail');dp.hidden=false;
       $('dpDetailTitle').textContent=`记录 #${record.id} · ${record.recipe_name||'双交点定位'} · POS${record.position_no}/L${record.layer_no}`;
@@ -394,7 +394,7 @@
     $('recordDetail').hidden=false;
     $('detailTitle').textContent=`记录 #${record.id} · ${record.recipe_name||'3D料架定位'} · POS${record.position_no}/L${record.layer_no}`;
     const comp=cameraComp(record),storedRobotComp=robotComp(record);
-    if(!comp?.matrix){renderMatrix('cameraDeltaMatrix',identity);renderMatrix('baseDeltaMatrix',identity);renderPoseStrip('cameraPoseStrip',{});renderPoseStrip('basePoseStrip',{});setDetailStatus('无法换算','error');showDetailError('该历史记录没有相机坐标系误差矩阵。请在3D工作台使用三平面模板重新计算。');return;}
+    if(!comp?.matrix){renderMatrix('cameraDeltaMatrix',identity);renderMatrix('baseDeltaMatrix',identity);renderPoseStrip('cameraPoseStrip',{});renderPoseStrip('basePoseStrip',{});setDetailStatus('无法换算','error');showDetailError('该历史记录没有相机坐标系误差矩阵。请在3D工作台使用点云模板匹配重新计算。');return;}
     applyRecordContext(record);renderMatrix('cameraDeltaMatrix',matrixFrom(comp.matrix));renderPoseStrip('cameraPoseStrip',comp.pose6d||{});
     if(storedRobotComp?.matrix){renderMatrix('baseDeltaMatrix',matrixFrom(storedRobotComp.matrix));renderPoseStrip('basePoseStrip',storedRobotComp.pose6d||{});setDetailStatus('检测时已换算 · 记录快照','ok');return;}
     renderMatrix('baseDeltaMatrix',identity);renderPoseStrip('basePoseStrip',{});setDetailStatus('旧记录兼容换算中…');

@@ -77,6 +77,23 @@ class ProductionService:
         返回 RackRecipe 或 None（None 表示 MES 没给配方、本地也无法唯一匹配）。
         """
         mes_resp = mes_resp or {}
+        if not mes_resp.get('success'):
+            return None
+        if 'pkg_type_code' in mes_resp:
+            # 新协议只允许使用映射类型且层数一致的启用配方，禁止全局回退。
+            rack_type = mes_resp.get('rack_type')
+            layers = {'两层': 2, '三层': 3, '五层': 5}.get(rack_type)
+            if layers is None:
+                return None
+            candidates = RackRecipe.objects.filter(
+                is_active=True, rack_type=rack_type, layer_count=layers)
+            recipe = candidates.filter(pk=rack.current_recipe_id).first()
+            if recipe is None:
+                matches = list(candidates[:2])
+                recipe = matches[0] if len(matches) == 1 else None
+            rack.rack_type = rack_type
+            self.assign_recipe_to_rack(rack, recipe)
+            return recipe
         data = mes_resp.get('recipe')
         if isinstance(data, dict) and data.get('recipe_code'):
             fields = {key: data.get(key) for key in self._RECIPE_FIELDS}
@@ -125,7 +142,9 @@ class ProductionService:
         if recipe_resp.get('success'):
             if recipe_resp.get('is_sealed'):
                 raise ValueError(f'料架 {cleaned_code} 在 MES 已封箱（IsSealed=true），禁止装箱')
-            self.sync_recipe_from_mes(rack, recipe_resp)
+            recipe = self.sync_recipe_from_mes(rack, recipe_resp)
+            if 'pkg_type_code' in recipe_resp and recipe is None:
+                raise ValueError('MES 包装编码已映射，但未匹配到唯一启用装箱配方，请维护并绑定对应类型和层数的配方')
 
         # 同步更新当前活跃工位周期
         if sync_cycle:

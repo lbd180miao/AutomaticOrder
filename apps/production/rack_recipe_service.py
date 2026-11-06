@@ -22,12 +22,11 @@ def _vision_readiness(recipe):
             'hand_eye_ready': False,
         }
     roi_config = recipe.roi_config or {}
-    local_rois = roi_config.get('local_template_rois') or {}
-    roi_complete = bool(
-        roi_config.get('target_roi')
-        and all(local_rois.get(key) for key in ('plane1', 'plane2', 'plane3'))
-    )
-    template_ready = bool(recipe.local_template_std)
+    from apps.vision.rack_cloud_roi import config_status
+    from apps.vision.rack_cloud_match import VERSION
+    roi_complete = config_status(roi_config.get('cloud_match_config'))['is_complete']
+    reference = roi_config.get('cloud_match_reference') or {}
+    template_ready = reference.get('version') == VERSION and bool(reference.get('points'))
     hand_eye_ready = bool(recipe.hand_eye_calibration_id or recipe.hand_eye_config)
     issues = []
     if not recipe.enabled:
@@ -35,9 +34,9 @@ def _vision_readiness(recipe):
     if recipe.layer_no not in (1, 2, 3):
         issues.append('当前3D定位算法仅支持第1～3层')
     if not roi_complete:
-        issues.append('外框或三平面ROI未完成')
+        issues.append('点云模板四个区域未完成')
     if not template_ready:
-        issues.append('三平面标准模板未保存')
+        issues.append('点云标准模板未保存')
     if not hand_eye_ready:
         issues.append('未关联手眼标定')
     return {

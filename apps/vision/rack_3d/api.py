@@ -33,7 +33,6 @@ from apps.vision.models import (
     ROI3DType,
 )
 from .services import RackPositioningService
-from .config import load_config
 from .exceptions import RackPositioningException, RackPositioningErrorCode as EC
 
 logger = logging.getLogger(__name__)
@@ -73,7 +72,8 @@ def _handle_exc(exc):
 def page(request):
     """3D 料架定位工作台页面（Canvas 双窗口）。"""
     mode = getattr(settings, 'RACK_3D_POSITIONING_MODE', 'MOCK')
-    return render(request, 'vision/rack_3d_positioning.html', {'mode': mode})
+    from django.shortcuts import redirect
+    return redirect('vision:rack_locator_panel')
 
 
 # ---------------------------------------------------------------------------
@@ -111,41 +111,6 @@ def recipe_rois(request, recipe_id):
     return _ok([roi.to_dict() for roi in qs.order_by('layer_no', 'priority')])
 
 
-@csrf_exempt
-@require_http_methods(['POST'])
-def upsert_roi(request):
-    try:
-        payload = _body(request)
-        recipe_id = payload.get('recipe_id')
-        layer_no = payload.get('layer_no')
-        roi_type = payload.get('roi_type', ROI3DType.MAIN)
-        if not recipe_id or layer_no is None:
-            return _err(EC.ROI_INVALID_BOUNDS, '缺少 recipe_id 或 layer_no')
-
-        bounds = {}
-        for f in _ROI_BOUND_FIELDS:
-            if f not in payload:
-                return _err(EC.ROI_INVALID_BOUNDS, f'缺少边界字段 {f}')
-            bounds[f] = Decimal(str(payload[f]))
-        # min < max 校验
-        for axis in ('x', 'y', 'z'):
-            if bounds[f'{axis}_min'] >= bounds[f'{axis}_max']:
-                return _err(EC.ROI_INVALID_BOUNDS, f'{axis}_min 必须小于 {axis}_max')
-
-        recipe = RackLocationRecipe.objects.get(id=recipe_id)
-        roi, created = RackLocationROI3DEnhanced.objects.update_or_create(
-            recipe=recipe, layer_no=layer_no, roi_type=roi_type,
-            defaults=dict(
-                roi_name=payload.get('roi_name', f'L{layer_no}-{roi_type}'),
-                position_no=recipe.position_no,
-                **bounds,
-            ),
-        )
-        return _ok(roi.to_dict(), status=201 if created else 200)
-    except RackLocationRecipe.DoesNotExist:
-        return _err(EC.RECIPE_NOT_FOUND, f'配方不存在: {payload.get("recipe_id")}', status=404)
-    except (InvalidOperation, ValueError, json.JSONDecodeError) as exc:
-        return _err(EC.ROI_INVALID_BOUNDS, str(exc))
 
 
 @csrf_exempt
@@ -158,8 +123,7 @@ def update_coordinates(request, recipe_id):
             if field in payload:
                 setattr(recipe, field, Decimal(str(payload[field])))
         if 'positioning_config' in payload:
-            load_config(payload['positioning_config'])
-            recipe.positioning_config = payload['positioning_config']
+            raise ValueError('旧定位参数已移除，请在点云模板工作台配置')
         recipe.save(update_fields=['standard_x', 'standard_y', 'standard_z', 'positioning_config', 'updated_at'])
         return _ok({
             'id': recipe.id,

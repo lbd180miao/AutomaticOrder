@@ -156,29 +156,25 @@ def step(state, plc, capture, save=lambda: None):
 
 def capture_position(recipe_id, layer_no):
     from apps.vision.models import RackLocationRecipe
-    simulated = getattr(settings, 'AUTOMATIC_ORDER', {}).get('USE_SIMULATED_DEVICES', True)
     recipe = RackLocationRecipe.objects.get(pk=recipe_id, enabled=True)
     if not 1 <= layer_no <= recipe.layer_count:
         raise ValueError('当前层号超出配方范围')
-    if (recipe.roi_config or {}).get('local_template_rois') or (recipe.roi_config or {}).get('spatial_rois'):
-        # 三平面配方与工作台使用同一采集/计算链路，不能送入需要另一套
-        # RackLocationROI3DEnhanced 配置的旧定位算法。
-        from apps.vision.rack_location import Rack3DLocator, RackLocationService, SampleRackFrameProvider
-        provider = SampleRackFrameProvider() if simulated else None
-        captured = Rack3DLocator(frame_provider=provider).capture(recipe_id=recipe_id, layer_no=layer_no)
-        if not simulated and captured.get('source') != 'rvc_camera':
-            raise ValueError('真实3D采集失败：' + (captured.get('fallback_reason') or '未取得真实相机点云'))
-        result = RackLocationService().calculate_workbench(
-            token=captured['pointcloud_token'], roi_config=recipe.roi_config,
-            recipe_id=recipe_id, layer_no=layer_no, save_record=True,
-        )
-        return dual_group_position(result, recipe)
-    return {'is_success': False, 'error_message': '当前配方未配置双组定位，请完成双组标准与标定'}
+    if not (recipe.roi_config or {}).get('cloud_match_reference'):
+        return {'is_success': False, 'error_message': '请先保存点云标准模板'}
+    from apps.vision.rack_location import Rack3DLocator, RackLocationService
+    captured = Rack3DLocator().capture(recipe_id=recipe_id, layer_no=layer_no)
+    result = RackLocationService().calculate_workbench(
+        token=captured['pointcloud_token'], recipe_id=recipe_id,
+        layer_no=layer_no, save_record=True,
+    )
+    return dual_group_position(result, recipe)
 
 
 def dual_group_position(result, recipe):
     """Map A/B robot-base translations to both PLC XYZ groups (mm)."""
     try:
+        if result.get('plc_publish_allowed') is False:
+            raise ValueError('点云匹配结果尚未允许 PLC 发布')
         if not result.get('locate_ok'):
             raise ValueError(result.get('error_message') or '3D 定位失败')
         values = {}

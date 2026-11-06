@@ -683,9 +683,6 @@
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 12px;
 }
-.rack3d-roi-item.plane1 { border-left-color: #0ea5e9; }
-.rack3d-roi-item.plane2 { border-left-color: #f59e0b; }
-.rack3d-roi-item.plane3 { border-left-color: #ec4899; }
 .rack3d-template-ok { color: #15803d; font-weight: 700; }
 .rack3d-template-empty { color: #94a3b8; }
 .rack3d-template-detail {
@@ -1002,7 +999,7 @@
         <div class="rack-technical-title">3D 定位技术配方库</div>
         <div class="rack-technical-body">
           <div class="rack-technical-head">
-            <span>每条配方可独立复制、重命名或删除；复制会完整继承 ROI、标准坐标和三平面模板。</span>
+            <span>每条配方可独立复制、重命名或删除；复制会完整继承 ROI、标准坐标和点云标准模板。</span>
             <button id="rack3d-create-button" class="btn btn-sm" type="button" onclick="open3DCopyModal()">＋ 新增配方</button>
           </div>
           <div id="rack3d-recipe-list"><div class="recipe-empty">正在读取 3D 配方…</div></div>
@@ -1023,7 +1020,7 @@
       <input type="hidden" id="rename-3d-id">
       <input type="hidden" id="rename-3d-source-id">
       <div id="rename-3d-copy-note" class="rack3d-readonly-note" style="display:none;margin:0 0 14px;">
-        将复制原配方的 ROI、标准坐标、三平面模板和算法参数；创建后会自动进入 3D 工作台继续修改并保存。
+        将复制原配方的 ROI、标准坐标、点云标准模板和算法参数；创建后会自动进入 3D 工作台继续修改并保存。
       </div>
       <div id="rename-3d-source-group" class="form-group" style="display:none;">
         <label for="rename-3d-source-select">复制已有配方 <span style="color:red;">*</span></label>
@@ -2622,8 +2619,8 @@ function formatTemplatePlane(label, plane) {
 
 function render3DWorkbenchData(recipe) {
   const roiConfig = recipe?.roi_config || {};
-  const rois = roiConfig.dual_point?.rois || [];
-  const reference = roiConfig.dual_point_camera_reference;
+  const rois = roiConfig.cloud_match_config?.rois || [];
+  const reference = roiConfig.cloud_match_reference;
   const measurement = reference?.measurement;
   const valid = measurement?.success && measurement.coordinateSystem === 'camera' && measurement.unit === 'mm';
   const labels = [['P1_horizontal', 'ROI1 · P1 横杆'], ['P1_vertical', 'ROI2 · P1 立柱'],
@@ -2632,7 +2629,7 @@ function render3DWorkbenchData(recipe) {
     const point = valid ? measurement.points?.find(item => item.name === name && item.success) : null;
     const coords = point?.xyz;
     const text = Array.isArray(coords) && coords.length === 3 && coords.every(Number.isFinite)
-      ? [-coords[1], coords[2], -coords[0]].map(value => format3DNumber(value)).join(' / ') : '—';
+      ? coords.map(value => format3DNumber(value)).join(' / ') : '—';
     return `<div class="rack3d-template-detail">${name}：${text}</div>`;
   }).join('');
   return `
@@ -2644,7 +2641,7 @@ function render3DWorkbenchData(recipe) {
       }).join('')}</div>
     </div>
     <div class="rack3d-data-block">
-      <div class="rack3d-data-title">双交点标准模板（X 向右 / Y 远离相机 / Z 向上 · mm）</div>
+      <div class="rack3d-data-title">点云标准模板参考点（相机原始 X / Y / Z · mm）</div>
       ${valid ? '<div class="rack3d-template-ok">✔ 已保存标准模板</div>' : '<div class="rack3d-template-empty">尚未示教，标准模板为空。</div>'}
       ${templateRows}
       ${reference?.taught_at ? `<div class="rack3d-template-detail">保存时间：${escape3DHtml(new Date(reference.taught_at).toLocaleString('zh-CN', {hour12:false}))}</div>` : ''}
@@ -2977,7 +2974,7 @@ window.submit3DModal = async function() {
     standard_y: Number(document.getElementById('modal-3d-std-y').value) || 0,
     standard_z: Number(document.getElementById('modal-3d-std-z').value) || 0,
     standard_rz: Number(document.getElementById('modal-3d-std-rz').value) || 0,
-    // 完整保留工作台维护的 target_roi 与 local_template_rois，仅更新 camera_roi。
+    // 保留工作台维护的点云模板配置，仅更新 camera_roi。
     roi_config: {
       ...existingRoiConfig,
       camera_roi: {

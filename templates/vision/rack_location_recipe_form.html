@@ -134,7 +134,7 @@
 <script>
 window.rackLocationRecipeConfig = {
   captureUrl: '{% url "vision:rack_location_capture" %}',
-  previewUrl: '{% url "vision:rack_location_preview_calculate" %}',
+  previewUrl: '',
   recipeId: {% if recipe %}{{ recipe.id }}{% else %}null{% endif %},
   transformRoiUrl: '{% url "vision:api_coord_transform_roi" %}',
 };

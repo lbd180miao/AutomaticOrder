@@ -128,7 +128,7 @@
 {% endif %}
 
 {% if rack_result %}
-{% if rack_result.result_data.source == 'dual_point_evaluate' %}
+{% if rack_result.result_data.source == 'dual_point_evaluate' or rack_result.result_data.source == 'cloud_match' %}
 {# ── Dual-point evaluate result: show only XYZ table + robot deviation table ── #}
 {% with dp=rack_result.result_data %}
 <h2 class="section-title">交点坐标数据</h2>

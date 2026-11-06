@@ -86,7 +86,8 @@ class OfflineDataPackageService:
 
         try:
             self._write_json(temp_dir / "metadata.json", metadata)
-            self._write_json(temp_dir / "roi_config.json", roi_config or {})
+            from .rack_cloud_roi import cloud_config
+            self._write_json(temp_dir / "roi_config.json", cloud_config(roi_config))
             np.save(temp_dir / "pointcloud.npy", cloud, allow_pickle=False)
             np.save(temp_dir / "hand_eye_matrix.npy", hand_eye, allow_pickle=False)
             np.save(temp_dir / "robot_pose_matrix.npy", robot_pose, allow_pickle=False)
@@ -257,10 +258,6 @@ class OfflineDataPackageService:
         projection_config = dict(current_recipe.roi_config or {}) if current_recipe else dict(package["roi_config"] or {})
 
         try:
-            projection_config.setdefault(
-                "transform_snapshot",
-                (np.array(package["robot_pose_matrix"]) @ np.array(package["hand_eye_matrix"])).tolist(),
-            )
             projection_recipe = SimpleNamespace(
                 roi_config=projection_config,
                 hand_eye_config={},
@@ -271,18 +268,6 @@ class OfflineDataPackageService:
             )
         except (TypeError, ValueError, np.linalg.LinAlgError, KeyError) as exc:
             payload["roi_projection_error"] = str(exc)
-            # 兜底回退：3D ROI 投影失败时，尝试从数据包 roi_config 中
-            # 读取已保存的 2D 像素 target_roi 直接返回给前端，
-            # 确保加载数据包后 ROI 框能自动显示在图像上。
-            saved_target_roi = (package.get("roi_config") or {}).get("target_roi")
-            if saved_target_roi and all(
-                saved_target_roi.get(k) is not None for k in ("x", "y", "w", "h")
-            ):
-                payload["recipe_pixel_roi"] = {
-                    **{k: saved_target_roi[k] for k in ("x", "y", "w", "h")},
-                    "feature_type": "recipe_3d_roi",
-                    "projection_source": "saved_target_roi",
-                }
         return payload
 
     def reprocess_package(
@@ -304,19 +289,11 @@ class OfflineDataPackageService:
         else:
             # 标准数据包
             package = self.load_package(package_name)
-        roi = modified_roi or package["roi_config"]
-        if any(key in roi for key in ("support", "edge", "pillar")):
-            roi = roi.get("support") or roi.get("edge") or roi.get("pillar") or {}
-        workbench = self.create_workbench_copy(package_name)
-        from apps.vision.rack_location import Rack3DLocator
-
-        result = Rack3DLocator().test_locate(
-            token=workbench["pointcloud_token"],
-            roi_3d=roi,
-            recipe_id=recipe_id,
-            rack_side=(package["metadata"].get("recipe") or {}).get("rack_side") or "LEFT",
-            layer_no=int(layer_no),
-        )
+        from apps.vision.models import RackLocationRecipe
+        from .rack_cloud_service import evaluate_cloud
+        recipe = RackLocationRecipe.objects.get(pk=recipe_id, enabled=True)
+        metadata = {**package['metadata'], 'camera': {**package['metadata'].get('camera', {}), 'pointcloud_unit': 'mm'}}
+        result = evaluate_cloud(recipe, package['pointcloud'], metadata, layer_no=int(layer_no))
         package_dir = self._package_dir(package_name)
         self._write_json(package_dir / "result.json", result)
         metadata = package["metadata"]

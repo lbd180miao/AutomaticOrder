@@ -2,7 +2,6 @@ from django.urls import path, include
 from django.shortcuts import render
 
 from . import views
-from . import rack_spatial_service
 from . import rack_dual_point_views
 from . import offline_data_views
 from . import views_foam_profile
@@ -16,14 +15,8 @@ urlpatterns = [
     path('api/rack-location/dual-point/prepare/', rack_dual_point_views.prepare, name='rack_dual_point_prepare'),
     path('api/rack-location/dual-point/image/', rack_dual_point_views.original_image, name='rack_dual_point_image'),
     path('api/rack-location/dual-point/depth/', rack_dual_point_views.depth_preview, name='rack_dual_point_depth'),
-    path('api/rack-location/dual-point/auto-rois/', rack_dual_point_views.auto_rois, name='rack_dual_point_auto_rois'),
-    path('api/rack-location/dual-point/test/', rack_dual_point_views.test_2d, name='rack_dual_point_test'),
     path('api/rack-location/dual-point/save/', rack_dual_point_views.save_config, name='rack_dual_point_save'),
-    path('api/rack-location/dual-point/forensics/', rack_dual_point_views.forensics, name='rack_dual_point_forensics'),
-    path('api/rack-location/dual-point/evaluate/', rack_dual_point_views.evaluate, name='rack_dual_point_evaluate'),
-    path('api/rack-location/dual-point/teach/', rack_dual_point_views.teach, name='rack_dual_point_teach'),
     path('api/rack-location/dual-point/recompute-robot/', rack_dual_point_views.recompute_robot_deviation, name='rack_dual_point_recompute_robot'),
-    path('api/rack-location/workbench/spatial-teach/', rack_spatial_service.teach, name='rack_spatial_teach'),
     # 3D 料架定位离线数据包（新增旁路，不改变现有离线测试 API）。
     path('offline/packages/', offline_data_views.packages, name='offline_packages'),
     path('offline/packages/<str:package_name>/', offline_data_views.package_detail, name='offline_package_detail'),
@@ -45,7 +38,6 @@ urlpatterns = [
     path('recipes/', views.recipe_management, name='recipe_management'),
 
     # 3D ROI配方模块
-    # path('', include('apps.vision.urls_roi_3d')),
 
     # 3D 料架定位（rack_3d 包，Provider 模式，MOCK/REAL）
     path('rack-3d/', include('apps.vision.rack_3d.urls')),
@@ -79,7 +71,6 @@ urlpatterns = [
     path('rack-location/recipes/create/', views.rack_location_recipe_create, name='rack_location_recipe_create'),
     path('rack-location/recipes/<int:recipe_id>/edit/', views.rack_location_recipe_edit, name='rack_location_recipe_edit'),
     path('rack-location/recipes/capture/', views.rack_location_capture, name='rack_location_capture'),
-    path('rack-location/recipes/preview-calculate/', views.rack_location_preview_calculate, name='rack_location_preview_calculate'),
     path('rack-location/results/', views.rack_location_history, name='rack_location_history'),
     path('rack-location/trigger/', views.api_rack_location_trigger, name='rack_location_trigger'),
 
@@ -129,22 +120,16 @@ urlpatterns = [
     path('api/vision/3d/rois/<int:roi_id>/', views.api_vision_3d_roi_detail, name='api_vision_3d_roi_detail'),
     path('api/vision/3d/camera/test/', views.api_vision_3d_camera_test, name='api_vision_3d_camera_test'),
     path('api/vision/3d/capture/', views.api_vision_3d_capture, name='api_vision_3d_capture'),
-    path('api/vision/3d/align/', views.api_vision_3d_align, name='api_vision_3d_align'),
-    path('api/vision/3d/auto-align/', views.api_vision_3d_auto_align, name='api_vision_3d_auto_align'),
     path('api/vision/3d/locate/', views.api_vision_3d_locate, name='api_vision_3d_locate'),
     path('api/vision/3d/test-locate/', views.api_vision_3d_test_locate, name='api_vision_3d_test_locate'),
     path('api/vision/3d/write-plc/', views.api_vision_3d_write_plc, name='api_vision_3d_write_plc'),
     path('api/vision/3d/results/latest/', views.api_vision_3d_results_latest, name='api_vision_3d_results_latest'),
     path('api/vision/3d/results/', views.api_vision_3d_results, name='api_vision_3d_results'),
     path('api/rack-location/workbench/capture/', views.api_rack_location_workbench_capture, name='api_rack_location_workbench_capture'),
-    path('api/rack-location/workbench/calculate/', views.api_rack_location_workbench_calculate, name='api_rack_location_workbench_calculate'),
-    path('api/rack-location/workbench/save/', views.api_rack_location_workbench_save, name='api_rack_location_workbench_save'),
     path('api/rack-location/trigger/', views.api_rack_location_trigger, name='api_rack_location_trigger'),
     path('api/rack-location/write-plc/', views.api_rack_location_write_plc, name='api_rack_location_write_plc'),
     path('api/rack-location/recipes/', views.api_rack_location_recipes, name='api_rack_location_recipes'),
     path('api/rack-location/recipes/<int:recipe_id>/', views.api_rack_location_recipe_detail, name='api_rack_location_recipe_detail'),
     path('api/rack-location/recipes/<int:recipe_id>/update/', views.api_rack_location_recipe_update, name='api_rack_location_recipe_update'),
-    path('api/rack-location/recipes/<int:recipe_id>/calibrate-standard/', views.api_rack_location_calibrate_standard, name='api_rack_location_calibrate_standard'),
     path('api/rack-location/results/', views.api_rack_location_results, name='api_rack_location_results'),
-    path('api/rack-location/results/<int:result_id>/tcp-verification/', views.api_rack_location_tcp_verification, name='api_rack_location_tcp_verification'),
 ]

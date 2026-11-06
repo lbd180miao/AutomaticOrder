@@ -13,7 +13,6 @@ from django.utils import timezone
 from apps.core.constants import DeviceType, RackSide, ResultStatus, VisionImageType, VisionTaskType
 from apps.devices.services import get_device_adapter
 from .algorithms.foam_inspector import FoamInspector
-from .algorithms.rack_locator import RackLocator
 from .models import (
     CalibrationProfile,
     FoamInspectionResult,
@@ -40,7 +39,7 @@ class VisionService:
     """Coordinates camera capture, OpenCV algorithms, and result persistence."""
 
     def __init__(self, rack_locator=None, foam_inspector=None, camera_adapter=None):
-        self.rack_locator = rack_locator or RackLocator()
+        self.rack_locator = rack_locator
         self.foam_inspector = foam_inspector or FoamInspector()
         self.camera_adapter = camera_adapter
 
@@ -121,180 +120,31 @@ class VisionService:
     # 料架定位
     # ------------------------------------------------------------------
 
-    def locate_rack(self, product, rack, recipe, side, simulated_offsets=None,
-                    min_confidence: float = 0.70):
-        """对单侧料架定位并校验层高/层距是否匹配配方。
 
-        3D 深度相机（手眼安装）：机器人携带相机移动至预设拍照位停下后
-        固定拍摄，不扫描。方案A：单次拍摄覆盖整个料架（3层）。
-
-        参数：
-            min_confidence: 置信度阈值，低于此值视为定位失败（默认 0.70）。
-        """
-        task = self._new_task(VisionTaskType.RACK_LOCATING, product=product, rack=rack)
-        try:
-            product_code = getattr(product, 'product_code', '')
-            data = self.rack_locator.locate(
-                side=side, recipe=recipe, simulated_offsets=simulated_offsets,
-                product_code=product_code,
-            )
-
-            # 置信度门限校验
-            confidence = float(data.get('confidence', 1.0))
-            confidence_ok = confidence >= min_confidence
-
-            # 配方层高/层距容差校验（复用算法内 recipe_matched，再用 Decimal 精确比较）
-            matched = data.get('recipe_matched', True)
-            if recipe is not None and matched:
-                matched = (
-                    _within_tolerance(
-                        data['measured_layer_height'], recipe.layer_height,
-                        max(recipe.tolerance_z, Decimal('1')),
-                    )
-                    and _within_tolerance(
-                        data['measured_layer_spacing'], recipe.layer_spacing,
-                        max(recipe.tolerance_z, Decimal('1')),
-                    )
-                )
-
-            is_success = data['is_success'] and matched and confidence_ok
-
-            # 将完整分层数据和 plc_payload 合并进 result_data
-            enriched_result_data = {
-                **data['result_data'],
-                'confidence': confidence,
-                'layer_heights': data.get('layer_heights', []),
-                'layer_spacings': data.get('layer_spacings', []),
-                'plc_payload': data.get('plc_payload', {}),
-            }
-
-            result = RackLocationResult.objects.create(
-                vision_task=task,
-                rack=rack,
-                side=side,
-                offset_x=data['offset_x'],
-                offset_y=data['offset_y'],
-                offset_z=data['offset_z'],
-                measured_layer_height=data['measured_layer_height'],
-                measured_layer_spacing=data['measured_layer_spacing'],
-                recipe_layer_height=recipe.layer_height if recipe else 0,
-                recipe_layer_spacing=recipe.layer_spacing if recipe else 0,
-                is_recipe_matched=matched,
-                is_success=is_success,
-                result_data=enriched_result_data,
-            )
-            self._save_images(task, data)
-            task.status = ResultStatus.SUCCESS if is_success else ResultStatus.FAILED
-            task.finished_at = timezone.now()
-            if not is_success:
-                reasons = []
-                if not confidence_ok:
-                    reasons.append(f'置信度不足({confidence:.2%}<{min_confidence:.0%})')
-                if not matched:
-                    reasons.append(
-                        f'配方超差(层高:{data["measured_layer_height"]:.1f}mm '
-                        f'层距:{data["measured_layer_spacing"]:.1f}mm)'
-                    )
-                if not data['is_success']:
-                    reasons.append('算法定位失败')
-                task.error_message = '料架定位失败: ' + '; '.join(reasons)
-            task.save(update_fields=['status', 'finished_at', 'error_message', 'updated_at'])
-            return result
-        except Exception as exc:  # noqa: BLE001
-            self._fail_task(task, str(exc))
-            raise
-
-    def locate_both_racks(self, product, rack, recipe, min_confidence: float = 0.70):
-        """阶段三：单次拍摄同时覆盖左右两个料架，返回 (left, right) 结果。
-
-        硬件确认：3D 相机一次拍摄即可覆盖两个并列料架，因此只产生
-        一个 VisionTask、一对图像，算法内部分别解析左/右侧数据。
-        """
-        task = self._new_task(VisionTaskType.RACK_LOCATING, product=product, rack=rack)
-        try:
-            product_code = getattr(product, 'product_code', '')
-            # 单次拍摄：locate_all 内部调用 generate_depth_scene_both 生成宽幅图
-            all_data = self.rack_locator.locate_all(
-                recipe=recipe,
-                product_code=product_code,
-            )
-
-            side_results = []
-            for side_key in ('LEFT', 'RIGHT'):
-                data = all_data[side_key]
-                confidence = float(data.get('confidence', 1.0))
-                confidence_ok = confidence >= min_confidence
-
-                matched = data.get('recipe_matched', True)
-                if recipe is not None and matched:
-                    matched = (
-                        _within_tolerance(
-                            data['measured_layer_height'], recipe.layer_height,
-                            max(recipe.tolerance_z, Decimal('1')),
-                        )
-                        and _within_tolerance(
-                            data['measured_layer_spacing'], recipe.layer_spacing,
-                            max(recipe.tolerance_z, Decimal('1')),
-                        )
-                    )
-                is_success = data['is_success'] and matched and confidence_ok
-
-                enriched = {
-                    **data['result_data'],
-                    'confidence': confidence,
-                    'layer_heights': data.get('layer_heights', []),
-                    'layer_spacings': data.get('layer_spacings', []),
-                    'plc_payload': data.get('plc_payload', {}),
-                }
-                result = RackLocationResult.objects.create(
-                    vision_task=task, rack=rack, side=side_key,
-                    offset_x=data['offset_x'], offset_y=data['offset_y'],
-                    offset_z=data['offset_z'],
-                    measured_layer_height=data['measured_layer_height'],
-                    measured_layer_spacing=data['measured_layer_spacing'],
-                    recipe_layer_height=recipe.layer_height if recipe else 0,
-                    recipe_layer_spacing=recipe.layer_spacing if recipe else 0,
-                    is_recipe_matched=matched,
-                    is_success=is_success,
-                    result_data=enriched,
-                )
-                side_results.append((side_key, result, is_success, confidence, confidence_ok, matched))
-
-            # 单张宽幅图（一次拍摄产出一张图）
-            self._save_images(task, {
-                'original_image': all_data.get('original_image'),
-                'result_image':   all_data.get('result_image'),
-                'image_width':    all_data.get('image_width', 0),
-                'image_height':   all_data.get('image_height', 0),
-            })
-
-            all_success = all(r[2] for r in side_results)
-            task.status = ResultStatus.SUCCESS if all_success else ResultStatus.FAILED
-            task.finished_at = timezone.now()
-            if not all_success:
-                msgs = []
-                for sk, _, ok, conf, conf_ok, mat in side_results:
-                    if not ok:
-                        r = []
-                        if not conf_ok:
-                            r.append(f'置信度不足({conf:.2%})')
-                        if not mat:
-                            r.append('配方超差')
-                        msgs.append(f'{sk}: {"; ".join(r)}')
-                task.error_message = '料架定位失败: ' + ' | '.join(msgs)
-            task.save(update_fields=['status', 'finished_at', 'error_message', 'updated_at'])
-
-            left  = next(r[1] for r in side_results if r[0] == 'LEFT')
-            right = next(r[1] for r in side_results if r[0] == 'RIGHT')
-            return left, right
-
-        except Exception as exc:  # noqa: BLE001
-            self._fail_task(task, str(exc))
-            raise
 
     # ------------------------------------------------------------------
     # 泡棉贴附检测
     # ------------------------------------------------------------------
+
+    def locate_rack(self, product, rack, recipe, side, simulated_offsets=None, min_confidence=.70):
+        from .models import RackLocationRecipe
+        from .rack_location import RackLocationService
+        location_recipe = recipe if isinstance(recipe, RackLocationRecipe) else getattr(recipe, 'rack_location_recipe', None)
+        if location_recipe is None and hasattr(recipe, 'vision_mappings'):
+            mappings = recipe.vision_mappings.filter(enabled=True, rack_location_recipe__enabled=True,
+                                                       rack_location_recipe__rack_side__in=(side, 'BOTH'))
+            if mappings.count() == 1:
+                location_recipe = mappings.select_related('rack_location_recipe').get().rack_location_recipe
+        if location_recipe is None:
+            raise ValueError('请为生产配方绑定已保存点云模板的 3D 定位配方')
+        return RackLocationService().trigger(
+            recipe_id=location_recipe.pk, position_no=location_recipe.position_no,
+            layer_no=location_recipe.layer_no, rack_side=side, product=product, rack=rack,
+        )
+
+    def locate_both_racks(self, product, rack, recipe, min_confidence=.70):
+        return tuple(self.locate_rack(product, rack, recipe, side, min_confidence=min_confidence)
+                     for side in ('LEFT', 'RIGHT'))
 
     def inspect_foam(self, product, rack, position_index=0, simulated_pass=True,
                      inspection_config=None, use_camera=False,

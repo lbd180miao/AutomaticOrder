@@ -1,0 +1,407 @@
+{
+  "id": 600,
+  "vision_task": 1279,
+  "product": null,
+  "rack": null,
+  "position_index": 0,
+  "is_present": true,
+  "is_aligned": true,
+  "has_lifted_edge": false,
+  "score": 1.0,
+  "is_passed": true,
+  "offset_x_px": 0.0,
+  "offset_y_px": 0.0,
+  "offset_x_mm": 0.0,
+  "offset_y_mm": 0.0,
+  "coverage_ratio": 1.0,
+  "defect_type": "NONE",
+  "result_data": {
+    "algorithm": "camera_foam_inspector",
+    "foam_target": "bumper",
+    "decision_rule": "standard_template_coverage_and_xy_offset",
+    "camera_image_path": "upload:记录_POS0_2026-10-16-10-21-47.jpg",
+    "defect_type": "NONE",
+    "roi": [
+      957,
+      579,
+      3389,
+      1529
+    ],
+    "foam_box": [
+      1264,
+      783,
+      3312,
+      1529
+    ],
+    "offset_x_px": 0.0,
+    "offset_y_px": 0.0,
+    "offset_x_mm": 0.0,
+    "offset_y_mm": 0.0,
+    "offset_distance_px": 0.0,
+    "offset_distance_mm": 0.0,
+    "coverage_ratio": 1.0,
+    "iou": 1.0,
+    "detected_pixels": 1400798,
+    "standard_pixels": 1400798,
+    "is_complete": true,
+    "score_threshold": 0.8,
+    "coverage_threshold": 0.7,
+    "max_offset_px": 30,
+    "camera_model": "MV-CS050-10GC",
+    "lens_model": "MVL-MF1618M-5MPE 16MM",
+    "sides": {
+      "left": {
+        "roi": [
+          957,
+          579,
+          3389,
+          1529
+        ],
+        "original_roi": [
+          1071,
+          731,
+          1983,
+          1377
+        ],
+        "polygon_points": null,
+        "box": [
+          1264,
+          786,
+          2097,
+          1529
+        ],
+        "is_present": true,
+        "is_aligned": true,
+        "coverage_ratio": 1.0,
+        "white_pixel_coverage": 0.2275,
+        "coverage_source": "standard_overlap",
+        "overlap_pixels": 525561,
+        "is_complete": true,
+        "detected_pixels": 525561,
+        "standard_pixels": 525561,
+        "iou": 1.0,
+        "max_offset_px": 30.0,
+        "max_offset_mm": 2.0,
+        "max_offset_x_px": 30.0,
+        "max_offset_y_px": 30.0,
+        "max_offset_x_mm": 4.0,
+        "max_offset_y_mm": 4.0,
+        "alignment_metric": "mm",
+        "score": 1.0,
+        "coverage_threshold": 0.7,
+        "offset_x_px": 0.0,
+        "offset_y_px": 0.0,
+        "offset_x_mm": 0.0,
+        "offset_y_mm": 0.0,
+        "offset_distance_px": 0.0,
+        "offset_distance_mm": 0.0,
+        "search_roi": [
+          957,
+          579,
+          3389,
+          1529
+        ],
+        "search_polygon": null,
+        "calibrated": true
+      },
+      "right": {
+        "roi": [
+          957,
+          579,
+          3389,
+          1529
+        ],
+        "original_roi": [
+          2059,
+          769,
+          3161,
+          1339
+        ],
+        "polygon_points": null,
+        "box": [
+          2021,
+          783,
+          3312,
+          1529
+        ],
+        "is_present": true,
+        "is_aligned": true,
+        "coverage_ratio": 1.0,
+        "white_pixel_coverage": 0.3788,
+        "coverage_source": "standard_overlap",
+        "overlap_pixels": 875237,
+        "is_complete": true,
+        "detected_pixels": 875237,
+        "standard_pixels": 875237,
+        "iou": 1.0,
+        "max_offset_px": 30.0,
+        "max_offset_mm": 2.0,
+        "max_offset_x_px": 30.0,
+        "max_offset_y_px": 30.0,
+        "max_offset_x_mm": 4.0,
+        "max_offset_y_mm": 4.0,
+        "alignment_metric": "mm",
+        "score": 1.0,
+        "coverage_threshold": 0.7,
+        "offset_x_px": 0.0,
+        "offset_y_px": 0.0,
+        "offset_x_mm": 0.0,
+        "offset_y_mm": 0.0,
+        "offset_distance_px": 0.0,
+        "offset_distance_mm": 0.0,
+        "search_roi": [
+          957,
+          579,
+          3389,
+          1529
+        ],
+        "search_polygon": null,
+        "calibrated": true
+      }
+    },
+    "recipe": {
+      "id": 12,
+      "name": "验证A-POS0-1020",
+      "recipe_type": "FOAM_2D",
+      "product_code": "PROD-A",
+      "rack_type": "RACK-3L",
+      "foam_product_layout_id": 1,
+      "foam_product_name": "A 产品",
+      "foam_rack_name": "三层标准料架",
+      "camera_side": "both",
+      "pos": 0,
+      "layerName": "第1层",
+      "rack_layer": 1,
+      "slot_number": 1,
+      "positionLabel": "第1层 · 1号位",
+      "image_width": 5472,
+      "image_height": 3648,
+      "roi_config": {
+        "leftFoamROI": {
+          "x1r": 0.19578993055555555,
+          "y1r": 0.20045572916666668,
+          "x2r": 0.36245659722222223,
+          "y2r": 0.3775390625,
+          "x": 1071,
+          "y": 731,
+          "width": 912,
+          "height": 646
+        },
+        "rightFoamROI": {
+          "x1r": 0.3763454861111111,
+          "y1r": 0.21087239583333334,
+          "x2r": 0.577734375,
+          "y2r": 0.36712239583333334,
+          "x": 2059,
+          "y": 769,
+          "width": 1102,
+          "height": 570
+        },
+        "layerSearchROI": {
+          "x1r": 0.17495659722222223,
+          "y1r": 0.1587890625,
+          "x2r": 0.6194010416666667,
+          "y2r": 0.41920572916666665,
+          "x": 957,
+          "y": 579,
+          "width": 2432,
+          "height": 950
+        }
+      },
+      "threshold_config": {
+        "minCoverage": 0.7,
+        "coverage_threshold": 0.7,
+        "pixels_per_mm_x": 12,
+        "pixels_per_mm_y": 12,
+        "max_offset_x_mm": 4,
+        "max_offset_y_mm": 4,
+        "maxOffsetXMm": 4,
+        "maxOffsetYMm": 4,
+        "requireStandardTemplate": true,
+        "standardMaskPaths": {
+          "left": "standard_masks/foam_recipe_12_pos0_v20261020070047163500_left.png",
+          "right": "standard_masks/foam_recipe_12_pos0_v20261020070047163500_right.png"
+        }
+      },
+      "algorithm_config": {},
+      "standard_template": {
+        "version": "v20261020070047163500",
+        "mask_algorithm_version": "layer-v3",
+        "mask_space": "layer-v3",
+        "foam_segmentation": "fixed-threshold",
+        "self_check_passed": true,
+        "image_width": 5472,
+        "image_height": 3648,
+        "source_image_width": 5472,
+        "source_image_height": 3648,
+        "source_image_path": "standard_masks/foam_recipe_12_pos0_v20261020070047163500_source.png",
+        "roi_config": {
+          "leftFoamROI": {
+            "x1r": 0.19578993055555555,
+            "y1r": 0.20045572916666668,
+            "x2r": 0.36245659722222223,
+            "y2r": 0.3775390625,
+            "x": 1071,
+            "y": 731,
+            "width": 912,
+            "height": 646
+          },
+          "rightFoamROI": {
+            "x1r": 0.3763454861111111,
+            "y1r": 0.21087239583333334,
+            "x2r": 0.577734375,
+            "y2r": 0.36712239583333334,
+            "x": 2059,
+            "y": 769,
+            "width": 1102,
+            "height": 570
+          },
+          "layerSearchROI": {
+            "x1r": 0.17495659722222223,
+            "y1r": 0.1587890625,
+            "x2r": 0.6194010416666667,
+            "y2r": 0.41920572916666665,
+            "x": 957,
+            "y": 579,
+            "width": 2432,
+            "height": 950
+          }
+        },
+        "sides": {
+          "left": {
+            "side": "left",
+            "pixels": 525561,
+            "search_area": 2310400,
+            "coverage_ratio": 0.22747619459833796,
+            "centroid_x": 703.3586529441873,
+            "centroid_y": 600.7535395510702,
+            "bounding_box": {
+              "x": 307,
+              "y": 207,
+              "width": 833,
+              "height": 743
+            },
+            "roi_snapshot": {
+              "x1r": 0.19578993055555555,
+              "y1r": 0.20045572916666668,
+              "x2r": 0.36245659722222223,
+              "y2r": 0.3775390625,
+              "x": 1071,
+              "y": 731,
+              "width": 912,
+              "height": 646
+            },
+            "path": "standard_masks/foam_recipe_12_pos0_v20261020070047163500_left.png"
+          },
+          "right": {
+            "side": "right",
+            "pixels": 875237,
+            "search_area": 2310400,
+            "coverage_ratio": 0.3788248788088643,
+            "centroid_x": 1687.8616134829765,
+            "centroid_y": 600.6118525610777,
+            "bounding_box": {
+              "x": 1064,
+              "y": 204,
+              "width": 1291,
+              "height": 746
+            },
+            "roi_snapshot": {
+              "x1r": 0.3763454861111111,
+              "y1r": 0.21087239583333334,
+              "x2r": 0.577734375,
+              "y2r": 0.36712239583333334,
+              "x": 2059,
+              "y": 769,
+              "width": 1102,
+              "height": 570
+            },
+            "path": "standard_masks/foam_recipe_12_pos0_v20261020070047163500_right.png"
+          }
+        },
+        "built_at": "2026-10-20T07:00:48.552802+00:00",
+        "source": {
+          "type": "recipe_save"
+        }
+      },
+      "standard_template_status": {
+        "ready": true,
+        "reason": "",
+        "paths": {
+          "left": "standard_masks/foam_recipe_12_pos0_v20261020070047163500_left.png",
+          "right": "standard_masks/foam_recipe_12_pos0_v20261020070047163500_right.png"
+        },
+        "roi_matches": true,
+        "resolution_matches": true,
+        "version": "v20261020070047163500",
+        "built_at": "2026-10-20T07:00:48.552802+00:00",
+        "sides": {
+          "left": {
+            "side": "left",
+            "pixels": 525561,
+            "search_area": 2310400,
+            "coverage_ratio": 0.22747619459833796,
+            "centroid_x": 703.3586529441873,
+            "centroid_y": 600.7535395510702,
+            "bounding_box": {
+              "x": 307,
+              "y": 207,
+              "width": 833,
+              "height": 743
+            },
+            "roi_snapshot": {
+              "x1r": 0.19578993055555555,
+              "y1r": 0.20045572916666668,
+              "x2r": 0.36245659722222223,
+              "y2r": 0.3775390625,
+              "x": 1071,
+              "y": 731,
+              "width": 912,
+              "height": 646
+            },
+            "path": "standard_masks/foam_recipe_12_pos0_v20261020070047163500_left.png"
+          },
+          "right": {
+            "side": "right",
+            "pixels": 875237,
+            "search_area": 2310400,
+            "coverage_ratio": 0.3788248788088643,
+            "centroid_x": 1687.8616134829765,
+            "centroid_y": 600.6118525610777,
+            "bounding_box": {
+              "x": 1064,
+              "y": 204,
+              "width": 1291,
+              "height": 746
+            },
+            "roi_snapshot": {
+              "x1r": 0.3763454861111111,
+              "y1r": 0.21087239583333334,
+              "x2r": 0.577734375,
+              "y2r": 0.36712239583333334,
+              "x": 2059,
+              "y": 769,
+              "width": 1102,
+              "height": 570
+            },
+            "path": "standard_masks/foam_recipe_12_pos0_v20261020070047163500_right.png"
+          }
+        },
+        "incomplete_sides": []
+      },
+      "standard_template_version": "v20261020070047163500",
+      "standard_template_built_at": "2026-10-20T07:00:48.552802+00:00",
+      "is_active": true,
+      "remark": "",
+      "created_at": "2026-10-20T07:00:47.019667+00:00",
+      "updated_at": "2026-10-23T02:13:17.639723+00:00"
+    },
+    "timings_ms": {
+      "image_decode": 109.0,
+      "algorithm_and_archive": 443.2,
+      "total": 581.6
+    }
+  },
+  "created_at": "2026-10-23T02:27:25.154Z",
+  "images_saved": false
+}

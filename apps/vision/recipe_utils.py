@@ -383,10 +383,21 @@ def build_foam_inspection_config(recipe):
     
     layer = roi_config.get('layerSearchROI')
     layer_ratio = _pixel_roi_to_ratio(layer, recipe.image_width, recipe.image_height) if layer else None
-    if layer and (not layer_ratio or not all(0 <= v <= 1 for v in layer_ratio)
-                  or any(not (layer_ratio[0] <= box[0] < box[2] <= layer_ratio[2]
-                              and layer_ratio[1] <= box[1] < box[3] <= layer_ratio[3]) for box in (left, right))):
-        raise ValueError('本层搜索大框必须在图像内并包含左右标准 ROI')
+    if layer:
+        if not layer_ratio or not all(0 <= v <= 1 for v in layer_ratio):
+            raise ValueError('本层搜索区域无效或超出图像，请在图像内重新绘制“③ 本层大框”')
+        for label, box in (('左', left), ('右', right)):
+            edges = []
+            for index, edge in enumerate(('左', '上', '右', '下')):
+                excess = layer_ratio[index] - box[index] if index < 2 else box[index] - layer_ratio[index]
+                if excess > 0:
+                    size = recipe.image_width if index % 2 == 0 else recipe.image_height
+                    edges.append(f'{edge}边约 {max(1, round(excess * size))} 像素')
+            if edges:
+                raise ValueError(
+                    f'{label}标准 ROI 超出本层搜索区域（{"、".join(edges)}）。'
+                    '请选择“③ 本层大框”扩大搜索区域，保留左右标准框不变。'
+                )
     pos_str = str(recipe.pos)
     return {
         'standard_mask_space': (recipe.standard_template_config or {}).get('mask_space', 'side'),

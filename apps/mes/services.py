@@ -8,9 +8,28 @@ from django.utils import timezone
 
 from apps.core.constants import MesAction
 from .client import HttpMesClient, SimulatedMesClient
-from .models import MesRecord
+from .models import MesRecord, PkgTypeMapping
 
 logger = logging.getLogger(__name__)
+
+
+def map_pkg_type(response):
+    """保留 MES 原始数据，通过配置表解释编码；旧 REST 无此字段时保持兼容。"""
+    if not response.get('success'):
+        return response
+    inner = response.get('mes_data') or {}
+    if 'pkg_type_code' not in response and 'PkgTypeCode' not in response and 'PkgTypeCode' not in inner:
+        return response
+    raw = response.get('pkg_type_code', response.get('PkgTypeCode', inner.get('PkgTypeCode')))
+    code = str(raw).strip() if raw is not None else ''
+    result = {**response, 'pkg_type_code': code}
+    mapping = PkgTypeMapping.objects.filter(pkg_type_code=code, enabled=True).first() if code else None
+    if mapping is None:
+        result.update(success=False, business=True,
+                      error=f'PkgTypeCode={code or "空"} 未配置有效料架类型映射，请维护 MES 包装编码映射')
+    else:
+        result['rack_type'] = mapping.rack_type
+    return result
 
 
 def get_mes_client():
@@ -105,7 +124,7 @@ class MesService:
 
     def get_rack_recipe(self, rack_code, rack=None):
         payload = {'rack_code': rack_code}
-        resp = self.client.get_rack_recipe(rack_code)
+        resp = map_pkg_type(self.client.get_rack_recipe(rack_code))
         return self._record(MesAction.GET_RACK_RECIPE, payload, resp, rack=rack)
 
     def upload_product_barcode(self, product_code, rack_code, product=None, rack=None):
@@ -185,6 +204,8 @@ class MesService:
             return {'success': False, 'error': f'不支持重传的动作: {action}'}
 
         resp = handler(payload)
+        if action == MesAction.GET_RACK_RECIPE:
+            resp = map_pkg_type(resp)
         new_record = MesRecord.objects.create(
             action=action,
             product=record.product,

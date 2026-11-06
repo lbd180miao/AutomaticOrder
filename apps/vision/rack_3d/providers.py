@@ -351,7 +351,7 @@ class RealDepthCameraProvider(DepthCameraProvider):
             'frame_index': frame.get('frame_index'), 'confidence': frame.get('confidence', 0.0),
             'raw_data_path': frame.get('raw_data_path') or frame.get('file_path') or '',
             'result_image_path': frame.get('result_image_path') or '',
-            'source': frame.get('source', 'rvc_camera'),
+            'source': frame.get('source', 'rvc_camera'), 'metadata': frame.get('metadata', {}),
         }
 
     @staticmethod
@@ -383,11 +383,12 @@ class OfflineDepthCameraProvider(DepthCameraProvider):
 
     def __init__(self, loaded_data: Dict[str, Any]):
         self.pointcloud = np.asarray(loaded_data['pointcloud'])
-        self.metadata = (loaded_data.get('metadata') or {}).get('camera') or {}
+        self.capture_metadata = loaded_data.get('metadata') or {}
+        self.metadata = self.capture_metadata.get('camera') or {}
 
     def capture_pointcloud(self, recipe_id=None, layer_no=None) -> Dict[str, Any]:
         return {
-            'data': self.pointcloud.copy(),
+            'data': self.pointcloud.copy(), 'metadata': self.capture_metadata, 'source': self.capture_metadata.get('source', 'unknown'),
             'width': int(self.metadata.get('width') or (self.pointcloud.shape[1] if self.pointcloud.ndim == 3 else self.pointcloud.shape[0])),
             'height': int(self.metadata.get('height') or (self.pointcloud.shape[0] if self.pointcloud.ndim == 3 else 1)),
             'frame_index': self.metadata.get('frame_index'),

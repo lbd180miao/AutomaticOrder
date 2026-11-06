@@ -184,6 +184,7 @@ class YfpoSoapMesClient(MesClient):
         return {
             'success': True,
             'rack_code':          inner.get('RackCode', rack_code),
+            'pkg_type_code':      inner.get('PkgTypeCode'),
             'rack_status':        rack_status,
             'rack_status_label':  status_label,
             'hu_qty':             inner.get('HUQty'),

@@ -2371,6 +2371,7 @@ async function loadRecipes() {
         : (requestedRecipe || activeFoam2DRecipe() || foam2DRecipes[0] || null);
       if (requestedRecipe) {
         document.getElementById('pos-index').value = requestedRecipe.pos ?? 0;
+        if (!FOAM_RECIPE_TEACHING) manualSelectedRecipe = requestedRecipe;
       }
       if (FOAM_RECIPE_TEACHING) {
         const nameInput = document.getElementById('foam-recipe-draft-name');
@@ -2524,13 +2525,6 @@ function upsertSavedRecipe(savedRecipe) {
     ...savedRecipe,
     pos: Number(savedRecipe.pos ?? currentPOS()),
   };
-  if (normalizedRecipe.is_active) {
-    foam2DRecipes.forEach(recipe => {
-      if (Number(recipe.pos) === Number(normalizedRecipe.pos) && Number(recipe.id) !== Number(normalizedRecipe.id)) {
-        recipe.is_active = false;
-      }
-    });
-  }
   const index = foam2DRecipes.findIndex(recipe => Number(recipe.id) === Number(normalizedRecipe.id));
   if (index >= 0) {
     foam2DRecipes.splice(index, 1, normalizedRecipe);
@@ -2564,7 +2558,9 @@ async function saveRoiToRecipe(targetPos, saveMode = 'publish') {
   // 查找已有配方
   const existingRecipe = FOAM_RECIPE_TEACHING
     ? selectedRecipeForEdit
-    : foam2DRecipes.find(r => Number(r.pos) === Number(targetPos));
+    : (Number(currentDetectionRecipe()?.pos) === Number(targetPos)
+        ? currentDetectionRecipe()
+        : foam2DRecipes.find(r => Number(r.pos) === Number(targetPos)));
   
   let leftFoamROI = null;
   let rightFoamROI = null;
@@ -2654,7 +2650,9 @@ async function saveRoiToRecipe(targetPos, saveMode = 'publish') {
     remark: document.getElementById('foam-recipe-draft-remark')?.value.trim() || existingRecipe?.remark || ''
   };
   
-  if (FOAM_RECIPE_TEACHING && !cal.dirty && existingRecipe?.roi_config) {
+  if (FOAM_RECIPE_TEACHING && !cal.dirty && existingRecipe?.roi_config
+      && Number(existingRecipe.image_width) === imageWidth
+      && Number(existingRecipe.image_height) === imageHeight) {
     payload.roi_config = existingRecipe.roi_config;
   }
   console.log('发送保存请求:', payload);
@@ -2692,6 +2690,9 @@ async function saveRoiToRecipe(targetPos, saveMode = 'publish') {
         const r = savedRecipe.roi_config.rightFoamROI;
         if (l) cal.rois.left  = roiToRatio(l, savedRecipe);
         if (r) cal.rois.right = roiToRatio(r, savedRecipe);
+        if (savedRecipe.roi_config.layerSearchROI) {
+          cal.rois.layer = roiToRatio(savedRecipe.roi_config.layerSearchROI, savedRecipe);
+        }
       }
       renderRecipeCard();
       renderRoiBoxes();  // 直接重绘，不覆盖 cal.rois

@@ -19,21 +19,9 @@ def _error(exc, status=400):
 
 
 def _merge_package_roi_config(saved_config, request_config):
-    """Merge a workbench snapshot without dropping untouched plane ROIs."""
-    saved = dict(saved_config or {})
-    if saved.get('spatial_rois'):
-        from .rack_spatial_service import spatial_config
-        return spatial_config(saved)
-    incoming = dict(request_config or {})
-    merged = {**saved, **incoming}
-    incoming_planes = incoming.get("local_template_rois")
-    if isinstance(incoming_planes, dict):
-        saved_planes = saved.get("local_template_rois")
-        merged["local_template_rois"] = {
-            **(saved_planes if isinstance(saved_planes, dict) else {}),
-            **incoming_planes,
-        }
-    return merged
+    """Keep cloud template settings when saving a workbench snapshot."""
+    from .rack_cloud_roi import cloud_config
+    return cloud_config({**(saved_config or {}), **(request_config or {})})
 
 
 @require_http_methods(["GET", "POST"])
@@ -68,9 +56,10 @@ def packages(request):
             image_2d_path = (root / image_url[len(settings.MEDIA_URL):]).resolve()
             if not image_2d_path.is_relative_to(root) or not image_2d_path.is_file():
                 raise ValueError('2D原图不存在或路径无效')
+        # Package names are transport identifiers, not acquisition provenance.
+        from .rack_dual_point_views import _frame_package
+        capture_metadata = _frame_package(data)['metadata']
         package_config = _merge_package_roi_config(recipe.roi_config, data.get("roi_config"))
-        if package_config.get('spatial_rois'):
-            package_config['standard_axes'] = recipe.local_template_std
         created = service.create_package(
             pointcloud=cloud,
             hand_eye_matrix=hand_eye,
@@ -79,7 +68,8 @@ def packages(request):
             recipe=recipe,
             layer_no=int(data.get("layer_no") or recipe.layer_no),
             camera_info={
-                "source": data.get("source") or "workbench",
+                **capture_metadata.get('camera', {}),
+                "source": capture_metadata.get('source', 'unknown'),
                 "width": int(cloud.shape[1]) if cloud.ndim == 3 else int(cloud.shape[0]),
                 "height": int(cloud.shape[0]) if cloud.ndim == 3 else 1,
                 "frame_index": data.get("frame_index"),

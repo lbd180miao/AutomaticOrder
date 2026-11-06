@@ -31,14 +31,6 @@ from apps.production.rack_recipe_service import (
 )
 from .algorithms.foam_inspector import generate_foam_mask
 from .algorithms.standard_mask_manager import StandardMaskManager
-from .algorithms.rack_opening_rectangle import (
-    calculate_tcp_verification,
-    is_rectangle_v2,
-    normalize_reference_feature_config,
-    standard_geometry,
-)
-from .algorithms.local_template_3d import LocalFrameResult
-from .algorithms.rack_structure_validator import RackStructureValidator
 from .models import (
     CalibrationProfile,
     FoamProductLayout,
@@ -67,7 +59,6 @@ from .rack_location import (
     normalize_locate_type,
     result_payload as rack_location_result_payload,
     roi3d_to_dict,
-    sample_scene_median_xyz,
 )
 
 logger = logging.getLogger(__name__)
@@ -189,9 +180,10 @@ def task_detail(request, pk):
 
     # Pre-compute dual-point XYZ delta rows for the template
     dp_rows = []
-    if rack_result and rack_result.result_data.get('source') == 'dual_point_evaluate':
+    if rack_result and rack_result.result_data.get('source') in ('dual_point_evaluate', 'cloud_match'):
         result = rack_result.result_data.get('result') or {}
-        ref_points = {p['name']: p for p in (result.get('reference') or {}).get('points') or []}
+        reference = (rack_result.result_data.get('reference') or {}).get('measurement') or result.get('reference') or {}
+        ref_points = {p['name']: p for p in reference.get('points') or []}
         for pt in result.get('points') or []:
             name = pt.get('name', '')
             cur = pt.get('xyz')
@@ -465,8 +457,23 @@ def api_foam_recipe_save(request):
                 recipe.rack_type = layout.rack_spec.rack_type
                 recipe.product_code = layout.product_code
             recipe.camera_side = body.get('camera_side') or recipe.camera_side or 'both'
-            recipe.image_width = int(body.get('image_width') or recipe.image_width or 1280)
-            recipe.image_height = int(body.get('image_height') or recipe.image_height or 720)
+            image_width = int(body.get('image_width') or recipe.image_width or 1280)
+            image_height = int(body.get('image_height') or recipe.image_height or 720)
+            # Older clients resend unchanged pixel ROIs with the newly imported
+            # image dimensions. Convert using their original coordinate space.
+            if recipe.pk and (image_width, image_height) != (recipe.image_width, recipe.image_height):
+                from .recipe_utils import _pixel_roi_to_ratio
+                roi_config = dict(roi_config)
+                for key in ('leftFoamROI', 'rightFoamROI', 'layerSearchROI'):
+                    raw = roi_config.get(key)
+                    if (raw and raw == (recipe.roi_config or {}).get(key)
+                            and raw.get('type') != 'polygon' and 'x1r' not in raw):
+                        bounds = _pixel_roi_to_ratio(raw, recipe.image_width, recipe.image_height)
+                        if bounds is None:
+                            raise ValueError('原配方 ROI 无效，请重新框选后保存')
+                        roi_config[key] = dict(zip(('x1r', 'y1r', 'x2r', 'y2r'), bounds))
+            recipe.image_width = image_width
+            recipe.image_height = image_height
             recipe.roi_config = roi_config
             recipe.threshold_config = threshold_config
             if save_mode in {'draft', 'publish'}:
@@ -488,13 +495,8 @@ def api_foam_recipe_save(request):
                     _save_foam_standard_template(recipe, image, {'type': 'recipe_save'})
                 elif not get_foam_standard_template_status(recipe)['ready']:
                     raise ValueError('请先拍照或导入合格样件图，保存时将自动建立标准模板')
-            if recipe.is_active:
-                conflicts = VisionRecipe.objects.filter(
-                    recipe_type='FOAM_2D', pos=pos, is_active=True,
-                )
-                if recipe.foam_product_layout_id:
-                    conflicts = conflicts.filter(foam_product_layout_id=recipe.foam_product_layout_id)
-                conflicts.exclude(pk=recipe.pk).update(is_active=False)
+            # POS identifies the inspection position, not a unique recipe slot.
+            # Publishing this recipe must not unpublish other recipes at that POS.
             return JsonResponse({'success': True, 'recipe': serialize_recipe(recipe)})
     except (TypeError, ValueError, signing.BadSignature) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
@@ -2137,60 +2139,20 @@ def _json_config(value, default=None):
     return json.loads(value)
 
 
-_RACK_MEASUREMENT_CONFIG_KEYS = (
-    'target_roi',
-    'local_template_rois',
-    'layer_spacing_line',
-    'ransac_distance_threshold_mm',
-)
-
-
 def _merge_rack_roi_config(existing, incoming, *, stamp_measurement=False):
-    """Merge rack ROI config without losing independently taught 2D regions.
-
-    ``local_template_rois`` is itself patched by plane so saving Π1 cannot
-    accidentally erase a previously saved Π2/Π3. Other top-level 3D ROI and
-    hand-eye snapshot fields are preserved as well.
-    """
-    merged = dict(existing or {})
-    patch = dict(incoming or {})
-    if merged.get('spatial_rois'):
-        if 'spatial_rois' in patch or 'algorithm_version' in patch:
-            raise ValueError('空间配方修改请通过 AABB 示教预览保存')
-    for key, maximum, default in (('margin_mm', 500, 5), ('voxel_mm', 50, 0)):
-        if key in patch:
-            value = float(patch[key])
-            if not 0 <= value <= maximum:
-                raise ValueError(f'{key} 必须在 0～{maximum} mm 之间')
-            patch[key] = value
-    if merged.get('spatial_rois') and 'margin_mm' in patch:
-        from .rack_spatial import bounds
-        difference = patch['margin_mm'] - float(merged.get('margin_mm', 5))
-        boxes = {name: dict(box) for name, box in merged['spatial_rois'].items()}
-        for box in boxes.values():
-            for axis in 'XYZ':
-                box[axis + 'min'] -= difference
-                box[axis + 'max'] += difference
-            bounds(box)
-        merged['spatial_rois'] = boxes
-    for key, value in patch.items():
-        if key == 'local_template_rois' and isinstance(value, dict):
-            current_local = merged.get(key)
-            current_local = dict(current_local) if isinstance(current_local, dict) else {}
-            merged[key] = {**current_local, **value}
-        else:
-            merged[key] = value
-
-    changed_measurements = [key for key in _RACK_MEASUREMENT_CONFIG_KEYS if key in patch]
-    if stamp_measurement and changed_measurements:
-        updated_at = timezone.now().isoformat()
-        merged['roi_teaching_updated_at'] = updated_at
-        for key in changed_measurements:
-            merged[f'{key}_updated_at'] = updated_at
-    return merged
+    """Only current cloud configuration is editable."""
+    from .rack_cloud_roi import cloud_config
+    merged = cloud_config(existing)
+    incoming = dict(incoming or {})
+    unsupported = {'local_template_rois', 'spatial_rois', 'layer_spacing_line', 'target_roi'} & incoming.keys()
+    if unsupported:
+        raise ValueError('旧定位 ROI 已移除，请在点云模板工作台框选并保存')
+    merged.update(incoming)
+    return cloud_config(merged)
 
 
 def _serialize_rack_location_recipe(recipe):
+    from .rack_cloud_roi import cloud_config
     return {
         'id': recipe.id,
         'recipe_name': recipe.recipe_name,
@@ -2206,7 +2168,7 @@ def _serialize_rack_location_recipe(recipe):
         'standard_y': float(recipe.standard_y),
         'standard_z': float(recipe.standard_z),
         'standard_rz': float(recipe.standard_rz),
-        'roi_config': recipe.roi_config,
+        'roi_config': cloud_config(recipe.roi_config),
         'reference_feature_config': recipe.reference_feature_config,
         'hand_eye_config': recipe.hand_eye_config,
         'max_offset_x': float(recipe.max_offset_x),
@@ -2215,7 +2177,6 @@ def _serialize_rack_location_recipe(recipe):
         'max_offset_rz': float(recipe.max_offset_rz),
         'confidence_threshold': float(recipe.confidence_threshold),
         'enabled': recipe.enabled,
-        'local_template_std': recipe.local_template_std,
     }
 
 
@@ -2411,14 +2372,9 @@ def _save_rack_location_recipe_from_request(request, recipe=None):
         if data.get(key) not in (None, ''): roi_config[key] = data[key]
     recipe.roi_config = _merge_rack_roi_config(recipe.roi_config, roi_config)
     
-    recipe.reference_feature_config = normalize_reference_feature_config(
+    recipe.reference_feature_config = dict(
         _json_config(data.get('reference_feature_config'), {}),
     )
-    if is_rectangle_v2(recipe.reference_feature_config):
-        reference = standard_geometry(recipe.reference_feature_config)
-        recipe.standard_x = float(reference['center_array'][0])
-        recipe.standard_y = float(reference['center_array'][1])
-        recipe.standard_z = float(reference['center_array'][2])
     recipe.hand_eye_config = _json_config(data.get('hand_eye_config'), {'matrix': 'identity'})
     recipe.capture_pose = _json_config(data.get('capture_pose'), recipe.capture_pose or {})
     
@@ -2497,19 +2453,6 @@ def rack_location_capture(request):
         return JsonResponse({'success': False, 'error': f'相机采集失败: {exc}'}, status=400)
 
 
-@require_POST
-def rack_location_preview_calculate(request):
-    try:
-        data = _request_data(request)
-        output = RackLocationService().preview_calculate(
-            recipe_data=data.get('recipe_data') or data,
-            roi_config=data.get('roi_config') or {},
-            recipe_id=data.get('recipe_id') or None,
-        )
-        payload = output.to_payload()
-        return JsonResponse({'success': True, 'result': payload})
-    except (TypeError, ValueError, json.JSONDecodeError) as exc:
-        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
 @require_http_methods(['GET', 'POST', 'PATCH', 'DELETE'])
@@ -2570,7 +2513,7 @@ def api_vision_3d_recipes(request):
                     stamp_measurement=True,
                 )
             if 'reference_feature_config' in data:
-                recipe.reference_feature_config = normalize_reference_feature_config(
+                recipe.reference_feature_config = dict(
                     data['reference_feature_config'] or {},
                 )
             if data.get('hand_eye_config'):
@@ -2579,11 +2522,6 @@ def api_vision_3d_recipes(request):
                 recipe.capture_pose = data['capture_pose']
             if 'enabled' in data:
                 recipe.enabled = _as_bool(data['enabled'])
-            if is_rectangle_v2(recipe.reference_feature_config):
-                reference = standard_geometry(recipe.reference_feature_config)
-                recipe.standard_x = float(reference['center_array'][0])
-                recipe.standard_y = float(reference['center_array'][1])
-                recipe.standard_z = float(reference['center_array'][2])
             
             recipe.save()
             return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
@@ -2651,10 +2589,10 @@ def api_vision_3d_recipes(request):
             locate_type='GLOBAL' if layer_no == 0 else 'LAYER',
             layer_index=layer_no,
         )
-        reference_feature_config = normalize_reference_feature_config(
+        reference_feature_config = dict(
             data.get('reference_feature_config') or {},
         )
-        reference = standard_geometry(reference_feature_config) if is_rectangle_v2(reference_feature_config) else None
+        reference = None
         recipe = RackLocationRecipe.objects.create(
             recipe_name=data.get('recipe_name') or f"3D-L{data.get('layer_no', 1)}",
             rack_side=str(data.get('rack_side') or RackSide.BOTH).upper(),
@@ -2822,14 +2760,9 @@ def api_vision_3d_recipe_detail(request, recipe_id):
                     )
                 else:
                     setattr(recipe, field, _as_bool(data[field]) if field == 'enabled' else data[field])
-        recipe.reference_feature_config = normalize_reference_feature_config(
+        recipe.reference_feature_config = dict(
             recipe.reference_feature_config or {},
         )
-        if is_rectangle_v2(recipe.reference_feature_config):
-            reference = standard_geometry(recipe.reference_feature_config)
-            recipe.standard_x = float(reference['center_array'][0])
-            recipe.standard_y = float(reference['center_array'][1])
-            recipe.standard_z = float(reference['center_array'][2])
         for field in ('position_no', 'layer_no', 'layer_count'):
             if field in data:
                 value = _as_int(data[field], getattr(recipe, field))
@@ -2854,47 +2787,7 @@ def api_vision_3d_rois(request):
             qs = qs.filter(recipe_id=recipe_id)
         return _api3d_success({'rois': [_serialize_3d_roi(roi) for roi in qs.order_by('mode', 'layer_no')]})
 
-    try:
-        data = _request_data(request)
-        if data.get('locate_type') or data.get('layer_index') is not None:
-            roi = Rack3DLocator().save_roi(
-                recipe_id=data.get('recipe_id'),
-                locate_type=data.get('locate_type') or 'LAYER',
-                layer_index=(
-                    data.get('layer_index')
-                    if data.get('layer_index') is not None
-                    else data.get('layer_no')
-                ),
-                alignment_token=data.get('alignment_token') or data.get('aligned_pointcloud_token'),
-                roi_name=data.get('roi_name') or data.get('name') or '3D ROI',
-                roi_3d={
-                    'x_min': data.get('x_min'),
-                    'x_max': data.get('x_max'),
-                    'y_min': data.get('y_min'),
-                    'y_max': data.get('y_max'),
-                    'z_min': data.get('z_min'),
-                    'z_max': data.get('z_max'),
-                },
-                enabled=_as_bool(data.get('enabled'), True),
-            )
-            return _api3d_success({'roi': _serialize_3d_roi(roi)})
-        roi = RackLocationROI3D.objects.create(
-            recipe_id=data.get('recipe_id'),
-            roi_name=data.get('roi_name') or '3D ROI',
-            mode=data.get('mode') or RackLocationROI3D.MODE_LOCAL,
-            layer_no=data.get('layer_no') or None,
-            coordinate_system=data.get('coordinate_system') or 'rack',
-            x_min=data.get('x_min'),
-            x_max=data.get('x_max'),
-            y_min=data.get('y_min'),
-            y_max=data.get('y_max'),
-            z_min=data.get('z_min'),
-            z_max=data.get('z_max'),
-            enabled=_as_bool(data.get('enabled'), True),
-        )
-        return _api3d_success({'roi': _serialize_3d_roi(roi)})
-    except Exception as exc:  # noqa: BLE001
-        return _api3d_error(exc)
+    return _api3d_error('旧 3D ROI 示教已移除，请在点云模板工作台保存区域')
 
 
 @require_http_methods(['PUT'])
@@ -2954,22 +2847,8 @@ def api_vision_3d_camera_test(request):
         })
 
 
-@require_POST
-def api_vision_3d_align(request):
-    return api_vision_3d_auto_align(request)
 
 
-@require_POST
-def api_vision_3d_auto_align(request):
-    try:
-        data = _request_data(request)
-        payload = Rack3DLocator().auto_align(
-            token=data.get('pointcloud_token'),
-            recipe_id=data.get('recipe_id') or None,
-        )
-        return _api3d_success(payload)
-    except Exception as exc:  # noqa: BLE001
-        return _api3d_error(exc)
 
 
 @require_POST
@@ -3077,158 +2956,8 @@ def api_rack_location_workbench_capture(request):
         return JsonResponse({'success': False, 'error': f'相机采集失败: {exc}'}, status=400)
 
 
-@require_POST
-def api_rack_location_workbench_calculate(request):
-    """工作台「计算偏差」：按绘制的 ROI 裁剪持久化点云，并保存到视觉记录。
-    
-    优化：
-    1. 自动加载配方中保存的ROI坐标（如果有），避免每次都需要重新绘制
-    2. 自动保存到视觉记录（VisionTask），方便追溯和查询
-    """
-    try:
-        data = _request_data(request)
-        recipe_id = data.get('recipe_id') or None
-        roi_config = data.get('roi_config') or {}
-        
-        # 前端可以只重画其中一项；其余2D测量配置继续从配方补齐。
-        if recipe_id and any(
-            not roi_config.get(key)
-            for key in ('target_roi', 'local_template_rois', 'layer_spacing_line')
-        ):
-            recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first()
-            if recipe and recipe.roi_config:
-                for key in ('target_roi', 'local_template_rois', 'layer_spacing_line'):
-                    if key not in roi_config and recipe.roi_config.get(key):
-                        roi_config[key] = recipe.roi_config[key]
-                logger.info(f"自动补齐配方 {recipe_id} 的已保存2D测量配置")
-        
-        # 「计算偏差」即正式采集动作，默认保存本次深度图、结果图和 ROI 快照。
-        save_record = _as_bool(data.get('save_record'), True)
-        
-        logger.info(f"[计算偏差] recipe_id={recipe_id}, save_record={save_record}")
-        
-        payload = RackLocationService().calculate_workbench(
-            token=data.get('pointcloud_token'),
-            roi_config=roi_config,
-            recipe_id=recipe_id,
-            recipe_data=data.get('recipe_data') or None,
-            layer_no=_as_int(data.get('layer_no'), 1),
-            roi_3d=data.get('roi_3d') or data.get('roi'),
-            rack_side=data.get('rack_side') or 'LEFT',
-            save_record=save_record,
-            auto_extract_corners=_as_bool(data.get('auto_extract_corners'), False),
-        )
-        
-        # 自动将用户绘制的 2D 像素 target_roi 持久化保存到配方 roi_config，
-        # 确保下次采集点云时可以通过兜底回退逻辑自动显示 ROI 框。
-        target_roi = roi_config.get('target_roi')
-        local_template_rois = roi_config.get('local_template_rois')
-        layer_spacing_line = roi_config.get('layer_spacing_line')
-        ransac_distance_threshold_mm = roi_config.get('ransac_distance_threshold_mm')
-        has_target_roi = bool(target_roi) and all(
-            target_roi.get(k) is not None for k in ('x', 'y', 'w', 'h')
-        )
-        has_local_template_rois = bool(local_template_rois) and all(
-            isinstance(local_template_rois.get(key), dict)
-            for key in ('plane1', 'plane2', 'plane3')
-        )
-        has_layer_spacing_line = bool(layer_spacing_line) and all(
-            layer_spacing_line.get(key) is not None
-            for key in ('x1', 'y1', 'x2', 'y2')
-        )
-        if _as_bool(data.get('save_recipe_roi'), True) and recipe_id and (
-            has_target_roi or has_local_template_rois or has_layer_spacing_line
-            or ransac_distance_threshold_mm is not None
-        ):
-            try:
-                recipe_obj = RackLocationRecipe.objects.filter(pk=recipe_id).first()
-                if recipe_obj:
-                    measurement_patch = {}
-                    if has_target_roi:
-                        measurement_patch['target_roi'] = target_roi
-                    if has_local_template_rois:
-                        measurement_patch['local_template_rois'] = local_template_rois
-                    if has_layer_spacing_line:
-                        measurement_patch['layer_spacing_line'] = layer_spacing_line
-                    if ransac_distance_threshold_mm is not None:
-                        measurement_patch['ransac_distance_threshold_mm'] = ransac_distance_threshold_mm
-                    recipe_obj.roi_config = _merge_rack_roi_config(
-                        recipe_obj.roi_config,
-                        measurement_patch,
-                        stamp_measurement=True,
-                    )
-                    recipe_obj.save(update_fields=['roi_config'])
-                    logger.info(f"[计算偏差] 已自动保存配方 {recipe_id} 的五项测量配置")
-            except Exception as _roi_save_exc:  # noqa: BLE001
-                logger.warning(f"[计算偏差] 自动保存 target_roi 失败（不影响计算结果）: {_roi_save_exc}")
-        
-        if save_record:
-            logger.info(f"[计算偏差] 已保存到视觉记录，VisionTask数量: {VisionTask.objects.count()}")
-        
-        return JsonResponse({'success': True, 'result': payload})
-    except (TypeError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
-        logger.error(f"[计算偏差] 错误: {exc}")
-        from apps.devices.plc_db100 import POSITION_FAILURE_OFFSET
-        failure_payload = {
-            'offset_x': POSITION_FAILURE_OFFSET,
-            'offset_y': POSITION_FAILURE_OFFSET,
-            'offset_z': POSITION_FAILURE_OFFSET,
-            'position_success': False,
-            'position_done': True,
-            'locate_ok': False,
-            'compensation_valid': False,
-        }
-        return JsonResponse({
-            'success': False,
-            'error': str(exc),
-            'plc_payload': failure_payload,
-            'invalid_roi_keys': getattr(exc, 'invalid_roi_keys', []),
-            'roi_diagnostics': getattr(exc, 'roi_diagnostics', {}),
-        }, status=400)
 
 
-@require_POST
-def api_rack_location_workbench_save(request):
-    """工作台「保存结果到数据库」：重新确定性计算后写入一条 RackLocationResult。
-    
-    简化版：只需传layer_no
-    优化：自动保存ROI坐标到配方，实现首次绘制自动保存，下次自动复用。
-    """
-    try:
-        data = _request_data(request)
-        roi_config = data.get('roi_config') or {}
-        recipe_id = data.get('recipe_id') or None
-        layer_no = _as_int(data.get('layer_no'), 1)
-        
-        # 优化：将工作台上的 roi_config 保存回配方中，实现ROI坐标的持久化
-        # 这样下次调用配方时，可以自动加载已保存的ROI，无需重新绘制
-        if recipe_id and roi_config:
-            recipe = RackLocationRecipe.objects.filter(pk=recipe_id).first()
-            if recipe:
-                recipe.roi_config = _merge_rack_roi_config(
-                    recipe.roi_config,
-                    {
-                        key: roi_config[key]
-                        for key in _RACK_MEASUREMENT_CONFIG_KEYS
-                        if key in roi_config
-                    },
-                    stamp_measurement=True,
-                )
-                recipe.save(update_fields=['roi_config'])
-                logger.info(f"已保存配方 {recipe_id} 的五项测量配置")
-        
-        result = RackLocationService().save_workbench_result(
-            token=data.get('pointcloud_token'),
-            roi_config=roi_config,
-            roi_3d=data.get('roi_3d') or data.get('roi') or {},
-            recipe_id=recipe_id,
-            recipe_data=data.get('recipe_data') or None,
-            position_no=_as_int(data.get('position_no'), 1),
-            layer_no=layer_no,
-        )
-        return JsonResponse({'success': True, 'result': rack_location_result_payload(result)})
-    except (TypeError, ValueError, json.JSONDecodeError) as exc:
-        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
 @require_POST
@@ -3304,10 +3033,10 @@ def api_rack_location_recipes(request):
                 'success': False,
                 'error': f'层号 {layer_no} 已存在启用的配方，请先禁用或编辑现有配方',
             }, status=400)
-        reference_feature_config = normalize_reference_feature_config(
+        reference_feature_config = dict(
             data.get('reference_feature_config') or {},
         )
-        reference = standard_geometry(reference_feature_config) if is_rectangle_v2(reference_feature_config) else None
+        reference = None
         recipe = RackLocationRecipe.objects.create(
             recipe_name=data.get('recipe_name') or f"3D-L{layer_no}",
             rack_type=data.get('rack_type') or '',
@@ -3357,14 +3086,9 @@ def api_rack_location_recipe_update(request, recipe_id):
                     )
                 else:
                     setattr(recipe, field, _as_bool(data[field]) if field == 'enabled' else data[field])
-        recipe.reference_feature_config = normalize_reference_feature_config(
+        recipe.reference_feature_config = dict(
             recipe.reference_feature_config or {},
         )
-        if is_rectangle_v2(recipe.reference_feature_config):
-            reference = standard_geometry(recipe.reference_feature_config)
-            recipe.standard_x = float(reference['center_array'][0])
-            recipe.standard_y = float(reference['center_array'][1])
-            recipe.standard_z = float(reference['center_array'][2])
         # 固定position_no=1
         recipe.position_no = 1
         if 'layer_no' in data:
@@ -3378,66 +3102,6 @@ def api_rack_location_recipe_update(request, recipe_id):
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
-@require_POST
-def api_rack_location_calibrate_standard(request, recipe_id):
-    """将标准零位下的一次三钢架拟合结果固化为标准料架模型。"""
-    try:
-        data = _request_data(request)
-        result_id = data.get('result_id') or None
-        if result_id:
-            result = RackLocationResult.objects.get(pk=result_id)
-            recipe = RackLocationRecipe.objects.get(pk=recipe_id)
-            if result.recipe_id != recipe.id:
-                raise ValueError('定位结果与配方不匹配，不能作为该配方的标准模板')
-
-            result_data = result.result_data or {}
-            current_template = result_data.get('local_template_cur')
-            if current_template:
-                # 只接受后端计算记录中的三平面结果。结构校验保留为质量
-                # 元数据，但直检模式下不再作为保存门槛。
-                frame = LocalFrameResult.from_dict(current_template)
-                validation = RackStructureValidator().validate(frame_cur=frame, frame_std=None)
-
-                if (recipe.roi_config or {}).get('spatial_rois'):
-                    raise ValueError('空间配方请通过空间预览保存标准，不能覆盖为旧三平面标准')
-                from .rack_spatial_service import reference_axes_from_record
-                axes = reference_axes_from_record(RackLocationService(), recipe, result)
-                saved_template = {
-                    **current_template,
-                    'build_timestamp': timezone.now().isoformat(),
-                    'algorithm_version': 'v2_rigid_body',
-                    'coordinate_system': 'camera',
-                    'source_result_id': result.id,
-                    'transform_context': result_data.get('transform_context') or {},
-                    'quality_validation': validation.to_dict(),
-                    'quality_gate_mode': 'disabled',
-                    'dual_axis_standard': {'recipe_id': recipe.pk, 'source_result_id': result.pk, 'groups': axes},
-                }
-                recipe.local_template_std = saved_template
-                recipe.save(update_fields=['local_template_std', 'updated_at'])
-                return JsonResponse({
-                    'success': True,
-                    'standard_template': {
-                        'template_type': 'local_template_3d',
-                        'source_result_id': result.id,
-                        'saved_at': saved_template['build_timestamp'],
-                    },
-                    'local_template_std': saved_template,
-                })
-
-        payload = Rack3DLocator().calibrate_standard_template(
-            recipe_id=recipe_id,
-            result_id=result_id,
-            opening_rectangle=data.get('opening_rectangle') or None,
-            note=data.get('note') or '',
-        )
-        return JsonResponse({'success': True, 'standard_template': payload})
-    except RackLocationRecipe.DoesNotExist:
-        return JsonResponse({'success': False, 'error': '未找到3D料架定位配方'}, status=404)
-    except RackLocationResult.DoesNotExist:
-        return JsonResponse({'success': False, 'error': '未找到定位结果'}, status=404)
-    except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError) as exc:
-        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
 @require_http_methods(['GET'])
@@ -3447,39 +3111,9 @@ def api_rack_location_recipe_detail(request, recipe_id):
         recipe = get_object_or_404(RackLocationRecipe, pk=recipe_id)
         serialized = _serialize_rack_location_recipe(recipe)
         
-        # 提取ROI坐标信息，方便前端使用
-        roi_info = {
-            'has_saved_roi': False,
-            'target_roi': None,
-            'local_template_rois': {},
-            'layer_spacing_line': None,
-            'configured_count': 0,
-            'is_complete': False,
-            'roi_updated_at': None,
-        }
-        
-        if recipe.roi_config:
-            target_roi = recipe.roi_config.get('target_roi')
-            if target_roi:
-                roi_info['has_saved_roi'] = True
-                roi_info['target_roi'] = target_roi
-            local_rois = recipe.roi_config.get('local_template_rois') or {}
-            layer_spacing_line = recipe.roi_config.get('layer_spacing_line')
-            roi_info['local_template_rois'] = local_rois
-            roi_info['layer_spacing_line'] = layer_spacing_line
-            roi_info['configured_count'] = sum((
-                bool(target_roi),
-                bool(local_rois.get('plane1')),
-                bool(local_rois.get('plane2')),
-                bool(local_rois.get('plane3')),
-                bool(layer_spacing_line),
-            ))
-            roi_info['is_complete'] = roi_info['configured_count'] == 5
-            roi_info['roi_updated_at'] = (
-                recipe.roi_config.get('roi_teaching_updated_at')
-                or recipe.roi_config.get('target_roi_updated_at')
-            )
-        
+        from .rack_cloud_roi import config_status
+        roi_info = config_status((recipe.roi_config or {}).get('cloud_match_config'))
+
         serialized['roi_info'] = roi_info
         
         return JsonResponse({'success': True, 'recipe': serialized})
@@ -3521,48 +3155,12 @@ def api_rack_location_results(request):
         }, status=500)
 
 
-@require_POST
-def api_rack_location_tcp_verification(request, result_id):
-    """保存机器人低速探测得到的Q1-Q4，并与视觉P1-P4进行比较。"""
-    try:
-        result = get_object_or_404(
-            RackLocationResult.objects.select_related('recipe'), pk=result_id,
-        )
-        data = _request_data(request)
-        result_data = dict(result.result_data or {})
-        opening_rectangle = result_data.get('opening_rectangle') or {}
-        recipe_config = (result.recipe.reference_feature_config if result.recipe else {}) or {}
-        opening_config = recipe_config.get('opening_rectangle') or {}
-        thresholds = opening_config.get('thresholds') or {}
-        tolerance_mm = float(thresholds.get('tcp_verification_tolerance_mm', 3.0))
-        verification = calculate_tcp_verification(
-            opening_rectangle,
-            data.get('measured_points') or {},
-            coordinate_system=str(data.get('coordinate_system') or 'robot_base'),
-            tolerance_mm=tolerance_mm,
-        )
-        verification.update({
-            'verified_at': timezone.now().isoformat(),
-            'tcp_name': str(data.get('tcp_name') or ''),
-            'operator': str(data.get('operator') or ''),
-            'notes': str(data.get('notes') or ''),
-        })
-        result_data['tcp_verification'] = verification
-        result.result_data = result_data
-        result.save(update_fields=['result_data', 'updated_at'])
-        return JsonResponse({
-            'success': True,
-            'tcp_verification': verification,
-            'result': rack_location_result_payload(result),
-        })
-    except (TypeError, ValueError, json.JSONDecodeError) as exc:
-        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
 
 def roi_3d_workbench(request):
     """3D ROI裁剪工作台页面"""
-    return render(request, 'vision/roi_3d_workbench.html')
+    return redirect('vision:rack_locator_panel')
 
 
 @require_POST

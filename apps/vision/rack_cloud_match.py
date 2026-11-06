@@ -1,6 +1,6 @@
 """Experimental local rigid point-cloud registration; never publishes PLC output."""
 import numpy as np
-from .algorithms.rack_dual_point import image_roi, TARGETS
+from .rack_cloud_roi import image_roi, TARGETS
 
 VERSION = 'cloud_match_v1'
 LIMITS = {'voxel_mm': 2., 'correspondence_mm': 5., 'min_fitness': .65,
