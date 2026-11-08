@@ -34,13 +34,17 @@ def robot_point_difference(current, reference, context):
             matrices.append(matrix)
         return matrices[0] @ matrices[1]
 
+    names = tuple(p['name'] for p in ((reference or {}).get('measurement') or {}).get('points', []))
+    if names not in (('P1',), ('P1', 'P2')):
+        raise ValueError('标准模板参考点必须为 P1 或 P1、P2')
+
     def points(measurement):
         if not measurement or not measurement.get('success') or measurement.get('coordinateSystem') != 'camera' or measurement.get('unit') != 'mm':
             raise ValueError('需要有效的相机坐标模板和当前测量结果')
         by_name = {p['name']: p for p in measurement['points']}
-        result = np.asarray([by_name[name]['xyz'] for name in ('P1', 'P2')], float)
-        if result.shape != (2, 3) or not np.isfinite(result).all() or not all(by_name[n].get('success') for n in ('P1', 'P2')):
-            raise ValueError('缺少有效的 P1、P2 坐标')
+        result = np.asarray([by_name[name]['xyz'] for name in names], float)
+        if set(by_name) != set(names) or result.shape != (len(names), 3) or not np.isfinite(result).all() or not all(by_name[n].get('success') for n in names):
+            raise ValueError('参考点坐标无效或与模板不一致')
         return result
 
     standard = (reference or {}).get('measurement')

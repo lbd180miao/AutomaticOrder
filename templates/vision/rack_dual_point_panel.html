@@ -10,6 +10,11 @@
   </details>
   <!-- ROI 目标标签 -->
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+    <label for="dp-rack-layers">料架层数：</label>
+    <select id="dp-rack-layers" aria-label="料架层数">
+      <option value="3">三层料架 · 四个框 / P1、P2</option>
+      <option value="2">两层料架 · 两个框 / P1</option>
+    </select>
     <div id="dp-targets" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
     <button type="button" id="dp-save-recipe" class="btn btn-success" disabled>保存配方</button>
     <span id="dp-draft-status" style="font-size:13px;color:var(--text-muted);" role="status"></span>
@@ -39,7 +44,7 @@
     </div>
 
     <!-- 结果列 -->
-    <aside class="dp-results" aria-label="双参考点结果">
+    <aside class="dp-results" aria-label="参考点结果">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
         <h3 style="margin:0;">定位结果 <span id="dp-result-state" class="badge badge-muted">待检测</span></h3>
         <button type="button" id="dp-save-standard" class="btn btn-success btn-sm" disabled>保存为标准模板</button>
@@ -47,7 +52,7 @@
       <h3>原始相机坐标系（mm）</h3>
       <p>按相机原始 X / Y / Z 顺序显示；偏差 ΔXYZ = 当前 − 标准模板，正值表示沿相机对应轴正方向偏移。</p>
       <div style="overflow-x:auto;">
-        <table aria-label="双参考点原始相机坐标系标准模板与当前坐标对比，单位毫米">
+        <table aria-label="参考点原始相机坐标系标准模板与当前坐标对比，单位毫米">
           <thead><tr><th>参考点</th><th>标准模板 XYZ</th><th>当前 XYZ</th><th>差值 ΔXYZ</th></tr></thead>
           <tbody id="dp-point-results"></tbody>
         </table>
@@ -63,7 +68,7 @@
       </div>
       <div class="dp-depth-result">
         <p id="dp-depth-source">采集或导入后显示对应点云</p>
-        <canvas id="dp-depth-canvas" hidden aria-label="对应点云伪彩图，叠加四个 ROI 和 P1、P2 参考点"></canvas>
+        <canvas id="dp-depth-canvas" hidden aria-label="对应点云伪彩图，叠加 ROI 和参考点"></canvas>
       </div>
     </aside>
   </div><!-- /.dp-layout -->
@@ -71,7 +76,7 @@
 </section>
 
 <style>
-  /* 双参考点面板布局 */
+  /* 参考点面板布局 */
   .dp-layout {
     display: grid;
     grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr);

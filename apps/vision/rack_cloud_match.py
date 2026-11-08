@@ -1,6 +1,6 @@
 """Experimental local rigid point-cloud registration; never publishes PLC output."""
 import numpy as np
-from .rack_cloud_roi import image_roi, TARGETS
+from .rack_cloud_roi import image_roi, required_targets
 
 VERSION = 'cloud_match_v1'
 LIMITS = {'voxel_mm': 2., 'correspondence_mm': 5., 'min_fitness': .65,
@@ -72,11 +72,12 @@ def build_template(cloud, config, metadata):
     if config.get('imageSize') != [data.shape[1], data.shape[0]]:
         raise ValueError('ROI 分辨率与点云不同')
     rois = config.get('rois', [])
-    if len(rois) != 4 or {r['target'] for r in rois} != set(TARGETS):
-        raise ValueError('请完成四个区域，分别覆盖 P1/P2 附近的稳定结构')
+    targets = required_targets(config)
+    if len(rois) != len(targets) or {r['target'] for r in rois} != set(targets):
+        raise ValueError(f'请完成 {len(targets)} 个区域，覆盖参考点附近的横杆和立柱')
     mask = np.zeros(data.shape[:2], bool)
     anchors = []
-    for name in ('P1', 'P2'):
+    for name in dict.fromkeys(target.split('_')[0] for target in targets):
         group = np.zeros_like(mask)
         for roi in rois:
             if roi['target'].startswith(name+'_'):
@@ -206,12 +207,12 @@ def match_template(cloud, metadata, template):
     current = anchors @ transform[:3, :3].T + transform[:3, 3]
     summary = (f'模板覆盖率 {fit.fitness:.1%}；残差 {fit.inlier_rmse:.3f}mm；'
                f'中心位移 {shift:.3f}mm；旋转 {angle:.3f}°；约束比 {condition:.6f}')
-    warnings = [summary, '实验模式：P1/P2 为模板区域参考点的刚体变换推算；重复结构仍需人工核对。']
+    warnings = [summary, '实验模式：参考点为模板区域参考点的刚体变换推算；重复结构仍需人工核对。']
     if template.get('sampling') != 'measured_points_v1':
         warnings.append('当前为旧版质心模板；请在标准帧重新保存点云模板，以启用原始测量点精配准并消除自匹配偏差。')
     return {'success': passed, 'coordinateSystem': 'camera', 'unit': 'mm', 'algorithm_version': VERSION,
             'measurement_only': True, 'plc_publish_allowed': False, 'registration': diagnostics,
-            'points': [{'name': name, 'success': passed, 'xyz': xyz.tolist()} for name, xyz in zip(('P1', 'P2'), current)],
+            'points': [{'name': name, 'success': passed, 'xyz': xyz.tolist()} for name, xyz in zip((p['name'] for p in template['measurement']['points']), current)],
             'warnings': warnings,
             'errorCode': '' if passed else 'REGISTRATION_QUALITY', 'stage': '3d',
             'errorMessage': '' if passed else summary+'；'+'；'.join(failures)+'；候选变换仅供查看。'}

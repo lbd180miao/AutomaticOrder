@@ -7,12 +7,16 @@ from django.utils import timezone
 from apps.core.constants import ResultStatus, VisionTaskType
 from .models import RackLocationResult, VisionTask
 from .rack_cloud_match import VERSION, match_template, add_display_pixels
+from .rack_cloud_roi import required_targets
 from .rack_robot_points import evaluate_robot_points
 
 
 def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record=False,
                    product=None, rack=None):
     reference = (recipe.roi_config or {}).get('cloud_match_reference')
+    config = (recipe.roi_config or {}).get('cloud_match_config') or {}
+    if reference and required_targets(config) != required_targets(reference['config']):
+        raise ValueError('料架层数与标准模板不同，请重新保存点云标准模板')
     result = match_template(cloud, metadata, reference)
     result = add_display_pixels(result, cloud, metadata)
     robot = evaluate_robot_points(result, reference) if result['success'] else None
@@ -35,7 +39,7 @@ def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record
     payload['offset_rz'] = 0.
     # Display both calibrated reference-point differences; do not grant PLC approval.
     if robot and robot.get('success'):
-        for i, name in enumerate(('A', 'B')):
+        for i, name in enumerate(('A', 'B')[:len(offsets)]):
             payload['robot_groups'][name] = {
                 'coordinate_system': 'robot_base',
                 'translation_mm': dict(zip('xyz', offsets[i])),

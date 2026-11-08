@@ -16,6 +16,10 @@ from .foam_inspector import (
 )
 
 
+class FoamTemplateExtractionError(ValueError):
+    """The sample did not yield a usable component for a standard region."""
+
+
 class StandardMaskManager:
     """Build standard masks in fixed, recipe-local search ROIs."""
 
@@ -154,17 +158,22 @@ class StandardMaskManager:
         extracted['path'] = self._stored_path(target)
         return extracted
 
-    def _extract_layer_set(self, image, recipe, cfg):
+    def _extract_layer_set(self, image, recipe, cfg, *, verify_drawn_shape=False):
         from .foam_inspector import _inspect_layer_sides, _resolve_side_roi_config
         config = dict(cfg, standard_mask_space='layer-v3', _teach_layer=True)
         rois = _resolve_side_roi_config(config, recipe.pos)
         sides = _inspect_layer_sides(image, rois, config)
         masks = {side: data['mask'] for side, data in sides.items()}
         for side, mask in masks.items():
+            label = '左侧' if side == 'left' else '右侧'
             if not np.any(mask):
-                raise ValueError(f'{side} 标准框内未识别到泡棉，请检查图片和框的位置')
+                raise FoamTemplateExtractionError(f'{label}标准区域未能提取泡棉轮廓，请检查样件亮度和区域位置')
             if sides[side]['coverage_ratio'] < 0.01:
-                raise ValueError(f'{side} 标准区域与泡棉重叠过小，请检查框的位置')
+                raise FoamTemplateExtractionError(f'{label}标准区域与泡棉重叠过小，请检查框的位置')
+            # A highlight alone is insufficient to accept a switch of algorithm.
+            # Check both overlap and leakage against each hand-traced outline.
+            if verify_drawn_shape and sides[side]['iou'] < 0.65:
+                raise FoamTemplateExtractionError(f'{label}阴影识别轮廓与手绘区域吻合不足，请检查光照和描边')
         # Validate through the production path before writing any templates.
         check = _inspect_layer_sides(image, rois, dict(
             config, _teach_layer=False, standard_masks=masks))
@@ -187,11 +196,21 @@ class StandardMaskManager:
 
     def create_set_from_sample(self, image, recipe, version, cfg=None):
         """Teach left and right templates from the same qualified image."""
-        layer_mode = bool((cfg or {}).get('layer_search_roi'))
-        extracted = self._extract_layer_set(image, recipe, cfg) if layer_mode else {
-            side: self._extract_side(image, recipe, side, cfg)
-            for side in self.SIDES
-        }
+        cfg = dict(cfg or {})
+        configured_mode = cfg.get('configured_foam_segmentation', cfg.get('foam_segmentation', 'fixed-threshold'))
+        cfg['foam_segmentation'] = configured_mode
+        layer_mode = bool(cfg.get('layer_search_roi'))
+        if layer_mode:
+            try:
+                extracted = self._extract_layer_set(image, recipe, cfg)
+            except FoamTemplateExtractionError:
+                polygons = cfg.get('polygon_rois', {}).get(str(recipe.pos), {})
+                if configured_mode != 'fixed-threshold' or not all(polygons.get(s) for s in self.SIDES):
+                    raise
+                cfg['foam_segmentation'] = 'shadow-graphcut-fast-v2'
+                extracted = self._extract_layer_set(image, recipe, cfg, verify_drawn_shape=True)
+        else:
+            extracted = {side: self._extract_side(image, recipe, side, cfg) for side in self.SIDES}
 
         targets = {
             side: self.base_dir / (
@@ -220,7 +239,8 @@ class StandardMaskManager:
             'version': version,
             'mask_algorithm_version': 'layer-v3' if layer_mode else FOAM_MASK_ALGORITHM_VERSION,
             'mask_space': 'layer-v3' if layer_mode else 'side',
-            'foam_segmentation': (cfg or {}).get('foam_segmentation', 'fixed-threshold'),
+            'configured_foam_segmentation': configured_mode,
+            'foam_segmentation': cfg['foam_segmentation'],
             'self_check_passed': layer_mode,
             'image_width': int(recipe.image_width),
             'image_height': int(recipe.image_height),

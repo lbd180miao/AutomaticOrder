@@ -23,6 +23,7 @@ from apps.production.services import ProductionService
 from apps.vision.services import VisionService
 
 from .models import StationCycle, StationPhase, WorkflowEvent, WorkflowInstance
+from apps.mes.remote_client import RemoteMesClient, RemotePending
 
 
 class StationStepError(RuntimeError):
@@ -212,7 +213,13 @@ class StationWorkflowService:
             return cycle, False
 
         try:
+            if isinstance(getattr(self.mes, 'client', None), RemoteMesClient):
+                self.mes.client.nonblocking = True
+                self.mes.client.context_cycle = cycle.pk
             changed = self._dispatch(cycle, snapshot)
+        except RemotePending:
+            # Durable network work runs separately; keep polling and maintaining heartbeat.
+            return cycle, False
         except StationStepError as exc:
             self._write_failure_result(cycle.phase)
             self._lock(cycle, str(exc), exc.source)
@@ -321,16 +328,23 @@ class StationWorkflowService:
             raise StationStepError('料框与配方尚未准备完成，不能接收产品条码', AlarmSource.RECIPE)
 
         raw_code = snapshot.get('product_barcode')
+        existing = cycle.product if cycle.workflow_id else None
+        resuming_remote = (
+            isinstance(getattr(self.mes, 'client', None), RemoteMesClient)
+            and existing is not None and existing.product_code == str(raw_code).strip()
+            and existing.rack_id == cycle.rack_id
+            and cycle.workflow.current_state == WorkflowState.BARCODE_READ
+        )
         val_res = validate_product_barcode(
             raw_code,
             rack_code=cycle.rack.rack_code,
-            check_db_duplicate=True,
+            check_db_duplicate=not resuming_remote,
         )
         if not val_res.is_valid:
             raise StationStepError(val_res.error_message, AlarmSource.SCANNER)
 
         code = val_res.cleaned_code
-        product = self.production.create_product(code)
+        product = existing if resuming_remote else self.production.create_product(code)
         workflow, created = WorkflowInstance.objects.get_or_create(
             product=product,
             defaults={

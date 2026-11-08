@@ -13,6 +13,8 @@
     evaluation: null, teachToken: null, reference: null, forensicFrame: null, capturing: false, dirty: false, redraw: false};
   let saveFeedback = '';
   const recipeId = () => String($('recipe-select')?.value || $('recipe-id')?.value || '');
+  const pointNames = () => Number(state.config?.rack_layers || $('dp-rack-layers').value) === 2 ? ['P1'] : ['P1', 'P2'];
+  const activeTargets = () => targets.slice(0, pointNames().length * 2);
   const roi = () => state.config?.rois.find(r => r.target === targets[state.selected]);
   const status = text => { $('dp-status').textContent = text; };
   const currentFrame = () => window.rackLocatorOfflineBridge?.snapshot();
@@ -34,7 +36,7 @@
     const compatible = result?.coordinateSystem === 'camera' && reference?.coordinateSystem === 'camera'
       && result?.success === true && reference?.success === true
       && result?.unit === 'mm' && reference?.unit === 'mm';
-    for (const name of ['P1', 'P2']) {
+    for (const name of pointNames()) {
       const standardPoint = reference?.points?.find(point => point.name === name);
       const currentPoint = result?.points?.find(point => point.name === name);
       const standard = reference?.coordinateSystem === 'camera' && reference?.success && standardPoint?.success ? standardPoint.xyz : null;
@@ -60,14 +62,14 @@
     ].join('\n') : '';
     const robot = state.evaluation?.robot_result;
     const robotBody = $('dp-robot-results'); robotBody.replaceChildren();
-    ['P1', 'P2'].forEach((name, index) => {
+    pointNames().forEach((name, index) => {
       const row = document.createElement('tr'); cell(row, name, true);
       for (let axis=0; axis<3; axis++) cell(row, robot?.success ? fmt(robot.offsets[index][axis]) : '—');
       robotBody.appendChild(row);
     });
     $('dp-robot-status').textContent = robot?.success
       ? ''
-      : robot?.errorMessage || '计算后显示两组偏差。';
+      : robot?.errorMessage || `计算后显示 ${pointNames().join('、')} 偏差。`;
     $('dp-result-state').textContent = state.evaluation
       ? result?.registration ? (result.success ? '匹配通过' : '匹配未通过 · 候选结果')
         : result?.success ? '已计算' : `${({'2d':'二维找边失败', '3d':'三维测量失败', input:'输入校验失败', configuration:'配置校验失败', calibration:'标定校验失败'})[result?.stage] || '计算失败'}：${result?.errorMessage || result?.errorCode || '未知原因'}`
@@ -92,12 +94,14 @@
     return data;
   }
   function refresh() {
-    $('dp-save-standard').disabled = state.busy || state.capturing || (!state.prepared || !recipeId() || state.config?.rois.length !== 4 || state.redraw || !!state.drag);
+    $('dp-save-standard').disabled = state.busy || state.capturing || (!state.prepared || !recipeId() || activeTargets().some(target => !state.config?.rois.some(r => r.target === target)) || state.redraw || !!state.drag);
     $('dp-save-standard').textContent = '保存当前帧为点云标准模板';
     panel.querySelectorAll('thead tr th:first-child').forEach(th => {th.textContent = '参考点';});
     $('dp-empty').querySelector('small').textContent = '框选稳定结构区域，保存标准点云后进行匹配';
-    $('dp-mode-help').textContent = '点云匹配：P1/P2 为区域参考点。修改框选后需重新保存点云模板。';
+    $('dp-rack-layers').disabled = state.busy || state.capturing || !!state.drag;
+    $('dp-mode-help').textContent = `点云匹配：${pointNames().join(' / ')} 为区域参考点，需画 ${activeTargets().length} 个框。修改层数或框选后需重新保存点云模板。`;
     $('dp-targets').querySelectorAll('button').forEach((button, index) => {
+      button.hidden = index >= activeTargets().length;
       button.textContent = labels[index] + (state.config?.rois.some(r => r.target === targets[index]) ? ' ✓' : '');
       button.style.outline = index === state.selected ? `2px solid ${colors[index]}` : '';
       button.disabled = state.busy || state.capturing;
@@ -118,7 +122,7 @@
     state.result = null;
     state.evaluation = null; state.teachToken = null; state.reference = null;
 
-    status(`四 ROI 已框选 ${state.config.rois.length}/4，已暂存为草稿，点击「保存配方」写入当前配方。`);
+    status(`ROI 已框选 ${state.config.rois.length}/${activeTargets().length}，已暂存为草稿，点击「保存配方」写入当前配方。`);
     refresh(); draw(); renderResults();
   }
   function drawDepth() {
@@ -252,19 +256,22 @@
     saveFeedback = '';
     const snapshot = currentFrame(), selectedRecipe = recipeId();
     if (!snapshot?.pointcloud_token) throw new Error('请先点击「采集点云」。');
-    status('正在读取相机原图和已保存的四 ROI…');
+    status('正在读取相机原图和已保存的ROI…');
     const data = await request(panel.dataset.prepareUrl, {...snapshot, recipe_id: selectedRecipe, localization_mode: 'cloud_match'});
     const img = new Image(); img.src = data.image_url; await img.decode();
     if (selectedRecipe !== recipeId() || snapshot.pointcloud_token !== currentFrame()?.pointcloud_token) throw new Error('加载期间配方或采集帧变化，请重新载入。');
     state.dirty = false; state.redraw = false;
-    state.image = img; state.config = data.config; state.result = null; state.evaluation = null; state.teachToken = null; state.reference = data.reference;
+    state.image = img; state.config = data.config;
+    state.config.rack_layers = data.config.rack_layers || (data.config.rois.length ? 3 : Number($('dp-rack-layers').value));
+    $('dp-rack-layers').value = String(state.config.rack_layers);
+    state.selected = 0; state.result = null; state.evaluation = null; state.teachToken = null; state.reference = data.reference;
     state.prepared = {image_token: data.image_token, cloud_token: data.cloud_token, recipe_id: selectedRecipe, frame: snapshot.pointcloud_token};
     canvas.width = data.width; canvas.height = data.height; canvas.hidden = false; canvas.style.display = 'block';
     $('dp-empty').hidden = true;
     if (JSON.stringify(state.config.imageSize) !== JSON.stringify([data.width, data.height])) {
       state.config.rois = []; state.config.imageSize = [data.width, data.height];
       status('原图尺寸与已存 ROI 不同，已清除本地框选，请重新绘制后保存。');
-    } else status(`原图 ${data.width} × ${data.height}，配方 #${selectedRecipe || '未选择'}。四 ROI 已载入 ${state.config.rois.length}/4。\n${data.three_d_status}`);
+    } else status(`原图 ${data.width} × ${data.height}，配方 #${selectedRecipe || '未选择'}。ROI 已载入 ${state.config.rois.length}/${activeTargets().length}。\n${data.three_d_status}`);
     state.revision++; refresh(); draw();
     void loadDepth(data, state.prepared);
   }
@@ -274,7 +281,7 @@
       if (!state.prepared || !state.config) throw new Error('请先采集或加载点云，再框选 ROI。');
       checkFrame();
       const selectedRecipe = recipeId(), revision = state.revision;
-      const missing = targets.filter(target => !state.config.rois.some(r => r.target === target));
+      const missing = activeTargets().filter(target => !state.config.rois.some(r => r.target === target));
       if (missing.length) throw new Error(`尚缺 ${missing.map(target => labels[targets.indexOf(target)]).join('、')}，请完成后保存。`);
       if (state.drag) throw new Error('请先松开鼠标，结束框选。');
       saveFeedback = '正在保存…'; refresh();
@@ -285,7 +292,7 @@
       state.dirty = false; state.redraw = false;
       const name = $('recipe-select')?.selectedOptions?.[0]?.textContent.trim() || selectedRecipe;
       saveFeedback = '已保存到配方';
-      status(`四 ROI 已保存到配方「${name}」。框选配置已保存；点云标准模板需另点「保存当前帧为点云标准模板」。`);
+      status(`ROI 已保存到配方「${name}」。框选配置已保存；点云标准模板需另点「保存当前帧为点云标准模板」。`);
     } catch (error) {
       saveFeedback = `保存失败：${error.message}`;
       status(saveFeedback);
@@ -332,7 +339,16 @@
 
     status('采集点云后点击「开始计算」，自动载入原图与配方 ROI。'); refresh(); draw(); renderResults();
   }
-  $('recipe-select')?.addEventListener('change', invalidateFrame);
+  $('dp-rack-layers').addEventListener('change', () => {
+    state.selected = 0; state.redraw = false;
+    if (state.config) {
+      state.config.rack_layers = Number($('dp-rack-layers').value);
+      state.config.rois = state.config.rois.filter(r => activeTargets().includes(r.target));
+      edited();
+      status('料架层数已修改，请完成框选并重新保存点云标准模板。');
+    } else { refresh(); renderResults(); }
+  });
+  $('recipe-select')?.addEventListener('change', () => { $('dp-rack-layers').value = '3'; invalidateFrame(); });
   $('btn-capture')?.addEventListener('click', () => {
     state.captureTokenBefore = currentFrame()?.pointcloud_token;
     invalidateFrame(); state.capturing = true; refresh(); $('dp-frame-status').textContent = '正在采集相机数据…';
@@ -368,8 +384,8 @@
     };
     bridge.load = payload => {
       originalLoad(payload); invalidateFrame();
-      $('dp-frame-status').textContent = '数据包已加载，正在自动载入原图与四 ROI…';
-      // 等待点云图片加载完成后自动触发「载入原图与四 ROI」，省去手动点击
+      $('dp-frame-status').textContent = '数据包已加载，正在自动载入原图与ROI…';
+      // 等待点云图片加载完成后自动触发「载入原图与ROI」，省去手动点击
       const img = document.getElementById('rl-depth-image');
       const trigger = () => action(loadFrame);
       if (img && (!img.complete || !img.naturalWidth)) {

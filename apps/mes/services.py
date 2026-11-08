@@ -40,6 +40,9 @@ def get_mes_client():
       - 'soap'：延锋 YFPO WCF(SOAP) 客户端（20260801 校验 / 20260802 绑定 / 20260803 封箱）。
     模拟设备开关优先；未配置合法 MES_BASE_URL 时回退模拟客户端。
     """
+    if getattr(settings, 'MES_GATEWAY_ENABLED', False):
+        from .remote_client import RemoteMesClient
+        return RemoteMesClient()
     conf = getattr(settings, 'AUTOMATIC_ORDER', {})
     base_url = conf.get('MES_BASE_URL') or ''
     if conf.get('USE_SIMULATED_DEVICES', False) or not base_url.strip() or not base_url.startswith(('http://', 'https://')):
@@ -74,6 +77,11 @@ def get_mes_client():
 
 def describe_mes_runtime():
     """返回当前生效的 MES 运行配置（供前端只读展示，不含敏感 token）。"""
+    if getattr(settings, 'MES_GATEWAY_ENABLED', False):
+        from .remote_client import config
+        return {'mode': 'gateway', 'protocol': 'http-gateway', 'base_url': config()['gateway_url'],
+                'factory_code': '', 'prod_line_code': '', 'timeout': config().get('wait_seconds', 20),
+                'use_simulated': False, 'has_authorization': True}
     conf = getattr(settings, 'AUTOMATIC_ORDER', {})
     base_url = conf.get('MES_BASE_URL') or ''
     use_sim = bool(conf.get('USE_SIMULATED_DEVICES', False))
@@ -203,7 +211,11 @@ class MesService:
         if handler is None:
             return {'success': False, 'error': f'不支持重传的动作: {action}'}
 
-        resp = handler(payload)
+        remote_id = (record.response_payload or {}).get('gateway_request_id')
+        if remote_id and hasattr(self.client, 'retry_request'):
+            resp = self.client.retry_request(remote_id)
+        else:
+            resp = handler(payload)
         if action == MesAction.GET_RACK_RECIPE:
             resp = map_pkg_type(resp)
         new_record = MesRecord.objects.create(

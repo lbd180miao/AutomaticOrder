@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}MES 网关通信{% endblock %}
+{% block content %}
+<section class="panel" style="padding:24px">
+<h1>MES 网关通信</h1><p>AGV 192.168.3.6 → 外部 MES 网关 <strong id="address"></strong></p>
+<p>通信自检只验证两机任务落库与结果返回，不操作 PLC，不调用 MES 业务接口。</p>
+{% csrf_token %}
+<button class="btn" onclick="testGateway('health')">测试网关连接</button>
+<button class="btn" onclick="testGateway('self_test')">运行通信自检</button>
+<pre id="feedback" style="white-space:pre-wrap"></pre>
+<hr><h2>无 PLC 联调 · 料框到位</h2>
+<p>输入料框码后点击一次，模拟一次就绪位 0→1 的业务触发。查询经过外部网关调用真实 MES，不模拟 S7 通信，不自动清空或绑定。</p>
+<label for="rack-code">料框码</label> <input id="rack-code" maxlength="64" placeholder="输入现场料框码">
+<button class="btn" id="rack-query" onclick="queryRack()">模拟料框到位并查询 MES</button>
+<pre id="rack-result" style="white-space:pre-wrap" aria-live="polite">等待手动触发</pre>
+<p>pending：待发送；accepted：网关已接收；running：执行中；succeeded：成功；failed：失败；unknown：待人工核对。每两秒刷新。</p>
+<div style="overflow:auto"><table class="table"><thead><tr><th>任务编号</th><th>动作</th><th>状态</th><th>结果 / 错误</th></tr></thead><tbody id="tasks"></tbody></table></div>
+</section>
+<script>
+async function refreshGateway(){
+ try {const r=await fetch('{% url "mes:gateway_status" %}');const d=await r.json();
+ if(!r.ok)throw Error(d.error); document.getElementById('address').textContent=d.gateway_url;
+ const body=document.getElementById('tasks');body.replaceChildren();
+ for(const t of d.tasks){const tr=document.createElement('tr');for(const value of [t.id,t.action,t.state,t.error||t.result]){const td=document.createElement('td');td.textContent=value;tr.appendChild(td);}body.appendChild(tr);}
+ if(rackTask){const t=d.tasks.find(x=>x.id===rackTask);if(t){const r=JSON.parse(t.result||'{}');const m=r.mes_data||{};const qty=r.hu_qty??m.HUQty;
+ const known=qty!==undefined&&qty!==null&&qty!==''&&Number.isFinite(Number(qty))&&Number(qty)>=0;
+ const binding=known?(Number(qty)>0?'MES 返回已绑定数量大于 0，存在绑定产品':'MES 返回已绑定数量为 0'):'MES 未返回有效 HUQty，无法判断是否绑定';
+ document.getElementById('rack-result').textContent=`任务：${t.id}\n状态：${t.state}\n${binding}\n包装编码：${r.pkg_type_code??m.PkgTypeCode??'未返回'}\n封箱状态：${r.is_sealed??m.IsSealed??'未返回'}\n说明：当前接口不保证返回条码明细；不能把查询失败当作空框。\n原始结果：\n${JSON.stringify(r,null,2)}\n${t.error||''}`;
+ if(['succeeded','failed','unknown'].includes(t.state))document.getElementById('rack-query').disabled=false;}}
+ }catch(e){document.getElementById('feedback').textContent=e.message;}
+}
+async function testGateway(mode){
+ const out=document.getElementById('feedback');out.textContent='正在测试…';
+ try{const r=await fetch('{% url "mes:gateway_test" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]').value},body:JSON.stringify({mode})});out.textContent=JSON.stringify(await r.json(),null,2);await refreshGateway();}catch(e){out.textContent=e.message;}
+}
+let rackTask=null;
+async function queryRack(){const b=document.getElementById('rack-query');b.disabled=true;try{const r=await fetch('{% url "mes:gateway_test" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]').value},body:JSON.stringify({mode:'rack_query',rack_code:document.getElementById('rack-code').value})});const d=await r.json();if(!r.ok)throw Error(d.error);rackTask=d.id;document.getElementById('rack-result').textContent=d.message;await refreshGateway();}catch(e){document.getElementById('rack-result').textContent=e.message;b.disabled=false;}}
+refreshGateway();setInterval(refreshGateway,2000);
+</script>
+{% endblock %}

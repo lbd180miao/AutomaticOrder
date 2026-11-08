@@ -19,6 +19,7 @@ logs/
 
 # ── 编译 / 打包产物 ──────────────────────────────────────
 dist/
+delivery/
 build/
 *.zip
 *.tar.gz
@@ -54,3 +55,42 @@ docs/pic/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Images and local camera captures (including accompanying data)
+*.[pP][nN][gG]
+*.[jJ][pP][gG]
+*.[jJ][pP][eE][gG]
+*.[bB][mM][pP]
+*.[gG][iI][fF]
+*.[wW][eE][bB][pP]
+*.[tT][iI][fF]
+*.[tT][iI][fF][fF]
+*.[iI][cC][oO]
+*.[sS][vV][gG]
+*.avif
+/2d_SDK/pic/
+/rvc_service/pic/
+.camera_cache/
+
+# Tests, verification scripts, and local test artifacts
+tests/
+test/
+tests.py
+test_*.py
+tests_*.py
+*_test.py
+conftest.py
+.pytest_cache/
+.coverage
+htmlcov/
+/audit/
+/tools/smoke_distributed.py
+/tools/check_gateway_ui.cjs
+
+# Packaging definitions, scripts, and documentation
+*.spec
+/build*.ps1
+/requirements-build.txt
+/docs/packaging.md
+/tools/prepare_distributed.py
+/tools/finalize_distributed.py

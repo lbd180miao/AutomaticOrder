@@ -1,10 +1,14 @@
 from django.urls import path
 
 from . import views
+from . import gateway_views
 
 app_name = 'mes'
 
 urlpatterns = [
+    path('gateway/', gateway_views.page, name='gateway'),
+    path('gateway/status/', gateway_views.status, name='gateway_status'),
+    path('gateway/test/', gateway_views.test, name='gateway_test'),
     # 主页面
     path('records/', views.record_list, name='record_list'),
     path('recipe-check/', views.recipe_check, name='recipe_check'),

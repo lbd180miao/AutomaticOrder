@@ -186,6 +186,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # 3D 深度相机料架定位运行模式：'MOCK'（模拟，无需硬件）/ 'REAL'（真实相机+机器人）
 RACK_3D_POSITIONING_MODE = os.environ.get('RACK_3D_POSITIONING_MODE', 'MOCK').upper()
 PLC_LISTENER_AUTO_START = env_bool('PLC_LISTENER_AUTO_START', False)
+MES_GATEWAY_ENABLED = env_bool('MES_GATEWAY_ENABLED', (DATA_DIR / 'agv_gateway.json').exists())
 
 AUTOMATIC_ORDER = {
     'USE_SIMULATED_DEVICES': env_bool('USE_SIMULATED_DEVICES', False),

@@ -7,6 +7,13 @@ import numpy as np
 TARGETS = ('P1_horizontal', 'P1_vertical', 'P2_horizontal', 'P2_vertical')
 
 
+def required_targets(config):
+    layers = config.get('rack_layers', 3)
+    if layers not in (2, 3):
+        raise ValueError('料架层数必须为 2 或 3')
+    return TARGETS[:2] if layers == 2 else TARGETS
+
+
 def cloud_config(config):
     """Only current capture and cloud-template settings belong in new packages."""
     return {key: value for key, value in (config or {}).items()
@@ -17,19 +24,23 @@ def config_status(config):
     config = config if isinstance(config, dict) else {}
     rois = config.get('rois') or []
     size = config.get('imageSize') or []
+    try:
+        targets = required_targets(config)
+    except ValueError:
+        targets = ()
     valid_targets = set()
     if isinstance(rois, list) and len(size) == 2:
         for roi in rois:
             try:
                 image_roi(roi, (size[1], size[0]))
-                if roi.get('target') in TARGETS:
+                if roi.get('target') in targets:
                     valid_targets.add(roi['target'])
             except (ValueError, TypeError, KeyError, OverflowError, AttributeError):
                 continue
     return {
         'has_saved_roi': bool(valid_targets),
         'configured_count': len(valid_targets),
-        'is_complete': len(valid_targets) == 4 and len(rois) == 4,
+        'is_complete': bool(targets) and len(valid_targets) == len(targets) and len(rois) == len(targets),
         'rois': rois,
     }
 

@@ -261,7 +261,7 @@ def get_foam_standard_template_status(recipe):
     reason = ''
     roi_matches = True
     resolution_matches = True
-    algorithm_matches = template.get('foam_segmentation', 'fixed-threshold') == (
+    algorithm_matches = template.get('configured_foam_segmentation', template.get('foam_segmentation', 'fixed-threshold')) == (
         (recipe.algorithm_config or {}).get('foam_segmentation', 'fixed-threshold'))
     if not algorithm_matches:
         reason = '分割算法已修改，需要重新示教标准模板'
@@ -399,9 +399,12 @@ def build_foam_inspection_config(recipe):
                     '请选择“③ 本层大框”扩大搜索区域，保留左右标准框不变。'
                 )
     pos_str = str(recipe.pos)
+    configured_mode = (recipe.algorithm_config or {}).get('foam_segmentation', 'fixed-threshold')
+    template = recipe.standard_template_config or {}
     return {
-        'standard_mask_space': (recipe.standard_template_config or {}).get('mask_space', 'side'),
-        'foam_segmentation': (recipe.algorithm_config or {}).get('foam_segmentation', 'fixed-threshold'),
+        'standard_mask_space': template.get('mask_space', 'side'),
+        'configured_foam_segmentation': configured_mode,
+        'foam_segmentation': template.get('foam_segmentation', configured_mode) if template_status['ready'] else configured_mode,
         'layer_search_roi': layer_ratio,
         'layer_search_polygon': _extract_polygon_points(layer) if layer else None,
         'foam_rois': {

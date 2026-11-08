@@ -12,7 +12,7 @@ from django.http import FileResponse, JsonResponse, HttpResponse
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
-from .rack_cloud_roi import TARGETS, image_roi
+from .rack_cloud_roi import required_targets, image_roi
 from .models import RackLocationRecipe
 
 SALT = 'rack-dual-point-image-v1'
@@ -150,8 +150,9 @@ def validate_config(config, shape):
     if config.get('imageSize') != [shape[1], shape[0]]:
         raise ValueError('ROI 配置分辨率与当前原图不同，请重新框选或加载对应原图')
     rois = config['rois']
-    if len(rois) != 4 or {r['target'] for r in rois} != set(TARGETS):
-        raise ValueError('请画满四个 ROI：P1 横杆/立柱、P2 横杆/立柱')
+    targets = required_targets(config)
+    if len(rois) != len(targets) or {r['target'] for r in rois} != set(targets):
+        raise ValueError(f'请完成 {len(targets)} 个 ROI：每个参考点需横杆和立柱两个框')
     for roi in rois:
         image_roi(roi, shape)
     # Verify finite JSON before persisting any draft.
@@ -170,7 +171,7 @@ def save_config(request):
             recipe.roi_config = {**(recipe.roi_config or {}), 'cloud_match_config': config}
             recipe.save(update_fields=['roi_config'])
         return JsonResponse({'success': True, 'recipe_id': recipe.pk, 'config': config,
-                             'message': '四 ROI 配置已保存；可继续使用已有标准模板计算偏差'})
+                             'message': 'ROI 配置已保存；可继续使用已有标准模板计算偏差'})
     except (OSError, ValueError, KeyError, TypeError, signing.BadSignature, RackLocationRecipe.DoesNotExist) as exc:
         return error_response(exc)
 
@@ -232,7 +233,7 @@ def recompute_robot_deviation(request):
             offsets = robot_result.get('offsets') or []
             standard = robot_result.get('standard') or []
             current_pts = robot_result.get('current') or []
-            for i, name in enumerate(('P1', 'P2')):
+            for i, name in enumerate(('P1', 'P2')[:len(offsets)]):
                 rows.append({
                     'name': name,
                     'standard': [fmt3(v) for v in standard[i]] if i < len(standard) else None,
@@ -295,6 +296,9 @@ def cloud_match(request):
             result = reference['measurement']
         else:
             reference = (recipe.roi_config or {}).get('cloud_match_reference')
+            config = data.get('config') or (recipe.roi_config or {}).get('cloud_match_config') or {}
+            if reference and required_targets(config) != required_targets(reference['config']):
+                raise ValueError('料架层数与标准模板不同，请重新保存点云标准模板')
             result = match_template(package['cloud'], package['metadata'], reference)
         result = add_display_pixels(result, package['cloud'], package['metadata'])
         robot = evaluate_robot_points(result, reference) if result['success'] else None
