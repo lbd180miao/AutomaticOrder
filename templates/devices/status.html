@@ -1,10 +1,22 @@
 {% extends "base.html" %}
 {% block title %}PLC 流程监控 - AutomaticBoxing{% endblock %}
 {% block content %}
+<style>
+.device-health-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin:16px 0}
+.device-health-card{border:1px solid #dbe3ed;border-top:4px solid #64748b;border-radius:10px;padding:18px;background:#fff;min-width:0}
+.device-health-card[data-state="online"]{border-top-color:#16804a}
+.device-health-card[data-state="offline"]{border-top-color:#c0392b}
+.device-health-card h3{display:flex;justify-content:space-between;gap:12px;margin:0 0 12px;font-size:17px}
+.device-health-card b{font-size:14px;color:#536174}
+.device-health-card[data-state="online"] b{color:#16804a}
+.device-health-card[data-state="offline"] b{color:#b32b22}
+.device-health-card p{white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0;line-height:1.6}
+.device-health-card small{display:block;color:#64748b;line-height:1.8;overflow-wrap:anywhere}
+</style>
 <section class="page-header station-page-header">
   <div>
     <h1>PLC 流程监控</h1>
-    <p class="page-subtitle">只展示当前流程位置，以及每个场景与 PLC 的交互结果</p>
+    <p class="page-subtitle">设备实时在线检测、当前流程位置与 PLC 交互结果</p>
   </div>
   <div class="toolbar-actions">
     <form id="plc-global-form" action="{% url 'devices:api_plc_global' %}" method="post">
@@ -20,10 +32,16 @@
   </div>
 </section>
 
+<section class="panel" style="padding:20px;margin-bottom:20px" aria-labelledby="health-title">
+  <h2 id="health-title">设备在线状态</h2>
+  <p id="health-summary" role="status">正在检测三台设备…</p>
+  <small>页面每 2 秒刷新，设备每 5 秒检测；2D 在线表示 SDK 可发现设备，不代表采集已验证。</small>
+  <div class="device-health-grid" id="device-health-grid"></div>
+</section>
 <section class="station-link-bar {% if plc_connected %}is-online{% else %}is-offline{% endif %}" id="station-link-bar">
   <div class="station-link-main">
     <span class="station-link-light"></span>
-    <div><small>PLC CONNECTION</small><strong id="connection-label">{{ station_snapshot.connection_label }}</strong></div>
+    <div><small>PLC 生产通信记录（非设备心跳）</small><strong id="connection-label">{% if plc_connected %}近期有生产通信{% else %}暂无近期生产通信{% endif %}</strong></div>
   </div>
   <dl class="station-link-facts">
     <div><dt>端点</dt><dd id="connection-address">{{ station_snapshot.address }}</dd></div>
@@ -34,7 +52,7 @@
 </section>
 
 <section class="station-alert" id="station-alert" {% if not station_snapshot.locked and plc_connected %}hidden{% endif %}>
-  <strong id="station-alert-title">{% if station_snapshot.locked %}工位已锁定{% else %}PLC 当前离线{% endif %}</strong>
+  <strong id="station-alert-title">{% if station_snapshot.locked %}工位已锁定{% else %}暂无近期生产通信{% endif %}</strong>
   <span id="station-alert-message">{% if station_snapshot.locked %}{{ station_snapshot.error }}{% else %}页面数据为最近一次通信快照，不代表 PLC 当前值。{% endif %}</span>
 </section>
 
@@ -191,7 +209,7 @@
     const bar = document.getElementById('station-link-bar');
     bar.classList.toggle('is-online', Boolean(data.connected));
     bar.classList.toggle('is-offline', !data.connected);
-    document.getElementById('connection-label').textContent = data.connection_label;
+    document.getElementById('connection-label').textContent = data.connected ? '近期有生产通信' : '暂无近期生产通信';
     document.getElementById('connection-address').textContent = data.address;
     document.getElementById('current-phase-label').textContent = data.phase_label;
     document.getElementById('last-seen').textContent = data.last_seen;
@@ -200,7 +218,7 @@
     document.getElementById('boxing-progress').textContent = data.progress;
     const alert = document.getElementById('station-alert');
     alert.hidden = data.connected && !data.locked;
-    document.getElementById('station-alert-title').textContent = data.locked ? '工位已锁定' : 'PLC 当前离线';
+    document.getElementById('station-alert-title').textContent = data.locked ? '工位已锁定' : '暂无近期生产通信';
     document.getElementById('station-alert-message').textContent = data.locked
       ? (data.error || '请查看失败场景的 PLC 交互结果')
       : '页面数据为最近一次通信快照，不代表 PLC 当前值。';
@@ -228,6 +246,41 @@
   }
 
   render(initial);
+  const healthGrid = document.getElementById('device-health-grid');
+  const healthSummary = document.getElementById('health-summary');
+  const labels = {online:'在线', offline:'离线 / 检测失败', checking:'检测中', unknown:'状态未知', disabled:'已禁用', unconfigured:'未配置', simulated:'模拟模式'};
+  let healthRows = ['PLC', 'RVC 3D 相机', '海康 2D 相机'].map(name => ({name, state:'checking', detail:'等待首次检测', address:'—'}));
+  const displayTime = value => value ? new Date(value).toLocaleString('zh-CN', {hour12:false}) : '—';
+  function renderHealth() {
+    healthGrid.innerHTML = healthRows.map(row => `<article class="device-health-card" data-state="${escapeHtml(row.state)}">
+      <h3>${escapeHtml(row.name)}<b>${escapeHtml(labels[row.state] || '状态未知')}</b></h3>
+      <small>设备地址 / 序列号：${escapeHtml(row.address)}</small>
+      <p>${escapeHtml(row.detail)}</p>
+      <small>最后检测：${escapeHtml(displayTime(row.checked_at))}</small>
+      <small>最后在线：${escapeHtml(displayTime(row.last_online))}</small>
+    </article>`).join('');
+  }
+  async function pollHealth() {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    try {
+      const response = await fetch('{% url "devices:api_device_health" %}', {cache:'no-store', signal:controller.signal});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (!Array.isArray(data.devices) || data.devices.length !== 3) throw new Error('状态数据不完整');
+      healthRows = data.devices;
+      healthSummary.textContent = `${healthRows.filter(row => row.state === 'online').length} / 3 台在线 · 自动检测中`;
+    } catch (error) {
+      healthRows = healthRows.map(row => ({...row, state:'unknown', detail:'监控接口无法访问，当前设备状态未知；请检查页面与服务器连接。'}));
+      healthSummary.textContent = '监控连接中断，正在自动重试';
+    } finally {
+      clearTimeout(timeout);
+      renderHealth();
+      setTimeout(pollHealth, 2000);
+    }
+  }
+  renderHealth();
+  pollHealth();
   window.setTimeout(poll, 2000);
 })();
 </script>

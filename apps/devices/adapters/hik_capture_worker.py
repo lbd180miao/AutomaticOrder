@@ -484,6 +484,14 @@ def main(argv=None):
     image_path = None
     try:
         payload = json.loads(argv[0])
+        if payload.get('health_probe'):
+            from apps.devices.health_probe import probe
+            try:
+                result = {'success': True, **probe(payload)}
+            except Exception as exc:
+                result = {'success': False, 'error': str(exc)}
+            print(json.dumps(result), flush=True)
+            return 0
         if payload.get('persistent_worker'):
             return serve(payload)
         result_path = Path(payload['result_path'])

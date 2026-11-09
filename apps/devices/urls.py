@@ -5,6 +5,7 @@ from . import views
 app_name = 'devices'
 
 urlpatterns = [
+    path('api/health/', views.api_device_health, name='api_device_health'),
     path('api/plc-global/', views.api_plc_global, name='api_plc_global'),
     path('api/plc-foam-debug/', views.api_plc_foam_debug, name='api_plc_foam_debug'),
     path('api/plc-position-debug/', views.api_plc_position_debug, name='api_plc_position_debug'),

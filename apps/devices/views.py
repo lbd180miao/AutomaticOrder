@@ -19,6 +19,13 @@ PLC_POINT_DEFINITIONS = DB100_POINTS
 logger = logging.getLogger(__name__)
 
 
+def api_device_health(request):
+    from .health import snapshot
+    response = JsonResponse(snapshot())
+    response['Cache-Control'] = 'no-store'
+    return response
+
+
 @require_POST
 def api_plc_global(request):
     from apps.workflow.listener import start_listener, stop_listener, listener_running, listener_stopping
