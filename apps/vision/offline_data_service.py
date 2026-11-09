@@ -276,6 +276,7 @@ class OfflineDataPackageService:
         recipe_id: int,
         layer_no: int,
         modified_roi: Optional[Dict[str, Any]] = None,
+        algorithm: str = 'cloud_match',
     ) -> Dict[str, Any]:
         """重新处理数据包，支持标准数据包和原始数据包"""
         package_dir = self._package_dir(package_name)
@@ -293,7 +294,7 @@ class OfflineDataPackageService:
         from .rack_cloud_service import evaluate_cloud
         recipe = RackLocationRecipe.objects.get(pk=recipe_id, enabled=True)
         metadata = {**package['metadata'], 'camera': {**package['metadata'].get('camera', {}), 'pointcloud_unit': 'mm'}}
-        result = evaluate_cloud(recipe, package['pointcloud'], metadata, layer_no=int(layer_no))
+        result = evaluate_cloud(recipe, package['pointcloud'], metadata, layer_no=int(layer_no), algorithm=algorithm)
         package_dir = self._package_dir(package_name)
         self._write_json(package_dir / "result.json", result)
         metadata = package["metadata"]

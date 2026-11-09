@@ -77,6 +77,7 @@ def build_template(cloud, config, metadata):
         raise ValueError(f'请完成 {len(targets)} 个区域，覆盖参考点附近的横杆和立柱')
     mask = np.zeros(data.shape[:2], bool)
     anchors = []
+    regions = []
     for name in dict.fromkeys(target.split('_')[0] for target in targets):
         group = np.zeros_like(mask)
         for roi in rois:
@@ -86,7 +87,16 @@ def build_template(cloud, config, metadata):
         points = valid(data[group])
         if len(points) < 100:
             raise ValueError(f'{name} 区域有效点不足 100，请选择有深度的稳定结构')
-        anchors.append({'name': name, 'success': True, 'xyz': np.median(points, axis=0).tolist()})
+        if config.get('algorithm') == 'cloud_center':
+            # Fix each center to the measured, spatially sampled template points.
+            from scipy.spatial import cKDTree
+            sampled_group = downsample(points)
+            selected = np.unique(cKDTree(points).query(np.asarray(sampled_group.points))[1])
+            center = points[selected].mean(axis=0)
+            regions.append({'name': name, 'points': points[selected].tolist()})
+        else:
+            center = np.median(points, axis=0)
+        anchors.append({'name': name, 'success': True, 'xyz': center.tolist()})
         mask |= group
     raw_points = valid(data[mask])
     sampled = downsample(raw_points)
@@ -101,11 +111,45 @@ def build_template(cloud, config, metadata):
     if eigen[1] < 4:
         raise ValueError('模板接近单一直线，请包含横杆、立柱和连接处')
     measurement = {'success': True, 'coordinateSystem': 'camera', 'unit': 'mm', 'points': anchors,
+                   'center_xyz': points.mean(axis=0).tolist(),
                    'algorithm_version': VERSION, 'measurement_only': True, 'plc_publish_allowed': False}
-    return {'version': VERSION, 'sampling': 'measured_points_v1',
+    return {'version': VERSION, 'algorithm': config.get('algorithm', 'cloud_match'),
+            'center_xyz': points.mean(axis=0).tolist(), 'sampling': 'measured_points_v1',
             'points': points.tolist(), 'shape': list(data.shape),
             'sensor_id': sensor_id(metadata), 'config': config, 'limits': dict(LIMITS),
-            'measurement': measurement}
+            'measurement': measurement, 'regions': regions}
+
+
+def evaluate_regions(template, target, transform):
+    """Evaluate each saved ROI with the shared rigid transform; never re-fit it."""
+    import open3d as o3d
+    limits = template['limits']
+    results = []
+    for region in template.get('regions', []):
+        points = np.asarray(region['points'], float)
+        source = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(points))
+        fit = o3d.pipelines.registration.evaluate_registration(
+            source, target, limits['correspondence_mm'], transform)
+        pairs = np.asarray(fit.correspondence_set)
+        standard = points.mean(axis=0)
+        current = standard @ transform[:3, :3].T + transform[:3, 3]
+        observed = np.asarray(target.points)[np.unique(pairs[:, 1])].mean(axis=0) if len(pairs) else None
+        failures = []
+        if fit.fitness < limits['min_fitness']:
+            failures.append('区域匹配覆盖率不足')
+        if not len(pairs):
+            failures.append('区域无有效对应点')
+        elif fit.inlier_rmse > limits['max_rmse_mm']:
+            failures.append('区域匹配残差超限')
+        results.append({'name': region['name'], 'standard_center_xyz': standard.tolist(),
+                        'matched_template_center_xyz': current.tolist(),
+                        'matched_cloud_center_xyz': observed.tolist() if observed is not None else None,
+                        'center_delta_xyz': (current-standard).tolist(),
+                        'fitness': float(fit.fitness),
+                        'rmse_mm': float(fit.inlier_rmse) if len(pairs) else None,
+                        'source_points': len(points), 'matched_points': len(pairs),
+                        'quality_passed': not failures, 'failure_reasons': failures})
+    return results
 
 
 def match_template(cloud, metadata, template):
@@ -197,12 +241,26 @@ def match_template(cloud, metadata, template):
     ):
         if failed:
             failures.append(reason)
+    regions = evaluate_regions(template, target, transform) if template.get('algorithm') == 'cloud_center' else []
+    for index, region in enumerate(regions):
+        if not region['quality_passed']:
+            failures.append(f'模板区域 {index+1}：'+'；'.join(region['failure_reasons']))
     passed = not failures
     diagnostics = {'fitness': fit.fitness, 'rmse_mm': fit.inlier_rmse, 'shift_mm': shift,
                    'rotation_deg': angle, 'constraint_ratio': condition, 'matched_points': len(pairs),
                    'source_points': len(source.points), 'target_points': len(target.points),
                    'quality_passed': passed, 'failure_reasons': failures,
-                   'limits': limits, 'transform': transform.tolist()}
+                   'limits': limits, 'transform': transform.tolist(), 'regions': regions}
+    # The observed center uses unique matched target samples, not the entire
+    # search volume. Occlusion/density can move it independently of the template.
+    observed = np.asarray(target.points)[np.unique(pairs[:, 1])].mean(axis=0) if len(pairs) else None
+    diagnostics.update({
+        'score_percent': float(fit.fitness * 100),
+        'standard_center_xyz': source_points.mean(axis=0).tolist(),
+        'matched_template_center_xyz': moved.mean(axis=0).tolist(),
+        'matched_cloud_center_xyz': observed.tolist() if observed is not None else None,
+        'center_delta_xyz': (moved.mean(axis=0)-source_points.mean(axis=0)).tolist(),
+    })
     anchors = np.asarray([p['xyz'] for p in template['measurement']['points']])
     current = anchors @ transform[:3, :3].T + transform[:3, 3]
     summary = (f'模板覆盖率 {fit.fitness:.1%}；残差 {fit.inlier_rmse:.3f}mm；'

@@ -50,6 +50,29 @@
         <button type="button" id="dp-save-standard" class="btn btn-success btn-sm" disabled>保存为标准模板</button>
       </div>
       <h3>原始相机坐标系（mm）</h3>
+      <p id="dp-center-summary" style="white-space:pre-line;" hidden></p>
+      <div id="dp-center-results" hidden>
+        <p id="dp-center-guide" role="status"></p>
+        <h3>匹配质量（相机坐标系）</h3>
+        <div id="dp-region-results" style="overflow-x:auto;"></div>
+        <details style="margin-top:12px;">
+        <summary style="cursor:pointer;">整体联合定位详情</summary>
+        <table aria-label="点云模板中心匹配结果">
+          <tbody>
+            <tr><th>基准模板中心（相机坐标系）</th><td id="dp-standard-center">—</td></tr>
+            <tr><th>匹配后模板中心（相机坐标系）</th><td id="dp-matched-center">—</td></tr>
+            <tr><th>匹配后点云中心（相机坐标系）</th><td id="dp-observed-center">—</td></tr>
+            <tr><th>整体匹配分数（覆盖率）</th><td id="dp-center-score">—</td></tr>
+            <tr><th>配准残差 RMSE</th><td id="dp-center-rmse">—</td></tr>
+            <tr><th>整体中心偏移 ΔXYZ</th><td id="dp-center-delta">—</td></tr>
+            <tr><th>中心位移 / 旋转角度</th><td id="dp-center-motion">—</td></tr>
+            <tr><th>逻辑筛选</th><td id="dp-center-gate">待匹配</td></tr>
+          </tbody>
+        </table>
+        </details>
+        <p>XYZ 单位为 mm。模板中心为所选区域模板点云的整体中心；匹配点云中心来自实际对应点，受遮挡和采样密度影响。分数为模板点匹配覆盖率。</p>
+      </div>
+      <div id="dp-legacy-camera-results">
       <p>按相机原始 X / Y / Z 顺序显示；偏差 ΔXYZ = 当前 − 标准模板，正值表示沿相机对应轴正方向偏移。</p>
       <div style="overflow-x:auto;">
         <table aria-label="参考点原始相机坐标系标准模板与当前坐标对比，单位毫米">
@@ -57,7 +80,8 @@
           <tbody id="dp-point-results"></tbody>
         </table>
       </div>
-      <div style="margin-top:18px;">
+      </div>
+      <div id="dp-legacy-robot-results" style="margin-top:18px;margin-bottom:18px;">
         <h3>机器人基坐标系偏差（mm）</h3>
         <p>偏差 ΔXYZ = 当前 − 标准模板，正值表示沿机器人基坐标系对应轴正方向偏移。</p>
         <table aria-label="P1 P2 机器人基坐标系偏差，单位毫米">

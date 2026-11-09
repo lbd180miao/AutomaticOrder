@@ -12,7 +12,7 @@ from django.http import FileResponse, JsonResponse, HttpResponse
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
-from .rack_cloud_roi import required_targets, image_roi
+from .rack_cloud_roi import required_targets, image_roi, algorithm_keys
 from .models import RackLocationRecipe
 
 SALT = 'rack-dual-point-image-v1'
@@ -101,10 +101,15 @@ def prepare(request):
         cloud_token = signing.dumps({'path': str(cloud_path), 'mtime': cloud_stat.st_mtime_ns,
                                     'size': cloud_stat.st_size}, salt=SALT+'-depth')
         recipe = RackLocationRecipe.objects.get(pk=data['recipe_id']) if data.get('recipe_id') else None
-        config = (recipe.roi_config or {}).get('cloud_match_config') if recipe else None
-        reference = (recipe.roi_config or {}).get('cloud_match_reference') if recipe else None
+        algorithm = data.get('algorithm', 'cloud_match')
+        config_key, reference_key = algorithm_keys(algorithm)
+        config = (recipe.roi_config or {}).get(config_key) if recipe else None
+        reference = (recipe.roi_config or {}).get(reference_key) if recipe else None
+        if not config and algorithm == 'cloud_center':
+            config = {**draft_config(w, h), 'algorithm': algorithm}
         if reference:
-            reference = {'measurement': reference['measurement']}
+            reference = {'measurement': {**reference['measurement'],
+                         'center_xyz': reference.get('center_xyz') or np.asarray(reference['points']).mean(axis=0).tolist()}}
         return JsonResponse({'success': True, 'image_token': token, 'width': w, 'height': h,
                              'image_url': reverse('vision:rack_dual_point_image')+'?token='+token,
                              'depth_preview_url': reverse('vision:rack_dual_point_depth')+'?token='+cloud_token,
@@ -152,7 +157,7 @@ def validate_config(config, shape):
     rois = config['rois']
     targets = required_targets(config)
     if len(rois) != len(targets) or {r['target'] for r in rois} != set(targets):
-        raise ValueError(f'请完成 {len(targets)} 个 ROI：每个参考点需横杆和立柱两个框')
+        raise ValueError(f'请完成 {len(targets)} 个 ROI，覆盖所选算法要求的参考区域')
     for roi in rois:
         image_roi(roi, shape)
     # Verify finite JSON before persisting any draft.
@@ -166,9 +171,10 @@ def save_config(request):
         image = _read_image(_signed_image(data['image_token']))
         config = data['config']
         validate_config(config, image.shape)
+        config_key, reference_key = algorithm_keys(config.get('algorithm', 'cloud_match'))
         with transaction.atomic():
             recipe = RackLocationRecipe.objects.select_for_update().get(pk=data['recipe_id'])
-            recipe.roi_config = {**(recipe.roi_config or {}), 'cloud_match_config': config}
+            recipe.roi_config = {**(recipe.roi_config or {}), config_key: config}
             recipe.save(update_fields=['roi_config'])
         return JsonResponse({'success': True, 'recipe_id': recipe.pk, 'config': config,
                              'message': 'ROI 配置已保存；可继续使用已有标准模板计算偏差'})
@@ -280,6 +286,8 @@ def cloud_match(request):
         if package['cloud'].shape[:2] != image.shape[:2]:
             raise ValueError('原图与点云尺寸不一致')
         recipe = RackLocationRecipe.objects.get(pk=data['recipe_id'])
+        algorithm = (data.get('config') or {}).get('algorithm', 'cloud_match')
+        config_key, reference_key = algorithm_keys(algorithm)
         if action == 'save_template':
             config = data['config']
             validate_config(config, image.shape)
@@ -290,15 +298,17 @@ def cloud_match(request):
                 pass
             with transaction.atomic():
                 recipe = RackLocationRecipe.objects.select_for_update().get(pk=recipe.pk)
-                recipe.roi_config = {**(recipe.roi_config or {}), 'cloud_match_reference': reference,
-                                     'cloud_match_config': config}
+                recipe.roi_config = {**(recipe.roi_config or {}), reference_key: reference,
+                                     config_key: config}
                 recipe.save(update_fields=['roi_config'])
             result = reference['measurement']
         else:
-            reference = (recipe.roi_config or {}).get('cloud_match_reference')
-            config = data.get('config') or (recipe.roi_config or {}).get('cloud_match_config') or {}
+            reference = (recipe.roi_config or {}).get(reference_key)
+            config = data.get('config') or (recipe.roi_config or {}).get(config_key) or {}
             if reference and required_targets(config) != required_targets(reference['config']):
                 raise ValueError('料架层数与标准模板不同，请重新保存点云标准模板')
+            if algorithm == 'cloud_center' and reference and config != reference['config']:
+                raise ValueError('ROI 已变化，请重新保存当前算法的点云标准模板')
             result = match_template(package['cloud'], package['metadata'], reference)
         result = add_display_pixels(result, package['cloud'], package['metadata'])
         robot = evaluate_robot_points(result, reference) if result['success'] else None

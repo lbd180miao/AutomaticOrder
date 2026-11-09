@@ -6,15 +6,24 @@
   if (!panel) return;
   const canvas = $('dp-canvas'), ctx = canvas.getContext('2d');
   const depthCanvas = $('dp-depth-canvas'), depthCtx = depthCanvas.getContext('2d');
-  const targets = ['P1_horizontal', 'P1_vertical', 'P2_horizontal', 'P2_vertical'];
-  const labels = ['ROI1 · P1 横杆', 'ROI2 · P1 立柱', 'ROI3 · P2 横杆', 'ROI4 · P2 立柱'];
+  const oldTargets = ['P1_horizontal', 'P1_vertical', 'P2_horizontal', 'P2_vertical'];
+  const oldLabels = ['ROI1 · P1 横杆', 'ROI2 · P1 立柱', 'ROI3 · P2 横杆', 'ROI4 · P2 立柱'];
+  let targets = oldTargets, labels = oldLabels;
+  const algorithm = () => $('dp-algorithm').value;
+  const centerMode = () => algorithm() === 'cloud_center';
+  const regionLabel = index => centerMode() ? `模板区域 ${index + 1}` : `ROI${index + 1}`;
+  const centerLabel = index => {
+    if (!centerMode()) return `P${index + 1}${state.result?.success ? ' 参考点' : ' 候选参考点'}`;
+    const stage = state.result?.registration ? (state.result.success ? '匹配中心' : '候选中心') : '基准中心';
+    return `区域 ${index + 1} ${stage}`;
+  };
   const colors = ['#facc15', '#38bdf8', '#4ade80', '#e879f9'];
   const state = {config: null, image: null, depthImage: null, captureTokenBefore: null, prepared: null, selected: 0, result: null, drag: null, busy: false, revision: 0,
     evaluation: null, teachToken: null, reference: null, forensicFrame: null, capturing: false, dirty: false, redraw: false};
   let saveFeedback = '';
   const recipeId = () => String($('recipe-select')?.value || $('recipe-id')?.value || '');
   const pointNames = () => Number(state.config?.rack_layers || $('dp-rack-layers').value) === 2 ? ['P1'] : ['P1', 'P2'];
-  const activeTargets = () => targets.slice(0, pointNames().length * 2);
+  const activeTargets = () => targets.slice(0, pointNames().length * (centerMode() ? 1 : 2));
   const roi = () => state.config?.rois.find(r => r.target === targets[state.selected]);
   const status = text => { $('dp-status').textContent = text; };
   const currentFrame = () => window.rackLocatorOfflineBridge?.snapshot();
@@ -31,6 +40,12 @@
   function renderResults() {
     const result = state.result, reference = state.reference?.measurement;
     const body = $('dp-point-results'); body.replaceChildren();
+    const cameraHeader = $('dp-legacy-camera-results').querySelector('thead tr');
+    cameraHeader.replaceChildren();
+    (centerMode()
+      ? ['模板区域', '基准模板中心 XYZ', '匹配后模板中心 XYZ', '匹配后点云中心 XYZ', '匹配分数', '差值 ΔXYZ']
+      : ['参考点', '标准模板 XYZ', '当前 XYZ', '差值 ΔXYZ'])
+      .forEach(label => cell(cameraHeader, label, true));
     const validXYZ = values => Array.isArray(values) && values.length === 3 && values.every(Number.isFinite);
     // Compare successful camera measurements from the template and current frame.
     const compatible = result?.coordinateSystem === 'camera' && reference?.coordinateSystem === 'camera'
@@ -41,15 +56,67 @@
       const currentPoint = result?.points?.find(point => point.name === name);
       const standard = reference?.coordinateSystem === 'camera' && reference?.success && standardPoint?.success ? standardPoint.xyz : null;
       const candidate = result?.registration && !result.success;
-      const current = result?.coordinateSystem === 'camera' && ((result?.success && currentPoint?.success) || candidate) ? currentPoint?.xyz : null;
+      const current = (!centerMode() || result?.registration) && result?.coordinateSystem === 'camera' && ((result?.success && currentPoint?.success) || candidate) ? currentPoint?.xyz : null;
       // Display measured coordinate differences only; PLC compensation retains its backend gates.
       const delta = compatible && validXYZ(standard) && validXYZ(current)
         ? current.map((value, axis) => value - standard[axis]) : null;
-      const row = document.createElement('tr'); cell(row, `${name} 区域参考点${candidate ? '（候选）' : ''}`, true);
-      [standard, current, delta].forEach(values => cell(row, validXYZ(values) ? xyz(values) : '—'));
+      const row = document.createElement('tr'); cell(row, `${centerMode() ? `模板区域 ${pointNames().indexOf(name) + 1}` : `${name} 区域参考点`}${candidate ? '（候选）' : ''}`, true);
+      [standard, current].forEach(values => cell(row, validXYZ(values) ? xyz(values) : '—'));
+      if (centerMode()) {
+        const region = result?.registration?.regions?.find(item => item.name === name);
+        cell(row, validXYZ(region?.matched_cloud_center_xyz) ? xyz(region.matched_cloud_center_xyz) : '—');
+        cell(row, Number.isFinite(region?.fitness) ? `${fmt(region.fitness * 100, 1)}%` : '—');
+      }
+      cell(row, validXYZ(delta) ? xyz(delta) : '—');
       body.appendChild(row);
     }
     const quality = state.result?.registration;
+    const summary = $('dp-center-summary');
+    summary.hidden = centerMode() || !quality;
+    const position = values => Array.isArray(values) ? values.map((v, i) => `${'XYZ'[i]}=${fmt(v)}`).join('，') + ' mm' : '—';
+    $('dp-center-results').hidden = !centerMode();
+    $('dp-legacy-camera-results').hidden = false;
+    $('dp-legacy-robot-results').hidden = false;
+    // Preserve the established camera table → robot table layout.
+    $('dp-legacy-robot-results').after($('dp-center-results'));
+    $('dp-legacy-camera-results').before($('dp-center-guide'));
+    $('dp-center-guide').hidden = !centerMode();
+    $('dp-standard-center').textContent = position(quality?.standard_center_xyz || reference?.center_xyz);
+    $('dp-matched-center').textContent = position(quality?.matched_template_center_xyz);
+    $('dp-observed-center').textContent = position(quality?.matched_cloud_center_xyz);
+    $('dp-center-score').textContent = quality ? `${fmt(quality.fitness * 100, 1)}%` : '—';
+    $('dp-center-rmse').textContent = quality ? `${fmt(quality.rmse_mm)} mm` : '—';
+    $('dp-center-delta').textContent = position(quality?.center_delta_xyz);
+    $('dp-center-motion').textContent = quality ? `${fmt(quality.shift_mm)} mm / ${fmt(quality.rotation_deg)}°` : '—';
+    const regionPanel = $('dp-region-results'); regionPanel.replaceChildren();
+    const regionTable = document.createElement('table');
+    regionTable.setAttribute('aria-label', '各模板区域实际匹配点云中心与质量');
+    const regionHead = document.createElement('thead'), headerRow = document.createElement('tr');
+    ['模板区域', '实际匹配点云中心 XYZ（mm）', '分数 / 残差', '区域筛选'].forEach(label => cell(headerRow, label, true));
+    regionHead.appendChild(headerRow); regionTable.appendChild(regionHead);
+    const regionBody = document.createElement('tbody'); regionTable.appendChild(regionBody);
+    regionPanel.appendChild(regionTable);
+    if (centerMode()) pointNames().forEach((name, index) => {
+      const region = quality?.regions?.find(item => item.name === name);
+      const row = document.createElement('tr'); cell(row, `模板区域 ${index + 1}`, true);
+      cell(row, xyz(region?.matched_cloud_center_xyz));
+      cell(row, region ? `${fmt(region.fitness * 100, 1)}% / ${fmt(region.rmse_mm)} mm` : '—');
+      cell(row, region ? region.quality_passed ? '通过' : region.failure_reasons.join('；') : quality ? '请在基准帧重新保存模板以补齐区域统计' : '待匹配');
+      regionBody.appendChild(row);
+    });
+    $('dp-center-gate').textContent = quality
+      ? quality.quality_passed ? '通过' : `未通过（候选结果）：${(quality.failure_reasons || []).join('；')}`
+      : '待匹配';
+    $('dp-center-guide').textContent = quality
+      ? quality.quality_passed ? '匹配完成，以下为当前点云的定位结果。' : '以下为候选中心，未通过筛选，不作为有效定位结果。'
+      : reference ? '基准模板已保存。请加载或采集待测点云，再点击「开始计算」。'
+        : '尚未建立当前算法的基准模板。请加载基准点云，框选交叉位置，再点击「保存当前帧为点云标准模板」。';
+    summary.textContent = quality ? [
+      `匹配后模板中心（相机坐标系${quality.quality_passed ? '' : '，候选未通过'}）：${position(quality.matched_template_center_xyz)}`,
+      `匹配分数：${fmt(quality.fitness * 100, 1)}%`,
+      `匹配点云中心：${position(quality.matched_cloud_center_xyz)}`,
+      '模板中心为全部模板点的中心；下表为各 ROI 参考位置。匹配点云中心受遮挡影响，仅供辅助判断。'
+    ].join('\n') : '';
     $('dp-match-details').hidden = !quality;
     $('dp-match-quality').textContent = quality ? [
       `匹配质量：${quality.quality_passed ? '通过（实验）' : '未通过，候选结果仅供查看'}`,
@@ -63,17 +130,25 @@
     const robot = state.evaluation?.robot_result;
     const robotBody = $('dp-robot-results'); robotBody.replaceChildren();
     pointNames().forEach((name, index) => {
-      const row = document.createElement('tr'); cell(row, name, true);
-      for (let axis=0; axis<3; axis++) cell(row, robot?.success ? fmt(robot.offsets[index][axis]) : '—');
+      const row = document.createElement('tr'); cell(row, centerMode() ? `模板区域 ${index + 1}` : name, true);
+      for (let axis=0; axis<3; axis++) cell(row, robot?.success && (!centerMode() || quality?.quality_passed) ? fmt(robot.offsets[index][axis]) : '—');
       robotBody.appendChild(row);
     });
-    $('dp-robot-status').textContent = robot?.success
+    $('dp-robot-status').textContent = centerMode()
+      ? !quality ? '匹配通过且手眼标定、拍照姿态有效后，显示各模板区域中心在机器人基坐标系下的偏差。'
+        : !quality.quality_passed ? '当前定位未通过筛选，不输出机器人坐标系偏差。'
+          : robot?.success ? (robot.same_pose_assumed ? '基准模板未保存拍照姿态，当前按相同拍照姿态计算。' : '')
+            : robot?.errorMessage || '机器人坐标转换不可用，请检查手眼标定和拍照姿态。'
+      : robot?.success
       ? ''
       : robot?.errorMessage || `计算后显示 ${pointNames().join('、')} 偏差。`;
     $('dp-result-state').textContent = state.evaluation
       ? result?.registration ? (result.success ? '匹配通过' : '匹配未通过 · 候选结果')
         : result?.success ? '已计算' : `${({'2d':'二维找边失败', '3d':'三维测量失败', input:'输入校验失败', configuration:'配置校验失败', calibration:'标定校验失败'})[result?.stage] || '计算失败'}：${result?.errorMessage || result?.errorCode || '未知原因'}`
       : '待检测';
+    if (centerMode() && !quality && !state.evaluation?.result?.errorMessage) {
+      $('dp-result-state').textContent = reference ? '基准已就绪 · 待匹配' : '待建立基准模板';
+    }
   }
   function checkFrame() {
     if (!state.prepared || state.prepared.recipe_id !== recipeId() ||
@@ -94,12 +169,17 @@
     return data;
   }
   function refresh() {
+    targets = centerMode() ? ['P1_cross', 'P2_cross'] : oldTargets;
+    labels = centerMode() ? ['模板区域 1 · 交叉位置', '模板区域 2 · 交叉位置'] : oldLabels;
+    $('dp-algorithm').disabled = state.busy || state.capturing || !!state.drag;
+    $('dp-rack-layers').options[0].textContent = centerMode() ? '三层料架 · 两个模板区域' : '三层料架 · 四个框 / P1、P2';
+    $('dp-rack-layers').options[1].textContent = centerMode() ? '两层料架 · 一个模板区域' : '两层料架 · 两个框 / P1';
     $('dp-save-standard').disabled = state.busy || state.capturing || (!state.prepared || !recipeId() || activeTargets().some(target => !state.config?.rois.some(r => r.target === target)) || state.redraw || !!state.drag);
     $('dp-save-standard').textContent = '保存当前帧为点云标准模板';
-    panel.querySelectorAll('thead tr th:first-child').forEach(th => {th.textContent = '参考点';});
+    panel.querySelectorAll('#dp-legacy-camera-results thead tr th:first-child, #dp-legacy-robot-results thead tr th:first-child').forEach(th => {th.textContent = centerMode() ? '模板区域' : '参考点';});
     $('dp-empty').querySelector('small').textContent = '框选稳定结构区域，保存标准点云后进行匹配';
     $('dp-rack-layers').disabled = state.busy || state.capturing || !!state.drag;
-    $('dp-mode-help').textContent = `点云匹配：${pointNames().join(' / ')} 为区域参考点，需画 ${activeTargets().length} 个框。修改层数或框选后需重新保存点云模板。`;
+    $('dp-mode-help').textContent = `${centerMode() ? '模板中心匹配：每个交叉位置画一个框，同时包含横杆、立柱和连接处。各区域共同组成一个模板，图中十字为各区域中心，右侧显示整体模板中心与整体匹配分数。' : `点云匹配：横杆、立柱分别框选。${pointNames().join(' / ')}`} 需画 ${activeTargets().length} 个框。修改层数或框选后需重新保存当前算法的点云模板。`;
     $('dp-targets').querySelectorAll('button').forEach((button, index) => {
       button.hidden = index >= activeTargets().length;
       button.textContent = labels[index] + (state.config?.rois.some(r => r.target === targets[index]) ? ' ✓' : '');
@@ -137,7 +217,7 @@
       if (index < 0) return;
       depthCtx.strokeStyle = colors[index]; depthCtx.fillStyle = colors[index]; depthCtx.lineWidth = 2*unit;
       depthCtx.strokeRect(r.x, r.y, r.width, r.height);
-      depthCtx.fillText(`ROI${index+1}`, r.x+4*unit, r.y+16*unit);
+      depthCtx.fillText(regionLabel(index), r.x+4*unit, r.y+16*unit);
     });
     state.result?.pixels?.forEach((pixel, index) => {
       if (!pixel?.every(Number.isFinite)) return;
@@ -146,7 +226,7 @@
       depthCtx.beginPath(); depthCtx.arc(x, y, 6*unit, 0, Math.PI*2);
       depthCtx.moveTo(x-12*unit, y); depthCtx.lineTo(x+12*unit, y);
       depthCtx.moveTo(x, y-12*unit); depthCtx.lineTo(x, y+12*unit); depthCtx.stroke();
-      depthCtx.fillText(`P${index+1}${state.result.success ? ' 参考点' : ' 候选参考点'}`, x+14*unit, y-10*unit);
+      depthCtx.fillText(centerLabel(index), x+14*unit, y-10*unit);
     });
   }
   async function loadDepth(data, prepared) {
@@ -178,7 +258,7 @@
       ctx.strokeStyle = colors[index]; ctx.lineWidth = (index === state.selected ? 3 : 2)*unit;
       ctx.strokeRect(r.x, r.y, r.width, r.height);
       ctx.fillStyle = colors[index]; ctx.font = `${14*unit}px sans-serif`;
-      ctx.fillText(`ROI${index+1}`, r.x+4*unit, r.y+16*unit);
+      ctx.fillText(regionLabel(index), r.x+4*unit, r.y+16*unit);
       if (index === state.selected) ctx.fillRect(r.x+r.width-5*unit, r.y+r.height-5*unit, 10*unit, 10*unit);
     });
     state.result?.pixels?.forEach((pixel, index) => {
@@ -187,7 +267,7 @@
       ctx.strokeStyle = '#ff3030'; ctx.lineWidth = 2*unit; ctx.beginPath();
       ctx.moveTo(x-12*unit,y); ctx.lineTo(x+12*unit,y); ctx.moveTo(x,y-12*unit); ctx.lineTo(x,y+12*unit); ctx.stroke();
       ctx.font = `${14*unit}px sans-serif`;
-      ctx.fillStyle = '#ff3030'; ctx.fillText(`P${index+1}${state.result.success ? ' 参考点' : ' 候选参考点'} (${x.toFixed(2)}, ${y.toFixed(2)})`,x+15*unit,y);
+      ctx.fillStyle = '#ff3030'; ctx.fillText(centerLabel(index) + (centerMode() ? '' : ` (${x.toFixed(2)}, ${y.toFixed(2)})`),x+15*unit,y);
     });
   }
 
@@ -196,6 +276,21 @@
     return {x: Math.max(0, Math.min(canvas.width, (event.clientX-rect.left)*canvas.width/rect.width)),
             y: Math.max(0, Math.min(canvas.height, (event.clientY-rect.top)*canvas.height/rect.height))};
   }
+  // Pixel coordinates are diagnostic hover text, separate from camera XYZ (mm).
+  [canvas, depthCanvas].forEach(surface => {
+    surface.addEventListener('pointermove', event => {
+      if (!centerMode() || state.drag) { surface.title = ''; return; }
+      const rect = surface.getBoundingClientRect();
+      const x = (event.clientX - rect.left) * surface.width / rect.width;
+      const y = (event.clientY - rect.top) * surface.height / rect.height;
+      const radius = 16 * surface.width / rect.width;
+      const index = state.result?.pixels?.findIndex(pixel => pixel?.every(Number.isFinite)
+        && Math.hypot(pixel[0] - x, pixel[1] - y) <= radius) ?? -1;
+      const pixel = state.result?.pixels?.[index];
+      surface.title = index < 0 ? '' : `${centerLabel(index)} · 图像像素坐标 (${pixel[0].toFixed(2)}, ${pixel[1].toFixed(2)}) px`;
+    });
+    surface.addEventListener('pointerleave', () => { surface.title = ''; });
+  });
   labels.forEach((label, index) => {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-secondary';
     button.style.borderColor = colors[index]; button.textContent = label;
@@ -247,7 +342,7 @@
     state.busy = true; refresh();
     try {await fn();} catch (error) {
       state.result = {success: false, stage: error.stage, errorCode: error.code, errorMessage: error.message};
-      state.evaluation = {result: state.result}; state.teachToken = null; state.reference = null;
+      state.evaluation = {result: state.result}; state.teachToken = null;
       draw(); status(error.message);
     }
     finally {state.busy = false; refresh(); renderResults();}
@@ -257,7 +352,7 @@
     const snapshot = currentFrame(), selectedRecipe = recipeId();
     if (!snapshot?.pointcloud_token) throw new Error('请先点击「采集点云」。');
     status('正在读取相机原图和已保存的ROI…');
-    const data = await request(panel.dataset.prepareUrl, {...snapshot, recipe_id: selectedRecipe, localization_mode: 'cloud_match'});
+    const data = await request(panel.dataset.prepareUrl, {...snapshot, recipe_id: selectedRecipe, algorithm: algorithm(), localization_mode: 'cloud_match'});
     const img = new Image(); img.src = data.image_url; await img.decode();
     if (selectedRecipe !== recipeId() || snapshot.pointcloud_token !== currentFrame()?.pointcloud_token) throw new Error('加载期间配方或采集帧变化，请重新载入。');
     state.dirty = false; state.redraw = false;
@@ -300,7 +395,12 @@
   }));
   $('dp-evaluate').addEventListener('click', () => action(async () => {
     if (!state.prepared || state.prepared.recipe_id !== recipeId() || state.prepared.frame !== currentFrame()?.pointcloud_token) await loadFrame();
-    checkFrame(); state.result = null; state.evaluation = null; state.teachToken = null; state.reference = null; draw(); renderResults();
+    checkFrame(); state.result = null; state.evaluation = null; state.teachToken = null;
+    if (centerMode() && !state.reference) {
+      status('请先加载基准点云，每个交叉位置画一个 ROI，点击「保存当前帧为点云标准模板」。保存配方仅保存框选配置，不会建立点云模板。');
+      draw(); renderResults(); return;
+    }
+    draw(); renderResults();
     status('正在进行点云多尺度 ICP 匹配…');
     const revision = state.revision;
     const data = await request(panel.dataset.cloudMatchUrl, {...currentFrame(), ...state.prepared, config: state.config, coordinate_system: 'camera'});
@@ -339,6 +439,10 @@
 
     status('采集点云后点击「开始计算」，自动载入原图与配方 ROI。'); refresh(); draw(); renderResults();
   }
+  $('dp-algorithm').addEventListener('change', () => {
+    invalidateFrame();
+    if (currentFrame()?.pointcloud_token) void action(loadFrame);
+  });
   $('dp-rack-layers').addEventListener('change', () => {
     state.selected = 0; state.redraw = false;
     if (state.config) {
@@ -380,7 +484,7 @@
       if ($('rack-workbench').dataset.mode !== 'dual') return snapshot;
       const current = state.prepared?.frame === snapshot.pointcloud_token && state.prepared?.recipe_id === recipeId();
       return {...snapshot, result: current ? state.evaluation?.result || null : null,
-        roi_config: {...snapshot.roi_config, ...(current && state.config ? {cloud_match_config:state.config} : {})}};
+        roi_config: {...snapshot.roi_config, ...(current && state.config ? {[algorithm() + '_config']:state.config} : {})}};
     };
     bridge.load = payload => {
       originalLoad(payload); invalidateFrame();
