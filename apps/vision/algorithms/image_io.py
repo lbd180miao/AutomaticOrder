@@ -239,6 +239,10 @@ def annotate_foam(img, roi, foam, result):
     - 左下角：存在/对齐/起翘状态 + 偏移量 + 覆盖率
     - 不合格时：对角线 × 标记
     """
+    registration = result.get('product_registration') or {}
+    if registration.get('status') == 'REGISTERED':
+        img = cv2.warpAffine(img, np.asarray(registration['camera_to_reference'], dtype=np.float64),
+                             (img.shape[1], img.shape[0]), flags=cv2.INTER_LINEAR)
     out = img.copy()
     h = height_of(out)
     passed = result.get('is_passed', False)

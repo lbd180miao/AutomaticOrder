@@ -1,0 +1,8 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const elements=new Map();
+const element=id=>{if(!elements.has(id))elements.set(id,{value:'',checked:false,style:{},classList:{add(){},remove(){}},addEventListener(){},checkValidity(){return true},reportValidity(){},replaceChildren(){},appendChild(){}});return elements.get(id)};
+const ctx={console,URLSearchParams,Option:function(){},setTimeout(){},window:{location:{search:''}},document:{getElementById:element,querySelectorAll(){return []},addEventListener(){},querySelector(){return null}},fetch:async(url,opts)=>{ctx.payload=JSON.parse(opts.body);return {json:async()=>({success:false,error:'test response'})}}};
+ctx.window=Object.assign(ctx,ctx.window);vm.createContext(ctx);vm.runInContext(fs.readFileSync('tmp/recipe_management-check.js','utf8'),ctx);
+vm.runInContext(`foam2DRecipes=[{id:99,name:'test',pos:8,is_active:false,image_width:1280,image_height:720,roi_config:{leftFoamROI:{x:10,y:10,width:100,height:100},rightFoamROI:{x:400,y:10,width:100,height:100},layerSearchROI:{x:0,y:0,width:1000,height:600},productAnchorROIs:[{},{}]},threshold_config:{pixels_per_mm_x:8,pixels_per_mm_y:9},algorithm_config:{}}];showToast=()=>{};openEditModal(99);`,ctx);
+assert.equal(element('edit-name').value,'test');assert.equal(element('edit-quality-pixels-per-mm-x').value,8);
+(async()=>{await ctx.submitEditModal();assert.equal(ctx.payload.is_active,false);assert.equal(ctx.payload.roi_config.layerSearchROI.width,1000);assert.equal(ctx.payload.roi_config.productAnchorROIs.length,2);assert.equal(ctx.payload.threshold_config.pixels_per_mm_y,9);assert.equal(ctx.payload.shared_recipe,true);console.log('Editor population and save payload checks passed');})().catch(e=>{console.error(e);process.exitCode=1});

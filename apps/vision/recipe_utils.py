@@ -1,4 +1,10 @@
 from copy import deepcopy
+import math
+from pathlib import Path
+from django.conf import settings
+
+from .algorithms.foam_quality import quality_config
+from .algorithms.foam_geometry import geometry_config
 
 from .models import FoamProductLayout, FoamRackSpec, VisionRecipe
 
@@ -92,12 +98,17 @@ def ensure_default_foam_2d_recipes():
 
 
 def get_active_foam_2d_recipe_by_pos(pos, layout_id=None):
-    queryset = VisionRecipe.objects.filter(
-        recipe_type='FOAM_2D', pos=int(pos), is_active=True,
-    )
-    if layout_id not in (None, ''):
-        queryset = queryset.filter(foam_product_layout_id=int(layout_id))
-    return queryset.order_by('-updated_at', '-id').first()
+    """Compatibility entry point: POS is traceability data, not a recipe key.
+
+    Explicit recipe IDs are used for rack selection. Auto-select only when
+    there is exactly one enabled recipe, never guess between different racks.
+    """
+    recipes = list(VisionRecipe.objects.filter(
+        recipe_type='FOAM_2D', is_active=True,
+    ).order_by('-updated_at', '-id')[:2])
+    if len(recipes) > 1:
+        raise ValueError('存在多套泡棉配方，请先为当前料架选择配方')
+    return recipes[0] if recipes else None
 
 
 def serialize_recipe(recipe):
@@ -244,6 +255,27 @@ def has_complete_foam_template_side_metadata(side_data):
     )
 
 
+def foam_segmentation_config(recipe):
+    algorithm = recipe.algorithm_config or {}
+    mode = algorithm.get('foam_segmentation', 'fixed-threshold')
+    if mode not in ('fixed-threshold', 'shadow-graphcut-v1',
+                    'shadow-graphcut-fast-v2', 'gray-graphcut-v3'):
+        raise ValueError('Unsupported foam_segmentation')
+    material = algorithm.get('material_type', 'unspecified')
+    if material not in ('unspecified', 'white', 'gray'):
+        raise ValueError('material_type must be white, gray or unspecified')
+    result = {'foam_min_v': 140, 'foam_max_s': 80}
+    raw = algorithm.get('segmentation_config') or {}
+    if not isinstance(raw, dict) or set(raw) - set(result):
+        raise ValueError('segmentation_config supports foam_min_v and foam_max_s')
+    for key, value in raw.items():
+        value = float(value)
+        if not math.isfinite(value) or not 0 <= value <= 255 or not value.is_integer():
+            raise ValueError(f'{key} must be an integer between 0 and 255')
+        result[key] = int(value)
+    return result
+
+
 def get_foam_standard_template_status(recipe):
     """Return whether a recipe has a usable left/right template for its current ROI."""
     template = recipe.standard_template_config or {}
@@ -261,8 +293,17 @@ def get_foam_standard_template_status(recipe):
     reason = ''
     roi_matches = True
     resolution_matches = True
+    segmentation = foam_segmentation_config(recipe)
     algorithm_matches = template.get('configured_foam_segmentation', template.get('foam_segmentation', 'fixed-threshold')) == (
         (recipe.algorithm_config or {}).get('foam_segmentation', 'fixed-threshold'))
+    algorithm_matches = algorithm_matches and template.get('segmentation_config', {
+        'foam_min_v': 140, 'foam_max_s': 80,
+    }) == segmentation
+    algorithm_matches = algorithm_matches and template.get('material_type', 'unspecified') == (
+        (recipe.algorithm_config or {}).get('material_type', 'unspecified'))
+    merge_config = geometry_config(recipe.algorithm_config or {})['fragment_merge']
+    saved_merge = template.get('fragment_merge', geometry_config({})['fragment_merge'])
+    algorithm_matches = algorithm_matches and saved_merge == merge_config
     if not algorithm_matches:
         reason = '分割算法已修改，需要重新示教标准模板'
     if template:
@@ -320,6 +361,9 @@ def get_foam_standard_template_status(recipe):
 def build_foam_inspection_config(recipe):
     roi_config = recipe.roi_config or {}
     thresholds = recipe.threshold_config or {}
+    quality = quality_config(thresholds)
+    segmentation = foam_segmentation_config(recipe)
+    geometry = geometry_config(recipe.algorithm_config or {})
 
     left_roi_raw = roi_config.get('leftFoamROI')
     right_roi_raw = roi_config.get('rightFoamROI')
@@ -401,7 +445,36 @@ def build_foam_inspection_config(recipe):
     pos_str = str(recipe.pos)
     configured_mode = (recipe.algorithm_config or {}).get('foam_segmentation', 'fixed-threshold')
     template = recipe.standard_template_config or {}
+    if quality['decision_mode'] == 'separated-v2' and not layer_ratio:
+        raise ValueError('separated-v2 requires a layerSearchROI')
+    anchors = []
+    raw_anchors = roi_config.get('productAnchorROIs') or []
+    if not isinstance(raw_anchors, list) or len(raw_anchors) > 4:
+        raise ValueError('productAnchorROIs must contain at most four rectangles')
+    for raw in raw_anchors:
+        if not isinstance(raw, dict) or raw.get('type') == 'polygon':
+            raise ValueError('Product anchors must be rectangles on the product body')
+        anchor = _pixel_roi_to_ratio(raw, recipe.image_width, recipe.image_height)
+        if anchor is None:
+            raise ValueError('Invalid product anchor ROI')
+        for other in [left, right] + anchors:
+            if max(anchor[0], other[0]) < min(anchor[2], other[2]) and max(anchor[1], other[1]) < min(anchor[3], other[3]):
+                raise ValueError('Product anchors must not overlap foam bounding boxes or each other')
+        anchors.append(anchor)
+    if geometry['product_registration']['enabled'] and (len(anchors) < 2 or not layer_ratio):
+        raise ValueError('Product registration requires two body anchors and a layer search ROI')
+    reference = template.get('source_image_path', '')
+    reference_path = Path(reference) if reference else None
+    if reference_path and not reference_path.is_absolute():
+        media_path = Path(settings.MEDIA_ROOT) / reference_path
+        reference_path = media_path if media_path.is_file() else Path(settings.BASE_DIR) / reference_path
     return {
+        **quality,
+        **segmentation,
+        **geometry,
+        'product_anchor_rois': anchors,
+        'product_reference_path': str(reference_path) if reference_path else '',
+        'material_type': (recipe.algorithm_config or {}).get('material_type', 'unspecified'),
         'standard_mask_space': template.get('mask_space', 'side'),
         'configured_foam_segmentation': configured_mode,
         'foam_segmentation': template.get('foam_segmentation', configured_mode) if template_status['ready'] else configured_mode,

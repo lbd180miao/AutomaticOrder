@@ -318,6 +318,8 @@ def _result_payload(foam_result):
         'is_complete',
         'sides',
         'timings_ms',
+        'inspection_status', 'quality_failures', 'quality_version', 'effective_config',
+        'product_registration', 'coordinate_space',
     ):
         if key in foam_result.result_data:
             payload[key] = foam_result.result_data[key]
@@ -364,7 +366,6 @@ def _save_foam_standard_template(recipe, image, source_metadata=None):
 
 @require_http_methods(['GET'])
 def api_vision_recipes(request):
-    ensure_default_foam_2d_recipes()
     qs = VisionRecipe.objects.select_related('foam_product_layout__rack_spec')
     recipe_type = request.GET.get('recipe_type')
     pos = request.GET.get('pos')
@@ -391,8 +392,10 @@ def api_vision_recipes(request):
 def api_foam_recipe_by_pos(request):
     pos = int(request.GET.get('pos', 0))
     layout_id = request.GET.get('layout_id')
-    ensure_default_foam_2d_recipes()
-    recipe = get_active_foam_2d_recipe_by_pos(pos, layout_id=layout_id)
+    try:
+        recipe = get_active_foam_2d_recipe_by_pos(pos, layout_id=layout_id)
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
     return JsonResponse({
         'success': True,
         'recipe': serialize_recipe(recipe) if recipe else None,
@@ -424,7 +427,7 @@ def api_foam_recipe_save(request):
                 raise ValueError('threshold_config must be an object')
 
             recipe_id = body.get('id')
-            layout_id = body.get('layout_id') or body.get('foam_product_layout_id')
+            layout_id = None if body.get('shared_recipe') else (body.get('layout_id') or body.get('foam_product_layout_id'))
             layout = None
             if layout_id not in (None, ''):
                 layout = get_object_or_404(
@@ -452,6 +455,9 @@ def api_foam_recipe_save(request):
             threshold_config.update(incoming_threshold_config)
             recipe.name = body.get('name') or f'第{pos + 1}层泡棉检测配方'
             recipe.pos = pos
+            if body.get('shared_recipe'):
+                recipe.foam_product_layout = None
+                recipe.product_code = ''
             if layout is not None:
                 recipe.foam_product_layout = layout
                 recipe.rack_type = layout.rack_spec.rack_type
@@ -476,14 +482,22 @@ def api_foam_recipe_save(request):
             recipe.image_height = image_height
             recipe.roi_config = roi_config
             recipe.threshold_config = threshold_config
+            if 'algorithm_config' in body:
+                algorithm = body['algorithm_config']
+                if not isinstance(algorithm, dict):
+                    raise ValueError('algorithm_config must be an object')
+                allowed = {'material_type', 'foam_segmentation', 'segmentation_config',
+                           'product_registration', 'fragment_merge'}
+                if set(algorithm) - allowed:
+                    raise ValueError('Unsupported algorithm_config field')
+                recipe.algorithm_config = {**(recipe.algorithm_config or {}), **algorithm}
             if save_mode in {'draft', 'publish'}:
                 recipe.is_active = save_mode == 'publish'
             else:
                 recipe.is_active = _as_bool(body.get('is_active'), True)
             recipe.remark = body.get('remark') or ''
-            if roi_config.get('layerSearchROI'):
-                from .recipe_utils import build_foam_inspection_config
-                build_foam_inspection_config(recipe)
+            from .recipe_utils import build_foam_inspection_config
+            build_foam_inspection_config(recipe)
             recipe.save()
             if body.get('simple_save'):
                 if not roi_config.get('layerSearchROI'):
@@ -890,32 +904,8 @@ def api_foam_recipe_create(request):
         if pos < 0:
             raise ValueError('pos must be non-negative')
 
-        from .views_foam_profile import ensure_default_foam_profiles
-
-        default_layout = ensure_default_foam_profiles()
-        layout_id = body.get('layout_id') or body.get('foam_product_layout_id')
-        layout = get_object_or_404(
-            FoamProductLayout.objects.select_related('rack_spec'),
-            pk=int(layout_id) if layout_id not in (None, '') else default_layout.id,
-            is_active=True,
-        )
-        if pos >= layout.total_positions:
-            raise ValueError(f'POS {pos} 超出当前产品容量 0～{layout.total_positions - 1}')
-        
-        # 检查该 POS 是否已存在配方
-        existing = VisionRecipe.objects.filter(
-            recipe_type='FOAM_2D',
-            foam_product_layout=layout,
-            pos=pos,
-            is_active=True
-        ).first()
-        
-        if existing:
-            return JsonResponse({
-                'success': False,
-                'error': f'POS {pos} 已存在配方，请先删除或编辑现有配方'
-            }, status=400)
-        
+        # A recipe is selected once and reused for the entire rack.
+        layout = None
         source_recipe_id = body.get('source_recipe_id')
         source = None
         if source_recipe_id not in (None, ''):
@@ -933,17 +923,17 @@ def api_foam_recipe_create(request):
         
         # 默认阈值配置（与算法默认值保持一致）
         threshold_config = deepcopy(body.get('threshold_config') or (source.threshold_config if source else None) or {
-            'coverage_threshold': 0.08,  # 8% 覆盖率，适配大ROI场景
+            'coverage_threshold': 0.75,
             'score_threshold': 0.8,      # 80% 综合得分
             'max_offset_mm': 2.0
         })
         
         recipe = VisionRecipe.objects.create(
             recipe_type='FOAM_2D',
-            name=body.get('name') or f'第{pos + 1}层泡棉检测配方',
+            name=body.get('name') or '整架泡棉检测配方',
             foam_product_layout=layout,
-            rack_type=layout.rack_spec.rack_type,
-            product_code=layout.product_code,
+            rack_type=body.get('rack_type') or '',
+            product_code='',
             pos=pos,
             camera_side=body.get('camera_side') or (source.camera_side if source else 'both'),
             image_width=int(body.get('image_width') or (source.image_width if source else 1280)),

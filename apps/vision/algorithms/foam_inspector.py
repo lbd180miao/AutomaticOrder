@@ -6,16 +6,9 @@
 - 相机类型：海康 MV-CS050-10GC（500万像素，10GigE），固定俯视安装
 - 触发方式：装箱机器人完成泡棉贴附动作后，由 PLC 触发拍照
 
-判定规则
---------
-泡棉覆盖率必须 ≥ 8% 才判定为合格（根据实际生产场景调整）：
-  - 泡棉存在且覆盖率达标  → is_present=True, is_passed=True
-  - 位置对齐  → is_aligned=True
-  - 边缘起翘  → has_lifted_edge=False
-泡棉缺失或覆盖率不足 → 三项全 NG，is_passed=False，触发报警。
-
-注意：默认阈值8%已针对大ROI场景优化。如果你的场景中泡棉应该覆盖更大区域，
-可以在配方中调整 coverage_threshold 参数。
+实际配方流程使用左右标准掩膜、覆盖率和 X/Y 公差。
+separated-v2 可独立验收完整性与位置；旧配方保留原判定门限。
+本模块不测量翘边高度。
 """
 from pathlib import Path
 
@@ -25,6 +18,8 @@ from django.conf import settings
 from django.db import models
 
 from . import image_io
+from .foam_quality import QUALITY_VERSION, quality_config, measure_integrity, evaluate_integrity
+from .foam_geometry import geometry_config, register_product, ProductRegistrationError, fragment_groups
 from .. import foam_archive
 
 
@@ -342,6 +337,8 @@ def _load_standard_mask_for_side(cfg, side, expected_shape):
 
     expected_height, expected_width = expected_shape
     if mask.shape[:2] != (expected_height, expected_width):
+        if cfg.get('decision_mode') == 'separated-v2':
+            raise StandardMaskConfigurationError('Template dimensions do not match the detection image')
         mask = cv2.resize(mask, (expected_width, expected_height), interpolation=cv2.INTER_NEAREST)
     return (mask > 0).astype(np.uint8) * 255
 
@@ -639,10 +636,7 @@ def _apply_image_quality_adjustments(cfg, quality_analysis):
         base_l = int(cfg.get('white_min_l', 160))
         adjusted_cfg['white_min_l'] = max(120, min(200, base_l + suggestions['white_min_l_adjust']))
     
-    # 应用覆盖率调整
-    if 'coverage_threshold_adjust' in suggestions:
-        base_threshold = float(cfg.get('coverage_threshold', 0.08))
-        adjusted_cfg['coverage_threshold'] = max(0.03, base_threshold + suggestions['coverage_threshold_adjust'])
+    # Image quality must never relax product acceptance limits.
     
     # 应用形态学处理调整
     if suggestions.get('morphology_iterations_adjust', 0) > 0:
@@ -672,6 +666,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
     Returns:
         dict: 检测结果，包含 is_present、coverage_ratio 等字段
     """
+    limits = quality_config(cfg)
     x1, y1, x2, y2 = roi
     roi_img = image[y1:y2, x1:x2].copy()
     roi_height, roi_width = roi_img.shape[:2]
@@ -739,6 +734,8 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         raise StandardMaskConfigurationError(reason)
     
     has_real_standard_mask = standard_mask is not None
+    if limits['decision_mode'] == 'separated-v2' and not has_real_standard_mask:
+        raise StandardMaskConfigurationError('separated-v2 requires a real standard mask')
     # 核心业务逻辑："ROI即标准模板"。如果未配置真实的掩膜，则认为整个ROI就是标准的泡棉形状
     if standard_mask is None:
         if polygon_mask is not None:
@@ -800,7 +797,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         result['standard_mask'] = standard_mask if has_real_standard_mask else None
         return result
 
-    if coverage_ratio < coverage_threshold and not cfg.get('layer_search_roi'):
+    if coverage_ratio < coverage_threshold and not cfg.get('layer_search_roi') and limits['decision_mode'] == 'legacy':
         result = _empty_side_result(
             roi,
             reason='coverage_below_threshold',
@@ -821,6 +818,14 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         result['mask'] = mask
         result['standard_mask'] = standard_mask if has_real_standard_mask else None
         return result
+
+    integrity = measure_integrity(mask, standard_mask)
+    quality_failures = evaluate_integrity(integrity, limits)
+    complete = not quality_failures
+    if limits['decision_mode'] == 'legacy':
+        complete = complete and coverage_ratio >= coverage_threshold
+        if coverage_ratio < coverage_threshold:
+            quality_failures.append('coverage_below_threshold')
 
     offset_distance_px = offset['offset_distance_px'] if offset else 0.0
     offset_distance_mm = offset['offset_distance_mm'] if offset else 0.0
@@ -856,7 +861,11 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         'white_pixel_coverage': float(white_pixel_coverage),
         'coverage_source': 'standard_overlap' if cfg.get('layer_search_roi') else ('standard_mask' if has_real_standard_mask else 'roi_pixel_ratio'),
         'overlap_pixels': int(np.count_nonzero((mask > 0) & (standard_mask > 0))),
-        'is_complete': bool(coverage_ratio >= coverage_threshold),
+        'is_complete': bool(complete),
+        'integrity': integrity,
+        'quality_failures': quality_failures,
+        'decision_mode': limits['decision_mode'],
+        'effective_quality_limits': limits,
         'detected_pixels': int(detected_pixels),
         'standard_pixels': int(standard_pixels) if standard_pixels is not None else None,
         'iou': iou,
@@ -870,6 +879,8 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
         'score': score,
         'coverage_threshold': float(coverage_threshold),
     }
+    if not is_aligned:
+        quality_failures.append('misaligned')
     if offset:
         result.update(offset)
     else:
@@ -884,7 +895,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
     return result
 
 
-def _shadow_layer_mask(image, references, max_dimension=1024, iterations=5):
+def _shadow_layer_mask(image, references, max_dimension=1024, iterations=5, adaptive_gray=False):
     """Recover shaded foam using geometric anchors, never the saved template.
 
     Fit at bounded resolution; bright neutral seeds anchor the material model,
@@ -901,6 +912,26 @@ def _shadow_layer_mask(image, references, max_dimension=1024, iterations=5):
     bright = neutral & (hsv[:, :, 2] >= 140)
     interior = cv2.erode(anchors.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
     seeds = bright & interior
+    if adaptive_gray:
+        # Each side supplies its own seeds; a bright opposite side must not
+        # determine the threshold of a uniformly grey foam. Geometry alone
+        # never becomes foreground: require contrast against a local ring.
+        seeds = np.zeros(anchors.shape, dtype=bool)
+        value = hsv[:, :, 2]
+        for reference in references.values():
+            ref = cv2.resize(reference, size, interpolation=cv2.INTER_NEAREST) > 0
+            inside = cv2.erode(ref.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+            ring = (cv2.dilate(ref.astype(np.uint8), np.ones((11, 11), np.uint8)) > 0) & ~anchors
+            foreground_values = value[inside & neutral]
+            background_values = value[ring]
+            if foreground_values.size < 16 or background_values.size < 16:
+                continue
+            background = float(np.percentile(background_values, 75))
+            foreground = float(np.percentile(foreground_values, 70))
+            if foreground - background < 15:
+                continue
+            threshold = max(45.0, background + 15, float(np.percentile(foreground_values, 50)))
+            seeds |= inside & neutral & (value >= threshold)
     if np.count_nonzero(seeds) < 16:
         return np.zeros((height, width), np.uint8)
     margin = max(3, round(min(size) * 0.05))
@@ -927,6 +958,10 @@ def _inspect_layer_sides(image, side_roi_config, cfg):
     if not (0 <= x1 < x2 <= width and 0 <= y1 < y2 <= height):
         raise ValueError('本层搜索 ROI 无效或超出图像')
     shape = (y2 - y1, x2 - x1)
+    if cfg.get('_registration_failure'):
+        return {side: _empty_side_result(roi, reason='product_registration_failed',
+                    extra={'registration_error': cfg['_registration_failure'], 'search_roi': roi})
+                for side in ('left', 'right')}
     standards = {}
     references = {}
     unified = cfg.get('standard_mask_space') == 'layer-v3'
@@ -953,7 +988,7 @@ def _inspect_layer_sides(image, side_roi_config, cfg):
         else:
             local = _load_standard_mask_for_side(cfg, side, (d-b, c-a))
             if local is None:
-                if cfg.get('require_standard_template'):
+                if cfg.get('require_standard_template') or cfg.get('decision_mode') == 'separated-v2':
                     raise StandardMaskConfigurationError('请先建立左右标准模板')
                 local = np.full((d-b, c-a), 255, np.uint8)
             standard = np.zeros(shape, np.uint8)
@@ -971,6 +1006,8 @@ def _inspect_layer_sides(image, side_roi_config, cfg):
         mask = _shadow_layer_mask(image[y1:y2, x1:x2], references)
     elif cfg.get('foam_segmentation') == 'shadow-graphcut-fast-v2':
         mask = _shadow_layer_mask(image[y1:y2, x1:x2], references, 512, 3)
+    elif cfg.get('foam_segmentation') == 'gray-graphcut-v3':
+        mask = _shadow_layer_mask(image[y1:y2, x1:x2], references, 1024, 3, adaptive_gray=True)
     layer_polygon = cfg.get('layer_search_polygon')
     if layer_polygon:
         points = np.rint(np.asarray(layer_polygon) * [width, height] - [x1, y1]).astype(np.int32)
@@ -1024,30 +1061,46 @@ def _inspect_layer_sides(image, side_roi_config, cfg):
         stats = np.concatenate((stats, np.asarray(extra_stats, dtype=stats.dtype)))
         centers = np.concatenate((centers, np.asarray(extra_centers, dtype=centers.dtype)))
         count = len(stats)
+    merge_cfg = geometry_config(cfg)['fragment_merge']
+    grouped = {'left': [], 'right': []}
+    if merge_cfg['enabled']:
+        offsets = [float(cfg.get('max_offset_x_px', cfg.get('max_offset_px', 30))),
+                   float(cfg.get('max_offset_y_px', cfg.get('max_offset_px', 30)))]
+        for index, axis in enumerate(('x', 'y')):
+            mm_per_pixel = float(cfg.get(f'mm_per_pixel_{axis}', 0))
+            if mm_per_pixel > 0:
+                offsets[index] = float(cfg.get(f'max_offset_{axis}_mm', cfg.get('max_offset_mm', 2))) / mm_per_pixel
+        grouped = fragment_groups(labels, stats, image[y1:y2,x1:x2], references,
+                                  merge_cfg, max(offsets))
     choices, costs = {}, {}
     for side, standard in references.items():
         area = np.count_nonzero(standard)
         center = compute_mask_centroid(standard)
         costs[side] = {}
-        for index in range(1, count):
-            ratio = stats[index, cv2.CC_STAT_AREA] / max(area, 1)
+        candidates = [(i,) for i in range(1, count)] + grouped[side]
+        for members in candidates:
+            sizes = stats[list(members), cv2.CC_STAT_AREA]
+            ratio = float(sizes.sum()) / max(area, 1)
             if ratio >= 0.01:
-                distance = np.hypot(*(centers[index] - center)) / max(np.hypot(*shape), 1)
-                costs[side][index] = float(distance + 0.2 * abs(np.log(ratio)))
+                centroid = np.average(centers[list(members)], axis=0, weights=sizes)
+                distance = np.hypot(*(centroid - center)) / max(np.hypot(*shape), 1)
+                costs[side][members] = float(distance + 0.2 * abs(np.log(ratio)))
         choices[side] = [None] + sorted(costs[side], key=costs[side].get)[:20]
     assignment = min(
         ((l, r) for l, r in product(choices['left'], choices['right'])
-         if l is None or r is None or l != r),
-        key=lambda pair: sum(2 if index is None else costs[side][index]
-                             for side, index in zip(('left', 'right'), pair)),
+         if l is None or r is None or set(l).isdisjoint(r)),
+        key=lambda pair: sum(2 if members is None else costs[side][members]
+                             for side, members in zip(('left', 'right'), pair)),
     )
     sides = {}
-    for side, index in zip(('left', 'right'), assignment):
+    for side, members in zip(('left', 'right'), assignment):
         standard, box = standards[side]
-        detected = np.zeros(shape, np.uint8) if index is None else (labels == index).astype(np.uint8)*255
+        detected = np.zeros(shape, np.uint8) if members is None else np.isin(labels, members).astype(np.uint8)*255
         side_cfg = dict(cfg, standard_masks={side: standard}, _detected_mask=detected,
                         ignore_border_ratio=0, require_dark_support=False)
         sides[side] = _detect_foam_side(image, roi, side_cfg, side=side)
+        sides[side]['fragment_count'] = len(members) if members else 0
+        sides[side]['fragment_labels'] = list(members or ())
         sides[side]['original_roi'] = box
         sides[side]['search_roi'] = roi
         sides[side]['search_polygon'] = layer_polygon
@@ -1056,6 +1109,23 @@ def _inspect_layer_sides(image, side_roi_config, cfg):
 
 
 def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
+    registration = geometry_config(cfg)['product_registration']
+    metadata = {'status': 'DISABLED'}
+    if registration['enabled'] and not cfg.get('_teach_layer'):
+        try:
+            image, metadata = register_product(
+                image, cfg.get('product_reference_path', ''), cfg.get('product_anchor_rois', []),
+                list(side_roi_config.values()), registration, cfg['layer_search_roi'])
+        except (ProductRegistrationError, OSError, cv2.error) as exc:
+            metadata = {'status': 'INVALID', 'reason': str(exc)}
+            cfg = dict(cfg, _registration_failure=str(exc))
+    result, roi, foam, sides = _inspect_sides_in_frame(image, side_roi_config, position_index, cfg)
+    result['product_registration'] = metadata
+    result['coordinate_space'] = 'product_reference' if metadata['status'] == 'REGISTERED' else 'camera'
+    return result, roi, foam, sides
+
+
+def _inspect_sides_in_frame(image, side_roi_config, position_index, cfg):
     """检测配方配置的左右ROI区域内的泡棉。
     
     Args:
@@ -1086,11 +1156,20 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
             polygon_points=polygon_points
         )
 
+    for data in sides.values():
+        failures = data.setdefault('quality_failures', [])
+        if not data['is_present'] and not failures:
+            failures.append(data.get('reason', 'no_foam_detected'))
+        invalid = data.get('reason') in ('roi_too_small', 'mask_saturated', 'no_dark_support', 'product_registration_failed')
+        data['inspection_status'] = ('INVALID' if invalid else
+            ('PASS' if data['is_present'] and data.get('is_complete', False)
+             and data.get('is_aligned', False) else 'FAIL'))
+    invalid_sides = [s for s, d in sides.items() if d['inspection_status'] == 'INVALID']
     missing = [side for side, data in sides.items() if not data['is_present']]
     misaligned = [side for side, data in sides.items() if not data.get('is_aligned', False)]
     present_sides = [data for data in sides.values() if data['box']]
     incomplete = [side for side, data in sides.items() if not data.get('is_complete', True)]
-    if missing or incomplete:
+    if missing or incomplete or invalid_sides:
         defect_type = FoamDefectType.MISSING
         is_passed = False
     elif misaligned:
@@ -1151,6 +1230,10 @@ def _inspect_calibrated_sides(image, side_roi_config, position_index, cfg):
         'detected_pixels': int(sum(detected_pixels)),
         'standard_pixels': int(sum(standard_pixels)) if standard_pixels else None,
         'is_passed': bool(is_passed),
+        'is_complete': bool(not missing and not incomplete),
+        'inspection_status': 'INVALID' if invalid_sides else ('PASS' if is_passed else 'FAIL'),
+        'quality_failures': {s: d['quality_failures'] for s, d in sides.items() if d['quality_failures']},
+        'quality_version': QUALITY_VERSION,
     }
     return result, roi, foam, sides
 
@@ -1178,7 +1261,7 @@ class FoamDefectType(models.TextChoices):
 class FoamInspector:
     """工位固定式2D相机泡棉贴附质量检测。
     
-    用于装箱机器人完成泡棉贴附后的质量校验，检测漏贴、偏移、起翘等缺陷。
+    用于装箱机器人完成泡棉贴附后的质量校验，检查缺料和位置偏移。
     """
 
     def __init__(self, *, simulate=True):
@@ -1209,7 +1292,8 @@ class FoamInspector:
             )
 
         # 解析检测配置
-        cfg = inspection_config or {}
+        cfg = dict(inspection_config or {})
+        cfg.update(quality_config(cfg))
         score_threshold = float(cfg.get('score_threshold', 0.8))
         coverage_threshold = float(cfg.get('coverage_threshold', 0.08))  # 默认8%，根据实际场景调整
         max_offset_px = int(cfg.get('max_offset_px', 30))
@@ -1249,6 +1333,10 @@ class FoamInspector:
                     }
             
             side_roi_config = _resolve_side_roi_config(cfg, position_index)
+            if cfg['decision_mode'] == 'separated-v2' and (
+                not side_roi_config or not cfg.get('layer_search_roi')
+            ):
+                raise StandardMaskConfigurationError('separated-v2 requires left/right ROIs and a layer search ROI')
             if side_roi_config:
                 result, roi, foam, side_details = _inspect_calibrated_sides(
                     scene, side_roi_config, position_index, cfg
@@ -1283,7 +1371,29 @@ class FoamInspector:
                     'result_data': {
                         'algorithm': 'camera_foam_inspector',
                         'foam_target': 'bumper',
-                        'decision_rule': 'standard_template_coverage_and_xy_offset',
+                        'decision_rule': ('separate_integrity_and_xy_offset'
+                                          if cfg.get('decision_mode') == 'separated-v2'
+                                          else 'standard_template_coverage_and_xy_offset'),
+                        'quality_version': QUALITY_VERSION,
+                        'product_registration': result['product_registration'],
+                        'coordinate_space': result['coordinate_space'],
+                        'inspection_status': result['inspection_status'],
+                        'quality_failures': result['quality_failures'],
+                        'effective_config': {
+                            **quality_config(cfg),
+                            **geometry_config(cfg),
+                            'foam_segmentation': cfg.get('foam_segmentation', 'fixed-threshold'),
+                            'material_type': cfg.get('material_type', 'unspecified'),
+                            'coverage_threshold': cfg.get('coverage_threshold', 0.08),
+                            'foam_min_v': cfg.get('foam_min_v', 140),
+                            'foam_max_s': cfg.get('foam_max_s', 80),
+                            'mm_per_pixel_x': cfg.get('mm_per_pixel_x', 0),
+                            'mm_per_pixel_y': cfg.get('mm_per_pixel_y', 0),
+                            'max_offset_x_px': cfg.get('max_offset_x_px', max_offset_px),
+                            'max_offset_y_px': cfg.get('max_offset_y_px', max_offset_px),
+                            'max_offset_x_mm': cfg.get('max_offset_x_mm', cfg.get('max_offset_mm', 0)),
+                            'max_offset_y_mm': cfg.get('max_offset_y_mm', cfg.get('max_offset_mm', 0)),
+                        },
                         'camera_image_path': camera_image_path,
                         'defect_type': result['defect_type'],
                         'roi': roi,

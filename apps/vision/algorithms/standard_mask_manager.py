@@ -9,6 +9,8 @@ import cv2
 import numpy as np
 from django.conf import settings
 
+from .foam_geometry import geometry_config
+
 from .foam_inspector import (
     FOAM_MASK_ALGORITHM_VERSION,
     compute_mask_centroid,
@@ -240,6 +242,10 @@ class StandardMaskManager:
             'mask_algorithm_version': 'layer-v3' if layer_mode else FOAM_MASK_ALGORITHM_VERSION,
             'mask_space': 'layer-v3' if layer_mode else 'side',
             'configured_foam_segmentation': configured_mode,
+            'material_type': cfg.get('material_type', 'unspecified'),
+            'fragment_merge': geometry_config(cfg)['fragment_merge'],
+            'segmentation_config': {k: cfg.get(k, v) for k, v in
+                                    (('foam_min_v', 140), ('foam_max_s', 80))},
             'foam_segmentation': cfg['foam_segmentation'],
             'self_check_passed': layer_mode,
             'image_width': int(recipe.image_width),

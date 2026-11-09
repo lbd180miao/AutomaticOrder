@@ -63,6 +63,7 @@ class RvcCameraConfig(AppConfig):
             "collectstatic", "test", "check", "inspectdb",
             "createsuperuser", "changepassword", "dbshell",
             "check_rack_references",
+            "replay_foam_quality",
         }
         if any(cmd in sys.argv for cmd in skip_cmds):
             return

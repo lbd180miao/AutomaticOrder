@@ -78,6 +78,9 @@ test/
 tests.py
 test_*.py
 tests_*.py
+!apps/vision/tests_foam_quality.py
+!apps/vision/tests_foam_geometry.py
+!apps/vision/tests_foam_recipe_save.py
 *_test.py
 conftest.py
 .pytest_cache/
