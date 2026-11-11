@@ -191,14 +191,13 @@ MES_GATEWAY_ENABLED = env_bool('MES_GATEWAY_ENABLED', (DATA_DIR / 'agv_gateway.j
 AUTOMATIC_ORDER = {
     'USE_SIMULATED_DEVICES': env_bool('USE_SIMULATED_DEVICES', False),
     # MES 相关配置
-    # 甲方 YFPO MES：部署时只需把 <MES主机> 改成现场 MES 服务器 IP/主机名
-    #'MES_BASE_URL': 'http://<MES主机>:10133/BaseService.svc?wsdl',
-    'MES_BASE_URL': 'http://10.252.6.51/MESService_LG/BaseService.svc?wsdl',
+    # 甲方 YFPO MES：南京服务地址；工厂、产线按实际业务配置
+    'MES_BASE_URL': 'http://10.252.165.162/MESService/BaseService.svc?singleWsdl',
     'MES_TIMEOUT': int(os.environ.get('MES_TIMEOUT', 8)),
     'MES_TOKEN': os.environ.get('MES_TOKEN', ''),
-    # MES 协议：rest=内部 REST 客户端（默认）；soap=延锋 YFPO WCF(SOAP)，地址填 .../BaseService.svc?wsdl（运行时自动去掉 ?wsdl）
+    # MES 协议：rest=内部 REST 客户端（默认）；soap=延锋 YFPO WCF(SOAP)，地址填写 WSDL URL，SOAPAction 和服务端点由 WSDL 解析
     'MES_PROTOCOL': 'soap',
-    'MES_FACTORY_CODE': '2230',
+    'MES_FACTORY_CODE': '1060',
     'MES_PROD_LINE_CODE': 'I308',
     # YFPO BaseService WSDL 确认的 InvokeMethod SOAPAction（项目固定值）
     'MES_SOAP_ACTION': 'http://tempuri.org/IBaseService/InvokeMethod',

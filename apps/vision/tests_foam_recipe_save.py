@@ -8,6 +8,33 @@ from .views import api_foam_recipe_save
 
 
 class FoamRecipeSaveTests(TestCase):
+    def test_color_is_not_inferred_from_segmentation(self):
+        from .recipe_utils import serialize_recipe
+        self.recipe.algorithm_config = {'foam_segmentation': 'shadow-graphcut-fast-v2'}
+        summary = serialize_recipe(self.recipe)['foam_summary']
+        self.assertEqual(summary['material_label'], '未标注颜色')
+        self.assertEqual(summary['segmentation_label'], '快速阴影分割')
+        self.assertEqual(summary['effective_mode'], 'shadow-graphcut-fast-v2')
+
+    def test_explicit_color_and_thresholds_round_trip(self):
+        payload = {'id': self.recipe.pk, 'pos': 0, 'save_mode': 'draft',
+                   'roi_config': self.rois, 'image_width': 4096, 'image_height': 2460,
+                   'algorithm_config': {'material_type': 'white',
+                                        'segmentation_config': {'foam_min_v': 0, 'foam_max_s': 255}}}
+        response = api_foam_recipe_save(RequestFactory().post(
+            '/', json.dumps(payload), content_type='application/json'))
+        self.assertEqual(response.status_code, 200, response.content)
+        saved = json.loads(response.content)['recipe']
+        self.assertEqual(saved['foam_summary']['material_label'], '白色')
+        self.recipe.refresh_from_db()
+        self.assertEqual(build_foam_inspection_config(self.recipe)['foam_min_v'], 0)
+        payload['algorithm_config']['segmentation_config']['foam_min_v'] = 256
+        response = api_foam_recipe_save(RequestFactory().post(
+            '/', json.dumps(payload), content_type='application/json'))
+        self.assertEqual(response.status_code, 400)
+        self.recipe.refresh_from_db()
+        self.assertEqual(build_foam_inspection_config(self.recipe)['foam_min_v'], 0)
+
     def test_many_recipes_can_publish_at_same_position_without_replacing_others(self):
         ids = []
         for index in range(6):

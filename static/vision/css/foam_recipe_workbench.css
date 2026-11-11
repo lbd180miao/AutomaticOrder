@@ -46,8 +46,8 @@
 .foam-recipe-guide { padding:0; }
 .foam-recipe-guide .foam-panel-head { align-items:flex-start; }
 .foam-recipe-guide .foam-panel-head h2 { margin-top:2px; }
-.foam-recipe-state,.empty-rack-state { padding:4px 8px;border-radius:999px;color:#8a5a0a;background:var(--warn-soft);font-size:9px;font-weight:800; }
-.foam-recipe-state.saved,.empty-rack-state.saved { color:var(--success);background:var(--success-soft); }
+.foam-recipe-state { padding:4px 8px;border-radius:999px;color:#8a5a0a;background:var(--warn-soft);font-size:9px;font-weight:800; }
+.foam-recipe-state.saved { color:var(--success);background:var(--success-soft); }
 .foam-recipe-guide-body { padding:13px; }
 .foam-recipe-basic-fields { display:grid;gap:8px;margin-bottom:12px; }
 .foam-recipe-basic-fields label { display:grid;gap:4px;color:var(--text-muted);font-size:10px;font-weight:700; }
@@ -62,14 +62,9 @@
 .foam-recipe-validation-note { display:grid;gap:3px;margin-top:12px;padding:9px 10px;border-left:3px solid var(--warn);border-radius:6px;background:var(--warn-soft); }
 .foam-recipe-validation-note strong { font-size:10px; }.foam-recipe-validation-note span { color:#78510d;font-size:9px; }
 
-.empty-rack-workbench-section { margin-top:0; }
-.empty-rack-heading { margin-bottom:10px; }
-.empty-rack-heading h2 { margin-top:2px; }
 .recipe-guide-heading { display:grid;gap:2px;margin-bottom:12px;padding-bottom:11px;border-bottom:1px solid var(--border); }
 .recipe-guide-heading > span { color:var(--text-faint);font-size:9px;font-weight:800;letter-spacing:.8px; }
 .recipe-guide-heading > strong { font-size:14px; }.recipe-guide-heading > small { color:var(--text-muted);font-size:9px; }
-.empty-rack-save-actions { display:grid;grid-template-columns:1fr 1.25fr;gap:8px; }
-.empty-rack-save-actions .btn { width:100%; }
 #records-modal-guidance { display:block;margin-top:3px;color:var(--text-muted);font-size:11px; }
 
 @media (max-width:1100px) {
@@ -88,7 +83,6 @@
   .recipe-authoring-progress { grid-template-columns:1fr; }
   .recipe-authoring-progress > div,.recipe-authoring-progress.compact > div { min-height:44px;padding:10px 10px 10px 42px;border-right:0;border-bottom:1px solid var(--border);text-align:left; }
   .recipe-authoring-progress span,.recipe-authoring-progress.compact span { left:11px;top:11px;transform:none; }
-  .empty-rack-save-actions { grid-template-columns:1fr; }
 }
 
 /* Foam teaching: one image, three rectangles, parameters, one save action. */
@@ -107,3 +101,19 @@
 .foam-recipe-workbench-mode #btn-save-recipe { width:100%; margin-top:16px; background:var(--primary); color:white; padding:12px; }
 .foam-recipe-workbench-mode #recipe-publish-feedback { margin-top:10px; }
 .foam-recipe-workbench-mode .camera-viewport { min-height:460px; }
+
+/* Unified foam workbench: drawing and inspection remain visible together. */
+.foam-unified-workbench .foam-main { grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); }
+.foam-unified-workbench .foam-result-panel { grid-column: 1 / -1; }
+.foam-unified-workbench .recipe-authoring-progress,
+.foam-unified-workbench #btn-temp-recipe,
+.foam-unified-workbench #btn-clear-temp,
+.foam-unified-workbench #btn-start-roi,
+.foam-unified-workbench #btn-start-roi-polygon,
+.foam-unified-workbench #calibration-side,
+.foam-unified-workbench #btn-save-roi,
+.foam-unified-workbench #btn-publish-recipe { display: none !important; }
+.foam-unified-workbench .simple-roi-choices { flex-wrap: wrap; }
+.foam-unified-workbench .camera-viewport { min-height: 440px; }
+.foam-unified-workbench #btn-save-recipe { width: 100%; margin-top: 12px; }
+@media(max-width: 1000px) { .foam-unified-workbench .foam-main { grid-template-columns: 1fr; } }

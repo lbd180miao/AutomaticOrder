@@ -2,11 +2,11 @@
 {% block title %}泡棉检测结果 - AutomaticBoxing{% endblock %}
 {% block content %}
 <section class="page-header"><h1>保险杠泡棉检测结果</h1></section>
-<p class="page-hint">当前检测策略：泡棉贴在保险杠上，2D 相机只判定白色泡棉是否存在；存在则“对齐”和“起翘”均判 OK。</p>
+<p class="page-hint">按检测时保存的配方与算法判定存在、覆盖/完整性及偏移。颜色未标注的历史记录不推断颜色；当前 2D 流程不检测起翘。</p>
 <div class="table-wrap">
   <table class="data-table">
     <thead>
-      <tr><th>画面</th><th>时间</th><th>产品</th><th>料框</th><th>位置序号</th><th>存在</th><th>对齐</th><th>起翘</th><th>分数</th><th>判定</th></tr>
+      <tr><th>画面</th><th>时间</th><th>配方 / 颜色 / 分割方式</th><th>产品</th><th>料框</th><th>位置序号</th><th>存在</th><th>对齐</th><th>起翘</th><th>分数</th><th>判定</th></tr>
     </thead>
     <tbody>
       {% for r in results %}
@@ -17,17 +17,18 @@
           {% endwith %}
         </td>
         <td>{{ r.created_at|date:"m-d H:i:s" }}</td>
+        <td>#{{ r.result_data.recipe.id|default:"—" }} {{ r.result_data.recipe.name|default:"未保存配方快照" }}<br>{{ r.foam_identity.material_label }} · {{ r.foam_identity.segmentation_label }}</td>
         <td>{{ r.product.product_code|default:"-" }}</td>
         <td>{{ r.rack.rack_code|default:"-" }}</td>
         <td>{{ r.position_index }}</td>
         <td>{% if r.is_present %}<span class="badge badge-ok">是</span>{% else %}<span class="badge badge-fail">否</span>{% endif %}</td>
         <td>{% if r.is_aligned %}<span class="badge badge-ok">OK</span>{% else %}<span class="badge badge-fail">NG</span>{% endif %}</td>
-        <td>{% if r.has_lifted_edge %}<span class="badge badge-fail">NG</span>{% else %}<span class="badge badge-ok">OK</span>{% endif %}</td>
+        <td>{% if r.has_lifted_edge %}<span class="badge badge-fail">NG</span>{% else %}<span class="badge">未检测</span>{% endif %}</td>
         <td>{{ r.score }}</td>
         <td>{% if r.is_passed %}<span class="badge badge-ok">合格</span>{% else %}<span class="badge badge-fail">不合格</span>{% endif %}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="10" class="empty">暂无检测结果</td></tr>
+      <tr><td colspan="11" class="empty">暂无检测结果</td></tr>
       {% endfor %}
     </tbody>
   </table>

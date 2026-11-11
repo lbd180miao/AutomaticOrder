@@ -729,6 +729,9 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
 
     detected_pixels = int(np.count_nonzero(mask))
     standard_mask = _load_standard_mask_for_side(cfg, side, (roi_height, roi_width))
+    if cfg.get('standard_from_roi') and '_detected_mask' not in cfg:
+        standard_mask = (polygon_mask.copy() if polygon_mask is not None
+                         else np.full((roi_height, roi_width), 255, dtype=np.uint8))
     if standard_mask is None and cfg.get('require_standard_template'):
         reason = cfg.get('standard_template_error') or f'{side} standard template is missing'
         raise StandardMaskConfigurationError(reason)
@@ -979,7 +982,7 @@ def _inspect_layer_sides(image, side_roi_config, cfg):
             reference[:] = 0
             points = np.rint(np.asarray(polygon) * [width, height] - [x1, y1]).astype(np.int32)
             cv2.fillPoly(reference, [points], 255)
-        if teaching:
+        if teaching or cfg.get('standard_from_roi'):
             standard = reference.copy()
         elif unified:
             standard = _load_standard_mask_for_side(cfg, side, shape)

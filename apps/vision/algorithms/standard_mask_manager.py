@@ -202,7 +202,36 @@ class StandardMaskManager:
         configured_mode = cfg.get('configured_foam_segmentation', cfg.get('foam_segmentation', 'fixed-threshold'))
         cfg['foam_segmentation'] = configured_mode
         layer_mode = bool(cfg.get('layer_search_roi'))
-        if layer_mode:
+        if cfg.get('standard_from_roi'):
+            # The drawn geometry is the reference; image segmentation only runs
+            # during inspection and must never redefine a saved ROI.
+            from .foam_inspector import _ratio_box_to_pixels
+            width, height = image.shape[1], image.shape[0]
+            bounds = _ratio_box_to_pixels(cfg.get('layer_search_roi', [0, 0, 1, 1]), width, height)
+            extracted = {}
+            for side in self.SIDES:
+                box = _ratio_box_to_pixels(cfg['foam_rois'][str(recipe.pos)][side], width, height)
+                a, b, c, d = bounds if layer_mode else box
+                x1, y1, x2, y2 = box
+                mask = np.zeros((d-b, c-a), np.uint8)
+                mask[y1-b:y2-b, x1-a:x2-a] = 255
+                polygon = cfg.get('polygon_rois', {}).get(str(recipe.pos), {}).get(side)
+                if polygon:
+                    mask[:] = 0
+                    points = np.rint(np.asarray(polygon) * [width, height] - [a, b]).astype(np.int32)
+                    cv2.fillPoly(mask, [points], 255)
+                center = compute_mask_centroid(mask)
+                if center is None:
+                    raise ValueError('标准 ROI 面积不能为空')
+                x, y, w, h = cv2.boundingRect(cv2.findNonZero(mask))
+                extracted[side] = {
+                    'mask': mask, 'side': side, 'pixels': int(np.count_nonzero(mask)),
+                    'search_area': mask.size, 'coverage_ratio': float(np.count_nonzero(mask) / mask.size),
+                    'centroid_x': float(center[0]), 'centroid_y': float(center[1]),
+                    'bounding_box': {'x': x, 'y': y, 'width': w, 'height': h},
+                    'roi_snapshot': deepcopy(recipe.roi_config[self._roi_key(side)]),
+                }
+        elif layer_mode:
             try:
                 extracted = self._extract_layer_set(image, recipe, cfg)
             except FoamTemplateExtractionError:
@@ -247,7 +276,7 @@ class StandardMaskManager:
             'segmentation_config': {k: cfg.get(k, v) for k, v in
                                     (('foam_min_v', 140), ('foam_max_s', 80))},
             'foam_segmentation': cfg['foam_segmentation'],
-            'self_check_passed': layer_mode,
+            'self_check_passed': layer_mode and not cfg.get('standard_from_roi'),
             'image_width': int(recipe.image_width),
             'image_height': int(recipe.image_height),
             'source_image_width': int(width),

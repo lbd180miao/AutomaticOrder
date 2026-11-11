@@ -111,6 +111,29 @@ def get_active_foam_2d_recipe_by_pos(pos, layout_id=None):
     return recipes[0] if recipes else None
 
 
+FOAM_MATERIAL_LABELS = {'white': '白色', 'gray': '灰色', 'unspecified': '未标注颜色'}
+FOAM_SEGMENTATION_LABELS = {
+    'fixed-threshold': '固定阈值',
+    'shadow-graphcut-v1': '阴影分割（旧版）',
+    'shadow-graphcut-fast-v2': '快速阴影分割',
+    'gray-graphcut-v3': '灰色局部对比分割',
+}
+
+
+def foam_identity_summary(algorithm, template=None, template_ready=False):
+    """Display explicit material only; segmentation never establishes color."""
+    material = algorithm.get('material_type', 'unspecified')
+    mode = algorithm.get('foam_segmentation', 'fixed-threshold')
+    effective = mode if template_ready else None
+    return {
+        'material_label': FOAM_MATERIAL_LABELS.get(material, '未标注颜色'),
+        'segmentation_label': FOAM_SEGMENTATION_LABELS.get(mode, mode),
+        'configured_mode': mode,
+        'effective_mode': effective,
+        'effective_mode_label': FOAM_SEGMENTATION_LABELS.get(effective, effective) if effective else '模板未就绪，需示教',
+    }
+
+
 def serialize_recipe(recipe):
     template_status = get_foam_standard_template_status(recipe)
     layout = recipe.foam_product_layout
@@ -142,6 +165,9 @@ def serialize_recipe(recipe):
         'roi_config': recipe.roi_config or {},
         'threshold_config': recipe.threshold_config or {},
         'algorithm_config': recipe.algorithm_config or {},
+        'foam_summary': foam_identity_summary(recipe.algorithm_config or {},
+                                             recipe.standard_template_config,
+                                             template_status['ready']),
         'standard_template': recipe.standard_template_config or {},
         'standard_template_status': template_status,
         'standard_template_version': recipe.standard_template_version or '',
@@ -278,83 +304,43 @@ def foam_segmentation_config(recipe):
 
 def get_foam_standard_template_status(recipe):
     """Return whether a recipe has a usable left/right template for its current ROI."""
-    template = recipe.standard_template_config or {}
-    thresholds = recipe.threshold_config or {}
-    sides = template.get('sides') if isinstance(template.get('sides'), dict) else {}
-    legacy_paths = _threshold_value(
-        thresholds, ('standard_mask_paths', 'standardMaskPaths'), {}
-    )
-    legacy_paths = legacy_paths if isinstance(legacy_paths, dict) else {}
-    paths = {
-        side: (sides.get(side) or {}).get('path') or legacy_paths.get(side, '')
-        for side in ('left', 'right')
-    }
-
-    reason = ''
-    roi_matches = True
-    resolution_matches = True
-    segmentation = foam_segmentation_config(recipe)
-    algorithm_matches = template.get('configured_foam_segmentation', template.get('foam_segmentation', 'fixed-threshold')) == (
-        (recipe.algorithm_config or {}).get('foam_segmentation', 'fixed-threshold'))
-    algorithm_matches = algorithm_matches and template.get('segmentation_config', {
-        'foam_min_v': 140, 'foam_max_s': 80,
-    }) == segmentation
-    algorithm_matches = algorithm_matches and template.get('material_type', 'unspecified') == (
-        (recipe.algorithm_config or {}).get('material_type', 'unspecified'))
-    merge_config = geometry_config(recipe.algorithm_config or {})['fragment_merge']
-    saved_merge = template.get('fragment_merge', geometry_config({})['fragment_merge'])
-    algorithm_matches = algorithm_matches and saved_merge == merge_config
-    if not algorithm_matches:
-        reason = '分割算法已修改，需要重新示教标准模板'
-    if template:
-        saved_roi = template.get('roi_config')
-        if saved_roi is not None and saved_roi != (recipe.roi_config or {}):
-            roi_matches = False
-            reason = 'ROI已修改，需要重新示教标准模板'
-        saved_width = int(template.get('image_width') or 0)
-        saved_height = int(template.get('image_height') or 0)
-        if saved_width and saved_height and (
-            saved_width != int(recipe.image_width) or saved_height != int(recipe.image_height)
-        ):
-            resolution_matches = False
-            reason = '配方图像分辨率已修改，需要重新示教标准模板'
-
-    missing_sides = [side for side, path in paths.items() if not path]
-    incomplete_sides = [
-        side for side, path in paths.items()
-        if path and not has_complete_foam_template_side_metadata(sides.get(side))
-    ]
-    if (missing_sides or incomplete_sides) and not reason:
-        labels = {'left': '左侧', 'right': '右侧'}
-        if missing_sides and not incomplete_sides:
-            reason = '缺少' + '、'.join(labels[side] for side in missing_sides) + '标准模板'
-        elif incomplete_sides and not missing_sides:
-            reason = (
-                '、'.join(labels[side] for side in incomplete_sides)
-                + '旧模板缺少泡棉位置数据，需要重新示教'
-            )
-        else:
-            reason = (
-                '、'.join(labels[side] for side in incomplete_sides)
-                + '旧模板缺少泡棉位置数据；'
-                + '、'.join(labels[side] for side in missing_sides)
-                + '标准模板未示教，请重新示教左右模板'
-            )
-
-    ready = not missing_sides and not incomplete_sides and roi_matches and resolution_matches and algorithm_matches
+    import cv2
+    import numpy as np
+    sides = {}
+    width, height = int(recipe.image_width or 0), int(recipe.image_height or 0)
+    for side, key in (('left', 'leftFoamROI'), ('right', 'rightFoamROI')):
+        raw = (recipe.roi_config or {}).get(key)
+        try:
+            box = _pixel_roi_to_ratio(raw, width, height) if isinstance(raw, dict) else None
+            if not box or width <= 0 or height <= 0:
+                continue
+            x1, y1, x2, y2 = [int(round(v * size)) for v, size in zip(box, (width, height, width, height))]
+            if x2 <= x1 or y2 <= y1:
+                continue
+            mask = np.full((y2-y1, x2-x1), 255, np.uint8)
+            polygon = _extract_polygon_points(raw)
+            if polygon:
+                mask[:] = 0
+                points = np.rint(np.asarray(polygon) * [width, height] - [x1, y1]).astype(np.int32)
+                cv2.fillPoly(mask, [points], 255)
+            moments = cv2.moments(mask, binaryImage=True)
+            if not moments['m00']:
+                continue
+            sides[side] = {
+                'exists': True, 'pixels': int(moments['m00']),
+                'search_area': mask.size, 'coverage_ratio': moments['m00'] / mask.size,
+                'centroid_x': x1 + moments['m10'] / moments['m00'],
+                'centroid_y': y1 + moments['m01'] / moments['m00'],
+                'bounding_box': {'x': x1, 'y': y1, 'width': x2-x1, 'height': y2-y1},
+            }
+        except (TypeError, ValueError, OverflowError):
+            continue
+    ready = len(sides) == 2
     return {
-        'ready': ready,
-        'reason': reason,
-        'paths': paths,
-        'roi_matches': roi_matches,
-        'resolution_matches': resolution_matches,
-        'version': recipe.standard_template_version or template.get('version', ''),
-        'built_at': (
-            recipe.standard_template_built_at.isoformat()
-            if recipe.standard_template_built_at else template.get('built_at', '')
-        ),
-        'sides': sides,
-        'incomplete_sides': incomplete_sides,
+        'ready': ready, 'reason': '' if ready else '请绘制有效的左右标准 ROI 并保存配方',
+        'source': 'roi', 'paths': {}, 'sides': sides,
+        'roi_matches': ready, 'resolution_matches': width > 0 and height > 0,
+        'version': 'roi', 'built_at': '', 'incomplete_sides': [s for s in ('left', 'right') if s not in sides],
     }
 
 
@@ -475,9 +461,10 @@ def build_foam_inspection_config(recipe):
         'product_anchor_rois': anchors,
         'product_reference_path': str(reference_path) if reference_path else '',
         'material_type': (recipe.algorithm_config or {}).get('material_type', 'unspecified'),
-        'standard_mask_space': template.get('mask_space', 'side'),
+        'standard_mask_space': 'layer-v3' if layer_ratio else 'side',
+        'standard_from_roi': True,
         'configured_foam_segmentation': configured_mode,
-        'foam_segmentation': template.get('foam_segmentation', configured_mode) if template_status['ready'] else configured_mode,
+        'foam_segmentation': configured_mode,
         'layer_search_roi': layer_ratio,
         'layer_search_polygon': _extract_polygon_points(layer) if layer else None,
         'foam_rois': {

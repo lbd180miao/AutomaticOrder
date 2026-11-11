@@ -157,7 +157,7 @@ class QualityRecipeTests(SimpleTestCase):
             'layerSearchROI': {'x': 0, 'y': 0, 'width': 200, 'height': 120},
         })
 
-    def test_config_propagates_and_material_change_invalidates_template(self):
+    def test_config_propagates_and_material_change_keeps_roi_standard(self):
         recipe = self.recipe()
         recipe.algorithm_config = {'material_type': 'gray', 'foam_segmentation': 'gray-graphcut-v3'}
         recipe.threshold_config = {'decision_mode': 'separated-v2', 'min_area_ratio': .8,
@@ -170,8 +170,9 @@ class QualityRecipeTests(SimpleTestCase):
         recipe.standard_template_config = {'configured_foam_segmentation': 'gray-graphcut-v3',
                                            'material_type': 'white'}
         status = get_foam_standard_template_status(recipe)
-        self.assertFalse(status['ready'])
-        self.assertIn('分割算法', status['reason'])
+        self.assertTrue(status['ready'])
+        self.assertEqual(status['reason'], '')
+        self.assertTrue(build_foam_inspection_config(recipe)['standard_from_roi'])
 
     def test_invalid_segmentation_threshold_is_rejected(self):
         recipe = self.recipe()
@@ -179,6 +180,34 @@ class QualityRecipeTests(SimpleTestCase):
             recipe.algorithm_config = {'segmentation_config': {'foam_min_v': value}}
             with self.subTest(value=value), self.assertRaises(ValueError):
                 build_foam_inspection_config(recipe)
+
+    def test_roi_is_standard_without_files_and_ignores_old_algorithm(self):
+        from .algorithms.foam_inspector import _inspect_layer_sides
+        recipe = self.recipe()
+        recipe.standard_template_config = {'foam_segmentation': 'shadow-graphcut-fast-v2'}
+        image = np.zeros((120, 200, 3), np.uint8)
+        image[20:60, 20:60] = 240
+        image[20:60, 120:160] = 240
+        for material in ('white', 'gray'):
+            recipe.algorithm_config = {'material_type': material, 'foam_segmentation': 'fixed-threshold'}
+            cfg = build_foam_inspection_config(recipe)
+            self.assertTrue(cfg['standard_template_ready'])
+            self.assertEqual(cfg['foam_segmentation'], 'fixed-threshold')
+            sides = _inspect_layer_sides(image, cfg['foam_rois']['0'], cfg)
+            for side in ('left', 'right'):
+                self.assertEqual(np.count_nonzero(sides[side]['standard_mask']), 1600)
+                self.assertAlmostEqual(sides[side]['offset_x_px'], 0)
+        recipe.roi_config['leftFoamROI']['width'] = 50
+        cfg = build_foam_inspection_config(recipe)
+        sides = _inspect_layer_sides(image, cfg['foam_rois']['0'], cfg)
+        self.assertEqual(np.count_nonzero(sides['left']['standard_mask']), 2000)
+
+    def test_missing_roi_is_not_a_ready_standard(self):
+        recipe = self.recipe()
+        del recipe.roi_config['rightFoamROI']
+        self.assertFalse(get_foam_standard_template_status(recipe)['ready'])
+        with self.assertRaises(ValueError):
+            build_foam_inspection_config(recipe)
 
 
 class GrayTemplateIntegrationTests(SimpleTestCase):
@@ -195,7 +224,8 @@ class GrayTemplateIntegrationTests(SimpleTestCase):
         rois = {'layerSearchROI': {'x1r': 0, 'y1r': 0, 'x2r': 1, 'y2r': 1}}
         for side, x in (('left', 40), ('right', 200)):
             image[50:130, x:x+70] = 90
-            rois[side + 'FoamROI'] = {'x': x-5, 'y': 45, 'width': 80, 'height': 90}
+            # ROI is now the expected foam shape, rather than a loose search box.
+            rois[side + 'FoamROI'] = {'x': x, 'y': 50, 'width': 70, 'height': 80}
         limits = dict(min_area_ratio=.8, max_area_ratio=1.25,
                       max_missing_ratio=.2, max_excess_ratio=.25)
         recipe = VisionRecipe(pk=42, pos=0, image_width=320, image_height=180,

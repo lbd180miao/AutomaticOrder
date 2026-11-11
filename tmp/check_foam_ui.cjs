@@ -1,0 +1,32 @@
+const {chromium}=require('D:/Scripts/FrciblyK12/.venv/Lib/site-packages/playwright/driver/package');
+(async()=>{
+ const browser=await chromium.launch({headless:true});
+ const page=await browser.newPage({viewport:{width:1440,height:1000}});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ // Exercise UI without changing live recipes or activating hardware.
+ const posts=[];
+ await page.route('**/*',route=>{if(route.request().method()==='POST'){posts.push({url:route.request().url(),body:route.request().postData()});return route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({success:false,error:'UI verification intercepted write'})});}return route.continue();});
+ await page.goto('http://127.0.0.1:8082/vision/recipes/');
+ await page.locator('#foam-recipe-list .configuration-level').first().waitFor();
+ await page.getByRole('button',{name:'新增 / 从现有配方复制'}).click();
+ await page.locator('#modal-copy-source').selectOption('12');
+ console.log('copy sources',await page.locator('#modal-copy-source option').count());
+ await page.locator('#recipe-modal').getByRole('button',{name:'取消'}).click();
+ await page.goto('http://127.0.0.1:8082/vision/recipes/?edit=12');
+ await page.locator('#recipe-edit-modal').waitFor({state:'visible'});
+ console.log('parameter editor',await page.locator('#edit-quality-material').isVisible(),'roi editor removed',await page.locator('#edit-left-x').count());
+ await page.goto('http://127.0.0.1:8082/vision/foam-inspector/?recipe_id=12');
+ await page.waitForFunction(()=>document.getElementById('foam-recipe-select').value==='12');
+ console.log('drawing buttons',await page.locator('.simple-roi-choices button').count(),'capture visible',await page.locator('#btn-capture-inspect').isVisible(),'parameter editor removed',await page.locator('#foam-material').count());
+ await page.locator('#file-upload-preview').setInputFiles('tmp/foam-motion/recipe-12.jpg');
+ await page.waitForFunction(()=>document.getElementById('preview-image').naturalWidth>0);
+ await page.locator('.simple-roi-choices button').first().click();
+ const box=await page.locator('#roi-overlay').boundingBox();
+ await page.mouse.move(box.x+box.width*.2,box.y+box.height*.2);await page.mouse.down();await page.mouse.move(box.x+box.width*.3,box.y+box.height*.35,{steps:8});await page.mouse.up();
+ console.log('ROI dirty',await page.evaluate(()=>cal.dirty));
+ await page.screenshot({path:'tmp/foam-workbench-unified.png',fullPage:true});
+ await page.setViewportSize({width:800,height:1000});
+ console.log('narrow overflow',await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth));
+ console.log('errors',JSON.stringify(errors),'posts',posts.length);
+ await browser.close();if(errors.length)process.exitCode=1;
+})().catch(e=>{console.error(e);process.exit(1)});

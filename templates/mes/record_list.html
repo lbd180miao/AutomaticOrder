@@ -396,11 +396,11 @@
   </div>
   <div class="mes-runtime-guide">
     <h3>启用延锋 YFPO SOAP</h3>
-    <p>部署时直接修改 <code>AutomaticOrder/settings.py</code> 中的 <code>MES_BASE_URL</code>，把 <code>&lt;MES主机&gt;</code> 换成现场 MES 服务器地址，然后重启 Django。SOAPAction 已按甲方确认值内置，现场无需再配置；地址中的 <code>?wsdl</code> 仅用于查看契约，运行时会自动去除。</p>
+    <p>部署时直接修改 <code>AutomaticOrder/settings.py</code> 中的 <code>MES_BASE_URL</code>，默认已配置南京 MES 服务器地址，然后重启 Django。SOAPAction 和实际 SOAP 服务端点由 WSDL 自动解析；支持 <code>?singleWsdl</code> 地址。</p>
     <div class="mes-runtime-env">
       <code>MES_PROTOCOL = 'soap'</code>
-      <code>MES_BASE_URL = 'http://&lt;MES主机&gt;:10133/BaseService.svc?wsdl'</code>
-      <code>MES_FACTORY_CODE = '2230'</code>
+      <code>MES_BASE_URL = 'http://10.252.165.162/MESService/BaseService.svc?singleWsdl'</code>
+      <code>MES_FACTORY_CODE = '1060'</code>
       <code>MES_PROD_LINE_CODE = 'I308'</code>
     </div>
     <p>如甲方启用了认证，配置 <code>MES_AUTHORIZATION</code>；额外请求头使用 <code>MES_CUSTOM_HEADERS</code> JSON 对象。</p>
