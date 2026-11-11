@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}PLC映射库 - AutomaticBoxing{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'devices/status.css' %}?v=20261111-device-rows">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'devices/status.css' %}?v=20261111-readable-fonts">{% endblock %}
 {% block content %}
 <section class="page-header"><h1>PLC映射库</h1><a class="btn btn-secondary" href="{% url 'devices:status' %}">返回设备状态</a></section>
 {% include "devices/rack_type_mappings.html" %}

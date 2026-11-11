@@ -30,8 +30,8 @@
         <span style="font-weight:700;">±</span>
         <input type="number" id="setting-tolerance-z" step="0.1" min="0" max="50"
                value="{{ verification.recipe.tolerance_z|default:3.0 }}"
-               style="width: 65px; padding: 2px 6px; font-size: 13px; font-weight: 700; border: 1px solid var(--border-strong); border-radius: 4px; text-align: center;">
-        <span style="font-size:12px; color:var(--text-muted);">mm</span>
+               style="width: 65px; padding: 2px 6px; font-size: calc(13px + var(--ui-font-increase, 0px)); font-weight: 700; border: 1px solid var(--border-strong); border-radius: 4px; text-align: center;">
+        <span style="font-size:calc(12px + var(--ui-font-increase, 0px)); color:var(--text-muted);">mm</span>
         <button type="button" class="btn btn-primary btn-xs" id="btn-save-tolerance-threshold">保存阈值</button>
       </div>
     </div>

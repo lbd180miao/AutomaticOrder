@@ -68,7 +68,7 @@
         
         <label>适用层号 <span style="color:red;">*</span>
           <input name="layer_no" id="layer-no" type="number" min="1" max="3" value="{{ recipe_defaults.layer_no }}" required>
-          <small style="color:#64748b;font-size:11px;">坐标模块支持第 1/2/3 层</small>
+          <small style="color:#64748b;font-size:calc(11px + var(--ui-font-increase, 0px));">坐标模块支持第 1/2/3 层</small>
         </label>
 
         <fieldset class="rack-location-fieldset">
@@ -179,7 +179,7 @@ window.rackLocationRecipeConfig = {
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.85);
   color: #e2e8f0;
-  font: 600 14px/1.4 system-ui, sans-serif;
+  font: 600 calc(14px + var(--ui-font-increase, 0px))/1.4 system-ui, sans-serif;
   pointer-events: none;
   display: flex;
   align-items: center;
@@ -189,7 +189,7 @@ window.rackLocationRecipeConfig = {
   transition: opacity 0.3s ease;
 }
 .roi-hint .hint-icon {
-  font-size: 20px;
+  font-size: calc(20px + var(--ui-font-increase, 0px));
 }
 .rl-roi-readout {
   position: absolute;
@@ -199,7 +199,7 @@ window.rackLocationRecipeConfig = {
   border-radius: 6px;
   background: rgba(15, 23, 42, 0.78);
   color: #e2e8f0;
-  font: 600 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 600 calc(12px + var(--ui-font-increase, 0px))/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
   pointer-events: none;
 }
 .rack-location-actions {
@@ -227,7 +227,7 @@ window.rackLocationRecipeConfig = {
   border-radius: 10px;
   background: #eef1f6;
   color: #475569;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
   font-weight: 600;
 }
 

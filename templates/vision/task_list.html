@@ -65,7 +65,7 @@
 
 .vision-module-card h2 {
   margin: 0 0 6px;
-  font-size: 18px;
+  font-size: calc(18px + var(--ui-font-increase, 0px));
   color: #111827;
 }
 
@@ -79,7 +79,7 @@
   flex-shrink: 0;
   color: var(--primary, #2563eb);
   font-weight: 600;
-  font-size: 14px;
+  font-size: calc(14px + var(--ui-font-increase, 0px));
 }
 
 @media (max-width: 600px) {

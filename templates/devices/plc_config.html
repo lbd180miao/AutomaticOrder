@@ -5,46 +5,46 @@
 <style>
 .config-layout { display: grid; grid-template-columns: 380px 1fr; gap: 20px; }
 .cfg-card { background: #1a2235; border: 1px solid #2a3550; border-radius: 10px; padding: 22px; }
-.cfg-card h2 { font-size: 13px; color: #7a8aaa; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 18px; }
+.cfg-card h2 { font-size: calc(13px + var(--ui-font-increase, 0px)); color: #7a8aaa; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 18px; }
 
 /* 连接参数表单 */
 .cfg-form .field { margin-bottom: 14px; }
-.cfg-form label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 5px; }
+.cfg-form label { display: block; font-size: calc(12px + var(--ui-font-increase, 0px)); color: #9ca3af; margin-bottom: 5px; }
 .cfg-form input, .cfg-form select {
   width: 100%; box-sizing: border-box;
   background: #111827; border: 1px solid #2a3550; border-radius: 6px;
-  color: #f0f4ff; font-size: 13px; padding: 8px 12px; font-family: monospace;
+  color: #f0f4ff; font-size: calc(13px + var(--ui-font-increase, 0px)); padding: 8px 12px; font-family: monospace;
 }
 .cfg-form input:focus, .cfg-form select:focus {
   outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #3b82f620;
 }
-.cfg-hint { font-size: 11px; color: #4b5563; margin-top: 4px; }
+.cfg-hint { font-size: calc(11px + var(--ui-font-increase, 0px)); color: #4b5563; margin-top: 4px; }
 .btn-save { width: 100%; margin-top: 8px; padding: 10px; background: #1d4ed8;
-            border: none; border-radius: 7px; color: #fff; font-size: 13px; font-weight: 600;
+            border: none; border-radius: 7px; color: #fff; font-size: calc(13px + var(--ui-font-increase, 0px)); font-weight: 600;
             cursor: pointer; transition: background .2s; }
 .btn-save:hover { background: #2563eb; }
-.save-tip { font-size: 12px; color: #22c55e; text-align: center; margin-top: 8px;
+.save-tip { font-size: calc(12px + var(--ui-font-increase, 0px)); color: #22c55e; text-align: center; margin-top: 8px;
             display: none; }
 
 /* 说明卡 */
 .info-block { background: #0f1929; border-left: 3px solid #3b82f6;
               border-radius: 0 6px 6px 0; padding: 12px 14px; margin-bottom: 16px; }
-.info-block p { font-size: 12px; color: #9ca3af; margin: 0; line-height: 1.7; }
+.info-block p { font-size: calc(12px + var(--ui-font-increase, 0px)); color: #9ca3af; margin: 0; line-height: 1.7; }
 .info-block strong { color: #60a5fa; }
 
 /* 点位分组表 */
 .scene-section { margin-bottom: 24px; }
-.scene-title { font-size: 12px; color: #f59e0b; text-transform: uppercase;
+.scene-title { font-size: calc(12px + var(--ui-font-increase, 0px)); color: #f59e0b; text-transform: uppercase;
                letter-spacing: 1px; padding: 6px 0; border-bottom: 1px solid #2a3550; margin-bottom: 10px; }
-.points-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.points-table { width: 100%; border-collapse: collapse; font-size: calc(12px + var(--ui-font-increase, 0px)); }
 .points-table th { color: #6b7280; font-weight: 500; text-align: left; padding: 6px 10px;
                    background: #0f1929; }
 .points-table td { padding: 8px 10px; border-bottom: 1px solid #111827; color: #d1d5db; }
 .points-table tr:last-child td { border-bottom: none; }
 .points-table tr:hover td { background: #111827; }
-.tag-in  { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px;
+.tag-in  { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: calc(10px + var(--ui-font-increase, 0px));
            font-weight: 700; background: #1d4ed822; color: #60a5fa; border: 1px solid #1d4ed8; }
-.tag-out { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px;
+.tag-out { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: calc(10px + var(--ui-font-increase, 0px));
            font-weight: 700; background: #16a34a22; color: #4ade80; border: 1px solid #16a34a; }
 .mono { font-family: monospace; color: #a5b4fc; }
 </style>

@@ -61,13 +61,13 @@
 <style>
   .signal-toolbar { justify-content: space-between; }
   .signal-filter-form { flex-wrap: wrap; }
-  .signal-count { margin-left: auto; color: var(--text-muted); font-size: 13px; white-space: nowrap; }
-  .data-table td small { display: block; color: var(--text-faint); font-size: 11px; }
+  .signal-count { margin-left: auto; color: var(--text-muted); font-size: calc(13px + var(--ui-font-increase, 0px)); white-space: nowrap; }
+  .data-table td small { display: block; color: var(--text-faint); font-size: calc(11px + var(--ui-font-increase, 0px)); }
   .signal-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
   .signal-name { padding: 2px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-2); color: var(--text); }
   .signal-value { max-width: 260px; overflow-wrap: anywhere; font-family: Consolas, monospace; }
   .payload-details summary { cursor: pointer; color: var(--primary); white-space: nowrap; }
-  .payload-details pre { max-width: 440px; max-height: 220px; margin: 8px 0 0; padding: 10px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #0f172a; color: #dbeafe; font: 12px/1.5 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .payload-details pre { max-width: 440px; max-height: 220px; margin: 8px 0 0; padding: 10px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #0f172a; color: #dbeafe; font: calc(12px + var(--ui-font-increase, 0px))/1.5 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
   @media (max-width: 760px) { .signal-count { width: 100%; margin-left: 0; } }
 </style>
 {% endblock %}

@@ -14,7 +14,7 @@
   gap: 12px;
 }
 .history-title-bar h1 {
-  margin: 0; font-size: 22px; font-weight: 700;
+  margin: 0; font-size: calc(22px + var(--ui-font-increase, 0px)); font-weight: 700;
 }
 .history-title-bar h1::before {
   content: "";
@@ -39,7 +39,7 @@
   flex-wrap: wrap;
 }
 .history-filter-bar label {
-  font-size: 13px;
+  font-size: calc(13px + var(--ui-font-increase, 0px));
   font-weight: 600;
   color: var(--text-muted);
   display: flex;
@@ -67,7 +67,7 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: calc(13px + var(--ui-font-increase, 0px));
   font-weight: 600;
 }
 .stat-chip .stat-label { color: var(--text-muted); }
@@ -84,7 +84,7 @@
   overflow: hidden;
 }
 .history-table-wrap .data-table { margin: 0; }
-.plc-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+.plc-badge { font-size: calc(11px + var(--ui-font-increase, 0px)); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
 .plc-badge.success { background: var(--success-soft); color: var(--success); }
 .plc-badge.failed  { background: var(--danger-soft);  color: var(--danger); }
 .plc-badge.skipped { background: var(--surface-2);    color: var(--text-muted); }

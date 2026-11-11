@@ -84,7 +84,7 @@
     }
     
     .param-group label {
-        font-size: 12px;
+        font-size: calc(12px + var(--ui-font-increase, 0px));
         color: #666;
         margin-bottom: 2px;
     }
@@ -287,7 +287,7 @@
                 
                 <div class="roi-canvas-container">
                     <canvas id="roiCanvas" width="800" height="600"></canvas>
-                    <div id="canvasInfo" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px; border-radius: 3px; font-size: 12px;">
+                    <div id="canvasInfo" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px; border-radius: 3px; font-size: calc(12px + var(--ui-font-increase, 0px));">
                         点击并拖动绘制ROI框
                     </div>
                 </div>

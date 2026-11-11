@@ -24,7 +24,7 @@
 }
 .foam-title-bar h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: calc(22px + var(--ui-font-increase, 0px));
   font-weight: 700;
 }
 .foam-title-bar h1::before {
@@ -59,11 +59,11 @@
   margin-bottom: 10px;
 }
 .recipe-info-icon {
-  font-size: 18px;
+  font-size: calc(18px + var(--ui-font-increase, 0px));
 }
 .recipe-info-title {
   font-weight: 700;
-  font-size: 14px;
+  font-size: calc(14px + var(--ui-font-increase, 0px));
   color: #0c4a6e;
   flex: 1;
 }
@@ -76,7 +76,7 @@
   gap: 8px;
 }
 .recipe-info-row {
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
   color: #1e40af;
   line-height: 1.6;
 }
@@ -114,7 +114,7 @@
 }
 .foam-panel-head h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: calc(15px + var(--ui-font-increase, 0px));
   font-weight: 700;
   color: #1f2937;
   display: flex;
@@ -155,12 +155,12 @@
   padding: 40px 20px;
 }
 .camera-placeholder .cam-icon {
-  font-size: 48px;
+  font-size: calc(48px + var(--ui-font-increase, 0px));
   margin-bottom: 10px;
   opacity: 0.5;
 }
-.camera-placeholder p { margin: 6px 0; font-size: 13px; color: #9ca3af; }
-.camera-placeholder .hint { font-size: 12px; color: #4b5563; }
+.camera-placeholder p { margin: 6px 0; font-size: calc(13px + var(--ui-font-increase, 0px)); color: #9ca3af; }
+.camera-placeholder .hint { font-size: calc(12px + var(--ui-font-increase, 0px)); color: #4b5563; }
 
 .roi-box.layer { border: 2px dashed #f59e0b; background: transparent; }
 .roi-box.layer .roi-box-label { background: #f59e0b; color: #111; }
@@ -191,7 +191,7 @@
   position: absolute;
   top: -20px;
   left: 0;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-font-increase, 0px));
   font-weight: 700;
   padding: 1px 5px;
   border-radius: 3px;
@@ -222,7 +222,7 @@
 }
 .pos-selector label {
   font-weight: 600;
-  font-size: 13px;
+  font-size: calc(13px + var(--ui-font-increase, 0px));
   white-space: nowrap;
 }
 .pos-selector input {
@@ -231,7 +231,7 @@
   padding: 6px 10px;
 }
 .pos-selector .pos-hint {
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
   color: var(--text-muted);
 }
 
@@ -245,7 +245,7 @@
 }
 .roi-calibration-panel .roi-head {
   font-weight: 700;
-  font-size: 13px;
+  font-size: calc(13px + var(--ui-font-increase, 0px));
   color: #0369a1;
   margin-bottom: 8px;
   display: flex;
@@ -270,7 +270,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-font-increase, 0px));
   color: var(--text-muted);
 }
 .threshold-grid input {
@@ -288,7 +288,7 @@
 }
 .standard-mask-panel .sm-head {
   font-weight: 700;
-  font-size: 13px;
+  font-size: calc(13px + var(--ui-font-increase, 0px));
   color: #86198f;
   margin-bottom: 10px;
   display: flex;
@@ -311,13 +311,13 @@
   padding: 8px 12px;
   border-radius: 6px;
 }
-.sm-info { flex: 1; font-size: 13px; }
+.sm-info { flex: 1; font-size: calc(13px + var(--ui-font-increase, 0px)); }
 .sm-info strong { color: #374151; margin-right: 8px; }
 .sm-status.sm-ok { color: #15803d; font-weight: 600; }
 .sm-status.sm-missing { color: #ef4444; }
 .sm-detail {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
   color: #6b7280;
   font-family: monospace;
 }
@@ -330,10 +330,10 @@
   border-radius: 6px;
   padding: 10px 12px;
   margin-bottom: 10px;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
   color: #166534;
 }
-.sm-tip-icon { font-size: 20px; line-height: 1; }
+.sm-tip-icon { font-size: calc(20px + var(--ui-font-increase, 0px)); line-height: 1; }
 .sm-actions {
   display: flex;
   align-items: center;
@@ -343,16 +343,16 @@
   border-top: 1px dashed #e5e7eb;
 }
 .sm-actions label {
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
   font-weight: 600;
   color: #4b5563;
   display: flex;
   align-items: center;
   gap: 4px;
 }
-.sm-actions select { padding: 4px 6px; font-size: 12px; border: 1px solid #d1d5db; border-radius: 4px; }
+.sm-actions select { padding: 4px 6px; font-size: calc(12px + var(--ui-font-increase, 0px)); border: 1px solid #d1d5db; border-radius: 4px; }
 #calibration-status {
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
   color: #0369a1;
   font-style: italic;
 }
@@ -380,17 +380,17 @@
   background: var(--surface-2);
   border: 2px dashed var(--border);
 }
-.verdict-icon { font-size: 40px; flex-shrink: 0; }
+.verdict-icon { font-size: calc(40px + var(--ui-font-increase, 0px)); flex-shrink: 0; }
 .verdict-text strong {
   display: block;
-  font-size: 20px;
+  font-size: calc(20px + var(--ui-font-increase, 0px));
   font-weight: 800;
 }
 .verdict-banner.pass .verdict-text strong { color: var(--success); }
 .verdict-banner.fail .verdict-text strong { color: var(--danger); }
 .verdict-banner.idle .verdict-text strong { color: var(--text-muted); }
 .verdict-text .verdict-sub {
-  font-size: 13px;
+  font-size: calc(13px + var(--ui-font-increase, 0px));
   color: var(--text-muted);
   margin-top: 3px;
 }
@@ -420,9 +420,9 @@
 .metric-card.idle {
   background: var(--surface-2);
 }
-.metric-icon { font-size: 22px; margin-bottom: 4px; }
+.metric-icon { font-size: calc(22px + var(--ui-font-increase, 0px)); margin-bottom: 4px; }
 .metric-label {
-  font-size: 11.5px;
+  font-size: calc(11.5px + var(--ui-font-increase, 0px));
   color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
@@ -430,14 +430,14 @@
   margin-bottom: 4px;
 }
 .metric-value {
-  font-size: 16px;
+  font-size: calc(16px + var(--ui-font-increase, 0px));
   font-weight: 800;
 }
 .metric-card.ok .metric-value { color: var(--success); }
 .metric-card.ng .metric-value { color: var(--danger); }
 .metric-card.idle .metric-value { color: var(--text-faint); }
 .metric-sub {
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-font-increase, 0px));
   color: var(--text-faint);
   margin-top: 2px;
 }
@@ -463,7 +463,7 @@
   text-align: center;
   color: #4b5563;
   padding: 30px 20px;
-  font-size: 13px;
+  font-size: calc(13px + var(--ui-font-increase, 0px));
 }
 
 /* 详细数值行 */
@@ -479,7 +479,7 @@
   gap: 4px;
   padding: 4px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-muted);
@@ -560,9 +560,9 @@
   border-bottom: 1px solid var(--border);
   background: var(--bg-panel);
 }
-#records-modal-header h3 { margin: 0; font-size: 16px; color: var(--text); }
+#records-modal-header h3 { margin: 0; font-size: calc(16px + var(--ui-font-increase, 0px)); color: var(--text); }
 #records-modal-close {
-  background: none; border: none; font-size: 20px;
+  background: none; border: none; font-size: calc(20px + var(--ui-font-increase, 0px));
   cursor: pointer; color: var(--text-muted); line-height:1;
   padding: 4px 8px; border-radius: 6px;
 }
@@ -584,7 +584,7 @@
   border-radius: 8px;
   color: var(--text);
   padding: 6px 12px;
-  font-size: 13px;
+  font-size: calc(13px + var(--ui-font-increase, 0px));
 }
 #records-filter-pass {
   background: var(--bg-card);
@@ -592,7 +592,7 @@
   border-radius: 8px;
   color: var(--text);
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
   cursor: pointer;
 }
 #records-modal-body {
@@ -629,12 +629,12 @@
   padding: 7px 9px;
 }
 .record-card-info .rc-time {
-  font-size: 11px;
+  font-size: calc(11px + var(--ui-font-increase, 0px));
   color: var(--text-muted);
   margin-bottom: 3px;
 }
 .record-card-info .rc-meta {
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
   color: var(--text);
   display: flex;
   align-items: center;
@@ -647,19 +647,19 @@
   text-align: center;
   padding: 40px 20px;
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: calc(14px + var(--ui-font-increase, 0px));
 }
 #records-modal-loading {
   text-align: center;
   padding: 40px 20px;
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: calc(14px + var(--ui-font-increase, 0px));
   display: none;
 }
 
 </style>
 
-<link rel="stylesheet" href="{% static 'vision/css/foam_recipe_workbench.css' %}?rev=20261109-unified&v=20260928-freehand">
+<link rel="stylesheet" href="{% static 'vision/css/foam_recipe_workbench.css' %}?v=20261111-readable-fonts?rev=20261109-unified&v=20260928-freehand">
 
 <div class="foam-workbench foam-unified-workbench">
 
@@ -852,7 +852,7 @@
 
         <div id="detection-feedback" role="status" aria-live="polite" hidden
              style="padding:12px;margin-bottom:12px;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere;"></div>
-        <div id="detection-timing" role="status" style="margin-bottom:10px;color:var(--text-muted);font-size:13px;"></div>
+        <div id="detection-timing" role="status" style="margin-bottom:10px;color:var(--text-muted);font-size:calc(13px + var(--ui-font-increase, 0px));"></div>
         <!-- 判定大横幅 -->
         <div id="verdict-banner" class="verdict-banner idle">
           <div class="verdict-icon" id="verdict-icon">⏳</div>
@@ -880,7 +880,7 @@
 
           <!-- 配方标题 -->
           <div style="padding:12px 16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;margin-bottom:16px;">
-            <div style="font-weight:700;font-size:14px;color:#0369a1;">
+            <div style="font-weight:700;font-size:calc(14px + var(--ui-font-increase, 0px));color:#0369a1;">
               <span id="result-recipe-title">【POS0 配方 - 第1层泡棉检测】</span>
             </div>
           </div>
@@ -888,11 +888,11 @@
           <!-- 左侧泡棉结果 -->
           <div style="margin-bottom:20px;border:2px solid #e5e7eb;border-radius:8px;padding:14px;background:#fff;">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:2px dashed #d1d5db;">
-              <span style="font-weight:800;font-size:15px;color:#374151;">━━━ 左侧泡棉 ━━━</span>
-              <span id="left-status-badge" style="padding:4px 10px;border-radius:4px;font-size:13px;font-weight:700;">-</span>
+              <span style="font-weight:800;font-size:calc(15px + var(--ui-font-increase, 0px));color:#374151;">━━━ 左侧泡棉 ━━━</span>
+              <span id="left-status-badge" style="padding:4px 10px;border-radius:4px;font-size:calc(13px + var(--ui-font-increase, 0px));font-weight:700;">-</span>
             </div>
 
-            <table style="width:100%;font-size:13px;line-height:2.2;">
+            <table style="width:100%;font-size:calc(13px + var(--ui-font-increase, 0px));line-height:2.2;">
               <tr>
                 <td style="color:#6b7280;width:120px;"><strong>覆盖率:</strong></td>
                 <td id="left-coverage-detail" style="font-family:monospace;">-</td>
@@ -909,11 +909,11 @@
           <!-- 右侧泡棉结果 -->
           <div style="margin-bottom:20px;border:2px solid #e5e7eb;border-radius:8px;padding:14px;background:#fff;">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:2px dashed #d1d5db;">
-              <span style="font-weight:800;font-size:15px;color:#374151;">━━━ 右侧泡棉 ━━━</span>
-              <span id="right-status-badge" style="padding:4px 10px;border-radius:4px;font-size:13px;font-weight:700;">-</span>
+              <span style="font-weight:800;font-size:calc(15px + var(--ui-font-increase, 0px));color:#374151;">━━━ 右侧泡棉 ━━━</span>
+              <span id="right-status-badge" style="padding:4px 10px;border-radius:4px;font-size:calc(13px + var(--ui-font-increase, 0px));font-weight:700;">-</span>
             </div>
 
-            <table style="width:100%;font-size:13px;line-height:2.2;">
+            <table style="width:100%;font-size:calc(13px + var(--ui-font-increase, 0px));line-height:2.2;">
               <tr>
                 <td style="color:#6b7280;width:120px;"><strong>覆盖率:</strong></td>
                 <td id="right-coverage-detail" style="font-family:monospace;">-</td>
@@ -929,8 +929,8 @@
 
           <!-- 最终判定 -->
           <div id="final-verdict" style="padding:14px 18px;border-radius:6px;margin-bottom:16px;">
-            <div style="font-weight:800;font-size:15px;margin-bottom:4px;">━━━ 最终判定 ━━━</div>
-            <div id="final-verdict-text" style="font-size:14px;font-weight:700;">-</div>
+            <div style="font-weight:800;font-size:calc(15px + var(--ui-font-increase, 0px));margin-bottom:4px;">━━━ 最终判定 ━━━</div>
+            <div id="final-verdict-text" style="font-size:calc(14px + var(--ui-font-increase, 0px));font-weight:700;">-</div>
           </div>
 
         </div>
@@ -942,7 +942,7 @@
           </div>
           <img id="result-image" src="" alt="检测结果" style="display:none;">
         </div>
-        <div style="font-size:12px;color:var(--text-muted);margin:-4px 0 12px;">
+        <div style="font-size:calc(12px + var(--ui-font-increase, 0px));color:var(--text-muted);margin:-4px 0 12px;">
           标注说明：蓝色＝固定搜索 ROI，黄色＝标准模板轮廓，红色半透明＝当前检测泡棉。
         </div>
 
@@ -1101,7 +1101,7 @@ function showCameraToast(msg, type = 'warn') {
   toast.style.cssText = [
     'position:fixed', 'top:16px', 'right:16px', 'z-index:9999',
     'max-width:380px', 'padding:12px 16px', 'border-radius:8px',
-    'font-size:13px', 'line-height:1.5', 'box-shadow:0 4px 20px rgba(0,0,0,.4)',
+    'font-size:calc(13px + var(--ui-font-increase, 0px))', 'line-height:1.5', 'box-shadow:0 4px 20px rgba(0,0,0,.4)',
     type === 'warn'
       ? 'background:#92400e;color:#fef3c7;border:1px solid #b45309;'
       : 'background:#1e3a5f;color:#dbeafe;border:1px solid #3b82f6;',
@@ -1768,7 +1768,7 @@ function setPendingBadge(name) {
     badge.style.cssText = [
       'margin-top:8px', 'padding:6px 10px',
       'background:#fef9c3', 'border:1px solid #fbbf24',
-      'border-radius:6px', 'font-size:12px', 'color:#78350f',
+      'border-radius:6px', 'font-size:calc(12px + var(--ui-font-increase, 0px))', 'color:#78350f',
       'display:flex', 'align-items:center', 'gap:8px',
     ].join(';');
     document.querySelector('.cam-controls').insertAdjacentElement('afterend', badge);
@@ -1782,7 +1782,7 @@ function setPendingBadge(name) {
   clearButton.type = 'button';
   clearButton.textContent = '✕ 清除';
   clearButton.style.cssText = [
-    'margin-left:auto', 'padding:2px 6px', 'font-size:11px',
+    'margin-left:auto', 'padding:2px 6px', 'font-size:calc(11px + var(--ui-font-increase, 0px))',
     'border:1px solid #d97706', 'border-radius:4px',
     'background:#fff', 'color:#b45309', 'cursor:pointer',
   ].join(';');
@@ -3085,14 +3085,14 @@ document.addEventListener('DOMContentLoaded', () => {
 }
 .modal-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: calc(18px + var(--ui-font-increase, 0px));
   font-weight: 700;
   color: #111827;
 }
 .modal-close {
   background: none;
   border: none;
-  font-size: 28px;
+  font-size: calc(28px + var(--ui-font-increase, 0px));
   line-height: 1;
   color: #9ca3af;
   cursor: pointer;
@@ -3140,13 +3140,13 @@ document.addEventListener('DOMContentLoaded', () => {
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
 }
 .pos-label {
-  font-size: 16px;
+  font-size: calc(16px + var(--ui-font-increase, 0px));
   font-weight: 700;
   color: #111827;
   margin-bottom: 4px;
 }
 .pos-desc {
-  font-size: 13px;
+  font-size: calc(13px + var(--ui-font-increase, 0px));
   color: #6b7280;
 }
 .temp-recipe-list {
@@ -3171,12 +3171,12 @@ document.addEventListener('DOMContentLoaded', () => {
 }
 .btn-select-temp-recipe strong {
   display: block;
-  font-size: 14px;
+  font-size: calc(14px + var(--ui-font-increase, 0px));
   margin-bottom: 4px;
   color: #111827;
 }
 .btn-select-temp-recipe .recipe-roi-preview {
-  font-size: 12px;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
   color: #6b7280;
 }
 </style>
@@ -3198,7 +3198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <option value="pass">仅显示合格 (OK)</option>
         <option value="fail">仅显示不合格 (NG)</option>
       </select>
-      <span id="records-count" style="font-size:12px;color:var(--text-muted);"></span>
+      <span id="records-count" style="font-size:calc(12px + var(--ui-font-increase, 0px));color:var(--text-muted);"></span>
     </div>
     <div id="records-modal-loading">⏳ 加载中...</div>
     <div id="records-modal-body">

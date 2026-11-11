@@ -36,7 +36,7 @@
 
 .vision-module-card h2 {
   margin: 0 0 6px;
-  font-size: 18px;
+  font-size: calc(18px + var(--ui-font-increase, 0px));
   color: #111827;
 }
 
@@ -50,7 +50,7 @@
   flex-shrink: 0;
   color: var(--primary, #2563eb);
   font-weight: 600;
-  font-size: 14px;
+  font-size: calc(14px + var(--ui-font-increase, 0px));
 }
 
 .vision-history {
@@ -60,10 +60,10 @@
   padding: 24px;
   margin-bottom: 20px;
 }
-.vision-history-heading h2 { margin: 0 0 6px; font-size: 18px; color: #111827; }
+.vision-history-heading h2 { margin: 0 0 6px; font-size: calc(18px + var(--ui-font-increase, 0px)); color: #111827; }
 .vision-history-heading p { margin: 0; color: #64748b; line-height: 1.6; }
 .vision-history-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; margin: 20px 0; }
-.vision-history-filters label { display: flex; flex-direction: column; gap: 8px; color: #475569; font-size: 14px; }
+.vision-history-filters label { display: flex; flex-direction: column; gap: 8px; color: #475569; font-size: calc(14px + var(--ui-font-increase, 0px)); }
 .vision-history-filters input, .vision-history-filters select { min-height: 40px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #111827; font: inherit; }
 .vision-filter-error { color: #b91c1c; }
 .vision-history .table-wrap { overflow-x: auto; }

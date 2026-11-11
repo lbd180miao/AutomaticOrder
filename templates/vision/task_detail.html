@@ -179,18 +179,18 @@
   {# ── Re-compute button (uses active hand-eye calibration on server) ── #}
   <div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
     <button type="button" id="btn-recompute-robot"
-            style="padding:7px 18px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;"
+            style="padding:7px 18px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:calc(13px + var(--ui-font-increase, 0px));"
             data-result-id="{{ rack_result.id }}"
             data-url="{% url 'vision:rack_dual_point_recompute_robot' %}">
       🔄 用当前手眼标定重新计算机器人偏差
     </button>
-    <span id="recompute-status" style="font-size:13px;color:#64748b;"></span>
+    <span id="recompute-status" style="font-size:calc(13px + var(--ui-font-increase, 0px));color:#64748b;"></span>
   </div>
 
   {# Inline result table, hidden until recompute succeeds #}
   <div id="recompute-result" style="display:none;margin-top:16px;">
     <h3 class="section-title">重新计算结果（机器人基坐标系 mm）</h3>
-    <p id="recompute-calib-note" style="font-size:12px;color:#64748b;margin-bottom:8px;"></p>
+    <p id="recompute-calib-note" style="font-size:calc(12px + var(--ui-font-increase, 0px));color:#64748b;margin-bottom:8px;"></p>
     <table class="data-table">
       <thead>
         <tr><th>交点</th><th>标准 (X / Y / Z)</th><th>当前 (X / Y / Z)</th><th>ΔX</th><th>ΔY</th><th>ΔZ</th></tr>

@@ -5,7 +5,7 @@
 {% block page_class %}page-operation{% endblock %}
 
 {% block extra_css %}
-  <link rel="stylesheet" href="{% static 'css/alarms.css' %}">
+  <link rel="stylesheet" href="{% static 'css/alarms.css' %}?v=20261111-readable-fonts">
 {% endblock %}
 
 {% block content %}
@@ -197,7 +197,7 @@
           <div class="alarm-card-title-row">
             <span class="alarm-scene-tag">{{ selected_alarm.scene_label }}</span>
             <span class="alarm-phase-tag">{{ selected_alarm.phase_label }}</span>
-            <span class="mono-code" style="color: var(--text-faint); font-size: 11px; margin-left: auto;">
+            <span class="mono-code" style="color: var(--text-faint); font-size: calc(11px + var(--ui-font-increase, 0px)); margin-left: auto;">
               {{ selected_alarm.error_code|default:selected_alarm.alarm_code }}
             </span>
           </div>
@@ -444,12 +444,12 @@
           <td>{{ a.get_source_display }}</td>
           <td><strong style="color: var(--text)">{{ a.message|truncatechars:50 }}</strong></td>
           <td>
-            <span class="mono-code" style="font-size:12px;">{{ a.rack.rack_code|default:"—" }}</span>
+            <span class="mono-code" style="font-size:calc(12px + var(--ui-font-increase, 0px));">{{ a.rack.rack_code|default:"—" }}</span>
             {% if a.product %}
             <small class="cell-sub mono-code">{{ a.product.product_code }}</small>
             {% endif %}
           </td>
-          <td style="color:var(--text-muted);font-size:12px;">{{ a.operator_note|default:"—"|truncatechars:45 }}</td>
+          <td style="color:var(--text-muted);font-size:calc(12px + var(--ui-font-increase, 0px));">{{ a.operator_note|default:"—"|truncatechars:45 }}</td>
           <td style="text-align: right;"><a class="quiet-link" href="{% url 'alarms:alarm_detail' a.pk %}">详情 →</a></td>
         </tr>
         {% empty %}
