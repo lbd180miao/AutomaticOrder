@@ -80,7 +80,7 @@ PLC_SCENES = (
             ('当前层补偿 ΔY2', 'layer_delta_y2', 'DBD66', 'OUT', 'real'),
             ('当前层补偿 ΔZ2', 'layer_delta_z2', 'DBD70', 'OUT', 'real'),
             ('3D 定位结果', 'position_success', 'DBX49.2', 'OUT', 'result'),
-            ('3D 定位完成', 'position_done', 'DBX49.1', 'OUT', 'done'),
+            ('3D 拍照完成', 'position_done', 'DBX49.1', 'OUT', 'done'),
         ),
     },
     {
@@ -561,7 +561,7 @@ def api_plc_position_debug(request, mode="position"):
     try:
         data = json.loads(request.body)
         action = data.get('action')
-        with ownership(mode=mode) as (state, save):
+        with ownership(mode=mode, stopping=action == 'stop') as (state, save):
             if action == 'start':
                 if active(state):
                     raise ValueError('已有页面正在监听，请先在原页面停止或等待租约到期')
@@ -610,7 +610,7 @@ def api_plc_position_debug(request, mode="position"):
                     else:
                         step(state, plc, capture_position, save)
             except Exception as exc:
-                if not foam and state.get('phase') == 'WRITE_PENDING':
+                if state.get('phase') == 'WRITE_PENDING':
                     state.update(error=str(exc), message='PLC 通讯失败，保留本次结果，等待重连回写')
                 else:
                     state.update(expires=0, error=str(exc), message='PLC 通讯失败，监听已停止')

@@ -8,6 +8,8 @@ from pathlib import Path
 from django.conf import settings
 from django.db import close_old_connections
 
+from apps.devices.plc_db100 import PLC_SCAN_INTERVAL
+
 logger = logging.getLogger('plc_listener')
 _lock = threading.Lock()
 _stop = threading.Event()
@@ -22,7 +24,7 @@ def poll_loop(stop, interval, retry_interval, factory=None):
     previous_phase = None
     try:
         while not stop.is_set():
-            delay = interval
+            delay = max(PLC_SCAN_INTERVAL, interval)
             try:
                 close_old_connections()
                 if service is None:
@@ -50,7 +52,7 @@ def poll_loop(stop, interval, retry_interval, factory=None):
                         logger.exception('关闭 PLC 连接失败')
                 service = None
                 previous_phase = None
-                delay = retry_interval
+                delay = max(PLC_SCAN_INTERVAL, retry_interval)
             finally:
                 close_old_connections()
             stop.wait(delay)
@@ -86,11 +88,11 @@ def start_listener(*, manual=False):
             logger.addHandler(handler)
         logger.setLevel(logging.INFO)
         _stop.clear()
-        _thread = threading.Thread(target=poll_loop, args=(_stop, 0.25, 5.0),
+        _thread = threading.Thread(target=poll_loop, args=(_stop, PLC_SCAN_INTERVAL, 5.0),
                                    name='plc-listener', daemon=True)
         _thread.start()
         atexit.register(stop_listener)
-        logger.info('后台 PLC 监听已启动；扫描间隔 0.25 秒，失败重连间隔 5 秒')
+        logger.info('后台 PLC 监听已启动；扫描间隔 0.5 秒，失败重连间隔 5 秒')
 
 
 def stop_listener(*, wait=True):

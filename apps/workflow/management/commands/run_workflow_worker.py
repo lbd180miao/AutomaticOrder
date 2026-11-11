@@ -1,5 +1,8 @@
 """Poll DB2 and run the persisted station handshake state machine."""
 import time
+import math
+
+from apps.devices.plc_db100 import PLC_SCAN_INTERVAL
 
 from django.core.management.base import BaseCommand, CommandError
 
@@ -10,13 +13,13 @@ class Command(BaseCommand):
     help = '轮询 PLC DB2，并按触发/确认握手推进装箱工位流程'
 
     def add_arguments(self, parser):
-        parser.add_argument('--interval', type=float, default=1.0, help='扫描间隔秒数（默认 1）')
+        parser.add_argument('--interval', type=float, default=PLC_SCAN_INTERVAL, help='扫描间隔秒数（默认 0.5，最小 0.5）')
         parser.add_argument('--once', action='store_true', help='仅扫描一次后退出')
 
     def handle(self, *args, **options):
         interval = options['interval']
-        if interval <= 0:
-            raise CommandError('--interval 必须大于 0')
+        if not math.isfinite(interval) or interval < PLC_SCAN_INTERVAL:
+            raise CommandError('--interval 必须为至少 0.5 秒的有限数值')
 
         service = StationWorkflowService()
         self.stdout.write(self.style.SUCCESS(f'DB2 工位 Worker 已启动，间隔 {interval:g} 秒'))

@@ -11,28 +11,28 @@
 <p class="hint">{% if simulated %}当前为模拟模式，操作内存 PLC。{% else %}当前为真实设备模式，写入将发送至上述 PLC。{% endif %} Bool 单独修改指定位；Real 使用 32 位浮点数。自动流程可能覆盖手动写入值。</p>
 <section class="panel">
 <h2>3D 自动联调 · PLC 触发 → 拍照计算 → 双组三轴回写</h2>
-<p class="hint">选择已完成标定与 ROI 示教的 3D 配方和层号。开始后需保持本页打开；关闭页面或断网后停止接收新触发（空闲时最长 15 秒，另一路操作占用期间顺延）。正在执行的拍照会完成本次回写。监听期间暂停工位 Worker 的 PLC 操作，并禁止手动写入。</p>
+<p class="hint">选择已完成标定与 ROI 示教的 3D 配方和层号。开始后需保持本页打开；关闭页面或断网后停止接收新触发（空闲时最长 15 秒）。正在执行的拍照会完成本次回写。监听期间暂停工位 Worker 的 PLC 操作，并禁止手动写入。</p>
 <form onsubmit="return false" id="position-form"><div class="panels">
 <div><label for="position-recipe">3D 定位配方</label><select id="position-recipe" required><option value="">请选择配方</option>{% for recipe in position_recipes %}<option value="{{ recipe.pk }}" data-layers="{{ recipe.layer_count }}">{{ recipe.recipe_name }}（{{ recipe.layer_count }} 层）</option>{% endfor %}</select></div>
 <div><label for="position-layer">当前层号</label><input id="position-layer" type="number" min="1" step="1" value="1" required></div></div>
 <button id="position-start" type="submit" disabled>开始监听 PLC 3D 触发</button>
 <button id="position-stop" type="button" disabled>停止监听</button>
 </form>
-<p class="hint">触发 DB2.DBX46.2 → 第1组（A组，机器人基坐标）ΔX / ΔY / ΔZ 写入 DBD50 / DBD54 / DBD58（mm）→ 结果 DBX49.2 → 完成 DBX49.1。无法计算时六轴均返回 999，结果为 0；写入并回读确认后，完成置 1。PLC 读取结果后撤销触发，系统复位完成和结果。启动时先等待触发为 0，同一次触发只拍照一次。双组配方使用与3D工作台相同的计算流程；B组 ΔX2 / ΔY2 / ΔZ2 写入 DBD62 / DBD66 / DBD70（mm），两组全部回读通过后才置完成。</p>
+<p class="hint">触发 DB2.DBX46.2 → 上位机读取后自动复位触发 → 采集成功后立即置 DBX49.1。PLC 读取拍照完成后复位 DBX49.1 并继续动作，无需等待算法计算。计算结束后，A组 XYZ 写入 DBD50 / DBD54 / DBD58，B组 XYZ 写入 DBD62 / DBD66 / DBD70（mm）；没有B组时写入0。补偿回读通过后 DBX49.2 置1，不再次置位 DBX49.1。拍照失败不发送拍照完成；无法计算时六轴写入999，结果为0。启动监听时先等待旧触发为0。</p>
 <output id="position-status" aria-live="polite">调试脚本加载中；若此提示持续存在，请检查静态文件部署并强制刷新。</output>
 <p id="position-progress" class="hint" role="status">开始监听前会先检查PLC通信；通信失败不会启动拍照。</p>
 <div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>ΔX（mm）</th><th>ΔY（mm）</th><th>ΔZ1（mm）</th><th>ΔX2（mm）</th><th>ΔY2（mm）</th><th>ΔZ2（mm）</th><th>结果 / 错误</th></tr></thead><tbody id="position-history"><tr><td colspan="9">暂无定位结果</td></tr></tbody></table></div>
 </section>
 <section class="panel">
 <h2>2D 相机与 PLC 联调 · 泡棉视觉检测</h2>
-<p class="hint">选择已完成左右泡棉 ROI 和标准模板示教的 2D 配方，检测使用该配方的 POS。保持本页打开；关闭页面或断网后监听会话空闲时最长 15 秒到期。2D 与 3D 可同时监听、分别停止；PLC扫描与拍照回写按顺序执行，另一路等待期间不会因占用而超时，监听期间暂停工位 Worker 的 PLC 操作并禁止手动写入。</p>
+<p class="hint">选择已完成左右泡棉 ROI 和标准模板示教的 2D 配方，检测使用该配方的 POS。保持本页打开；关闭页面或断网后监听会话空闲时最长 15 秒到期。2D 与 3D 不能同时启用轮询，须先停止当前工序再启动另一工序。PLC读取串行执行，每次读取结束后至少间隔 500ms 才开始下一次读取；轮询期间暂停工位 Worker 的 PLC 操作并禁止手动写入。</p>
 <form onsubmit="return false" id="foam-form">
 <label for="foam-recipe">2D 泡棉检测配方</label>
 <select id="foam-recipe" required><option value="">请选择配方</option>{% for recipe in foam_recipes %}<option value="{{ recipe.pk }}">{{ recipe.name }}（POS {{ recipe.pos }}）</option>{% endfor %}</select>
 <button id="foam-start" type="submit" disabled>开始监听 PLC 2D 触发</button>
 <button id="foam-stop" type="button" disabled>停止监听</button>
 </form>
-<p class="hint">泡棉视觉检测触发 DB{{ db_number }}.DBX46.3 → 2D 相机拍照检测 → 泡棉检测结果 DBX74.1（OK 写 TRUE，NG 或异常写 FALSE）→ 泡棉检测完成确认 DBX74.0。无论检测结果 OK 或 NG，结果回读确认后，完成确认均写入 TRUE，表示本次检查已结束，实际 OK/NG 同时写入结果位并保留在界面与记录中；拍照或检测异常结果位返回 FALSE，并显示错误。完成确认保持 TRUE，直到 PLC 读取后撤销触发，系统才将完成和结果复位为 FALSE；启动时触发已为 1，须先复位再触发。</p>
+<p class="hint">泡棉视觉检测触发 DB{{ db_number }}.DBX46.3 → 2D 相机拍照检测 → 泡棉检测结果 DBX74.1（OK 写 TRUE，NG 或异常写 FALSE）→ 泡棉检测完成确认 DBX74.0。无论检测结果 OK 或 NG，结果回读确认后，完成确认均写入 TRUE，表示本次检查已结束，实际 OK/NG 同时写入结果位并保留在界面与记录中；拍照或检测异常结果位返回 FALSE，并显示错误。上位机读取46.3后自动复位触发；完成确认保持TRUE，直到PLC读取74.1后将74.0复位。结果位保留至下一次任务开始时清零；启动时触发已为 1，须先复位再触发。</p>
 <output id="foam-status" aria-live="polite">调试脚本加载中；若此提示持续存在，请检查静态文件部署并强制刷新。</output>
 <p id="foam-progress" class="hint" role="status">开始监听前检查配方与PLC通信；通信失败不会启动拍照。</p>
 <div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>记录 ID</th><th>评分</th><th>缺陷</th><th>结果 / 错误</th></tr></thead><tbody id="foam-history"><tr><td colspan="6">暂无泡棉检测结果</td></tr></tbody></table></div>
@@ -44,7 +44,7 @@
 </select><button type="submit">读取当前值</button></form><output id="read-result" aria-live="polite">等待读取</output></section>
 <section class="panel"><h2>写入点位 · CCD → PLC</h2><form id="write-form">
 <label for="write-point">点位</label><select id="write-point" required>
-{% for point in plc_points %}{% if point.direction == 'OUT' %}<option value="{{ point.name }}" data-type="{{ point.data_type }}">{{ point.description }} · {% if point.data_type == 'BOOL' %}DBX{{ point.offset }}.{{ point.bit }}{% else %}DBD{{ point.offset }}{% endif %} · {{ point.data_type }}</option>{% endif %}{% endfor %}
+{% for point in plc_points %}{% if point.direction == 'OUT' %}<option value="{{ point.name }}" data-type="{{ point.data_type }}">{{ point.description }} · {% if point.data_type == 'BOOL' %}DBX{{ point.offset }}.{{ point.bit }}{% elif point.data_type == "INT" %}DBW{{ point.offset }}{% else %}DBD{{ point.offset }}{% endif %} · {{ point.data_type }}</option>{% endif %}{% endfor %}
 </select>
 <div id="bool-field"><label for="bool-value">写入值</label><select id="bool-value"><option value="false">FALSE / 0 · 复位</option><option value="true">TRUE / 1 · 置位</option></select></div>
 <div id="real-field" hidden><label for="real-value">补偿值（mm）</label><input id="real-value" type="number" step="any" placeholder="例如 -1.25"><p class="hint">支持正数、负数和小数。</p></div>
@@ -69,6 +69,6 @@ document.getElementById('empty-history')?.remove();const row=document.createElem
 document.getElementById('read-form').addEventListener('submit',event=>execute(event,false));document.getElementById('write-form').addEventListener('submit',event=>execute(event,true));
 })();
 </script>
-<script id="plc-position-script" src="{% static 'devices/js/plc_position_debug.js' %}?v=20261010-group-a" data-api-url="{% url 'devices:api_plc_position_debug' %}"></script>
-<script id="plc-foam-script" src="{% static 'devices/js/plc_foam_debug.js' %}?v=20261010-group-a" data-api-url="{% url 'devices:api_plc_foam_debug' %}"></script>
+<script id="plc-position-script" src="{% static 'devices/js/plc_position_debug.js' %}?v=20261111-serial-poll" data-api-url="{% url 'devices:api_plc_position_debug' %}"></script>
+<script id="plc-foam-script" src="{% static 'devices/js/plc_foam_debug.js' %}?v=20261111-serial-poll" data-api-url="{% url 'devices:api_plc_foam_debug' %}"></script>
 {% endblock %}

@@ -23,7 +23,8 @@ class DB100Point:
 
 
 DB_NUMBER = 2
-DB_SIZE = 75
+DB_SIZE = 78
+PLC_SCAN_INTERVAL = 0.5  # Minimum gap after a scan completes, shared by all listeners.
 POSITION_FAILURE_OFFSET = 999.0  # 3D 联调失败哨兵值（不是有效补偿）
 
 
@@ -49,7 +50,7 @@ DB100_POINTS = (
     _point('rack_result', 48, 'BOOL', 'OUT', '料框处理结果', 1, 6),
     _point('recipe_verify_done', 48, 'BOOL', 'OUT', '配方校验完成确认', 1, 7),
     _point('boxing_allowed', 49, 'BOOL', 'OUT', '可装箱结果', 1, 0),
-    _point('position_done', 49, 'BOOL', 'OUT', '3D 定位完成确认', 1, 1),
+    _point('position_done', 49, 'BOOL', 'OUT', '3D 拍照完成确认', 1, 1),
     _point('position_success', 49, 'BOOL', 'OUT', '3D 定位结果', 1, 2),
     _point('layer_delta_x', 50, 'REAL', 'OUT', '当前层视觉补偿 ΔX1', 4, 0),
     _point('layer_delta_y', 54, 'REAL', 'OUT', '当前层视觉补偿 ΔY1', 4, 0),
@@ -62,6 +63,7 @@ DB100_POINTS = (
     _point('mes_upload_done', 74, 'BOOL', 'OUT', 'MES 封箱上传完成确认', 1, 2),
     _point('mes_upload_success', 74, 'BOOL', 'OUT', 'MES 封箱上传结果', 1, 3),
     _point('workstation_locked', 74, 'BOOL', 'OUT', '工位锁定', 1, 4),
+    _point('rack_type_code', 76, 'INT', 'OUT', '料框类型', 2),
 )
 
 POINTS_BY_NAME = {point.name: point for point in DB100_POINTS}
@@ -113,6 +115,13 @@ def position_values(payload):
         keys = (f'layer_delta_{axis}', f'compensation_{axis}', f'offset_{axis}')
         key = next((key for key in keys if key in payload), None)
         if key is None:
+            if axis.endswith('2') and not any(
+                f'{prefix}_{a}' in payload
+                for prefix in ('layer_delta', 'compensation', 'offset')
+                for a in ('x2', 'y2', 'z2')
+            ):
+                values[axis] = 0.0
+                continue
             raise ValueError(f'缺少补偿 {axis}，必须提供两组 XYZ')
         point = POINTS_BY_NAME[f'layer_delta_{axis}']
         values[axis] = decode_value(point, encode_value(point, payload[key]))

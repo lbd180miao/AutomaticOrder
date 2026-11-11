@@ -15,7 +15,7 @@
     document.body.dataset.positionDebugRunning = running ? '1' : '';
     document.body.dataset.plcDebugRunning =
       document.body.dataset.positionDebugRunning || document.body.dataset.foamDebugRunning || '';
-    start.disabled = running;
+    start.disabled = running || Boolean(document.body.dataset.foamDebugRunning);
     stop.disabled = !running;
     recipe.disabled = running;
     layer.disabled = running;
@@ -65,10 +65,10 @@
   function display(data) {
     status.dataset.error = String(Boolean(data.error));
     const phase = data.phase === 'ARMING' ? '等待触发复位' : data.phase === 'WAIT_TRIGGER' ? '等待PLC触发'
-      : data.phase === 'WAIT_RESET' ? '本次已处理，等待PLC复位'
+      : data.phase === 'WAIT_ACK' ? '等待PLC读取并复位49.1/49.2'
       : data.phase === 'WRITE_PENDING' ? '等待重试PLC回写' : data.phase;
     status.textContent = `${data.message}\n状态：${phase} · DB2.DBX46.2=${data.trigger ? 1 : 0}`
-      + ` · 完成=${data.done ? 1 : 0} · 结果=${data.ok ? 'OK' : data.done ? 'NG' : '未完成'}`
+      + ` · 本次采集=${data.capture_done ? '完成' : '未完成'} · 计算回写=${data.done ? '完成' : '未完成'} · 结果=${data.ok ? 'OK' : data.done ? 'NG' : '未完成'}`
       + (data.values ? `\n最近回写：X=${data.values.x}，Y=${data.values.y}，Z=${data.values.z}；B组 X=${data.values.x2}，Y=${data.values.y2}，Z=${data.values.z2}` : '')
       + (data.error ? '\n' + data.error : '');
     if (data.count > lastCount) {
@@ -116,6 +116,10 @@
   $('position-form').addEventListener('submit', async event => {
     event.preventDefault();
     if (pending || token) return;
+    if (document.body.dataset.foamDebugRunning) {
+      status.textContent = '请先停止另一工序的轮询，再启动当前工序';
+      return;
+    }
     pending = true;
     controls(true);
     stop.disabled = true;

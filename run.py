@@ -36,6 +36,8 @@ def main(argv=None):
     instance_handle = acquire(directory)
     if args.data_dir:
         os.environ['AUTOMATIC_ORDER_DATA_DIR'] = os.path.abspath(args.data_dir)
+    from deployment import configure, start_gateway
+    deployment = configure(directory)
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'AutomaticOrder.settings')
     import whitenoise.middleware  # Ensure PyInstaller includes this module.
     import django
@@ -45,6 +47,7 @@ def main(argv=None):
     from django.conf import settings
     print(f'AutomaticOrder: threads={args.threads}, media={settings.MEDIA_ROOT}', flush=True)
     application = get_wsgi_application()
+    gateway_server = start_gateway(directory) if deployment.get('role') == 'external' else None
     from apps.workflow.listener import start_listener, stop_listener
     if settings.MES_GATEWAY_ENABLED:
         from apps.mes.remote_client import start_worker
@@ -58,6 +61,8 @@ def main(argv=None):
         serve(application, host=args.host, port=args.port, threads=args.threads)
     finally:
         stop_listener()
+        if gateway_server is not None:
+            gateway_server.close()
     return 0
 
 

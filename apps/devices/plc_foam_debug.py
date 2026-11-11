@@ -33,46 +33,51 @@ def step(state, plc, capture=capture_foam, save=lambda: None):
     plc.tick_heartbeat()
     trigger = plc.read_point('foam_trigger')
     state['trigger'] = trigger
-
-    def write_verified(name, value):
-        plc.write_point(name, value)
-        if plc.read_point(name) is not value:
-            raise ValueError(f'{name} 写后回读不一致')
-
-    if not trigger:
-        write_verified('foam_done', False)
-        write_verified('foam_passed', False)
-        state.update(phase='WAIT_TRIGGER', done=False, ok=False, message='等待 PLC 2D 泡棉检测触发')
+    phase = state['phase']
+    if phase == 'ARMING':
+        if not trigger:
+            state['phase'] = 'WAIT_TRIGGER'
         return
-    if state['phase'] in ('ARMING', 'WAIT_RESET', 'CAPTURING'):
-        state['message'] = '等待 PLC 将 DB2.DBX46.3 复位为 0'
+    if phase in ('WAIT_ACK', 'WAIT_RESET'):
+        if not plc.read_point('foam_done'):
+            state.update(phase='WAIT_TRIGGER', message='等待下一次 2D 触发')
+            save()
         return
-    state.update(phase='CAPTURING', done=False, ok=False, error='', result_id=None,
-                 score=None, defect_type='', message='正在拍照并检测泡棉')
-    save()
-    try:
-        write_verified('foam_done', False)
-        write_verified('foam_passed', False)
+    if phase == 'WAIT_TRIGGER' and (not trigger or plc.read_point('foam_done')):
+        return
+    if phase == 'CAPTURING':
+        state['pending_result'] = {'is_passed': False, 'error': '上次采集被中断，请确认后重新触发'}
+    elif phase != 'WRITE_PENDING':
+        state.update(phase='CAPTURING', done=False, ok=False, error='', result_id=None,
+                     score=None, defect_type='', message='正在拍照并检测泡棉')
+        save()
+        plc.write_point('foam_passed', False)
+        plc.write_point('foam_trigger', False)
+        state['trigger'] = False
         try:
             result = capture(state['recipe_id'])
             if type(result.get('is_passed')) is not bool:
                 raise ValueError('泡棉检测未返回有效结果')
-            state.update(result_id=result.get('result_id'), score=result.get('score'),
-                         defect_type=result.get('defect_type', ''))
-            passed = result['is_passed']
-            plc_result = passed
         except Exception as exc:
-            passed = False
-            plc_result = False
-            state['error'] = str(exc)
-        write_verified('foam_passed', plc_result)
-        # Completion is independent of OK/NG; the result bit carries the verdict.
-        write_verified('foam_done', True)
-        state.update(ok=passed, done=True, message='检测完成，结果已回写；等待 PLC 复位')
+            result = {'is_passed': False, 'error': str(exc)}
+        state['pending_result'] = result
+    state['phase'] = 'WRITE_PENDING'
+    save()
+    result = state['pending_result']
+    try:
+        plc.write_point('foam_passed', result['is_passed'])
+        if plc.read_point('foam_passed') != result['is_passed']:
+            raise ValueError('泡棉结果写后回读不一致')
+        # PLC may immediately consume/reset completion: do not require it to stay high.
+        plc.write_point('foam_done', True)
     except Exception as exc:
-        state.update(ok=False, done=False, error=(state.get('error', '') + '；PLC回写失败：' + str(exc)).lstrip('；'),
-                     message='结果未完整回写，请检查PLC通信')
+        state.update(error=str(exc), message='保留本次检测结果，等待重试回写')
+        save()
         raise
-    finally:
-        state.update(phase='WAIT_RESET', count=state.get('count', 0) + 1,
-                     completed_at=time.strftime('%Y-%m-%d %H:%M:%S'))
+    state.update(phase='WAIT_ACK', ok=result['is_passed'], done=True,
+                 result_id=result.get('result_id'), score=result.get('score'),
+                 defect_type=result.get('defect_type', ''), error=result.get('error', ''),
+                 count=state.get('count', 0)+1, completed_at=time.strftime('%Y-%m-%d %H:%M:%S'),
+                 message='检测完成，等待 PLC 读取并复位 74.0')
+    state.pop('pending_result', None)
+    save()

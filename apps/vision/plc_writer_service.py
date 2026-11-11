@@ -100,7 +100,7 @@ class PLCCompensationWriter:
             'timestamp': datetime.now().isoformat()
         }
         
-        # DB2 requires both XYZ groups; never silently reuse the previous B group.
+        # An absent B group is written as zeros, never reused from the last frame.
         adapter = None
         try:
             if second_group:
@@ -117,11 +117,9 @@ class PLCCompensationWriter:
                     if adapter.read_point(name) != value:
                         raise ValueError(f'{name} 写后回读不一致')
 
-                verified('position_done', False)
                 verified('position_success', False)
                 adapter.send_rack_offsets({f'offset_{axis}': value for axis, value in values.items()})
                 verified('position_success', True)
-                verified('position_done', True)
             simulated = isinstance(adapter.transport, MemoryPLCTransport)
             message = '补偿已写入模拟PLC并回读验证' if simulated else '双组补偿已写入PLC并回读验证'
             if result_id:

@@ -30,18 +30,18 @@ class WorkflowEvent(TimeStampedModel):
 
 
 class StationPhase(models.TextChoices):
-    WAIT_PRODUCT = 'WAIT_PRODUCT', '等待产品条码'
-    WAIT_MARK_RESET = 'WAIT_MARK_RESET', '等待打标触发复位'
+    WAIT_PRODUCT = 'WAIT_PRODUCT', '等待产品、视觉或封箱触发'
+    WAIT_MARK_RESET = 'WAIT_MARK_RESET', '等待PLC确认单件上传'
     WAIT_RACK = 'WAIT_RACK', '等待料框到位'
-    WAIT_RACK_RESET = 'WAIT_RACK_RESET', '等待料框触发复位'
+    WAIT_RACK_RESET = 'WAIT_RACK_RESET', '等待PLC确认料框类型'
     WAIT_POSITION = 'WAIT_POSITION', '等待定位触发'
-    WAIT_POSITION_RESET = 'WAIT_POSITION_RESET', '等待定位触发复位'
+    WAIT_POSITION_RESET = 'WAIT_POSITION_RESET', '等待PLC读取拍照及补偿'
     WAIT_RECIPE_VERIFY = 'WAIT_RECIPE_VERIFY', '等待配方校验触发'
     WAIT_RECIPE_RESET = 'WAIT_RECIPE_RESET', '等待配方校验触发复位'
     WAIT_FOAM = 'WAIT_FOAM', '等待泡棉检测触发'
-    WAIT_FOAM_RESET = 'WAIT_FOAM_RESET', '等待泡棉检测触发复位'
+    WAIT_FOAM_RESET = 'WAIT_FOAM_RESET', '等待PLC确认泡棉检测'
     WAIT_BOXING = 'WAIT_BOXING', '等待装箱完成触发'
-    WAIT_BOXING_RESET = 'WAIT_BOXING_RESET', '等待装箱触发复位'
+    WAIT_BOXING_RESET = 'WAIT_BOXING_RESET', '等待PLC确认封箱'
     COMPLETED = 'COMPLETED', '装箱已满'
     LOCKED = 'LOCKED', '工位锁定'
 
@@ -88,6 +88,9 @@ class StationCycle(TimeStampedModel):
     last_error = models.TextField(blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
+    io_state = models.JSONField(default=dict, blank=True)
+    bound_product_codes = models.JSONField(default=list, blank=True)
+    bin_code = models.CharField(max_length=128, blank=True)
 
     class Meta:
         ordering = ['-created_at']

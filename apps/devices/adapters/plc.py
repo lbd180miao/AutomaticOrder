@@ -67,7 +67,9 @@ class Snap7Transport:
         return bool(getter()) if getter else True
 
     def read(self, db_number, offset, size):
-        return bytes(self.client.db_read(db_number, offset, size))
+        from apps.devices.plc_io import plc_read_interval
+        with plc_read_interval(self):
+            return bytes(self.client.db_read(db_number, offset, size))
 
     def write(self, db_number, offset, data):
         self.client.db_write(db_number, offset, bytearray(data))
@@ -241,7 +243,7 @@ class PLCAdapter(BaseDeviceAdapter):
         raise NotImplementedError
 
     def send_rack_offsets(self, payload: dict) -> dict:
-        """下发两组 XYZ；缺少任一轴时拒绝写入，避免旧补偿残留。"""
+        """下发 XYZ；第二组整体缺省时写零，部分缺失时拒绝写入。"""
         from apps.devices.plc_db100 import position_values
         values = position_values(payload)
         for axis, value in values.items():

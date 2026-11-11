@@ -10,7 +10,7 @@
     document.body.dataset.foamDebugRunning = running ? '1' : '';
     document.body.dataset.plcDebugRunning =
       document.body.dataset.positionDebugRunning || document.body.dataset.foamDebugRunning || '';
-    start.disabled = running;
+    start.disabled = running || Boolean(document.body.dataset.positionDebugRunning);
     stop.disabled = !running;
     recipe.disabled = running;
     document.querySelector('#write-form button').disabled = Boolean(document.body.dataset.plcDebugRunning);
@@ -59,7 +59,7 @@
   function display(data) {
     status.dataset.error = String(Boolean(data.error));
     const phase = data.phase === 'ARMING' ? '等待触发复位' : data.phase === 'WAIT_TRIGGER' ? '等待PLC触发'
-      : data.phase === 'WAIT_RESET' ? '本次已处理，等待PLC复位' : data.phase;
+      : data.phase === 'WAIT_ACK' ? '等待PLC读取并复位74.0' : data.phase;
     status.textContent = `${data.message}\n状态：${phase} · DB2.DBX46.3=${data.trigger ? 1 : 0}`
       + ` · 完成=${data.done ? 1 : 0} · 结果=${data.ok ? 'OK' : data.done ? 'NG' : '未完成'}`
       + (data.error ? '\n' + data.error : '');
@@ -108,6 +108,10 @@
   $('foam-form').addEventListener('submit', async event => {
     event.preventDefault();
     if (pending || token) return;
+    if (document.body.dataset.positionDebugRunning) {
+      status.textContent = '请先停止另一工序的轮询，再启动当前工序';
+      return;
+    }
     pending = true;
     controls(true);
     stop.disabled = true;

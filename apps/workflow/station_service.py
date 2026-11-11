@@ -8,6 +8,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 
 from apps.alarms.services import AlarmService
@@ -41,8 +42,10 @@ class ExistingVisionGateway:
             'USE_SIMULATED_DEVICES', True,
         )
 
-    def calculate_position_offsets(self, cycle):
+    def calculate_position_offsets(self, cycle, *, on_captured=None):
         if self.simulated:
+            if on_captured is not None:
+                on_captured()
             return {axis: 0.0 for axis in ('x', 'y', 'z', 'x2', 'y2', 'z2')}
 
         from apps.production.rack_recipe_service import RackPositionResolver
@@ -94,7 +97,7 @@ class ExistingVisionGateway:
             target_layer_no = recipe.layer_no if recipe else None
         if recipe is None:
             raise StationStepError('未找到可用的 3D 定位配方', AlarmSource.RECIPE)
-        result = capture_position(recipe.id, target_layer_no)
+        result = capture_position(recipe.id, target_layer_no, on_captured=on_captured)
         if not result.get('is_success'):
             raise StationStepError(
                 result.get('error_message') or '3D 定位失败', AlarmSource.VISION,
@@ -136,7 +139,7 @@ class ExistingVisionGateway:
     def inspect_foam(self, cycle):
         result = self.service.inspect_foam(
             cycle.product,
-            cycle.product.rack,
+            cycle.rack,
             position_index=cycle.loaded_quantity,
             use_camera=not self.simulated,
         )
@@ -181,7 +184,8 @@ class StationWorkflowService:
         if cycle is not None:
             return cycle
         for output in self.OUTPUTS:
-            self.plc.write_point(output, False)
+            if not output.startswith('layer_delta_'):
+                self.plc.write_point(output, False)
         return StationCycle.objects.create(
             phase=StationPhase.WAIT_RACK,
             started_at=timezone.now(),
@@ -190,7 +194,7 @@ class StationWorkflowService:
     def poll_once(self):
         from apps.devices.plc_position_debug import ownership, active, DebugBusy
         try:
-            with ownership() as (state, save):
+            with ownership(scan=True) as (state, save):
                 if active(state):
                     return self.active_cycle(), False
                 with self.plc.maintain_heartbeat():
@@ -221,18 +225,89 @@ class StationWorkflowService:
             # Durable network work runs separately; keep polling and maintaining heartbeat.
             return cycle, False
         except StationStepError as exc:
-            self._write_failure_result(cycle.phase)
+            self._write_failure_result(cycle)
             self._lock(cycle, str(exc), exc.source)
             changed = True
         except Exception as exc:  # keep unexpected integration failures visible
-            self._write_failure_result(cycle.phase)
+            self._write_failure_result(cycle)
             self._lock(cycle, f'工位流程异常：{exc}', AlarmSource.WORKFLOW)
             changed = True
         return cycle, changed
 
+    def _save_io(self, cycle):
+        cycle.save(update_fields=['io_state', 'updated_at'])
+
+    def _accept(self, cycle, snapshot, trigger, fields=()):
+        pending = cycle.io_state.get('pending')
+        if pending:
+            if pending['trigger'] != trigger:
+                return None
+        else:
+            if not snapshot.get(trigger):
+                return None
+            feedback = {'rack_trigger': ('rack_done',), 'mark_trigger': ('product_mes_upload_done',),
+                        'position_trigger': ('position_done', 'position_success'),
+                        'foam_trigger': ('foam_done',), 'boxing_trigger': ('mes_upload_done',)}
+            if any(self.plc.read_point(bit) for bit in feedback.get(trigger, ())):
+                return None
+            pending = {'trigger': trigger, 'data': {key: snapshot.get(key) for key in fields},
+                       'accepted_at': timezone.now().isoformat()}
+            cycle.io_state['pending'] = pending
+            self._save_io(cycle)
+        # A pending task resumes from its saved input, never from overwritten DB strings.
+        if not pending.get('consumed'):
+            self.plc.write_point(trigger, False)
+            pending['consumed'] = True
+            self._save_io(cycle)
+        return pending
+
+    def _acknowledged(self, cycle, *bits):
+        if any(self.plc.read_point(bit) for bit in bits):
+            return False
+        cycle.io_state.pop('pending', None)
+        self._save_io(cycle)
+        return True
+
+    def _mes_response(self, cycle, pending, action, call, *, product=None):
+        from apps.mes.models import MesRecord
+        if (pending.get('response') or {}).get('success'):
+            return pending['response']
+        # Recover an already recorded MES response after a local save/worker failure.
+        record = MesRecord.objects.filter(
+            action=action, rack=cycle.rack, product=product,
+            created_at__gte=pending['accepted_at'],
+        ).order_by('-pk').first()
+        if record is not None:
+            response = record.response_payload
+        else:
+            remote = isinstance(getattr(self.mes, 'client', None), RemoteMesClient)
+            if pending.get('mes_started') and not remote:
+                raise StationStepError('上次 MES 请求结果未确认，请先核对 MES，禁止自动重复提交', AlarmSource.MES)
+            pending['mes_started'] = True
+            self._save_io(cycle)
+            response = call()
+        pending['response'] = response
+        self._save_io(cycle)
+        return response
+
+    def _ready_trigger(self, cycle, snapshot):
+        pending = cycle.io_state.get('pending') or {}
+        trigger = pending.get('trigger')
+        handlers = [('position_trigger', self._position_trigger),
+                    ('mark_trigger', self._product_trigger),
+                    ('foam_trigger', self._foam_trigger),
+                    ('boxing_trigger', self._mes_box_trigger)]
+        for name, handler in handlers:
+            if trigger == name or (not trigger and snapshot.get(name)):
+                phase = {'position_trigger': StationPhase.WAIT_POSITION, 'mark_trigger': StationPhase.WAIT_PRODUCT,
+                         'foam_trigger': StationPhase.WAIT_FOAM, 'boxing_trigger': StationPhase.WAIT_BOXING}[name]
+                self._set_phase(cycle, phase)
+                return handler(cycle, snapshot)
+        return False
+
     def _dispatch(self, cycle, snapshot):
         handlers = {
-            StationPhase.WAIT_PRODUCT: self._product_trigger,
+            StationPhase.WAIT_PRODUCT: self._ready_trigger,
             StationPhase.WAIT_MARK_RESET: self._mark_reset,
             StationPhase.WAIT_RACK: self._rack_trigger,
             StationPhase.WAIT_RACK_RESET: self._rack_reset,
@@ -289,27 +364,29 @@ class StationWorkflowService:
             raw_payload={'db': DB_NUMBER, 'offset': POINTS_BY_NAME[name].offset, 'bit': POINTS_BY_NAME[name].bit},
         )
 
-    def _write_failure_result(self, phase):
+    def _write_failure_result(self, cycle):
         """Expose a deterministic NG + done handshake before locking the station."""
+        trigger = (cycle.io_state.get('pending') or {}).get('trigger')
+        phase = {'position_trigger': StationPhase.WAIT_POSITION,
+                 'mark_trigger': StationPhase.WAIT_PRODUCT, 'rack_trigger': StationPhase.WAIT_RACK,
+                 'foam_trigger': StationPhase.WAIT_FOAM, 'boxing_trigger': StationPhase.WAIT_BOXING}.get(trigger, cycle.phase)
         if phase == StationPhase.WAIT_POSITION:
             from apps.devices.plc_db100 import POSITION_FAILURE_OFFSET
             try:
-                self._write('position_done', False, 49)
                 self._write('position_success', False, 49)
                 for axis in ('x', 'y', 'z', 'x2', 'y2', 'z2'):
                     name = f'layer_delta_{axis}'
                     self._write(name, POSITION_FAILURE_OFFSET, POINTS_BY_NAME[name].offset)
                     if self.plc.read_point(name) != POSITION_FAILURE_OFFSET:
                         return
-                self._write('position_done', True, 49)
             except Exception:
                 pass
             return
         failure_outputs = {
             StationPhase.WAIT_FOAM: (('foam_passed', False, 74), ('foam_done', True, 74)),
-            StationPhase.WAIT_PRODUCT: (('product_barcode_valid', False, 26), ('mark_read_done', True, 25)),
+            StationPhase.WAIT_PRODUCT: (('product_mes_upload_success', False, 48), ('product_mes_upload_done', True, 48)),
             StationPhase.WAIT_RACK: (('rack_result', False, 52), ('rack_done', True, 51)),
-            StationPhase.WAIT_POSITION: (('position_success', False, 49), ('position_done', True, 49)),
+            StationPhase.WAIT_BOXING: (('mes_upload_success', False, 74), ('mes_upload_done', True, 74)),
             StationPhase.WAIT_RECIPE_VERIFY: (('boxing_allowed', False, 55), ('recipe_verify_done', True, 54)),
         }
         for name, value, offset in failure_outputs.get(phase, ()):
@@ -319,122 +396,129 @@ class StationWorkflowService:
                 pass
 
     def _product_trigger(self, cycle, snapshot):
-        if not snapshot.get('mark_trigger'):
-            return False
         from apps.core.barcode_validator import validate_product_barcode
-
-        self._record_input('mark_trigger', True, 22)
+        from apps.core.constants import MesAction
+        from apps.production.models import Product
+        pending = self._accept(cycle, snapshot, 'mark_trigger', ('product_barcode',))
+        if pending is None:
+            return False
         if cycle.rack_id is None or cycle.rack.current_recipe_id is None:
-            raise StationStepError('料框与配方尚未准备完成，不能接收产品条码', AlarmSource.RECIPE)
-
-        raw_code = snapshot.get('product_barcode')
-        existing = cycle.product if cycle.workflow_id else None
-        resuming_remote = (
-            isinstance(getattr(self.mes, 'client', None), RemoteMesClient)
-            and existing is not None and existing.product_code == str(raw_code).strip()
-            and existing.rack_id == cycle.rack_id
-            and cycle.workflow.current_state == WorkflowState.BARCODE_READ
-        )
-        val_res = validate_product_barcode(
-            raw_code,
-            rack_code=cycle.rack.rack_code,
-            check_db_duplicate=not resuming_remote,
-        )
-        if not val_res.is_valid:
-            raise StationStepError(val_res.error_message, AlarmSource.SCANNER)
-
-        code = val_res.cleaned_code
-        product = existing if resuming_remote else self.production.create_product(code)
-        workflow, created = WorkflowInstance.objects.get_or_create(
-            product=product,
-            defaults={
-                'current_state': WorkflowState.BARCODE_READ,
-                'current_stage': Stage.STAGE_ONE,
-                'started_at': timezone.now(),
-            },
-        )
-        if not created and workflow.current_state not in (WorkflowState.CREATED, WorkflowState.BARCODE_READ):
-            raise StationStepError(f'产品条码 {code} 已存在进行中或已完成流程', AlarmSource.SCANNER)
-        cycle.workflow = workflow
-        cycle.save(update_fields=['workflow', 'updated_at'])
-        self.production.bind_product_to_rack(product, cycle.rack)
-        self._record_input('product_barcode', code, 0)
-        self._write('product_barcode_valid', True, 48)
-        self._write('mark_read_done', True, 48)
-        upload = self.mes.upload_product_barcode(code, cycle.rack.rack_code, product=product, rack=cycle.rack)
-        self._write('product_mes_upload_success', bool(upload.get('success')), 48)
+            raise StationStepError('料框与配方尚未准备完成', AlarmSource.RECIPE)
+        self._write('product_mes_upload_success', False, 48)
+        if not pending.get('product_id'):
+            val = validate_product_barcode(pending['data']['product_barcode'], rack_code=cycle.rack.rack_code)
+            if not val.is_valid:
+                raise StationStepError(val.error_message, AlarmSource.SCANNER)
+            with transaction.atomic():
+                product = self.production.create_product(val.cleaned_code)
+                workflow, _ = WorkflowInstance.objects.get_or_create(product=product,
+                    defaults={'current_state': WorkflowState.BARCODE_READ,
+                              'current_stage': Stage.STAGE_ONE, 'started_at': timezone.now()})
+                cycle.workflow = workflow
+                self.production.bind_product_to_rack(product, cycle.rack)
+                pending['product_id'] = product.pk
+                cycle.save(update_fields=['workflow', 'io_state', 'updated_at'])
+        product = Product.objects.get(pk=pending['product_id'])
+        upload = self._mes_response(cycle, pending, MesAction.UPLOAD_PRODUCT_BARCODE,
+            lambda: self.mes.upload_product_barcode(product.product_code, cycle.rack.rack_code,
+                                                   product=product, rack=cycle.rack), product=product)
+        success = bool(upload.get('success'))
+        if success and product.product_code not in cycle.bound_product_codes:
+            cycle.bound_product_codes.append(product.product_code)
+            cycle.loaded_quantity = len(cycle.bound_product_codes)
+            cycle.save(update_fields=['bound_product_codes', 'loaded_quantity', 'updated_at'])
+        self._write('product_mes_upload_success', success, 48)
         self._write('product_mes_upload_done', True, 48)
-        self._set_phase(
-            cycle, StationPhase.WAIT_MARK_RESET, event_type='PRODUCT_BARCODE_READ',
-            source=EventSource.PLC, message=f'产品条码 {code} 三维校验通过并与料框绑定落库',
-            payload={'product_code': code, 'rack_code': cycle.rack.rack_code},
-            workflow_state=WorkflowState.BARCODE_READ,
-        )
+        self._set_phase(cycle, StationPhase.WAIT_MARK_RESET,
+                        workflow_state=WorkflowState.BARCODE_READ)
+        if not success:
+            self._lock(cycle, upload.get('error') or '单件 MES 绑定失败', AlarmSource.MES)
         return True
 
     def _mark_reset(self, cycle, snapshot):
-        if snapshot.get('mark_trigger'):
+        pending = cycle.io_state.get('pending') or {}
+        if self.plc.read_point('product_mes_upload_done'):
             return False
-        self._write('mark_read_done', False, 48)
-        self._write('product_mes_upload_done', False, 48)
-        self._write('product_mes_upload_success', False, 48)
-        self._write('product_barcode_valid', False, 48)
-        self._set_phase(cycle, StationPhase.WAIT_FOAM)
+        if not (pending.get('response') or {}).get('success'):
+            self._set_phase(cycle, StationPhase.WAIT_PRODUCT)
+            return True  # retain the same product for deliberate retry/reconciliation
+        self._acknowledged(cycle, 'product_mes_upload_done')
+        self._set_phase(cycle, StationPhase.WAIT_PRODUCT)
         return True
 
     def _rack_trigger(self, cycle, snapshot):
-        if not snapshot.get('rack_trigger'):
-            return False
         from apps.core.barcode_validator import validate_rack_barcode
-
-        self._record_input('rack_trigger', True, 46)
-        raw_code = snapshot.get('rack_barcode')
-        val_res = validate_rack_barcode(raw_code, check_db_duplicate=True)
-        if not val_res.is_valid:
-            raise StationStepError(val_res.error_message, AlarmSource.SCANNER)
-
-        rack_code = val_res.cleaned_code
-        rack = self.production.get_or_create_rack(rack_code)
-        recipe_response = self.mes.get_rack_recipe(rack_code, rack=rack)
-        if not recipe_response.get('success'):
-            raise StationStepError(
-                recipe_response.get('error') or 'MES 料架校验失败', AlarmSource.MES)
-        if recipe_response.get('is_sealed'):
-            raise StationStepError('料架在 MES 已封箱，禁止装箱', AlarmSource.MES)
-        # REST 返回完整 recipe；YFPO SOAP(20260801) 仅做装箱校验，配方回退本地匹配
-        recipe = self.production.sync_recipe_from_mes(rack, recipe_response)
-        if recipe is None:
-            raise StationStepError(
-                'MES 校验通过但未匹配到本地装箱配方，请先在配方页维护并绑定', AlarmSource.MES)
+        from apps.core.constants import MesAction
+        from apps.production.models import Product
+        pending = self._accept(cycle, snapshot, 'rack_trigger', ('rack_barcode',))
+        if pending is None:
+            return False
+        self._write('rack_result', False, 48)
+        val = validate_rack_barcode(pending['data']['rack_barcode'])
+        if not val.is_valid:
+            raise StationStepError(val.error_message, AlarmSource.SCANNER)
+        rack = self.production.get_or_create_rack(val.cleaned_code)
         cycle.rack = rack
-        cycle.planned_quantity = int(recipe.total_quantity)
-        cycle.save(update_fields=['rack', 'planned_quantity', 'updated_at'])
-        self._record_input('rack_barcode', rack_code, 24)
+        cycle.save(update_fields=['rack', 'updated_at'])
+        response = self._mes_response(cycle, pending, MesAction.GET_RACK_RECIPE,
+            lambda: self.mes.get_rack_recipe(rack.rack_code, rack=rack))
+        if not response.get('success'):
+            raise StationStepError(response.get('error') or 'MES 查询失败', AlarmSource.MES)
+        recipe = self.production.sync_recipe_from_mes(rack, response)
+        if recipe is None:
+            raise StationStepError('未匹配到本地装箱配方', AlarmSource.RECIPE)
+        raw = response.get('pkg_type_code') or response.get('PkgTypeCode') or (response.get('mes_data') or {}).get('PkgTypeCode')
+        number = {'2LayerRack': 1, '3LayerRack': 2, '5LaverRack': 3}.get(raw)
+        if number is None:
+            number = {'两层': 1, '三层': 2, '五层': 3}.get(response.get('rack_type') or rack.rack_type)
+        if number is None:
+            raise StationStepError('MES 料框类型无法转换为 PLC 类型数字', AlarmSource.MES)
+        if not pending.get('prepared'):
+            inner = response.get('mes_data') or {}
+            qty = response.get('hu_qty', inner.get('HUQty', 0)) or 0
+            has_binding = bool(response.get('product_codes') or response.get('bound_barcodes') or float(qty) > 0)
+            with transaction.atomic():
+                if has_binding:
+                    cycle.io_state['cleared_bindings'] = list(Product.objects.filter(rack=rack).values('id', 'product_code', 'bound_at'))
+                    for item in cycle.io_state['cleared_bindings']:
+                        item['bound_at'] = item['bound_at'].isoformat() if item['bound_at'] else None
+                    # Historical cycles/events keep their product list and bin number.
+                    Product.objects.filter(rack=rack).update(rack=None, bound_at=None)
+                pending['prepared'] = True
+                cycle.bin_code = ''
+                cycle.bound_product_codes = []
+                cycle.planned_quantity = recipe.total_quantity
+                cycle.save(update_fields=['io_state', 'bin_code', 'bound_product_codes', 'planned_quantity', 'updated_at'])
+        self._write('rack_type_code', number, 76)
         self._write('rack_result', True, 48)
         self._write('rack_done', True, 48)
-        self._set_phase(
-            cycle, StationPhase.WAIT_RACK_RESET, event_type='RACK_RECIPE_BOUND',
-            source=EventSource.MES, message='料框配方已读取并保存到本地',
-            payload={'rack_code': rack_code, 'recipe_code': recipe.recipe_code},
-        )
+        self._set_phase(cycle, StationPhase.WAIT_RACK_RESET)
         return True
 
     def _rack_reset(self, cycle, snapshot):
-        if snapshot.get('rack_trigger'):
+        if not self._acknowledged(cycle, 'rack_done'):
             return False
-        self._write('rack_done', False, 48)
-        self._write('rack_result', False, 48)
-        self._set_phase(cycle, StationPhase.WAIT_RECIPE_VERIFY)
+        self._set_phase(cycle, StationPhase.WAIT_PRODUCT)
         return True
 
     def _position_trigger(self, cycle, snapshot):
-        if not snapshot.get('position_trigger'):
+        pending = self._accept(cycle, snapshot, 'position_trigger')
+        if pending is None:
             return False
-        self._record_input('position_trigger', True, 46)
-        values = self.vision.calculate_position_offsets(cycle)
+        if 'values' not in pending:
+            if pending.get('capture_started'):
+                raise StationStepError('上次 3D 任务被中断，请确认后重新触发', AlarmSource.VISION)
+            pending['capture_started'] = True
+            self._save_io(cycle)
+            self._write('position_success', False, 49)
+            values = self.vision.calculate_position_offsets(
+                cycle, on_captured=lambda: self._write('position_done', True, 49),
+            )
+            pending['values'] = values
+            self._save_io(cycle)
+        values = pending['values']
         from apps.devices.plc_db100 import position_values
         values = position_values({f'compensation_{axis}': value for axis, value in values.items()})
-        self._write('position_done', False, 49)
         self._write('position_success', False, 49)
         for axis, value in values.items():
             name = f'layer_delta_{axis}'
@@ -448,7 +532,6 @@ class StationWorkflowService:
                                     [values[a] for a in ('x2', 'y2', 'z2')]]
         cycle.save(update_fields=['position_delta_z', 'positioning_matrix', 'updated_at'])
         self._write('position_success', True, 49)
-        self._write('position_done', True, 49)
         self._set_phase(
             cycle, StationPhase.WAIT_POSITION_RESET, event_type='POSITIONED',
             source=EventSource.VISION, message='当前层两组 XYZ 已写入 DB2.DBD50～70',
@@ -457,10 +540,8 @@ class StationWorkflowService:
         return True
 
     def _position_reset(self, cycle, snapshot):
-        if snapshot.get('position_trigger'):
+        if not self._acknowledged(cycle, 'position_done', 'position_success'):
             return False
-        self._write('position_done', False, 49)
-        self._write('position_success', False, 49)
         self._set_phase(cycle, StationPhase.WAIT_PRODUCT)
         return True
 
@@ -511,108 +592,82 @@ class StationWorkflowService:
         return True
 
     def _foam_trigger(self, cycle, snapshot):
-        if not snapshot.get('foam_trigger'):
+        pending = self._accept(cycle, snapshot, 'foam_trigger')
+        if pending is None:
             return False
-        passed, _ = self.vision.inspect_foam(cycle)
-        self._write('foam_passed', bool(passed), 74)
-        self._record_input('foam_trigger', True, 46)
-        cycle.foam_passed = passed
-        if passed:
-            cycle.loaded_quantity += 1
-        cycle.save(update_fields=['foam_passed', 'loaded_quantity', 'updated_at'])
-        # Completion is independent of the verdict, including NG before station locking.
+        self._write('foam_passed', False, 74)
+        if 'passed' not in pending:
+            if pending.get('capture_started'):
+                raise StationStepError('上次 2D 采集被中断，请确认后重试', AlarmSource.VISION)
+            pending['capture_started'] = True
+            self._save_io(cycle)
+            passed, _ = self.vision.inspect_foam(cycle)
+            pending['passed'] = bool(passed)
+            self._save_io(cycle)
+        cycle.foam_passed = pending['passed']
+        cycle.save(update_fields=['foam_passed', 'updated_at'])
+        self._write('foam_passed', cycle.foam_passed, 74)
         self._write('foam_done', True, 74)
-        if not passed:
-            self._lock(cycle, '泡棉检测不合格，工位已锁定', AlarmSource.VISION)
-            return True
-        self._set_phase(
-            cycle, StationPhase.WAIT_FOAM_RESET, event_type='FOAM_INSPECTED',
-            source=EventSource.VISION, message='泡棉视觉检测完成：合格',
-            payload={'position_index': cycle.loaded_quantity, 'foam_passed': True},
-            workflow_state=WorkflowState.BOXING,
-        )
+        self._set_phase(cycle, StationPhase.WAIT_FOAM_RESET)
+        if not cycle.foam_passed:
+            self._lock(cycle, '泡棉检测不合格', AlarmSource.VISION)
         return True
 
     def _foam_reset(self, cycle, snapshot):
-        if snapshot.get('foam_trigger'):
+        if not self._acknowledged(cycle, 'foam_done'):
             return False
-        self._write('foam_done', False, 74)
-        self._write('foam_passed', False, 74)
-        if cycle.foam_passed is False:
-            cycle.foam_passed = None
-            cycle.save(update_fields=['foam_passed', 'updated_at'])
-            self._set_phase(cycle, StationPhase.WAIT_FOAM)
-        elif cycle.planned_quantity and cycle.loaded_quantity >= cycle.planned_quantity:
-            self._set_phase(cycle, StationPhase.WAIT_BOXING)
-        else:
-            self._set_phase(cycle, StationPhase.WAIT_PRODUCT)
+        cycle.foam_passed = None
+        cycle.save(update_fields=['foam_passed', 'updated_at'])
+        self._set_phase(cycle, StationPhase.WAIT_PRODUCT)
         return True
 
     def _mes_box_trigger(self, cycle, snapshot):
-        if not snapshot.get('boxing_trigger'):
-            return False
+        from apps.core.constants import MesAction
         from apps.production.models import Product
-
-        self._record_input('boxing_trigger', True, 46)
-        products = list(
-            Product.objects.filter(
-                rack=cycle.rack, created_at__gte=cycle.started_at,
-            ).order_by('created_at')
-        )
-        payload = {
-            'product_codes': [product.product_code for product in products],
-            'rack_code': cycle.rack.rack_code,
-            'loaded_quantity': cycle.loaded_quantity,
-            'planned_quantity': cycle.planned_quantity,
-            'completed_at': timezone.now().isoformat(),
-        }
-        response = self.mes.upload_boxing_result(
-            payload, product=cycle.product, rack=cycle.rack,
-        )
-        succeeded = bool(response.get('success'))
-        # SOAP(20260803) 封箱会回区位号 BinCode / TaskGuid，记入事件便于追溯（无字段则为空）
-        bin_code = response.get('bin_code', '') or ''
-        cycle.mes_upload_success = succeeded
-        cycle.save(update_fields=['mes_upload_success', 'updated_at'])
-        self._write('mes_upload_success', succeeded, 74)
+        pending = self._accept(cycle, snapshot, 'boxing_trigger')
+        if pending is None:
+            return False
+        self._write('mes_upload_success', False, 74)
+        bound = set(Product.objects.filter(rack=cycle.rack, bound_at__gte=cycle.started_at)
+                    .values_list('product_code', flat=True))
+        if not cycle.bound_product_codes or bound != set(cycle.bound_product_codes):
+            raise StationStepError('本框存在未成功上传的产品绑定或没有产品，不能封箱', AlarmSource.MES)
+        if 'payload' not in pending:
+            pending['payload'] = {'rack_code': cycle.rack.rack_code,
+                'product_codes': list(cycle.bound_product_codes),
+                'loaded_quantity': cycle.loaded_quantity, 'planned_quantity': cycle.planned_quantity,
+                'completed_at': timezone.now().isoformat()}
+            self._save_io(cycle)
+        response = self._mes_response(cycle, pending, MesAction.UPLOAD_BOXING_RESULT,
+            lambda: self.mes.upload_boxing_result(pending['payload'], product=cycle.product, rack=cycle.rack),
+            product=cycle.product)
+        if not response.get('success'):
+            raise StationStepError(response.get('error') or 'MES 封箱失败', AlarmSource.MES)
+        bin_code = response.get('bin_code') or (response.get('mes_data') or {}).get('BinCode')
+        if not bin_code:
+            raise StationStepError('MES 封箱已返回但缺少区位号，请查询确认，不重复封箱', AlarmSource.MES)
+        cycle.bin_code = str(bin_code)
+        cycle.mes_upload_success = True
+        cycle.save(update_fields=['bin_code', 'mes_upload_success', 'updated_at'])
+        self._write('mes_upload_success', True, 74)
         self._write('mes_upload_done', True, 74)
-        if succeeded:
-            done_message = (
-                f'整框封箱已上传 MES，区位号 {bin_code}' if bin_code
-                else '整框绑定数据已上传 MES'
-            )
-        else:
-            done_message = 'MES 上传失败，本地记录等待自动补传'
-        self._set_phase(
-            cycle, StationPhase.WAIT_BOXING_RESET, event_type='BOXING_UPLOADED',
-            source=EventSource.MES,
-            message=done_message,
-            payload={**payload, 'mes_upload_success': succeeded, 'bin_code': bin_code},
-            workflow_state=WorkflowState.BOXING,
-        )
+        self._set_phase(cycle, StationPhase.WAIT_BOXING_RESET, event_type='BOXING_UPLOADED',
+            source=EventSource.MES, message=f'封箱成功，区位号 {bin_code}',
+            payload={**pending['payload'], 'bin_code': cycle.bin_code})
         return True
 
     def _boxing_reset(self, cycle, snapshot):
-        if snapshot.get('boxing_trigger'):
+        if self.plc.read_point('mes_upload_done'):
             return False
-        self._write('mes_upload_done', False, 74)
-        self._write('mes_upload_success', False, 74)
+        if not cycle.mes_upload_success:
+            self._set_phase(cycle, StationPhase.WAIT_BOXING)
+            return True
+        self._acknowledged(cycle, 'mes_upload_done')
         cycle.finished_at = timezone.now()
         cycle.save(update_fields=['finished_at', 'updated_at'])
-        self._set_phase(
-            cycle, StationPhase.COMPLETED, event_type='RACK_FULL',
-            source=EventSource.PLC,
-            message=(
-                f'装箱完成 {cycle.loaded_quantity}/{cycle.planned_quantity}，MES 上传成功'
-                if cycle.mes_upload_success else
-                f'装箱完成 {cycle.loaded_quantity}/{cycle.planned_quantity}，MES 待自动补传'
-            ),
-            payload={
-                'loaded_quantity': cycle.loaded_quantity,
-                'mes_upload_success': cycle.mes_upload_success,
-            },
-            workflow_state=WorkflowState.COMPLETED,
-        )
+        self._set_phase(cycle, StationPhase.COMPLETED, event_type='RACK_FULL',
+            source=EventSource.PLC, message='MES 封箱及本地保存成功，PLC 已确认',
+            workflow_state=WorkflowState.COMPLETED)
         return True
 
     def _lock(self, cycle, message, source):
@@ -698,9 +753,24 @@ class StationWorkflowService:
     def unlock(self, cycle, operator_note=''):
         if cycle.phase != StationPhase.LOCKED:
             return cycle
+        pending = cycle.io_state.get('pending') or {}
+        trigger = pending.get('trigger')
+        bits = {'rack_trigger': ('rack_done',), 'mark_trigger': ('product_mes_upload_done',),
+                'position_trigger': ('position_done', 'position_success'),
+                'foam_trigger': ('foam_done',), 'boxing_trigger': ('mes_upload_done',)}
+        if any(self.plc.read_point(bit) for bit in bits.get(trigger, ())):
+            raise StationStepError('请先由 PLC 读取并复位本次完成反馈，再解除锁定', AlarmSource.DEVICE)
+        if trigger in ('rack_trigger', 'foam_trigger') or (
+            trigger == 'position_trigger' and 'values' not in pending
+        ) or (trigger == 'mark_trigger' and not pending.get('product_id')):
+            cycle.io_state.pop('pending', None)
+            self._save_io(cycle)
+        # Preserve MES responses and valid calculated data for local recovery.
         # Resume from the phase that failed. Result/done outputs must first wait
         # for the PLC trigger to reset before allowing a retry.
-        if cycle.recipe_verified is False:
+        if trigger:
+            resume = StationPhase.WAIT_RACK if trigger == 'rack_trigger' else StationPhase.WAIT_PRODUCT
+        elif cycle.recipe_verified is False:
             resume = StationPhase.WAIT_RECIPE_RESET
         elif cycle.foam_passed is False:
             resume = StationPhase.WAIT_FOAM_RESET

@@ -131,8 +131,8 @@ class SimulatedMesClient(MesClient):
         recipe = {
             'recipe_code': f'RCP-{rack_code}',
             'name': f'{rack_code} 默认配方',
-            'rack_type': 'STANDARD',
-            'layer_count': 4,
+            'rack_type': '两层',
+            'layer_count': 2,
             'quantity_per_layer': 6,
             'total_quantity': 24,
             'layer_height': 120.0,
@@ -152,7 +152,7 @@ class SimulatedMesClient(MesClient):
     def upload_boxing_result(self, payload: dict) -> dict:
         if self._fail('UPLOAD_BOXING_RESULT'):
             return {'success': False, 'error': 'MES 上传装箱结果失败'}
-        return {'success': True}
+        return {'success': True, 'bin_code': f"SIM-{payload.get('rack_code', 'RACK')}"}
 
     def upload_vision_result(self, payload: dict) -> dict:
         if self._fail('UPLOAD_VISION_RESULT'):

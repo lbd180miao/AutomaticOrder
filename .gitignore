@@ -81,6 +81,13 @@ tests_*.py
 !apps/vision/tests_foam_quality.py
 !apps/vision/tests_foam_geometry.py
 !apps/vision/tests_foam_recipe_save.py
+!apps/devices/test_serial_polling.py
+!apps/workflow/tests_db2_contract.py
+!apps/devices/tests_capture_completion.py
+!apps/devices/tests_plc_first_group.py
+!apps/devices/tests_plc_reliability.py
+!apps/mes/tests_pkg_type.py
+!apps/mes/tests_gateway.py
 *_test.py
 conftest.py
 .pytest_cache/

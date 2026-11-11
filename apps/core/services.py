@@ -190,18 +190,18 @@ class DashboardService:
             })
 
         phase_signal_map = {
-            StationPhase.WAIT_PRODUCT: ('DBX22.0', '等待打标完成触发', '读取 DBB0 产品条码'),
-            StationPhase.WAIT_MARK_RESET: ('DBX22.0', '等待 PLC 清除打标触发', 'DBX48.1 保持确认'),
+            StationPhase.WAIT_PRODUCT: ('DBX22.0 / DBX46', '等待产品、视觉或封箱触发', '按本框当前任务处理'),
+            StationPhase.WAIT_MARK_RESET: ('DBX48.3', '等待 PLC 复位单件上传完成', 'PLC 先读取 DBX48.4'),
             StationPhase.WAIT_RACK: ('DBX46.0', '等待料框到位触发', '读取 DBB24 料框码'),
-            StationPhase.WAIT_RACK_RESET: ('DBX46.0', '等待 PLC 清除料框触发', 'DBX48.5/48.6 保持确认'),
+            StationPhase.WAIT_RACK_RESET: ('DBX48.5', '等待 PLC 复位料框处理完成', '成功后读取 DBW76 类型'),
             StationPhase.WAIT_POSITION: ('DBX46.2', '等待 3D 定位触发', '两组 XYZ 写入 DBD50/54/58、62/66/70'),
-            StationPhase.WAIT_POSITION_RESET: ('DBX46.2', '等待 PLC 清除定位触发', 'DBX49.1/49.2 保持确认'),
+            StationPhase.WAIT_POSITION_RESET: ('DBX49.1/49.2', '等待 PLC 读取并复位拍照/补偿确认', '拍照完成先放行，补偿有效后读取六轴'),
             StationPhase.WAIT_RECIPE_VERIFY: ('DBX46.1', '等待配方校验触发', '结果写入 DBX48.7/49.0'),
             StationPhase.WAIT_RECIPE_RESET: ('DBX46.1', '等待 PLC 清除校验触发', 'DBX48.7 保持确认'),
             StationPhase.WAIT_FOAM: ('DBX46.3', '等待泡棉视觉检测触发', '检测结果写入 DBX74.1，确认写入 DBX74.0'),
-            StationPhase.WAIT_FOAM_RESET: ('DBX46.3', '等待 PLC 清除泡棉触发', 'DBX74.0 保持确认'),
+            StationPhase.WAIT_FOAM_RESET: ('DBX74.0', '等待 PLC 复位泡棉检测完成', 'PLC 先读取 DBX74.1'),
             StationPhase.WAIT_BOXING: ('DBX46.4', '等待装箱完成触发', '结果写入 DBX74.2/74.3'),
-            StationPhase.WAIT_BOXING_RESET: ('DBX46.4', '等待 PLC 清除上传触发', 'DBX74.2 保持确认'),
+            StationPhase.WAIT_BOXING_RESET: ('DBX74.2', '等待 PLC 复位封箱完成', 'PLC 先读取 DBX74.3'),
             StationPhase.COMPLETED: ('DBX46.4', '料框装箱已完成', '等待下一料框'),
             StationPhase.LOCKED: ('DBX74.4', '工位已锁定', '处理报警后人工解锁'),
         }

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from django.conf import settings
 
-from .plc_db100 import POSITION_FAILURE_OFFSET
+from .plc_db100 import POSITION_FAILURE_OFFSET, PLC_SCAN_INTERVAL
 
 
 class DebugBusy(RuntimeError):
@@ -21,7 +21,7 @@ def active(state):
 
 
 @contextmanager
-def ownership(mode=None):
+def ownership(mode=None, *, scan=False, stopping=False):
     # One byte remains locked even when the JSON payload is rewritten.
     path = Path(getattr(settings, 'DATA_DIR', settings.BASE_DIR)) / 'logs' / 'plc_debug_ownership.json'
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -49,16 +49,33 @@ def ownership(mode=None):
                 handle.flush()
                 os.fsync(handle.fileno())
 
+            scanning = scan or mode is not None
+            if scanning:
+                previous = state.get('_scan_finished_at', 0)
+                elapsed = time.monotonic() - previous
+                if previous and 0 <= elapsed < PLC_SCAN_INTERVAL:
+                    time.sleep(PLC_SCAN_INTERVAL - elapsed)
+
             if mode is None:
-                yield state, save
+                try:
+                    yield state, save
+                finally:
+                    if scanning:
+                        state['_scan_finished_at'] = time.monotonic()
+                        save()
             else:
                 # Preserve leases created before the two-channel format was introduced.
                 if 'sessions' not in state:
                     previous = dict(state)
                     state.clear()
+                    if '_scan_finished_at' in previous:
+                        state['_scan_finished_at'] = previous.pop('_scan_finished_at')
                     state['sessions'] = ({previous.get('mode', 'position'): previous}
                                          if previous.get('token') else {})
                 sessions = state['sessions']
+                if not stopping and any(name != mode and active(other)
+                       for name, other in sessions.items()):
+                    raise ValueError('已有其他工序正在轮询，请先停止该工序，再启动当前工序')
                 session = sessions.setdefault(mode, {})
                 waiting = [other for name, other in sessions.items()
                            if name != mode and active(other)]
@@ -76,6 +93,7 @@ def ownership(mode=None):
                 try:
                     yield session, save_session
                 finally:
+                    state['_scan_finished_at'] = time.monotonic()
                     save_session()
         finally:
             handle.seek(0)
@@ -86,19 +104,24 @@ def ownership(mode=None):
 
 
 def step(state, plc, capture, save=lambda: None):
-    """Capture once; persist and retry the result until PLC acknowledges the writes."""
+    """Consume the request; publish capture completion before computing offsets."""
     plc.tick_heartbeat()
     trigger = plc.read_point('position_trigger')
     state['trigger'] = trigger
     phase = state['phase']
-    if not trigger:
-        plc.write_point('position_done', False)
-        plc.write_point('position_success', False)
-        state.pop('pending_result', None)
-        state.update(phase='WAIT_TRIGGER', message='等待 PLC 3D 触发', done=False, ok=False)
+    if phase == 'ARMING':
+        if not trigger:
+            state.update(phase='WAIT_TRIGGER', message='等待 PLC 3D 触发')
         return
-    if phase in ('ARMING', 'WAIT_RESET'):
-        state['message'] = '等待 PLC 将 DB2.DBX46.2 复位为 0'
+    if phase == 'WAIT_ACK':
+        if plc.read_point('position_done') or plc.read_point('position_success'):
+            return
+        state.update(phase='WAIT_TRIGGER', message='等待下一次 3D 触发')
+        save()
+        return
+    if phase == 'WAIT_TRIGGER' and (plc.read_point('position_done') or plc.read_point('position_success')):
+        return
+    if phase not in ('CAPTURING', 'WRITE_PENDING') and not trigger:
         return
     if phase == 'CAPTURING':
         # A previous request died after consuming the trigger. Never capture it twice.
@@ -108,12 +131,20 @@ def step(state, plc, capture, save=lambda: None):
         }
     elif phase != 'WRITE_PENDING':
         state.update(phase='CAPTURING', message='正在采集点云并计算双组三轴补偿',
-                     error='', values=None, result_id=None, done=False, ok=False)
+                     error='', values=None, result_id=None, done=False, ok=False, capture_done=False)
         save()
         try:
             plc.write_point('position_done', False)
             plc.write_point('position_success', False)
-            result = capture(state['recipe_id'], state['layer_no'])
+            plc.write_point('position_trigger', False)
+            state['trigger'] = False
+
+            def captured():
+                plc.write_point('position_done', True)
+                state['capture_done'] = True
+                save()
+
+            result = capture(state['recipe_id'], state['layer_no'], on_captured=captured)
             state['result_id'] = result.get('result_id')
             if not result.get('is_success'):
                 raise ValueError(result.get('error_message') or '3D 定位失败')
@@ -134,27 +165,26 @@ def step(state, plc, capture, save=lambda: None):
             raise ValueError(f'{name} 写后回读不一致')
 
     try:
-        verified('position_done', False)
         verified('position_success', False)
         for axis, value in pending['values'].items():
             verified(f'layer_delta_{axis}', value)
-        verified('position_success', pending['ok'])
-        verified('position_done', True)
+        # PLC can consume/reset the valid bit immediately; only data needs readback.
+        plc.write_point('position_success', pending['ok'])
     except Exception as exc:
         state.update(done=False, ok=False, error=f"{pending['error']}；PLC回写失败：{exc}".lstrip('；'),
                      message='结果尚未完整回写，将重试回写，不重复拍照')
         save()
         return
-    state.update(phase='WAIT_RESET', values=pending['values'], ok=pending['ok'], done=True,
+    state.update(phase='WAIT_ACK', values=pending['values'], ok=pending['ok'], done=True,
                  error=pending['error'], count=state.get('count', 0) + 1,
                  completed_at=time.strftime('%Y-%m-%d %H:%M:%S'),
-                 message=('定位成功，双组三轴补偿已回写；等待 PLC 复位' if pending['ok'] else
-                          '定位失败，两组X/Y/Z已回写999；等待PLC复位后重试'))
+                 message=('补偿已回写，等待 PLC 读取并复位 49.1/49.2' if pending['ok'] else
+                          '定位失败，两组X/Y/Z已回写999'))
     state.pop('pending_result', None)
     save()
 
 
-def capture_position(recipe_id, layer_no):
+def capture_position(recipe_id, layer_no, *, on_captured=None):
     from apps.vision.models import RackLocationRecipe
     recipe = RackLocationRecipe.objects.get(pk=recipe_id, enabled=True)
     if not 1 <= layer_no <= recipe.layer_count:
@@ -163,6 +193,8 @@ def capture_position(recipe_id, layer_no):
         return {'is_success': False, 'error_message': '请先保存点云标准模板'}
     from apps.vision.rack_location import Rack3DLocator, RackLocationService
     captured = Rack3DLocator().capture(recipe_id=recipe_id, layer_no=layer_no)
+    if on_captured is not None:
+        on_captured()
     result = RackLocationService().calculate_workbench(
         token=captured['pointcloud_token'], recipe_id=recipe_id,
         layer_no=layer_no, save_record=True,
@@ -180,6 +212,9 @@ def dual_group_position(result, recipe):
         values = {}
         for name, suffix in (('A', ''), ('B', '2')):
             group = (result.get('robot_groups') or {}).get(name)
+            if name == 'B' and group is None:
+                values.update({f'compensation_{axis}2': 0.0 for axis in 'xyz'})
+                continue
             if not group:
                 raise ValueError(f'缺少{name}组机器人补偿，请保存双组标准及手眼标定')
             if group.get('coordinate_system') != 'robot_base':
