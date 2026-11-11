@@ -1,0 +1,242 @@
+[
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 17,
+  "fields": {
+    "created_at": "2026-11-11T11:58:33.701Z",
+    "updated_at": "2026-11-11T11:59:17.085Z",
+    "pkg_type_code": "2LayerRack",
+    "rack_type": "两层",
+    "plc_value": 1,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 1,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.407Z",
+    "updated_at": "2026-10-26T06:01:25.407Z",
+    "pkg_type_code": "31231321",
+    "rack_type": "三层",
+    "plc_value": 2,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 2,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.408Z",
+    "updated_at": "2026-10-26T06:01:25.408Z",
+    "pkg_type_code": "31231322",
+    "rack_type": "三层",
+    "plc_value": 2,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 3,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.409Z",
+    "updated_at": "2026-10-26T06:01:25.409Z",
+    "pkg_type_code": "31231323",
+    "rack_type": "三层",
+    "plc_value": 2,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 4,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.409Z",
+    "updated_at": "2026-10-26T06:01:25.409Z",
+    "pkg_type_code": "31231324",
+    "rack_type": "三层",
+    "plc_value": 2,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 5,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.409Z",
+    "updated_at": "2026-10-26T06:01:25.409Z",
+    "pkg_type_code": "31231325",
+    "rack_type": "三层",
+    "plc_value": 2,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 6,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.410Z",
+    "updated_at": "2026-10-26T06:01:25.410Z",
+    "pkg_type_code": "31231326",
+    "rack_type": "三层",
+    "plc_value": 2,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 7,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.410Z",
+    "updated_at": "2026-10-26T06:01:25.410Z",
+    "pkg_type_code": "31231327",
+    "rack_type": "三层",
+    "plc_value": 2,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 8,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.410Z",
+    "updated_at": "2026-10-26T06:01:25.410Z",
+    "pkg_type_code": "31231328",
+    "rack_type": "三层",
+    "plc_value": 2,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 18,
+  "fields": {
+    "created_at": "2026-11-11T11:58:33.702Z",
+    "updated_at": "2026-11-11T11:58:33.702Z",
+    "pkg_type_code": "3LayerRack",
+    "rack_type": "三层",
+    "plc_value": 2,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 20,
+  "fields": {
+    "created_at": "2026-11-11T11:58:33.702Z",
+    "updated_at": "2026-11-11T11:58:33.702Z",
+    "pkg_type_code": "5LaverRack",
+    "rack_type": "五层",
+    "plc_value": 3,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 19,
+  "fields": {
+    "created_at": "2026-11-11T11:58:33.702Z",
+    "updated_at": "2026-11-11T11:58:33.702Z",
+    "pkg_type_code": "5LayerRack",
+    "rack_type": "五层",
+    "plc_value": 3,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 9,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.411Z",
+    "updated_at": "2026-10-26T06:01:25.411Z",
+    "pkg_type_code": "8888812312",
+    "rack_type": "两层",
+    "plc_value": 1,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 10,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.411Z",
+    "updated_at": "2026-10-26T06:01:25.411Z",
+    "pkg_type_code": "8888812313",
+    "rack_type": "两层",
+    "plc_value": 1,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 11,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.411Z",
+    "updated_at": "2026-10-26T06:01:25.411Z",
+    "pkg_type_code": "8888812314",
+    "rack_type": "两层",
+    "plc_value": 1,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 12,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.411Z",
+    "updated_at": "2026-10-26T06:01:25.411Z",
+    "pkg_type_code": "8888812315",
+    "rack_type": "两层",
+    "plc_value": 1,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 13,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.412Z",
+    "updated_at": "2026-10-26T06:01:25.412Z",
+    "pkg_type_code": "8888812316",
+    "rack_type": "两层",
+    "plc_value": 1,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 14,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.412Z",
+    "updated_at": "2026-10-26T06:01:25.412Z",
+    "pkg_type_code": "8888812317",
+    "rack_type": "两层",
+    "plc_value": 1,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 15,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.412Z",
+    "updated_at": "2026-10-26T06:01:25.412Z",
+    "pkg_type_code": "8888812318",
+    "rack_type": "两层",
+    "plc_value": 1,
+    "enabled": true
+  }
+},
+{
+  "model": "mes.pkgtypemapping",
+  "pk": 16,
+  "fields": {
+    "created_at": "2026-10-26T06:01:25.413Z",
+    "updated_at": "2026-10-26T06:01:25.413Z",
+    "pkg_type_code": "8888812319",
+    "rack_type": "两层",
+    "plc_value": 1,
+    "enabled": true
+  }
+}
+]

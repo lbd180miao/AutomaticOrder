@@ -391,12 +391,6 @@
               </form>
             {% endif %}
 
-            {% if selected_alarm.product %}
-              <a class="btn btn-secondary btn-sm" style="margin-left: auto;"
-                 href="{% url 'traceability:product_detail' selected_alarm.product.product_code %}">
-                单件产品追溯 →
-              </a>
-            {% endif %}
           </div>
 
         </div>

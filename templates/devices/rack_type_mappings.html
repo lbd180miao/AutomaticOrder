@@ -1,0 +1,21 @@
+{% load static %}
+<section class="mapping-library" aria-labelledby="mapping-title" data-api="{% url 'devices:rack_type_mappings' %}" id="mapping-library">
+  <div class="mapping-heading"><div><h2 id="mapping-title">PLC映射库</h2><p>MES 返回 PkgTypeCode 后，按映射写入 <strong id="mapping-target">DB2.DBW76 · INT</strong>。</p></div><button type="button" id="mapping-add">新增映射</button></div>
+  <div class="mapping-search"><label for="mapping-query">查找类型</label><input id="mapping-query" type="search" placeholder="输入 PkgTypeCode" autocomplete="off"><span id="mapping-count"></span></div>
+  <p id="mapping-feedback" role="status" aria-live="polite"></p>
+  <form id="mapping-editor" hidden>
+    {% csrf_token %}<input type="hidden" name="id"><input type="hidden" name="action" value="save">
+    <h3 id="mapping-editor-title">新增映射</h3>
+    <div class="mapping-fields">
+      <label>MES 料框类型（PkgTypeCode）<input name="pkg_type_code" required maxlength="128" placeholder="例如 2LayerRack"></label>
+      <label>层数<input type="number" name="rack_type" required min="1" max="2147483647" step="1" placeholder="例如 4"></label>
+      <label>PLC 写入值<input type="number" name="plc_value" required min="-32768" max="32767" step="1" placeholder="例如 1"></label>
+      <label class="mapping-enabled"><input type="checkbox" name="enabled" checked>启用</label>
+    </div>
+    <p class="mapping-hint">对应层型用于匹配本地装箱配方。保存后用于后续料框处理，不会立即向 PLC 写值。</p>
+    <div class="mapping-form-actions"><button type="submit">保存映射</button><button type="button" id="mapping-cancel" class="mapping-secondary">取消</button></div>
+  </form>
+  <div class="mapping-table-wrap"><table class="mapping-table"><thead><tr><th>MES 料框类型 / PkgTypeCode</th><th>层数</th><th>PLC 写入值</th><th>状态</th><th>操作</th></tr></thead><tbody id="mapping-rows"><tr><td colspan="5">正在读取映射…</td></tr></tbody></table></div>
+  <p class="mapping-hint">未配置或停用的类型将报错。可在此新增、查询、编辑或删除映射。</p>
+</section>
+<script src="{% static 'devices/js/rack_type_mappings.js' %}?v=20261111-custom-layers"></script>

@@ -3,75 +3,39 @@
 {% block content %}
 <section class="page-header"><h1>视觉模块</h1></section>
 
-<section class="vision-module-cards">
-  <div class="vision-module-card">
+<section class="vision-module-cards" aria-label="视觉功能入口">
+  <a class="vision-module-card" href="{% url 'vision:foam_inspector_interactive' %}">
     <div>
-      <h2>&#128247; 泡棉检测（2D 相机）</h2>
-      <p>2D 工业相机拍摄保险杆表面白色泡棉，在固定搜索 ROI 内与合格标准模板比较覆盖率和 X/Y 偏移。</p>
-      <ol>
-        <li>进入工作台，点击「刷新预览」确认画面</li>
-        <li>首次/换型时：保存左右固定搜索 ROI，并用同一张合格样件示教标准模板</li>
-        <li>输入当前 POS 号，点击「拍照检测」</li>
-        <li>覆盖率和偏移均合格则进入下一循环；NG 则人工核查</li>
-      </ol>
+      <h2>泡棉检测（2D 相机）</h2>
+      <p>检查泡棉覆盖率与位置偏移。</p>
     </div>
-    <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-primary">进入泡棉检测工作台</a>
-  </div>
-  <div class="vision-module-card">
+    <span class="vision-module-entry">进入工作台</span>
+  </a>
+  <a class="vision-module-card" href="{% url 'vision:rack_locator_panel' %}">
     <div>
-      <h2>&#128225; 料架定位（3D 深度相机）</h2>
-      <p>3D 深度相机（手眼安装）按配方位置和料架层号循环拍照；每次拍一张照片，只计算当前点位的 X/Y/Z/Rz 补偿。</p>
-      <ol>
-        <li>选择当前配方位置 POS 与当前层号</li>
-        <li>机器人携带 3D 相机到该配方拍照位</li>
-        <li>点击「拍照计算补偿」，确认置信度和补偿范围</li>
-        <li>页面保留本次补偿数据，可继续写入 PLC</li>
-      </ol>
+      <h2>料架定位（3D 深度相机）</h2>
+      <p>按配方与层号拍照，计算当前点位补偿。</p>
     </div>
-    <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-primary">进入3D料架定位工作台</a>
-  </div>
-  <div class="vision-module-card">
+    <span class="vision-module-entry">进入工作台</span>
+  </a>
+  <a class="vision-module-card" href="{% url 'vision:hand_eye_page' %}">
     <div>
-      <h2>&#128295; 手眼标定 &amp; 坐标配置</h2>
-      <p>管理 3D 深度相机与机器人之间的坐标转换关系（T_flange_camera）。手眼矩阵是料架定位的核心配置项，上线前须完成标定并激活。</p>
-      <ol>
-        <li>新建标定任务，录入机器人 + 相机设备</li>
-        <li>采集若干位姿样本（机器人移位 → 拍靶标 → 记录）</li>
-        <li>点击「计算标定」，验证误差是否 &lt; 3 mm</li>
-        <li>误差合格后「激活」，配方会自动读取激活的矩阵</li>
-      </ol>
+      <h2>手眼标定 &amp; 坐标配置</h2>
+      <p>管理相机与机器人之间的坐标转换。</p>
     </div>
-    <a href="{% url 'vision:hand_eye_page' %}" class="btn btn-primary">进入手眼标定管理</a>
-  </div>
-  <div class="vision-module-card">
-    <div>
-      <h2>&#127381; 3D 定位配方管理</h2>
-      <p>每个 POS 位置对应一条定位配方，记录该位置的拍照位姿、手眼矩阵来源、ROI 区域和理论坐标基准。换型或新增点位时在此配置。</p>
-      <ol>
-        <li>新建/编辑配方，绑定对应的手眼标定</li>
-        <li>设置相机 ROI 并转换为机器人基坐标系</li>
-        <li>录入理论标准坐标 X/Y/Z</li>
-        <li>保存后在定位工作台选择此配方执行</li>
-      </ol>
-    </div>
-    <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-primary">进入配方管理</a>
-  </div>
+    <span class="vision-module-entry">进入管理</span>
+  </a>
+  <a class="vision-module-card" href="{% url 'vision:task_history' %}">
+    <div><h2>视觉历史记录</h2><p>查看 2D、3D 检测数据、结果与图片，按日期查询。</p></div>
+    <span class="vision-module-entry">查看记录</span>
+  </a>
 </section>
-
-<div class="toolbar">
-  <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-primary">📷 泡棉检测工作台</a>
-  <a href="{% url 'vision:rack_locator_panel' %}" class="btn" style="background:var(--info);">📡 3D料架定位工作台</a>
-  <a href="{% url 'vision:hand_eye_page' %}" class="btn" style="background:#7c3aed;color:#fff;">🔧 手眼标定</a>
-  <a href="{% url 'vision:rack_location_recipes' %}" class="btn" style="background:#059669;color:#fff;">📋 定位配方</a>
-  <a href="{% url 'vision:foam_results' %}" class="btn btn-secondary">泡棉检测结果</a>
-  <a href="{% url 'vision:rack_results' %}" class="btn btn-secondary">料架定位结果</a>
-</div>
 
 <style>
 .vision-module-cards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
   margin: 16px 0 20px;
 }
 
@@ -79,116 +43,53 @@
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  padding: 18px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  padding: 20px 24px;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 24px;
+  text-decoration: none;
+  transition: border-color .15s, background-color .15s;
+}
+
+.vision-module-card:hover {
+  border-color: var(--primary, #2563eb);
+  background: #f8faff;
+  text-decoration: none;
+}
+
+.vision-module-card:focus-visible {
+  outline: 3px solid var(--primary, #2563eb);
+  outline-offset: 3px;
 }
 
 .vision-module-card h2 {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   font-size: 18px;
   color: #111827;
 }
 
 .vision-module-card p {
-  margin: 0 0 10px;
-  color: #4b5563;
+  margin: 0;
+  color: #64748b;
   line-height: 1.6;
 }
 
-.vision-module-card ol {
-  margin: 0;
-  padding-left: 20px;
-  color: #374151;
-  line-height: 1.7;
+.vision-module-entry {
+  flex-shrink: 0;
+  color: var(--primary, #2563eb);
+  font-weight: 600;
+  font-size: 14px;
 }
 
-.task-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.inline-delete-form {
-  display: inline;
-  margin: 0;
-}
-
-@media (max-width: 900px) {
-  .vision-module-cards {
-    grid-template-columns: 1fr;
+@media (max-width: 600px) {
+  .vision-module-card {
+    padding: 16px;
+    gap: 12px;
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>
 
-<div class="table-wrap vision-task-table-wrap">
-  <table class="data-table vision-task-table">
-    <thead>
-      <tr><th>画面</th><th>类型</th><th>产品</th><th>料框</th><th>状态</th><th>结果</th><th>开始</th><th>结束</th><th>操作</th></tr>
-    </thead>
-    <tbody>
-      {% for t in tasks %}
-      <tr>
-        <td>
-          {% with img=t.images.all|first %}
-          {% if img %}
-            <a class="thumb-link" href="{% url 'vision:task_detail' t.pk %}">
-              <img class="thumb" src="{{ img.file.url }}" alt="画面" loading="lazy">
-            </a>
-          {% else %}-{% endif %}
-          {% endwith %}
-        </td>
-        <td>{{ t.get_task_type_display|default:"未知" }}</td>
-        <td>
-          {% if t.product %}
-            {{ t.product.product_code }}
-          {% else %}-{% endif %}
-        </td>
-        <td>
-          {% if t.rack %}
-            {{ t.rack.rack_code }}
-          {% else %}-{% endif %}
-        </td>
-        <td>
-          {% if t.status == 'SUCCESS' %}<span class="badge badge-ok">{{ t.get_status_display }}</span>
-          {% elif t.status == 'FAILED' %}<span class="badge badge-fail">{{ t.get_status_display }}</span>
-          {% else %}<span class="badge badge-running">{{ t.get_status_display }}</span>{% endif %}
-        </td>
-        <td>
-          {% with foam_result=t.foam_results.all|first rack_result=t.rack_results.all|first %}
-            {% if foam_result %}
-              {% if foam_result.is_passed %}<span class="badge badge-ok">OK</span>
-              {% else %}<span class="badge badge-fail">NG</span>{% endif %}
-            {% elif rack_result %}
-              {% if rack_result.is_success %}<span class="badge badge-ok">OK</span>
-              {% else %}<span class="badge badge-fail">NG</span>{% endif %}
-            {% elif t.status == 'SUCCESS' %}
-              <span class="badge badge-ok">OK</span>
-            {% elif t.status == 'FAILED' %}
-              <span class="badge badge-fail">NG</span>
-            {% else %}
-              -
-            {% endif %}
-          {% endwith %}
-        </td>
-        <td>{{ t.started_at|date:"m-d H:i:s"|default:"-" }}</td>
-        <td>{{ t.finished_at|date:"m-d H:i:s"|default:"-" }}</td>
-        <td class="task-actions">
-          <a href="{% url 'vision:task_detail' t.pk %}" class="btn btn-sm">查看画面</a>
-          <form method="post" action="{% url 'vision:delete_task' t.pk %}" class="inline-delete-form" onsubmit="return confirm('确定删除这条视觉记录吗？相关检测结果会一起从列表中删除。');">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-danger btn-sm">删除记录</button>
-          </form>
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="9" class="empty">暂无视觉任务</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
 {% endblock %}

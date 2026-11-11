@@ -309,7 +309,17 @@ def cloud_match(request):
                 raise ValueError('料架层数与标准模板不同，请重新保存点云标准模板')
             if algorithm == 'cloud_center' and reference and config != reference['config']:
                 raise ValueError('ROI 已变化，请重新保存当前算法的点云标准模板')
-            result = match_template(package['cloud'], package['metadata'], reference)
+            from .rack_cloud_service import evaluate_cloud
+            from django.conf import settings
+            media_root = Path(settings.MEDIA_ROOT).resolve()
+            history_token = str(cloud_path.resolve().relative_to(media_root)) if cloud_path.resolve().is_relative_to(media_root) else ''
+            payload = evaluate_cloud(recipe, package['cloud'], package['metadata'],
+                layer_no=int(data.get('layer_no') or 1), token=history_token,
+                save_record=True, algorithm=algorithm, camera_image=image)
+            return JsonResponse({'success': True, 'result': payload['result'],
+                'reference': payload['reference'], 'robot_result': payload['robot_result'],
+                'config': reference['config'], 'plc_publish_allowed': False,
+                'result_id': payload['result_id'], 'task_id': payload['task_id']})
         result = add_display_pixels(result, package['cloud'], package['metadata'])
         robot = evaluate_robot_points(result, reference) if result['success'] else None
         # Experimental results stay separate from legacy edge-result history.

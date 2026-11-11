@@ -18,6 +18,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_http_methods
 
@@ -86,6 +87,10 @@ def _decode_uploaded_image(uploaded_file):
 
 
 def task_list(request):
+    return render(request, 'vision/task_list.html')
+
+
+def task_history(request):
     """视觉任务列表页面，显示最近200条任务记录
     
     优化查询性能并处理可能的数据库错误：
@@ -93,10 +98,31 @@ def task_list(request):
     2. 使用 prefetch_related 预加载反向关联（images, foam_results, rack_results）
     3. 限制返回最近 200 条记录
     """
+    vision_type = request.GET.get('vision_type', '')
+    if vision_type not in ('2d', '3d'):
+        vision_type = ''
+    filters = {}
+    if vision_type == '2d':
+        filters['task_type'] = 'FOAM_INSPECTION'
+    elif vision_type == '3d':
+        filters['task_type'] = 'RACK_LOCATING'
+    filter_error = ''
+    raw = request.GET.get('date_from', '')
+    try:
+        query_date = parse_date(raw) if raw else None
+    except ValueError:
+        query_date = None
+    if raw and query_date is None:
+        filter_error = '请输入有效日期。'
+    if query_date:
+        filters['created_at__date'] = query_date
+    base_tasks = VisionTask.objects.filter(**filters)
+    if filter_error:
+        base_tasks = base_tasks.none()
     try:
         # 尝试标准查询
         tasks = (
-            VisionTask.objects
+            base_tasks
             .select_related('product', 'rack')
             .prefetch_related('images', 'foam_results', 'rack_results')
             .order_by('-created_at')[:200]
@@ -111,7 +137,7 @@ def task_list(request):
         
         try:
             tasks = (
-                VisionTask.objects
+                base_tasks
                 .prefetch_related('images', 'foam_results', 'rack_results')
                 .order_by('-created_at')[:200]
             )
@@ -121,7 +147,7 @@ def task_list(request):
             # 最后尝试：只查询基本字段
             logger.error(f'VisionTask query with prefetch_related also failed: {str(e2)}')
             try:
-                tasks = VisionTask.objects.all().order_by('-created_at')[:200]
+                tasks = base_tasks.order_by('-created_at')[:200]
                 list(tasks[:1])
             except Exception as e3:
                 # 完全失败，返回空列表并显示错误
@@ -129,7 +155,10 @@ def task_list(request):
                 messages.error(request, f'数据库查询错误：{str(e3)}。请检查数据库迁移状态。')
                 tasks = []
     
-    return render(request, 'vision/task_list.html', {'tasks': tasks})
+    return render(request, 'vision/task_history.html', {
+        'tasks': tasks, 'vision_type': vision_type, 'filter_error': filter_error,
+        'date_from': request.GET.get('date_from', ''),
+    })
 
 
 def _get_depth_roi_debug_context():
@@ -211,6 +240,8 @@ def task_detail(request, pk):
         'rack_result': rack_result,
         'foam_result': foam_result,
         'dp_rows': dp_rows,
+        'foam_original_available': bool(foam_result and foam_archive.has_image(foam_result.pk, 'original')),
+        'foam_result_available': bool(foam_result and foam_archive.has_image(foam_result.pk, 'result')),
     })
 
 
@@ -222,7 +253,7 @@ def delete_task(request, pk):
     task_label = f'{task.get_task_type_display()} #{task.pk}'
     task.delete()
     messages.success(request, f'已删除视觉记录：{task_label}')
-    return redirect('vision:task_list')
+    return redirect('vision:task_history')
 
 
 def rack_results(request):

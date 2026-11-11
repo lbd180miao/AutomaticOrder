@@ -3,7 +3,7 @@
 {% block content %}
 <section class="page-header">
   <h1>视觉任务详情</h1>
-  <a href="{% url 'vision:task_list' %}" class="btn btn-secondary">返回列表</a>
+  <a href="{% url 'vision:task_history' %}" class="btn btn-secondary">返回列表</a>
 </section>
 {% csrf_token %}
 
@@ -40,6 +40,7 @@
     </div>
     <div class="cam-body">
       {% if original %}<img src="{{ original.file.url }}" alt="原图">
+      {% elif foam_original_available %}<img src="{% url 'vision:api_foam_record_image' foam_result.pk 'original' %}" alt="原图">
       {% else %}<p class="empty" style="color:#8a97a5;">无图像</p>{% endif %}
     </div>
   </div>
@@ -54,6 +55,7 @@
     </div>
     <div class="cam-body">
       {% if result_img %}<img src="{{ result_img.file.url }}" alt="结果图">
+      {% elif foam_result_available %}<img src="{% url 'vision:api_foam_record_image' foam_result.pk 'result' %}" alt="结果图">
       {% else %}<p class="empty" style="color:#8a97a5;">无图像</p>{% endif %}
     </div>
     {% if task.task_type == 'FOAM_INSPECTION' %}

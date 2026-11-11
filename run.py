@@ -47,6 +47,8 @@ def main(argv=None):
     from django.conf import settings
     print(f'AutomaticOrder: threads={args.threads}, media={settings.MEDIA_ROOT}', flush=True)
     application = get_wsgi_application()
+    from apps.vision.history_retention import run_startup_cleanup
+    run_startup_cleanup()
     gateway_server = start_gateway(directory) if deployment.get('role') == 'external' else None
     from apps.workflow.listener import start_listener, stop_listener
     if settings.MES_GATEWAY_ENABLED:

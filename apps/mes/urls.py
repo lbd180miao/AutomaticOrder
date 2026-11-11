@@ -6,6 +6,7 @@ from . import gateway_views
 app_name = 'mes'
 
 urlpatterns = [
+    path('api/local-binding/save/', views.local_binding_save, name='local_binding_save'),
     path('gateway/', gateway_views.page, name='gateway'),
     path('gateway/status/', gateway_views.status, name='gateway_status'),
     path('gateway/test/', gateway_views.test, name='gateway_test'),

@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}视觉历史记录 - AutomaticBoxing{% endblock %}
+{% block content %}
+<section class="page-header"><h1 id="vision-history-title">视觉历史记录</h1><a href="{% url 'vision:task_list' %}" class="btn btn-secondary">返回视觉模块</a></section>
+<style>
+.vision-module-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin: 16px 0 20px;
+}
+
+.vision-module-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  text-decoration: none;
+  transition: border-color .15s, background-color .15s;
+}
+
+.vision-module-card:hover {
+  border-color: var(--primary, #2563eb);
+  background: #f8faff;
+  text-decoration: none;
+}
+
+.vision-module-card:focus-visible {
+  outline: 3px solid var(--primary, #2563eb);
+  outline-offset: 3px;
+}
+
+.vision-module-card h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  color: #111827;
+}
+
+.vision-module-card p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.vision-module-entry {
+  flex-shrink: 0;
+  color: var(--primary, #2563eb);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.vision-history {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.vision-history-heading h2 { margin: 0 0 6px; font-size: 18px; color: #111827; }
+.vision-history-heading p { margin: 0; color: #64748b; line-height: 1.6; }
+.vision-history-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; margin: 20px 0; }
+.vision-history-filters label { display: flex; flex-direction: column; gap: 8px; color: #475569; font-size: 14px; }
+.vision-history-filters input, .vision-history-filters select { min-height: 40px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #111827; font: inherit; }
+.vision-filter-error { color: #b91c1c; }
+.vision-history .table-wrap { overflow-x: auto; }
+.task-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.inline-delete-form {
+  display: inline;
+  margin: 0;
+}
+
+@media (max-width: 600px) {
+  .vision-module-card {
+    padding: 16px;
+    gap: 12px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+</style><section class="vision-history" aria-labelledby="vision-history-title">
+  <div class="vision-history-heading">
+    <p>自动保存检测数据与图片；启动时保留当天和上一个有记录的生产日。显示符合条件的最近 200 条记录。</p>
+  </div>
+  <form method="get" class="vision-history-filters">
+    <label for="vision-type">视觉类型
+      <select id="vision-type" name="vision_type" onchange="this.form.requestSubmit()">
+        <option value="">全部视觉数据</option>
+        <option value="2d" {% if vision_type == '2d' %}selected{% endif %}>2D 视觉数据</option>
+        <option value="3d" {% if vision_type == '3d' %}selected{% endif %}>3D 视觉数据</option>
+      </select>
+    </label>
+    <label for="date-from">查询日期<input id="date-from" type="date" name="date_from" value="{{ date_from }}"></label>
+    <button type="submit" class="btn btn-primary">查询</button>
+    <a href="{% url 'vision:task_history' %}" class="btn btn-secondary">重置</a>
+  </form>
+  {% if filter_error %}<p class="vision-filter-error" role="alert">{{ filter_error }}</p>{% endif %}
+<div class="table-wrap vision-task-table-wrap">
+  <table class="data-table vision-task-table">
+    <thead>
+      <tr><th>画面</th><th>类型</th><th>产品</th><th>料框</th><th>状态</th><th>结果</th><th>开始</th><th>结束</th><th>操作</th></tr>
+    </thead>
+    <tbody>
+      {% for t in tasks %}
+      <tr>
+        <td>
+          {% with img=t.images.all|first %}
+          {% if img %}
+            <a class="thumb-link" href="{% url 'vision:task_detail' t.pk %}">
+              <img class="thumb" src="{{ img.file.url }}" alt="画面" loading="lazy">
+            </a>
+          {% else %}-{% endif %}
+          {% endwith %}
+        </td>
+        <td>{{ t.get_task_type_display|default:"未知" }}</td>
+        <td>
+          {% if t.product %}
+            {{ t.product.product_code }}
+          {% else %}-{% endif %}
+        </td>
+        <td>
+          {% if t.rack %}
+            {{ t.rack.rack_code }}
+          {% else %}-{% endif %}
+        </td>
+        <td>
+          {% if t.status == 'SUCCESS' %}<span class="badge badge-ok">{{ t.get_status_display }}</span>
+          {% elif t.status == 'FAILED' %}<span class="badge badge-fail">{{ t.get_status_display }}</span>
+          {% else %}<span class="badge badge-running">{{ t.get_status_display }}</span>{% endif %}
+        </td>
+        <td>
+          {% with foam_result=t.foam_results.all|first rack_result=t.rack_results.all|first %}
+            {% if foam_result %}
+              {% if foam_result.is_passed %}<span class="badge badge-ok">OK</span>
+              {% else %}<span class="badge badge-fail">NG</span>{% endif %}
+            {% elif rack_result %}
+              {% if rack_result.is_success %}<span class="badge badge-ok">OK</span>
+              {% else %}<span class="badge badge-fail">NG</span>{% endif %}
+            {% elif t.status == 'SUCCESS' %}
+              <span class="badge badge-ok">OK</span>
+            {% elif t.status == 'FAILED' %}
+              <span class="badge badge-fail">NG</span>
+            {% else %}
+              -
+            {% endif %}
+          {% endwith %}
+        </td>
+        <td>{{ t.started_at|date:"Y-m-d H:i:s"|default:"-" }}</td>
+        <td>{{ t.finished_at|date:"Y-m-d H:i:s"|default:"-" }}</td>
+        <td class="task-actions">
+          <a href="{% url 'vision:task_detail' t.pk %}" class="btn btn-sm">查看画面</a>
+          <form method="post" action="{% url 'vision:delete_task' t.pk %}" class="inline-delete-form" onsubmit="return confirm('确定删除这条视觉记录吗？相关检测结果会一起从列表中删除。');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm">删除记录</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="9" class="empty">暂无符合条件的视觉记录</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+</section>
+{% endblock %}

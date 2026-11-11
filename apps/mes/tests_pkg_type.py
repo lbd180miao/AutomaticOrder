@@ -11,7 +11,7 @@ from .yfpo_soap_client import YfpoSoapMesClient
 
 class PkgTypeTests(TestCase):
     def test_standard_packaging_codes(self):
-        for code, expected in [('2LayerRack', '两层'), ('3LayerRack', '三层'), ('5LaverRack', '五层')]:
+        for code, expected in [('2LayerRack', '两层'), ('3LayerRack', '三层'), ('5LayerRack', '五层'), ('5LaverRack', '五层')]:
             self.client._invoke.return_value['mes_data']['PkgTypeCode'] = code
             response = self.service.get_rack_recipe('RK1')
             self.assertTrue(response['success'])
@@ -24,7 +24,7 @@ class PkgTypeTests(TestCase):
         self.service = MesService(client=self.client)
 
     def test_seed_and_raw_response(self):
-        self.assertEqual(PkgTypeMapping.objects.count(), 16)
+        self.assertEqual(PkgTypeMapping.objects.count(), 20)
         response = self.service.get_rack_recipe('RK1')
         self.assertTrue(response['success'])
         self.assertEqual(response['rack_type'], '三层')

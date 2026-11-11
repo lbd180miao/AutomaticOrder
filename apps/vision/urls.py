@@ -25,6 +25,7 @@ urlpatterns = [
     path('offline/packages/<str:package_name>/delete/', offline_data_views.delete_package, name='offline_delete_package'),
     path('offline/packages/<str:package_name>/preview/', offline_data_views.package_preview, name='offline_package_preview'),
     path('offline/packages/<str:package_name>/raw-preview/', offline_data_views.raw_preview, name='offline_raw_preview'),
+    path('history/', views.task_history, name='task_history'),
     path('tasks/', views.task_list, name='task_list'),
     path('tasks/<int:pk>/delete/', views.delete_task, name='delete_task'),
     path('tasks/<int:pk>/', views.task_detail, name='task_detail'),

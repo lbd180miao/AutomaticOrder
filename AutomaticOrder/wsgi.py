@@ -14,3 +14,6 @@ from django.core.wsgi import get_wsgi_application
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'AutomaticOrder.settings')
 
 application = get_wsgi_application()
+
+from apps.vision.history_retention import run_startup_cleanup
+run_startup_cleanup()

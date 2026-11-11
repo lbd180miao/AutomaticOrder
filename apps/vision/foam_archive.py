@@ -1,4 +1,4 @@
-"""Data-only foam archives and bounded, temporary display images."""
+"""Persistent foam data, original images and result images."""
 import json
 import threading
 import time
@@ -67,7 +67,22 @@ def archive(result, data):
         }
     record = model_to_dict(result)
     record['created_at'] = result.created_at
-    record['images_saved'] = False
+    # Persist this call's bytes, never a concurrently replaced latest-frame cache.
+    import numpy as np
+    saved = False
+    for key, kind in [('original_image', 'original'), ('result_image', 'result')]:
+        content = data.get(key)
+        if not isinstance(content, bytes):
+            continue
+        decoded = cv2.imdecode(np.frombuffer(content, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+        if decoded is None:
+            raise ValueError('检测图片解码失败')
+        ok, encoded = cv2.imencode('.png', decoded)
+        if not ok:
+            raise OSError('检测图片保存失败')
+        image_path(result.id, kind).write_bytes(encoded.tobytes())
+        saved = True
+    record['images_saved'] = saved
     path = root() / f'{result.id}.json'
     path.write_text(json.dumps(record, ensure_ascii=False, indent=2, cls=DjangoJSONEncoder), encoding='utf-8')
 

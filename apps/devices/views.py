@@ -235,35 +235,7 @@ def _get_plc_device():
 
 
 def status(request):
-    plc = _get_plc_device()
-    now = timezone.now()
-    heartbeat_age = None
-    plc_connected = False
-    if plc and plc.last_seen_at:
-        heartbeat_age = round((now - plc.last_seen_at).total_seconds(), 1)
-        plc_connected = plc.status == DeviceStatus.ONLINE and heartbeat_age <= 10
-
-    recent_signals = list(
-        DeviceSignalRecord.objects.filter(device=plc).order_by('-recorded_at')[:80]
-    ) if plc else []
-    from apps.workflow.models import StationCycle
-    station_cycle = (
-        StationCycle.objects
-        .select_related('rack__current_recipe', 'workflow__product')
-        .order_by('-created_at').first()
-    )
-    snapshot = _build_station_snapshot(
-        plc, plc_connected, heartbeat_age, station_cycle, recent_signals,
-    )
-    config = plc.configuration if plc and plc.configuration else {}
-    return render(request, 'devices/status.html', {
-        'plc': plc,
-        'plc_connected': plc_connected,
-        'heartbeat_age': heartbeat_age,
-        'plc_config': config,
-        'station_cycle': station_cycle,
-        'station_snapshot': snapshot,
-    })
+    return render(request, 'devices/status.html')
 
 
 def signals(request):
@@ -329,6 +301,14 @@ def plc_config(request):
 def api_plc_status(request):
     """Return one operator-facing station snapshot for the 2-second UI poll."""
     from apps.workflow.listener import listener_running, listener_stopping
+    # The device overview only needs listener state, not production history.
+    if request.GET.get('view') == 'controls':
+        response = JsonResponse({
+            'global_running': listener_running(),
+            'global_stopping': listener_stopping(),
+        })
+        response['Cache-Control'] = 'no-store'
+        return response
     plc = _get_plc_device()
     if not plc:
         return JsonResponse({

@@ -1,264 +1,58 @@
 {% extends "base.html" %}
-{% block title %}PLC 流程监控 - AutomaticBoxing{% endblock %}
+{% load static %}
+{% block title %}设备状态 - AutomaticBoxing{% endblock %}
+{% block page_class %}device-overview{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'devices/status.css' %}?v=20261111-device-rows">{% endblock %}
 {% block content %}
-<style>
-.device-health-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin:16px 0}
-.device-health-card{border:1px solid #dbe3ed;border-top:4px solid #64748b;border-radius:10px;padding:18px;background:#fff;min-width:0}
-.device-health-card[data-state="online"]{border-top-color:#16804a}
-.device-health-card[data-state="offline"]{border-top-color:#c0392b}
-.device-health-card h3{display:flex;justify-content:space-between;gap:12px;margin:0 0 12px;font-size:17px}
-.device-health-card b{font-size:14px;color:#536174}
-.device-health-card[data-state="online"] b{color:#16804a}
-.device-health-card[data-state="offline"] b{color:#b32b22}
-.device-health-card p{white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0;line-height:1.6}
-.device-health-card small{display:block;color:#64748b;line-height:1.8;overflow-wrap:anywhere}
-</style>
-<section class="page-header station-page-header">
-  <div>
-    <h1>PLC 流程监控</h1>
-    <p class="page-subtitle">设备实时在线检测、当前流程位置与 PLC 交互结果</p>
-  </div>
-  <div class="toolbar-actions">
-    <form id="plc-global-form" action="{% url 'devices:api_plc_global' %}" method="post">
-      {% csrf_token %}
-      <button id="plc-global-button" class="btn btn-primary" type="submit">PLC全局</button>
-      <span id="plc-global-state" role="status" aria-live="polite">未启用</span>
-    </form>
-    <a href="{% url 'mes:record_list' %}?tab=bindings" class="btn btn-secondary">料框与条码管理</a>
-    <a href="{% url 'workflow:history' %}" class="btn btn-secondary">流程历史</a>
-    <a href="{% url 'devices:signals' %}" class="btn btn-secondary">原始通信日志</a>
-    <a href="{% url 'devices:plc_config' %}" class="btn btn-primary">连接与点位配置</a>
-    <a href="{% url 'devices:plc_debug' %}" class="btn btn-info">PLC调试</a>
+<section class="page-header overview-header">
+  <div class="overview-intro">
+    <div class="overview-title"><h1>设备状态</h1><span id="health-summary" role="status">正在检测…</span><span class="auto-update">状态自动更新</span></div>
+    <p>查看设备连接状态，异常时检查供电与网络。</p>
   </div>
 </section>
-
-<section class="panel" style="padding:20px;margin-bottom:20px" aria-labelledby="health-title">
-  <h2 id="health-title">设备在线状态</h2>
-  <p id="health-summary" role="status">正在检测三台设备…</p>
-  <small>页面每 2 秒刷新，设备每 5 秒检测；2D 在线表示 SDK 可发现设备，不代表采集已验证。</small>
-  <div class="device-health-grid" id="device-health-grid"></div>
+<section aria-label="设备在线状态">
+  <div id="device-health-grid" class="device-health-grid"></div>
 </section>
-<section class="station-link-bar {% if plc_connected %}is-online{% else %}is-offline{% endif %}" id="station-link-bar">
-  <div class="station-link-main">
-    <span class="station-link-light"></span>
-    <div><small>PLC 生产通信记录（非设备心跳）</small><strong id="connection-label">{% if plc_connected %}近期有生产通信{% else %}暂无近期生产通信{% endif %}</strong></div>
-  </div>
-  <dl class="station-link-facts">
-    <div><dt>端点</dt><dd id="connection-address">{{ station_snapshot.address }}</dd></div>
-    <div><dt>当前阶段</dt><dd id="current-phase-label">{{ station_snapshot.phase_label }}</dd></div>
-    <div><dt>最后通信</dt><dd id="last-seen">{{ station_snapshot.last_seen }}</dd></div>
-    <div><dt>刷新周期</dt><dd>2 秒</dd></div>
-  </dl>
+<section class="mapping-library mapping-heading" aria-labelledby="plc-mapping-title">
+  <div><h2 id="plc-mapping-title">PLC映射库</h2><p>管理料框类型与 PLC 写入值的对应关系。</p></div>
+  <a class="detail-label" href="{% url 'devices:plc_mapping_library' %}">查看详情<img src="{% static 'devices/icons/chevron-right.svg' %}" alt=""></a>
 </section>
-
-<section class="station-alert" id="station-alert" {% if not station_snapshot.locked and plc_connected %}hidden{% endif %}>
-  <strong id="station-alert-title">{% if station_snapshot.locked %}工位已锁定{% else %}暂无近期生产通信{% endif %}</strong>
-  <span id="station-alert-message">{% if station_snapshot.locked %}{{ station_snapshot.error }}{% else %}页面数据为最近一次通信快照，不代表 PLC 当前值。{% endif %}</span>
-</section>
-
-<section class="panel station-flow-panel">
-  <div class="panel-heading station-panel-heading">
-    <div><span class="eyebrow">PROCESS PROGRESS</span><h2>当前流程到哪里了</h2></div>
-    <div class="station-cycle-context">
-      <span>料框 <strong id="rack-code">{{ station_snapshot.rack_code }}</strong></span>
-      <span>产品 <strong id="product-code">{{ station_snapshot.product_code }}</strong></span>
-      <span>进度 <strong id="boxing-progress">{{ station_snapshot.progress }}</strong></span>
-    </div>
-  </div>
-  <div class="station-flow-track" id="station-flow-track" aria-label="四个生产场景"></div>
-</section>
-
-<section class="panel station-plc-panel">
-  <div class="panel-heading station-panel-heading">
-    <div><span class="eyebrow">PLC INTERACTION</span><h2>与 PLC 的交互结果</h2></div>
-    <div class="station-detail-state" id="scene-detail-state">等待</div>
-  </div>
-  <div class="station-plc-layout">
-    <aside class="station-scene-focus">
-      <span class="station-scene-number" id="scene-number">01</span>
-      <div>
-        <small>当前查看场景</small>
-        <h3 id="scene-name">料框入站检查</h3>
-        <p id="scene-subtitle">料框码、MES 配方与可装箱判定</p>
-      </div>
-      <dl>
-        <div><dt>执行状态</dt><dd id="scene-status">等待</dd></div>
-        <div><dt>最近交互</dt><dd id="scene-time">—</dd></div>
-        <div><dt>流程阶段</dt><dd id="scene-phase">{{ station_snapshot.phase_label }}</dd></div>
-      </dl>
-      <p class="station-interaction-rule">PLC 触发 → 上位机处理 → 结果写回 → 完成确认</p>
-    </aside>
-    <div class="station-interaction-table-wrap">
-      <table class="station-interaction-table">
-        <thead><tr><th>方向</th><th>信号</th><th>DB2 地址</th><th>交互结果</th><th>原始值</th><th>时间</th></tr></thead>
-        <tbody id="interaction-body"></tbody>
-      </table>
-      <div class="station-interaction-empty" id="interaction-empty" hidden>当前场景尚无 PLC 交互记录</div>
-    </div>
-  </div>
-</section>
-
-{{ station_snapshot|json_script:"station-snapshot" }}
 <script>
 (function () {
-  const apiUrl = '{% url "devices:api_plc_status" %}';
-  const initial = JSON.parse(document.getElementById('station-snapshot').textContent);
-  const flowTrack = document.getElementById('station-flow-track');
-  const interactionBody = document.getElementById('interaction-body');
-  const interactionEmpty = document.getElementById('interaction-empty');
-  let selectedSceneKey = null;
-  let manualSelection = false;
-  let snapshot = initial;
-  const globalForm = document.getElementById('plc-global-form');
-  const globalButton = document.getElementById('plc-global-button');
-  const globalState = document.getElementById('plc-global-state');
-  let globalPending = false;
-  let globalRunning = false;
-
-  function renderGlobal(running, stopping = false) {
-    if (globalPending) return;
-    globalRunning = running;
-    globalButton.disabled = stopping;
-    globalButton.setAttribute('aria-pressed', String(running));
-    globalButton.title = running ? '点击关闭完整自动流程' : '点击启动完整自动流程';
-    globalState.textContent = stopping ? '正在关闭，等待当前操作完成…' : running ? '已启用（点击关闭）' : '未启用（点击启动）';
-  }
-
-  globalForm.addEventListener('submit', async event => {
-    event.preventDefault();
-    if (globalPending) return;
-    globalPending = true;
-    globalButton.disabled = true;
-    globalState.textContent = globalRunning ? '正在关闭…' : '正在启动…';
-    try {
-      const body = new FormData(globalForm);
-      body.set('action', globalRunning ? 'stop' : 'start');
-      const response = await fetch(globalForm.action, {method: 'POST', body});
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || '操作失败，请重试');
-      globalPending = false;
-      renderGlobal(data.running, data.stopping);
-    } catch (error) {
-      globalPending = false;
-      globalButton.disabled = false;
-      globalState.textContent = error.message;
-    }
-  });
-
-  const escapeHtml = value => String(value == null ? '' : value)
-    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
-
-  function preferredScene(data) {
-    return data.scenes.find(scene => scene.status === 'failed')
-      || data.scenes.find(scene => scene.status === 'active')
-      || [...data.scenes].reverse().find(scene => scene.status === 'done')
-      || data.scenes[0];
-  }
-
-  function renderFlow(data) {
-    const preferred = preferredScene(data);
-    if (!manualSelection || !selectedSceneKey || !data.scenes.some(scene => scene.key === selectedSceneKey)) {
-      selectedSceneKey = preferred ? preferred.key : null;
-    }
-    flowTrack.innerHTML = data.scenes.map(scene => `
-      <button type="button" class="station-flow-step is-${escapeHtml(scene.status)} ${scene.key === selectedSceneKey ? 'is-selected' : ''}"
-        data-scene-key="${escapeHtml(scene.key)}" aria-pressed="${scene.key === selectedSceneKey}">
-        <span class="station-step-index">${String(scene.number).padStart(2, '0')}</span>
-        <span class="station-step-copy"><strong>${escapeHtml(scene.name)}</strong><small>${escapeHtml(scene.subtitle)}</small></span>
-        <span class="station-step-meta"><b>${escapeHtml(scene.status_label)}</b><time>${escapeHtml(scene.time)}</time></span>
-      </button>`).join('');
-    flowTrack.querySelectorAll('[data-scene-key]').forEach(button => {
-      button.addEventListener('click', () => {
-        selectedSceneKey = button.dataset.sceneKey;
-        manualSelection = true;
-        renderFlow(snapshot);
-        renderDetail(snapshot);
-      });
-    });
-  }
-
-  function renderDetail(data) {
-    const scene = data.scenes.find(item => item.key === selectedSceneKey) || preferredScene(data);
-    if (!scene) return;
-    document.getElementById('scene-number').textContent = String(scene.number).padStart(2, '0');
-    document.getElementById('scene-name').textContent = scene.name;
-    document.getElementById('scene-subtitle').textContent = scene.subtitle;
-    document.getElementById('scene-status').textContent = scene.status_label;
-    document.getElementById('scene-time').textContent = scene.time;
-    document.getElementById('scene-phase').textContent = data.phase_label;
-    const detailState = document.getElementById('scene-detail-state');
-    detailState.textContent = scene.status_label;
-    detailState.className = `station-detail-state is-${scene.status}`;
-    const rows = scene.interactions || [];
-    interactionBody.innerHTML = rows.map(row => {
-      const resultClass = row.value === 'OK' ? 'is-ok' : row.value === 'NG' || row.value === '已锁定' ? 'is-ng' : '';
-      return `<tr>
-        <td><span class="station-direction is-${row.direction === 'IN' ? 'in' : 'out'}">${escapeHtml(row.direction_label)}</span></td>
-        <td><strong>${escapeHtml(row.label)}</strong><small>${escapeHtml(row.name)}</small></td>
-        <td><code>${escapeHtml(row.address)}</code></td>
-        <td><span class="station-result ${resultClass}">${escapeHtml(row.value)}</span></td>
-        <td><code>${escapeHtml(row.raw_value)}</code></td>
-        <td><time>${escapeHtml(row.time)}</time></td>
-      </tr>`;
-    }).join('');
-    interactionEmpty.hidden = rows.length > 0;
-  }
-
-  function renderHeader(data) {
-    const bar = document.getElementById('station-link-bar');
-    bar.classList.toggle('is-online', Boolean(data.connected));
-    bar.classList.toggle('is-offline', !data.connected);
-    document.getElementById('connection-label').textContent = data.connected ? '近期有生产通信' : '暂无近期生产通信';
-    document.getElementById('connection-address').textContent = data.address;
-    document.getElementById('current-phase-label').textContent = data.phase_label;
-    document.getElementById('last-seen').textContent = data.last_seen;
-    document.getElementById('rack-code').textContent = data.rack_code;
-    document.getElementById('product-code').textContent = data.product_code;
-    document.getElementById('boxing-progress').textContent = data.progress;
-    const alert = document.getElementById('station-alert');
-    alert.hidden = data.connected && !data.locked;
-    document.getElementById('station-alert-title').textContent = data.locked ? '工位已锁定' : '暂无近期生产通信';
-    document.getElementById('station-alert-message').textContent = data.locked
-      ? (data.error || '请查看失败场景的 PLC 交互结果')
-      : '页面数据为最近一次通信快照，不代表 PLC 当前值。';
-  }
-
-  function render(data) {
-    snapshot = data;
-    renderGlobal(Boolean(data.global_running), Boolean(data.global_stopping));
-    renderHeader(data);
-    renderFlow(data);
-    renderDetail(data);
-  }
-
-  async function poll() {
-    try {
-      const response = await fetch(apiUrl, {headers: {'Accept': 'application/json'}});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      render(await response.json());
-    } catch (error) {
-      document.getElementById('station-link-bar').classList.remove('is-online');
-      document.getElementById('station-link-bar').classList.add('is-offline');
-      document.getElementById('connection-label').textContent = '监控接口异常';
-    }
-    window.setTimeout(poll, 2000);
-  }
-
-  render(initial);
   const healthGrid = document.getElementById('device-health-grid');
   const healthSummary = document.getElementById('health-summary');
-  const labels = {online:'在线', offline:'离线 / 检测失败', checking:'检测中', unknown:'状态未知', disabled:'已禁用', unconfigured:'未配置', simulated:'模拟模式'};
+  const labels = {online:'在线', offline:'离线', checking:'检测中', unknown:'状态未知', disabled:'已禁用', unconfigured:'未配置', simulated:'模拟模式'};
   let healthRows = ['PLC', 'RVC 3D 相机', '海康 2D 相机'].map(name => ({name, state:'checking', detail:'等待首次检测', address:'—'}));
   const displayTime = value => value ? new Date(value).toLocaleString('zh-CN', {hour12:false}) : '—';
+  const deviceMeta = [
+    {icon: '{% static "devices/icons/server.svg" %}', type: '控制器'},
+    {icon: '{% static "devices/icons/device-projector.svg" %}', type: '3D 视觉相机'},
+    {icon: '{% static "devices/icons/camera.svg" %}', type: '2D 视觉相机'}
+  ];
   function renderHealth() {
-    healthGrid.innerHTML = healthRows.map(row => `<article class="device-health-card" data-state="${escapeHtml(row.state)}">
-      <h3>${escapeHtml(row.name)}<b>${escapeHtml(labels[row.state] || '状态未知')}</b></h3>
-      <small>设备地址 / 序列号：${escapeHtml(row.address)}</small>
-      <p>${escapeHtml(row.detail)}</p>
-      <small>最后检测：${escapeHtml(displayTime(row.checked_at))}</small>
-      <small>最后在线：${escapeHtml(displayTime(row.last_online))}</small>
-    </article>`).join('');
+    // Keep disclosure nodes stable so polling preserves keyboard focus and open state.
+    if (!healthGrid.children.length) {
+      healthGrid.innerHTML = deviceMeta.map((meta, index) => `<article class="device-health-card">
+        <details><summary>
+          <span class="device-identity"><img class="device-icon" src="${meta.icon}" alt=""><span class="device-copy"><strong class="device-name"></strong><span>${meta.type}</span></span></span>
+          <span class="device-state"></span>
+          <span class="detail-label">查看详情<img src="{% static 'devices/icons/chevron-right.svg' %}" alt=""></span>
+        </summary>
+        <div class="device-details"><p class="device-message"></p>
+          <dl><div><dt>设备地址 / 序列号</dt><dd class="device-address"></dd></div><div><dt>最后检测</dt><dd class="device-checked"></dd></div><div><dt>最后在线</dt><dd class="device-last-online"></dd></div></dl>
+          ${index === 2 ? '<p class="device-note">2D 相机在线仅表示设备可发现，不代表采集已验证。</p>' : ''}
+        </div></details></article>`).join('');
+    }
+    healthRows.forEach((row, index) => {
+      const card = healthGrid.children[index];
+      card.dataset.state = row.state;
+      card.querySelector('.device-name').textContent = row.name;
+      card.querySelector('.device-state').textContent = labels[row.state] || '状态未知';
+      card.querySelector('.device-message').textContent = row.detail;
+      card.querySelector('.device-address').textContent = row.address || '—';
+      card.querySelector('.device-checked').textContent = displayTime(row.checked_at);
+      card.querySelector('.device-last-online').textContent = displayTime(row.last_online);
+    });
   }
   async function pollHealth() {
     const controller = new AbortController();
@@ -269,7 +63,7 @@
       const data = await response.json();
       if (!Array.isArray(data.devices) || data.devices.length !== 3) throw new Error('状态数据不完整');
       healthRows = data.devices;
-      healthSummary.textContent = `${healthRows.filter(row => row.state === 'online').length} / 3 台在线 · 自动检测中`;
+      healthSummary.textContent = `${healthRows.filter(row => row.state === 'online').length} / 3 台在线`;
     } catch (error) {
       healthRows = healthRows.map(row => ({...row, state:'unknown', detail:'监控接口无法访问，当前设备状态未知；请检查页面与服务器连接。'}));
       healthSummary.textContent = '监控连接中断，正在自动重试';
@@ -281,7 +75,6 @@
   }
   renderHealth();
   pollHealth();
-  window.setTimeout(poll, 2000);
 })();
 </script>
 {% endblock %}

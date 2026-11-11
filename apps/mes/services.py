@@ -24,15 +24,28 @@ def map_pkg_type(response):
     code = str(raw).strip() if raw is not None else ''
     result = {**response, 'pkg_type_code': code}
     mapping = PkgTypeMapping.objects.filter(pkg_type_code=code).first() if code else None
-    standard_type = {'2LayerRack': '两层', '3LayerRack': '三层', '5LaverRack': '五层'}.get(code)
-    if mapping is None and standard_type:
-        result['rack_type'] = standard_type
-    elif mapping is None or not mapping.enabled:
+    if mapping is None or not mapping.enabled:
         result.update(success=False, business=True,
-                      error=f'PkgTypeCode={code or "空"} 未配置有效料架类型映射，请维护 MES 包装编码映射')
+                      error=f'PkgTypeCode={code or "空"} 未配置有效映射，请维护料框类型写进 PLC 映射库')
     else:
         result['rack_type'] = mapping.rack_type
     return result
+
+
+def resolve_plc_rack_type(response):
+    """Resolve against local configuration at the PLC boundary, including gateway responses."""
+    inner = response.get('mes_data') or {}
+    has_code = any(key in response for key in ('pkg_type_code', 'PkgTypeCode')) or 'PkgTypeCode' in inner
+    if has_code:
+        raw = response.get('pkg_type_code', response.get('PkgTypeCode', inner.get('PkgTypeCode')))
+        code = str(raw).strip() if raw is not None else ''
+    else:
+        # Older REST/simulated responses have only the standard rack type.
+        code = {'两层': '2LayerRack', '三层': '3LayerRack', '五层': '5LayerRack'}.get(response.get('rack_type') or (response.get('recipe') or {}).get('rack_type'), '')
+    mapping = PkgTypeMapping.objects.filter(pkg_type_code=code, enabled=True).first()
+    if mapping is None or mapping.plc_value is None:
+        raise ValueError(f'PkgTypeCode={code or "空"} 未配置有效 PLC 写入值，请维护料框类型写进 PLC 映射库')
+    return mapping.plc_value
 
 
 def get_mes_client():

@@ -12,7 +12,7 @@ from .rack_robot_points import evaluate_robot_points
 
 
 def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record=False,
-                   product=None, rack=None, algorithm='cloud_match'):
+                   product=None, rack=None, algorithm='cloud_match', camera_image=None):
     config_key, reference_key = algorithm_keys(algorithm)
     reference = (recipe.roi_config or {}).get(reference_key)
     config = (recipe.roi_config or {}).get(config_key) or {}
@@ -50,6 +50,7 @@ def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record
             }
     if save_record:
         record = save_result(recipe, payload, layer_no=layer_no, token=token, product=product, rack=rack)
+        save_history_images(record, cloud, token, camera_image=camera_image)
         payload['result_id'], payload['task_id'] = record.pk, record.vision_task_id
     return payload
 
@@ -75,3 +76,48 @@ def save_result(recipe, payload, *, layer_no, token='', product=None, rack=None)
             roi_data=(recipe.roi_config or {}).get('cloud_match_config') or {},
             result_data=payload, plc_write_status='SKIPPED',
         )
+
+
+def save_history_images(record, cloud, token, camera_image=None):
+    """Store independent depth, camera and annotated result snapshots per record."""
+    from pathlib import Path
+    import cv2
+    import numpy as np
+    from django.conf import settings
+    from django.core.files.base import ContentFile
+    from .algorithms.image_io import pointcloud_to_preview
+    from .models import VisionImage
+
+    depth = np.asarray(pointcloud_to_preview(cloud), dtype=np.uint8)
+    images = [('DEPTH', depth)]
+    media = Path(settings.MEDIA_ROOT).resolve()
+    raw = (media / token).resolve() if token else None
+    camera = camera_image
+    if camera is None and raw and raw.is_relative_to(media):
+        sibling = raw.with_name(raw.stem + '_image2d.png')
+        if sibling.is_file():
+            camera = cv2.imdecode(np.fromfile(sibling, np.uint8), cv2.IMREAD_COLOR)
+    if camera is not None:
+        images.append(('ORIGINAL', camera))
+    annotated = (camera if camera is not None else depth).copy()
+    result = record.result_data.get('result') or {}
+    for index, pixel in enumerate(result.get('pixels') or []):
+        if pixel is not None:
+            point = tuple(int(round(value)) for value in pixel)
+            cv2.circle(annotated, point, 8, (0, 255, 0), 2)
+            cv2.putText(annotated, str(index + 1), point, cv2.FONT_HERSHEY_SIMPLEX, .6, (0, 255, 0), 2)
+    cv2.putText(annotated, 'OK' if record.is_success else 'NG', (12, 28),
+                cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 180, 0) if record.is_success else (0, 0, 255), 2)
+    images.append(('RESULT', annotated))
+    for kind, image in images:
+        ok, encoded = cv2.imencode('.png', image)
+        if not ok:
+            raise OSError('3D 历史图像保存失败')
+        item = VisionImage(vision_task_id=record.vision_task_id, image_type=kind,
+                           width=image.shape[1], height=image.shape[0], captured_at=timezone.now())
+        name = f'vision/history/{record.vision_task_id}/{kind.lower()}.png'
+        item.file.name = item.file.storage.save(name, ContentFile(encoded.tobytes()))
+        item.save()
+        if kind == 'RESULT':
+            record.result_image_path = item.file.name
+            record.save(update_fields=['result_image_path'])

@@ -82,7 +82,8 @@ class ProductionService:
         if 'pkg_type_code' in mes_resp:
             # 新协议只允许使用映射类型且层数一致的启用配方，禁止全局回退。
             rack_type = mes_resp.get('rack_type')
-            layers = {'两层': 2, '三层': 3, '五层': 5}.get(rack_type)
+            from apps.mes.rack_types import layer_count
+            layers = layer_count(rack_type)
             if layers is None:
                 return None
             candidates = RackRecipe.objects.filter(

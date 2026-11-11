@@ -1,10 +1,12 @@
 from django.urls import path
 
-from . import views
+from . import views, mapping_views
 
 app_name = 'devices'
 
 urlpatterns = [
+    path('plc-mappings/', mapping_views.plc_mapping_library, name='plc_mapping_library'),
+    path('api/rack-type-mappings/', mapping_views.rack_type_mappings, name='rack_type_mappings'),
     path('api/health/', views.api_device_health, name='api_device_health'),
     path('api/plc-global/', views.api_plc_global, name='api_plc_global'),
     path('api/plc-foam-debug/', views.api_plc_foam_debug, name='api_plc_foam_debug'),

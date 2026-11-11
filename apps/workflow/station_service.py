@@ -464,15 +464,18 @@ class StationWorkflowService:
             lambda: self.mes.get_rack_recipe(rack.rack_code, rack=rack))
         if not response.get('success'):
             raise StationStepError(response.get('error') or 'MES 查询失败', AlarmSource.MES)
+        from apps.mes.services import map_pkg_type
+        response = map_pkg_type(response)
+        if not response.get('success'):
+            raise StationStepError(response.get('error') or '料框类型映射无效', AlarmSource.MES)
         recipe = self.production.sync_recipe_from_mes(rack, response)
         if recipe is None:
             raise StationStepError('未匹配到本地装箱配方', AlarmSource.RECIPE)
-        raw = response.get('pkg_type_code') or response.get('PkgTypeCode') or (response.get('mes_data') or {}).get('PkgTypeCode')
-        number = {'2LayerRack': 1, '3LayerRack': 2, '5LaverRack': 3}.get(raw)
-        if number is None:
-            number = {'两层': 1, '三层': 2, '五层': 3}.get(response.get('rack_type') or rack.rack_type)
-        if number is None:
-            raise StationStepError('MES 料框类型无法转换为 PLC 类型数字', AlarmSource.MES)
+        from apps.mes.services import resolve_plc_rack_type
+        try:
+            number = resolve_plc_rack_type(response)
+        except ValueError as exc:
+            raise StationStepError(str(exc), AlarmSource.MES) from exc
         if not pending.get('prepared'):
             inner = response.get('mes_data') or {}
             qty = response.get('hu_qty', inner.get('HUQty', 0)) or 0

@@ -34,145 +34,49 @@ from .services import MesService, describe_mes_runtime
 # ─── 页面视图 ─────────────────────────────────────────────────────
 
 def record_list(request):
-    """MES 数据工作台：业务查询、补传和接口审计统一入口。"""
-    tab = request.GET.get('tab', 'bindings')
-    valid_tabs = {'bindings', 'recipes', 'pending', 'consistency', 'records', 'console'}
-    if tab not in valid_tabs:
-        tab = 'bindings'
-
+    from .models import LocalBinding
     keyword = request.GET.get('keyword', '').strip()
-    rack_code = request.GET.get('rack_code', '').strip()
-    product_code = request.GET.get('product_code', '').strip()
-    recipe_code = request.GET.get('recipe_code', '').strip()
-    sync_status = request.GET.get('sync_status', '').strip()
-    product_status = request.GET.get('product_status', '').strip()
-    action_filter = request.GET.get('action', '')
-    result_filter = request.GET.get('result', '')
-    start_date = request.GET.get('start_date', '')
-    end_date = request.GET.get('end_date', '')
-
-    record_qs = MesRecord.objects.select_related('product', 'rack').order_by('-created_at')
-
-    if action_filter:
-        record_qs = record_qs.filter(action=action_filter)
-    if result_filter == 'ok':
-        record_qs = record_qs.filter(success=True)
-    elif result_filter == 'fail':
-        record_qs = record_qs.filter(success=False)
-
-    start_value = parse_date(start_date) if start_date else None
-    end_value = parse_date(end_date) if end_date else None
-    if start_value:
-        record_qs = record_qs.filter(created_at__gte=timezone.make_aware(datetime.combine(start_value, time.min)))
-    if end_value:
-        exclusive_end = end_value + timedelta(days=1)
-        record_qs = record_qs.filter(created_at__lt=timezone.make_aware(datetime.combine(exclusive_end, time.min)))
-
-    records = list(record_qs[:200])
-    _decorate_mes_records(records)
-
-    binding_qs = Product.objects.select_related(
-        'rack', 'rack__current_recipe', 'batch', 'replaced_by',
-    ).order_by('-bound_at', '-pk')
-
-    latest_upload = MesRecord.objects.filter(
-        action=MesAction.UPLOAD_PRODUCT_BARCODE,
-        product_id=OuterRef('pk'),
-    ).order_by('-created_at', '-pk')
-    binding_qs = binding_qs.annotate(
-        latest_mes_success=Subquery(latest_upload.values('success')[:1]),
-    )
+    rows = LocalBinding.objects.order_by('-updated_at', '-pk')
     if keyword:
-        binding_qs = binding_qs.filter(
-            Q(product_code__icontains=keyword) |
-            Q(rack__rack_code__icontains=keyword) |
-            Q(rack__current_recipe__recipe_code__icontains=keyword)
-        )
-    if rack_code:
-        binding_qs = binding_qs.filter(rack__rack_code__icontains=rack_code)
-    if product_code:
-        binding_qs = binding_qs.filter(product_code__icontains=product_code)
-    if recipe_code:
-        binding_qs = binding_qs.filter(rack__current_recipe__recipe_code__icontains=recipe_code)
-    if sync_status == 'UPLOADED':
-        binding_qs = binding_qs.filter(
-            Q(latest_mes_success=True) |
-            Q(latest_mes_success__isnull=True, mes_upload_status='UPLOADED')
-        )
-    elif sync_status == 'FAILED':
-        binding_qs = binding_qs.filter(
-            Q(latest_mes_success=False) |
-            Q(latest_mes_success__isnull=True, mes_upload_status='FAILED')
-        )
-    elif sync_status == 'PENDING':
-        binding_qs = binding_qs.filter(
-            latest_mes_success__isnull=True, mes_upload_status='PENDING',
-        )
-    if product_status == 'DEFECTIVE':
-        binding_qs = binding_qs.filter(is_defective=True)
-    elif product_status == 'NORMAL':
-        binding_qs = binding_qs.filter(is_defective=False)
+        rows = rows.filter(Q(rack_code__icontains=keyword) | Q(bin_code__icontains=keyword) | Q(product_codes__icontains=keyword))
+    page = Paginator(rows, 10).get_page(request.GET.get('page'))
+    return render(request, 'mes/record_list.html', {'binding_rows': page, 'binding_page': page,
+        'keyword': keyword, 'mes_runtime': describe_mes_runtime()})
 
-    if start_value:
-        binding_qs = binding_qs.filter(bound_at__gte=timezone.make_aware(datetime.combine(start_value, time.min)))
-    if end_value:
-        binding_qs = binding_qs.filter(bound_at__lt=timezone.make_aware(datetime.combine(end_value + timedelta(days=1), time.min)))
 
-    binding_page = Paginator(binding_qs, 50).get_page(request.GET.get('page'))
-    binding_rows = _build_binding_rows(binding_page.object_list)
-    recipe_rows = _build_recipe_rows(keyword=keyword, rack_code=rack_code, recipe_code=recipe_code)
-    pending_records = MesService.pending_retry_records(limit=200)
-    _decorate_mes_records(pending_records)
-    consistency_issues = _build_consistency_issues(pending_records, recipe_rows)
-
-    stats = MesService.get_stats(hours=24)
-    latest_record = MesRecord.objects.order_by('-created_at').first()
-    recent_cutoff = timezone.now() - timedelta(minutes=10)
-    mes_link = {
-        'label': '尚无通信', 'tone': 'muted', 'detail': '等待第一次 MES 调用',
-    }
-    if latest_record:
-        if latest_record.created_at < recent_cutoff:
-            mes_link = {'label': '无近期通信', 'tone': 'warn', 'detail': '最后一次调用超过 10 分钟'}
-        elif latest_record.success:
-            mes_link = {'label': '通信正常', 'tone': 'ok', 'detail': '最近一次调用成功'}
+@require_http_methods(['POST'])
+def local_binding_save(request):
+    from .models import LocalBinding
+    from django.shortcuts import redirect
+    from django.contrib import messages
+    pk = request.POST.get('id')
+    wants_json = request.headers.get('Accept') == 'application/json'
+    operation = request.POST.get('operation', 'save')
+    if operation not in ('save', 'delete') or (pk and not pk.isdecimal()) or (operation == 'delete' and not pk):
+        return JsonResponse({'success': False, 'error': '无效的记录或操作。'}, status=400)
+    error = None
+    with transaction.atomic():
+        record = get_object_or_404(LocalBinding.objects.select_for_update(), pk=pk) if pk else LocalBinding()
+        if request.POST.get('operation') == 'delete':
+            record.delete()
+            messages.success(request, '本地记录已删除。')
         else:
-            mes_link = {'label': '通信异常', 'tone': 'fail', 'detail': latest_record.error_message or '最近一次调用失败'}
-
-    active_cycle = (
-        StationCycle.objects.exclude(phase=StationPhase.COMPLETED)
-        .select_related('rack').order_by('-created_at').first()
-    )
-    current_rack = active_cycle.rack if active_cycle and active_cycle.rack_id else None
-
-    context = {
-        'tab': tab,
-        'keyword': keyword,
-        'rack_code': rack_code,
-        'product_code': product_code,
-        'recipe_code': recipe_code,
-        'sync_status': sync_status,
-        'product_status': product_status,
-        'binding_rows': binding_rows,
-        'binding_page': binding_page,
-        'binding_total': Product.objects.count(),
-        'recipe_rows': recipe_rows,
-        'recipe_total': RackRecipe.objects.count(),
-        'pending_records': pending_records,
-        'consistency_issues': consistency_issues,
-        'mes_link': mes_link,
-        'current_rack': current_rack,
-        'records': records,
-        'stats': stats,
-        'action_choices': MesAction.choices,
-        'action_filter': action_filter,
-        'result_filter': result_filter,
-        'start_date': start_date,
-        'end_date': end_date,
-        'latest_record': latest_record,
-        'mes_runtime': describe_mes_runtime(),
-    }
-    return render(request, 'mes/record_list.html', context)
+            code = request.POST.get('rack_code', '').strip()
+            products = list(dict.fromkeys(x.strip() for x in request.POST.get('product_codes', '').splitlines() if x.strip()))
+            bin_code = request.POST.get('bin_code', '').strip()
+            if not code or len(code) > 64 or len(bin_code) > 128 or any(len(x) > 128 for x in products):
+                error = '料框码必填且不超过64字；产品条码和区位号不超过128字。'
+            elif LocalBinding.objects.filter(rack_code=code).exclude(pk=record.pk).exists():
+                error = '该料框码已有记录，请编辑现有记录。'
+            else:
+                record.rack_code, record.product_codes, record.bin_code = code, products, bin_code
+                record.save()
+                messages.success(request, '本地绑定已保存。')
+    if wants_json:
+        return JsonResponse({'success': not bool(error), 'error': error}, status=400 if error else 200)
+    if error:
+        messages.error(request, error)
+    return redirect('mes:record_list')
 
 
 # YFPO SOAP 返回字段 -> 中文短标签（用于接口记录的友好摘要）
