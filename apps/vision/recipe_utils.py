@@ -4,7 +4,7 @@ from pathlib import Path
 from django.conf import settings
 
 from .algorithms.foam_quality import quality_config
-from .algorithms.foam_geometry import geometry_config
+from .algorithms.foam_geometry import geometry_config, uses_foam_mm_alignment
 
 from .models import FoamProductLayout, FoamRackSpec, VisionRecipe
 
@@ -112,30 +112,53 @@ def get_active_foam_2d_recipe_by_pos(pos, layout_id=None):
 
 
 FOAM_MATERIAL_LABELS = {'white': '白色', 'gray': '灰色', 'unspecified': '未标注颜色'}
+FOAM_SEGMENTATION_BY_MATERIAL = {'white': 'fixed-threshold', 'gray': 'gray-graphcut-v3'}
 FOAM_SEGMENTATION_LABELS = {
-    'fixed-threshold': '固定阈值',
-    'shadow-graphcut-v1': '阴影分割（旧版）',
-    'shadow-graphcut-fast-v2': '快速阴影分割',
-    'gray-graphcut-v3': '灰色局部对比分割',
+    'fixed-threshold': '阈值分割',
+    'shadow-graphcut-v1': '阴影分割',
+    'shadow-graphcut-fast-v2': '阴影分割',
+    'gray-graphcut-v3': '阴影分割',
 }
 
 
-def foam_identity_summary(algorithm, template=None, template_ready=False):
-    """Display explicit material only; segmentation never establishes color."""
+def foam_segmentation_mode(algorithm):
+    return FOAM_SEGMENTATION_BY_MATERIAL.get(
+        algorithm.get('material_type'), algorithm.get('foam_segmentation', 'fixed-threshold'),
+    )
+
+
+def foam_identity_summary(algorithm, *, mode=None, template_ready=False):
+    """Use the recorded mode for history and the resolved mode for live recipes."""
     material = algorithm.get('material_type', 'unspecified')
-    mode = algorithm.get('foam_segmentation', 'fixed-threshold')
+    mode = mode or algorithm.get('foam_segmentation', 'fixed-threshold')
     effective = mode if template_ready else None
     return {
+        'material_type': material,
         'material_label': FOAM_MATERIAL_LABELS.get(material, '未标注颜色'),
         'segmentation_label': FOAM_SEGMENTATION_LABELS.get(mode, mode),
         'configured_mode': mode,
         'effective_mode': effective,
         'effective_mode_label': FOAM_SEGMENTATION_LABELS.get(effective, effective) if effective else '模板未就绪，需示教',
+        'uses_hsv_thresholds': mode == 'fixed-threshold',
     }
 
 
 def serialize_recipe(recipe):
     template_status = get_foam_standard_template_status(recipe)
+    algorithm = recipe.algorithm_config or {}
+    thresholds = recipe.threshold_config or {}
+    summary = foam_identity_summary(
+        algorithm, mode=foam_segmentation_mode(algorithm), template_ready=template_status['ready'],
+    )
+    try:
+        offsets = foam_offset_config(thresholds)
+        summary['alignment'] = {
+            'unit': 'mm' if uses_foam_mm_alignment(offsets) else 'px',
+            **offsets,
+        }
+    except (TypeError, ValueError):
+        # A legacy invalid value should not prevent the recipe list from opening.
+        summary['alignment'] = {}
     layout = recipe.foam_product_layout
     if layout:
         layer_number = recipe.pos // max(layout.qty_per_layer, 1) + 1
@@ -165,9 +188,7 @@ def serialize_recipe(recipe):
         'roi_config': recipe.roi_config or {},
         'threshold_config': recipe.threshold_config or {},
         'algorithm_config': recipe.algorithm_config or {},
-        'foam_summary': foam_identity_summary(recipe.algorithm_config or {},
-                                             recipe.standard_template_config,
-                                             template_status['ready']),
+        'foam_summary': summary,
         'standard_template': recipe.standard_template_config or {},
         'standard_template_status': template_status,
         'standard_template_version': recipe.standard_template_version or '',
@@ -283,9 +304,7 @@ def has_complete_foam_template_side_metadata(side_data):
 
 def foam_segmentation_config(recipe):
     algorithm = recipe.algorithm_config or {}
-    mode = algorithm.get('foam_segmentation', 'fixed-threshold')
-    if mode not in ('fixed-threshold', 'shadow-graphcut-v1',
-                    'shadow-graphcut-fast-v2', 'gray-graphcut-v3'):
+    if foam_segmentation_mode(algorithm) not in FOAM_SEGMENTATION_LABELS:
         raise ValueError('Unsupported foam_segmentation')
     material = algorithm.get('material_type', 'unspecified')
     if material not in ('unspecified', 'white', 'gray'):
@@ -344,38 +363,7 @@ def get_foam_standard_template_status(recipe):
     }
 
 
-def build_foam_inspection_config(recipe):
-    roi_config = recipe.roi_config or {}
-    thresholds = recipe.threshold_config or {}
-    quality = quality_config(thresholds)
-    segmentation = foam_segmentation_config(recipe)
-    geometry = geometry_config(recipe.algorithm_config or {})
-
-    left_roi_raw = roi_config.get('leftFoamROI')
-    right_roi_raw = roi_config.get('rightFoamROI')
-    if not left_roi_raw or not right_roi_raw:
-        raise ValueError(
-            f'配方 "{recipe.name}" (POS {recipe.pos}) 缺少 ROI 配置，'
-            '请在工作台重新标定左右泡棉区域后保存配方。'
-        )
-
-    left = _pixel_roi_to_ratio(left_roi_raw, recipe.image_width, recipe.image_height)
-    right = _pixel_roi_to_ratio(right_roi_raw, recipe.image_width, recipe.image_height)
-    
-    left_polygon = _extract_polygon_points(left_roi_raw)
-    right_polygon = _extract_polygon_points(right_roi_raw)
-
-    if left is None:
-        raise ValueError(
-            f'配方 "{recipe.name}" (POS {recipe.pos}) 的左侧 ROI 数据无效 '
-            f'(raw={left_roi_raw})。请重新标定左侧泡棉区域后保存配方。'
-        )
-    if right is None:
-        raise ValueError(
-            f'配方 "{recipe.name}" (POS {recipe.pos}) 的右侧 ROI 数据无效 '
-            f'(raw={right_roi_raw})。请重新标定右侧泡棉区域后保存配方。'
-        )
-
+def foam_offset_config(thresholds):
     max_offset_mm = float(_threshold_value(thresholds, ('max_offset_mm', 'maxOffsetMm'), 2.0))
     max_offset_x_mm = float(
         _threshold_value(thresholds, ('max_offset_x_mm', 'maxOffsetXMm'), max_offset_mm)
@@ -404,6 +392,52 @@ def build_foam_inspection_config(recipe):
     else:
         mm_per_pixel_y = float(_threshold_value(thresholds, ('mm_per_pixel_y', 'mmPerPixelY'), 0))
 
+    return {
+        'max_offset_mm': max_offset_mm,
+        'max_offset_x_mm': max_offset_x_mm,
+        'max_offset_y_mm': max_offset_y_mm,
+        'max_offset_px': max(max_offset_x_px, max_offset_y_px),
+        'max_offset_x_px': max_offset_x_px,
+        'max_offset_y_px': max_offset_y_px,
+        'mm_per_pixel_x': mm_per_pixel_x,
+        'mm_per_pixel_y': mm_per_pixel_y,
+        'pixels_per_mm_x': px_per_mm_x or (1 / mm_per_pixel_x if mm_per_pixel_x > 0 else 0),
+        'pixels_per_mm_y': px_per_mm_y or (1 / mm_per_pixel_y if mm_per_pixel_y > 0 else 0),
+    }
+
+
+def build_foam_inspection_config(recipe):
+    roi_config = recipe.roi_config or {}
+    thresholds = recipe.threshold_config or {}
+    algorithm = recipe.algorithm_config or {}
+    quality = quality_config(thresholds)
+    segmentation = foam_segmentation_config(recipe)
+    geometry = geometry_config(algorithm)
+
+    left_roi_raw = roi_config.get('leftFoamROI')
+    right_roi_raw = roi_config.get('rightFoamROI')
+    if not left_roi_raw or not right_roi_raw:
+        raise ValueError(
+            f'配方 "{recipe.name}" (POS {recipe.pos}) 缺少 ROI 配置，'
+            '请在工作台重新标定左右泡棉区域后保存配方。'
+        )
+
+    left = _pixel_roi_to_ratio(left_roi_raw, recipe.image_width, recipe.image_height)
+    right = _pixel_roi_to_ratio(right_roi_raw, recipe.image_width, recipe.image_height)
+    left_polygon = _extract_polygon_points(left_roi_raw)
+    right_polygon = _extract_polygon_points(right_roi_raw)
+
+    if left is None:
+        raise ValueError(
+            f'配方 "{recipe.name}" (POS {recipe.pos}) 的左侧 ROI 数据无效 '
+            f'(raw={left_roi_raw})。请重新标定左侧泡棉区域后保存配方。'
+        )
+    if right is None:
+        raise ValueError(
+            f'配方 "{recipe.name}" (POS {recipe.pos}) 的右侧 ROI 数据无效 '
+            f'(raw={right_roi_raw})。请重新标定右侧泡棉区域后保存配方。'
+        )
+
     # 标准泡棉面积比（0 表示不启用）
     standard_foam_area_ratio = float(
         _threshold_value(thresholds, ('standard_foam_area_ratio', 'standardFoamAreaRatio'), 0)
@@ -429,7 +463,7 @@ def build_foam_inspection_config(recipe):
                     '请选择“③ 本层大框”扩大搜索区域，保留左右标准框不变。'
                 )
     pos_str = str(recipe.pos)
-    configured_mode = (recipe.algorithm_config or {}).get('foam_segmentation', 'fixed-threshold')
+    configured_mode = foam_segmentation_mode(algorithm)
     template = recipe.standard_template_config or {}
     if quality['decision_mode'] == 'separated-v2' and not layer_ratio:
         raise ValueError('separated-v2 requires a layerSearchROI')
@@ -458,15 +492,17 @@ def build_foam_inspection_config(recipe):
         **quality,
         **segmentation,
         **geometry,
+        **foam_offset_config(thresholds),
         'product_anchor_rois': anchors,
         'product_reference_path': str(reference_path) if reference_path else '',
-        'material_type': (recipe.algorithm_config or {}).get('material_type', 'unspecified'),
+        'material_type': algorithm.get('material_type', 'unspecified'),
         'standard_mask_space': 'layer-v3' if layer_ratio else 'side',
         'standard_from_roi': True,
         'configured_foam_segmentation': configured_mode,
         'foam_segmentation': configured_mode,
         'layer_search_roi': layer_ratio,
         'layer_search_polygon': _extract_polygon_points(layer) if layer else None,
+        'shared_foam_roi_key': pos_str,
         'foam_rois': {
             pos_str: {
                 'left': left,
@@ -485,14 +521,6 @@ def build_foam_inspection_config(recipe):
         'score_threshold': float(
             _threshold_value(thresholds, ('score_threshold', 'minScore'), 0.8)
         ),
-        'max_offset_mm': max_offset_mm,
-        'max_offset_x_mm': max_offset_x_mm,
-        'max_offset_y_mm': max_offset_y_mm,
-        'max_offset_px': max(max_offset_x_px, max_offset_y_px),
-        'max_offset_x_px': max_offset_x_px,
-        'max_offset_y_px': max_offset_y_px,
-        'mm_per_pixel_x': mm_per_pixel_x,
-        'mm_per_pixel_y': mm_per_pixel_y,
         'standard_foam_area_ratio': standard_foam_area_ratio,
         # 模板必须成套使用；任一侧不完整时不要加载遗留的单侧掩膜。
         'standard_mask_paths': (

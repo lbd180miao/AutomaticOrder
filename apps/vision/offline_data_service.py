@@ -276,7 +276,7 @@ class OfflineDataPackageService:
         recipe_id: int,
         layer_no: int,
         modified_roi: Optional[Dict[str, Any]] = None,
-        algorithm: str = 'cloud_match',
+        algorithm: str = 'cloud_center',
     ) -> Dict[str, Any]:
         """重新处理数据包，支持标准数据包和原始数据包"""
         package_dir = self._package_dir(package_name)

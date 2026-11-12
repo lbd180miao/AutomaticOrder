@@ -4,29 +4,24 @@ import math
 import numpy as np
 
 
-TARGETS = ('P1_horizontal', 'P1_vertical', 'P2_horizontal', 'P2_vertical')
-
-def algorithm_keys(algorithm='cloud_match'):
-    if algorithm not in ('cloud_match', 'cloud_center'):
-        raise ValueError('未知点云定位算法')
-    return algorithm + '_config', algorithm + '_reference'
+def algorithm_keys(algorithm='cloud_center'):
+    if algorithm != 'cloud_center':
+        raise ValueError('旧定位算法已移除，请使用单框点云模板中心匹配')
+    return 'cloud_center_config', 'cloud_center_reference'
 
 
 def required_targets(config):
-    algorithm_keys(config.get('algorithm', 'cloud_match'))
+    algorithm_keys(config.get('algorithm', 'cloud_center'))
     layers = config.get('rack_layers', 3)
     if layers not in (2, 3):
         raise ValueError('料架层数必须为 2 或 3')
-    if config.get('algorithm') == 'cloud_center':
-        return ('P1_cross',) if layers == 2 else ('P1_cross', 'P2_cross')
-    return TARGETS[:2] if layers == 2 else TARGETS
+    return ('P1_cross',) if layers == 2 else ('P1_cross', 'P2_cross')
 
 
 def cloud_config(config):
     """Only current capture and cloud-template settings belong in new packages."""
     return {key: value for key, value in (config or {}).items()
-            if key in {'camera_roi', 'cloud_match_config', 'cloud_match_reference',
-                       'cloud_center_config', 'cloud_center_reference'}}
+            if key in {'camera_roi', 'cloud_center_config', 'cloud_center_reference'}}
 
 
 def config_status(config):

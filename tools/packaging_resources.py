@@ -5,6 +5,20 @@ import sqlite3
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+VISUAL_DATA_SUFFIXES = frozenset({
+    '.avif', '.bmp', '.dib', '.exr', '.gif', '.heic', '.heif', '.ico', '.jfif',
+    '.jpeg', '.jpg', '.pbm', '.pgm', '.png', '.ppm', '.svg', '.svgz', '.tga',
+    '.tif', '.tiff', '.webp',
+    '.asc', '.binpc', '.e57', '.las', '.laz', '.npy', '.npz', '.obj', '.pcd',
+    '.ply', '.pts', '.stl', '.xyz', '.xyzn', '.xyzrgb',
+})
+
+
+def is_visual_data(path):
+    suffixes = [suffix.lower() for suffix in Path(path).suffixes]
+    if suffixes and suffixes[-1] in {'.br', '.gz'}:
+        suffixes.pop()
+    return bool(suffixes and suffixes[-1] in VISUAL_DATA_SUFFIXES)
 
 
 def strings(value):

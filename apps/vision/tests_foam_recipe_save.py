@@ -13,10 +13,12 @@ class FoamRecipeSaveTests(TestCase):
         self.recipe.algorithm_config = {'foam_segmentation': 'shadow-graphcut-fast-v2'}
         summary = serialize_recipe(self.recipe)['foam_summary']
         self.assertEqual(summary['material_label'], '未标注颜色')
-        self.assertEqual(summary['segmentation_label'], '快速阴影分割')
+        self.assertEqual(summary['segmentation_label'], '阴影分割')
         self.assertEqual(summary['effective_mode'], 'shadow-graphcut-fast-v2')
 
     def test_explicit_color_and_thresholds_round_trip(self):
+        self.recipe.algorithm_config = {'material_type': 'gray', 'foam_segmentation': 'shadow-graphcut-fast-v2'}
+        self.recipe.save(update_fields=['algorithm_config'])
         payload = {'id': self.recipe.pk, 'pos': 0, 'save_mode': 'draft',
                    'roi_config': self.rois, 'image_width': 4096, 'image_height': 2460,
                    'algorithm_config': {'material_type': 'white',
@@ -26,6 +28,8 @@ class FoamRecipeSaveTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         saved = json.loads(response.content)['recipe']
         self.assertEqual(saved['foam_summary']['material_label'], '白色')
+        self.assertEqual(saved['foam_summary']['segmentation_label'], '阈值分割')
+        self.assertEqual(saved['algorithm_config']['foam_segmentation'], 'fixed-threshold')
         self.recipe.refresh_from_db()
         self.assertEqual(build_foam_inspection_config(self.recipe)['foam_min_v'], 0)
         payload['algorithm_config']['segmentation_config']['foam_min_v'] = 256
@@ -102,7 +106,7 @@ class FoamRecipeSaveTests(TestCase):
         payload = {
             'id': self.recipe.pk, 'pos': 0, 'save_mode': 'draft',
             'image_width': 4096, 'image_height': 2460, 'roi_config': self.rois,
-            'algorithm_config': {'material_type': 'gray', 'foam_segmentation': 'gray-graphcut-v3'},
+            'algorithm_config': {'material_type': 'gray', 'foam_segmentation': 'fixed-threshold'},
             'threshold_config': {'decision_mode': 'separated-v2', 'min_area_ratio': .8,
                 'max_area_ratio': 1.25, 'max_missing_ratio': .2, 'max_excess_ratio': .25},
         }
@@ -114,6 +118,7 @@ class FoamRecipeSaveTests(TestCase):
         self.recipe.refresh_from_db()
         cfg = build_foam_inspection_config(self.recipe)
         self.assertEqual(cfg['foam_segmentation'], 'gray-graphcut-v3')
+        self.assertEqual(self.recipe.algorithm_config['foam_segmentation'], 'gray-graphcut-v3')
         self.assertEqual(cfg['min_area_ratio'], .8)
         payload['threshold_config']['max_area_ratio'] = .1
         self.assertEqual(submit().status_code, 400)

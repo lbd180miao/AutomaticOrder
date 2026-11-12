@@ -151,7 +151,7 @@ def reprocess_package(request, package_name):
             int(data.get("recipe_id")),
             int(data.get("layer_no")),
             data.get("modified_roi"),
-            algorithm=data.get('algorithm', 'cloud_match'),
+            algorithm=data.get('algorithm', 'cloud_center'),
         )
         return JsonResponse({"success": True, "result": result})
     except (TypeError, ValueError, OfflineDataPackageError, json.JSONDecodeError) as exc:

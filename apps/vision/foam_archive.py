@@ -110,6 +110,8 @@ def save_images(result_id):
 
 
 def image_bytes(result_id, kind):
+    if images_deleted(result_id):
+        return None
     path = image_path(result_id, kind)
     if path.is_file():
         return path.read_bytes()
@@ -118,7 +120,17 @@ def image_bytes(result_id, kind):
 
 
 def has_image(result_id, kind):
+    if images_deleted(result_id):
+        return False
     if image_path(result_id, kind).is_file():
         return True
     with _image_lock:
         return _latest_id == result_id and kind in _latest_images
+
+
+def images_deleted(result_id):
+    """Do not resurrect explicitly removed history images from the frame cache."""
+    record = root() / f'{result_id}.json'
+    if not record.is_file():
+        return False
+    return json.loads(record.read_text(encoding='utf-8')).get('images_deleted', False)

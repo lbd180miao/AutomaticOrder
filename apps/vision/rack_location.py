@@ -408,16 +408,19 @@ class RackLocationService:
 
     def project_recipe_roi_to_pixels(self, pointcloud, recipe):
         """Display saved pixel regions; no plane fitting or 3D ROI projection."""
-        rois = ((recipe.roi_config or {}).get('cloud_match_config') or {}).get('rois') or []
+        rois = ((recipe.roi_config or {}).get('cloud_center_config') or {}).get('rois') or []
         if not rois:
             return {}
         x, y = min(r['x'] for r in rois), min(r['y'] for r in rois)
         return {'x': x, 'y': y, 'w': max(r['x']+r['width'] for r in rois)-x,
-                'h': max(r['y']+r['height'] for r in rois)-y, 'projection_source': 'cloud_match_config'}
+                'h': max(r['y']+r['height'] for r in rois)-y, 'projection_source': 'cloud_center_config'}
 
     def calculate_workbench(self, *, token, recipe_id=None, layer_no=1, save_record=False, **kwargs):
         from .rack_cloud_service import evaluate_cloud
-        recipe = self._select_recipe(recipe_id=recipe_id, layer_no=layer_no)
+        if recipe_id:
+            recipe = RackLocationRecipe.objects.get(pk=recipe_id, enabled=True)
+        else:
+            recipe = self._select_recipe(layer_no=layer_no)
         cloud = self._load_workbench_pointcloud(token)
         metadata = self._frame_metadata(token, cloud)
         # Persisted captures are normalized to mm by the frame loader.

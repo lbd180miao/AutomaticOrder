@@ -87,15 +87,12 @@ def build_template(cloud, config, metadata):
         points = valid(data[group])
         if len(points) < 100:
             raise ValueError(f'{name} 区域有效点不足 100，请选择有深度的稳定结构')
-        if config.get('algorithm') == 'cloud_center':
-            # Fix each center to the measured, spatially sampled template points.
-            from scipy.spatial import cKDTree
-            sampled_group = downsample(points)
-            selected = np.unique(cKDTree(points).query(np.asarray(sampled_group.points))[1])
-            center = points[selected].mean(axis=0)
-            regions.append({'name': name, 'points': points[selected].tolist()})
-        else:
-            center = np.median(points, axis=0)
+        # Anchor to sampled measured points in each single cross-structure region.
+        from scipy.spatial import cKDTree
+        sampled_group = downsample(points)
+        selected = np.unique(cKDTree(points).query(np.asarray(sampled_group.points))[1])
+        center = points[selected].mean(axis=0)
+        regions.append({'name': name, 'points': points[selected].tolist()})
         anchors.append({'name': name, 'success': True, 'xyz': center.tolist()})
         mask |= group
     raw_points = valid(data[mask])
@@ -113,7 +110,7 @@ def build_template(cloud, config, metadata):
     measurement = {'success': True, 'coordinateSystem': 'camera', 'unit': 'mm', 'points': anchors,
                    'center_xyz': points.mean(axis=0).tolist(),
                    'algorithm_version': VERSION, 'measurement_only': True, 'plc_publish_allowed': False}
-    return {'version': VERSION, 'algorithm': config.get('algorithm', 'cloud_match'),
+    return {'version': VERSION, 'algorithm': 'cloud_center',
             'center_xyz': points.mean(axis=0).tolist(), 'sampling': 'measured_points_v1',
             'points': points.tolist(), 'shape': list(data.shape),
             'sensor_id': sensor_id(metadata), 'config': config, 'limits': dict(LIMITS),
@@ -156,6 +153,9 @@ def match_template(cloud, metadata, template):
     import open3d as o3d
     if not template or template.get('version') != VERSION:
         raise ValueError('请先在标准位置保存点云模板，再加载待测帧计算')
+    if template.get('algorithm') != 'cloud_center':
+        raise ValueError('旧定位模板已停用，请重新保存单框点云模板')
+    required_targets(template['config'])
     data = pointmap(cloud, metadata)
     if list(data.shape) != template['shape']:
         raise ValueError('当前点云分辨率与标准模板不同')
@@ -241,7 +241,7 @@ def match_template(cloud, metadata, template):
     ):
         if failed:
             failures.append(reason)
-    regions = evaluate_regions(template, target, transform) if template.get('algorithm') == 'cloud_center' else []
+    regions = evaluate_regions(template, target, transform)
     for index, region in enumerate(regions):
         if not region['quality_passed']:
             failures.append(f'模板区域 {index+1}：'+'；'.join(region['failure_reasons']))

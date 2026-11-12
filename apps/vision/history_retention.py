@@ -87,6 +87,8 @@ def cleanup_history(today=None):
 
 
 def run_startup_cleanup():
+    if not getattr(settings, 'VISION_HISTORY_AUTO_CLEANUP', False):
+        return 0
     try:
         return cleanup_history()
     except Exception:

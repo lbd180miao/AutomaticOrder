@@ -12,13 +12,13 @@ from .rack_robot_points import evaluate_robot_points
 
 
 def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record=False,
-                   product=None, rack=None, algorithm='cloud_match', camera_image=None):
+                   product=None, rack=None, algorithm='cloud_center', camera_image=None):
     config_key, reference_key = algorithm_keys(algorithm)
     reference = (recipe.roi_config or {}).get(reference_key)
     config = (recipe.roi_config or {}).get(config_key) or {}
     if reference and required_targets(config) != required_targets(reference['config']):
         raise ValueError('料架层数与标准模板不同，请重新保存点云标准模板')
-    if algorithm == 'cloud_center' and reference and config != reference['config']:
+    if reference and config != reference['config']:
         raise ValueError('ROI 已变化，请重新保存当前算法的点云标准模板')
     result = match_template(cloud, metadata, reference)
     result = add_display_pixels(result, cloud, metadata)
@@ -26,7 +26,7 @@ def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record
     offsets = robot['offsets'] if robot and robot.get('success') else [[0, 0, 0], [0, 0, 0]]
     quality = result.get('registration') or {}
     payload = {
-        'algorithm_version': VERSION, 'source': 'cloud_match', 'result': result,
+        'algorithm': 'cloud_center', 'algorithm_version': VERSION, 'source': 'cloud_match', 'result': result,
         'reference': {'measurement': reference['measurement']}, 'robot_result': robot,
         'locate_ok': result['success'], 'is_success': result['success'],
         'error_code': result.get('errorCode', ''), 'error_message': result.get('errorMessage', ''),
@@ -73,7 +73,7 @@ def save_result(recipe, payload, *, layer_no, token='', product=None, rack=None)
             confidence=decimal(payload['confidence']), is_success=payload['locate_ok'],
             is_recipe_matched=payload['locate_ok'], error_code=payload.get('error_code', ''),
             error_message=payload.get('error_message', ''), raw_data_path=token,
-            roi_data=(recipe.roi_config or {}).get('cloud_match_config') or {},
+            roi_data=(recipe.roi_config or {}).get('cloud_center_config') or {},
             result_data=payload, plc_write_status='SKIPPED',
         )
 

@@ -24,9 +24,10 @@ def _vision_readiness(recipe):
     roi_config = recipe.roi_config or {}
     from apps.vision.rack_cloud_roi import config_status
     from apps.vision.rack_cloud_match import VERSION
-    roi_complete = config_status(roi_config.get('cloud_match_config'))['is_complete']
-    reference = roi_config.get('cloud_match_reference') or {}
-    template_ready = reference.get('version') == VERSION and bool(reference.get('points'))
+    roi_complete = config_status(roi_config.get('cloud_center_config'))['is_complete']
+    reference = roi_config.get('cloud_center_reference') or {}
+    template_ready = (reference.get('version') == VERSION and reference.get('algorithm') == 'cloud_center'
+                      and bool(reference.get('points')) and reference.get('config') == roi_config.get('cloud_center_config'))
     hand_eye_ready = bool(recipe.hand_eye_calibration_id or recipe.hand_eye_config)
     issues = []
     if not recipe.enabled:
@@ -34,7 +35,7 @@ def _vision_readiness(recipe):
     if recipe.layer_no not in (1, 2, 3):
         issues.append('当前3D定位算法仅支持第1～3层')
     if not roi_complete:
-        issues.append('点云模板四个区域未完成')
+        issues.append('点云模板交叉区域未完成')
     if not template_ready:
         issues.append('点云标准模板未保存')
     if not hand_eye_ready:

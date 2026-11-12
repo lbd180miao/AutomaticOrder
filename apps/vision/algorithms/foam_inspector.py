@@ -2,7 +2,7 @@
 
 检测场景
 --------
-- 检测对象：汽车保险杠表面贴附的**白色泡棉**
+- 检测对象：汽车保险杠表面贴附的白色和灰色泡棉
 - 相机类型：海康 MV-CS050-10GC（500万像素，10GigE），固定俯视安装
 - 触发方式：装箱机器人完成泡棉贴附动作后，由 PLC 触发拍照
 
@@ -19,7 +19,9 @@ from django.db import models
 
 from . import image_io
 from .foam_quality import QUALITY_VERSION, quality_config, measure_integrity, evaluate_integrity
-from .foam_geometry import geometry_config, register_product, ProductRegistrationError, fragment_groups
+from .foam_geometry import (
+    geometry_config, register_product, ProductRegistrationError, fragment_groups, uses_foam_mm_alignment,
+)
 from .. import foam_archive
 
 
@@ -263,8 +265,9 @@ def _resolve_side_roi_config(cfg, position_index):
         return foam_rois[str_index]
     elif 'left' in foam_rois or 'right' in foam_rois:
         return foam_rois
-    
-    return None
+
+    # A selected rack recipe carries one ROI set for all inspection positions.
+    return foam_rois.get(cfg.get('shared_foam_roi_key'))
 
 
 def _ratio_box_to_pixels(ratio_box, width, height):
@@ -832,11 +835,7 @@ def _detect_foam_side(image, roi, cfg, side=None, polygon_points=None):
 
     offset_distance_px = offset['offset_distance_px'] if offset else 0.0
     offset_distance_mm = offset['offset_distance_mm'] if offset else 0.0
-    has_mm_calibration = (
-        float(cfg.get('mm_per_pixel_x', 0) or 0) > 0
-        and float(cfg.get('mm_per_pixel_y', 0) or 0) > 0
-        and max_offset_mm > 0
-    )
+    has_mm_calibration = uses_foam_mm_alignment(cfg)
     if has_mm_calibration:
         is_aligned = bool(
             abs(offset['offset_x_mm']) <= max_offset_x_mm
@@ -931,10 +930,13 @@ def _shadow_layer_mask(image, references, max_dimension=1024, iterations=5, adap
                 continue
             background = float(np.percentile(background_values, 75))
             foreground = float(np.percentile(foreground_values, 70))
-            if foreground - background < 15:
-                continue
-            threshold = max(45.0, background + 15, float(np.percentile(foreground_values, 50)))
-            seeds |= inside & neutral & (value >= threshold)
+            if foreground - background >= 15:
+                threshold = max(45.0, background + 15, float(np.percentile(foreground_values, 50)))
+                seeds |= inside & neutral & (value >= threshold)
+            else:
+                # A bright patch can anchor a shaded side when the surrounding
+                # product is as bright as most of the foam.
+                seeds |= inside & bright & (value >= background + 15)
     if np.count_nonzero(seeds) < 16:
         return np.zeros((height, width), np.uint8)
     margin = max(3, round(min(size) * 0.05))
@@ -1001,16 +1003,19 @@ def _inspect_layer_sides(image, side_roi_config, cfg):
         # Templates are comparison data, not inputs to component selection.
         references[side] = reference if unified else standard
 
-    hsv = cv2.cvtColor(image[y1:y2, x1:x2], cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, (0, 0, int(cfg.get('foam_min_v', 140))),
-                       (180, int(cfg.get('foam_max_s', 80)), 255))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
-    if cfg.get('foam_segmentation') == 'shadow-graphcut-v1':
-        mask = _shadow_layer_mask(image[y1:y2, x1:x2], references)
-    elif cfg.get('foam_segmentation') == 'shadow-graphcut-fast-v2':
-        mask = _shadow_layer_mask(image[y1:y2, x1:x2], references, 512, 3)
-    elif cfg.get('foam_segmentation') == 'gray-graphcut-v3':
-        mask = _shadow_layer_mask(image[y1:y2, x1:x2], references, 1024, 3, adaptive_gray=True)
+    search_image = image[y1:y2, x1:x2]
+    mode = cfg.get('foam_segmentation')
+    if mode == 'shadow-graphcut-v1':
+        mask = _shadow_layer_mask(search_image, references)
+    elif mode == 'shadow-graphcut-fast-v2':
+        mask = _shadow_layer_mask(search_image, references, 512, 3)
+    elif mode == 'gray-graphcut-v3':
+        mask = _shadow_layer_mask(search_image, references, 1024, 3, adaptive_gray=True)
+    else:
+        hsv = cv2.cvtColor(search_image, cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv, (0, 0, int(cfg.get('foam_min_v', 140))),
+                           (180, int(cfg.get('foam_max_s', 80)), 255))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
     layer_polygon = cfg.get('layer_search_polygon')
     if layer_polygon:
         points = np.rint(np.asarray(layer_polygon) * [width, height] - [x1, y1]).astype(np.int32)
@@ -1069,10 +1074,12 @@ def _inspect_layer_sides(image, side_roi_config, cfg):
     if merge_cfg['enabled']:
         offsets = [float(cfg.get('max_offset_x_px', cfg.get('max_offset_px', 30))),
                    float(cfg.get('max_offset_y_px', cfg.get('max_offset_px', 30)))]
-        for index, axis in enumerate(('x', 'y')):
-            mm_per_pixel = float(cfg.get(f'mm_per_pixel_{axis}', 0))
-            if mm_per_pixel > 0:
-                offsets[index] = float(cfg.get(f'max_offset_{axis}_mm', cfg.get('max_offset_mm', 2))) / mm_per_pixel
+        if uses_foam_mm_alignment(cfg):
+            offsets = [
+                float(cfg.get(f'max_offset_{axis}_mm', cfg.get('max_offset_mm', 2)))
+                / float(cfg[f'mm_per_pixel_{axis}'])
+                for axis in ('x', 'y')
+            ]
         grouped = fragment_groups(labels, stats, image[y1:y2,x1:x2], references,
                                   merge_cfg, max(offsets))
     choices, costs = {}, {}
@@ -1143,10 +1150,21 @@ def _inspect_sides_in_frame(image, side_roi_config, position_index, cfg):
     height, width = image.shape[:2]
     sides = {}
     
-    polygon_rois = cfg.get('polygon_rois', {}).get(str(position_index), {})
+    polygons_by_position = cfg.get('polygon_rois', {})
+    polygon_rois = polygons_by_position.get(
+        str(position_index), polygons_by_position.get(cfg.get('shared_foam_roi_key'), {}),
+    )
 
     if cfg.get('layer_search_roi'):
         sides = _inspect_layer_sides(image, side_roi_config, cfg)
+    elif (cfg.get('standard_from_roi') and cfg.get('foam_segmentation') in (
+              'gray-graphcut-v3', 'shadow-graphcut-v1', 'shadow-graphcut-fast-v2')
+          and side_roi_config.keys() >= {'left', 'right'}):
+        # Older recipes may have only the two standard ROIs. Supply the
+        # surrounding pixels needed by shadow segmentation.
+        sides = _inspect_layer_sides(image, side_roi_config, dict(
+            cfg, layer_search_roi=[0, 0, 1, 1], standard_mask_space='layer-v3',
+        ))
 
     for side, ratio_box in ({} if sides else side_roi_config).items():
         roi = _ratio_box_to_pixels(ratio_box, width, height)

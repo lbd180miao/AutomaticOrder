@@ -44,7 +44,7 @@ class CaptureCompletionTests(SimpleTestCase):
         self.assertFalse(plc.read_point('position_success'))
 
     def test_real_capture_boundary_precedes_calculation(self):
-        recipe = SimpleNamespace(roi_config={'cloud_match_reference': True}, layer_count=1,
+        recipe = SimpleNamespace(roi_config={'cloud_center_reference': True}, layer_count=1,
                                  max_offset_x=100, max_offset_y=100,
                                  max_offset_z=100, max_offset_rz=10)
         order = []

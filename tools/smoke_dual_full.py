@@ -1,9 +1,12 @@
 """Exercise both frozen roles over HTTP and a local SOAP fixture, no real hardware/MES."""
+import argparse
 import json
 import os
 from pathlib import Path
 import re
 import shutil
+import socket
+import sqlite3
 import subprocess
 import threading
 import time
@@ -15,7 +18,9 @@ from xml.sax.saxutils import escape
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
-RELEASE = ROOT / 'delivery/20261111-Dual-Full-v2'
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('release', type=Path, help='Directory containing AGVControl and ExternalControl')
+RELEASE = parser.parse_args().release.resolve()
 RUN = ROOT / 'build' / ('dual-smoke-' + uuid.uuid4().hex[:8])
 RUN.mkdir(parents=True)
 calls = []
@@ -67,12 +72,38 @@ class SoapFixture(BaseHTTPRequestHandler):
                       '</InvokeMethodResult></InvokeMethodResponse></s:Body></s:Envelope>')
 
 
+def free_ports(count):
+    sockets = [socket.socket() for _ in range(count)]
+    try:
+        for server in sockets:
+            server.bind(('127.0.0.1', 0))
+        return [server.getsockname()[1] for server in sockets]
+    finally:
+        for server in sockets:
+            server.close()
+
+
+def saved_defaults(db_path):
+    with sqlite3.connect(db_path.as_uri() + '?mode=ro', uri=True) as db:
+        row = db.execute('''
+            SELECT foam.id, rack.id
+            FROM vision_plcvisiondefaults AS defaults
+            JOIN vision_visionrecipe AS foam ON foam.id = defaults.foam_recipe_id
+            JOIN vision_racklocationrecipe AS rack ON rack.id = defaults.rack_recipe_id
+            WHERE defaults.id = 1 AND foam.is_active AND foam.recipe_type = 'FOAM_2D' AND rack.enabled
+        ''').fetchone()
+    assert row is not None, f'Missing enabled PLC recipe defaults in {db_path}'
+    return {'foam_recipe_id': row[0], 'rack_recipe_id': row[1]}
+
+
 fixture = ThreadingHTTPServer(('127.0.0.1', 0), SoapFixture)
-threading.Thread(target=fixture.serve_forever, daemon=True).start()
+agv_port, external_port, gateway_port = free_ports(3)
+agv_url = f'http://127.0.0.1:{agv_port}'
+gateway_url = f'http://127.0.0.1:{gateway_port}'
 env = {**os.environ, 'USE_SIMULATED_DEVICES': 'true', 'RVC_CAMERA_AUTO_START': 'false',
-       'DM_CAMERA_AUTO_CONNECT': 'false', 'PYTHONPATH': ''}
-env.pop('PLC_LISTENER_AUTO_START', None)
-env.pop('MES_GATEWAY_ENABLED', None)
+       'DM_CAMERA_AUTO_CONNECT': 'false', 'PYTHONPATH': '', 'NO_PROXY': '127.0.0.1,localhost'}
+for key in ('PLC_LISTENER_AUTO_START', 'MES_GATEWAY_ENABLED', 'DJANGO_DATABASE_PATH', 'DJANGO_MEDIA_ROOT'):
+    env.pop(key, None)
 sessions = []
 processes = []
 logs = []
@@ -82,10 +113,10 @@ for name in ('AGVControl', 'ExternalControl'):
     for filename in ('db.sqlite3', 'deployment.json', 'agv_gateway.json'):
         shutil.copy2(RELEASE / name / filename, data / filename)
     cfg = json.loads((data / 'agv_gateway.json').read_text())
-    cfg['gateway_url'] = 'http://127.0.0.1:18108'
+    cfg['gateway_url'] = gateway_url
     (data / 'agv_gateway.json').write_text(json.dumps(cfg))
 cfg = json.loads((RELEASE / 'ExternalControl/gateway.json').read_text())
-cfg.update(port=18108, mes_url=f'http://127.0.0.1:{fixture.server_port}/MES?wsdl')
+cfg.update(port=gateway_port, mes_url=f'http://127.0.0.1:{fixture.server_port}/MES?wsdl')
 (RUN / 'ExternalControl/gateway.json').write_text(json.dumps(cfg))
 
 
@@ -120,10 +151,10 @@ def launch(name, port):
 
 
 def submit(mode, rack='SMOKE-RACK-001'):
-    page = http.get('http://127.0.0.1:18106/mes/gateway/', timeout=5)
+    page = http.get(f'{agv_url}/mes/gateway/', timeout=5)
     page.raise_for_status()
     token = re.search(r'name="csrfmiddlewaretoken" value="([^"]+)"', page.text).group(1)
-    r = http.post('http://127.0.0.1:18106/mes/gateway/test/', json={'mode': mode, 'rack_code': rack},
+    r = http.post(f'{agv_url}/mes/gateway/test/', json={'mode': mode, 'rack_code': rack},
                   headers={'X-CSRFToken': token}, timeout=10)
     r.raise_for_status()
     return r.json()
@@ -132,7 +163,7 @@ def submit(mode, rack='SMOKE-RACK-001'):
 def completed(task_id):
     deadline = time.monotonic() + 35
     while time.monotonic() < deadline:
-        rows = http.get('http://127.0.0.1:18106/mes/gateway/status/', timeout=5).json()['tasks']
+        rows = http.get(f'{agv_url}/mes/gateway/status/', timeout=5).json()['tasks']
         row = next((r for r in rows if r['id'] == task_id), None)
         if row and row['state'] == 'succeeded':
             return json.loads(row['result'])
@@ -142,16 +173,43 @@ def completed(task_id):
     raise TimeoutError(task_id)
 
 
+def check_role(name, port, listener_on):
+    base_url = f'http://127.0.0.1:{port}'
+    status = http.get(f'{base_url}/devices/api/plc-status/?view=controls', timeout=5).json()
+    assert status['global_running'] is listener_on and status['global_stopping'] is False, status
+    for route in ('/mes/records/', '/devices/plc-config/', '/vision/rack-location/recipes/', '/vision/recipes/'):
+        r = http.get(f'{base_url}{route}', timeout=10)
+        assert r.status_code == 200, (route, r.status_code)
+    expected = saved_defaults(RUN / name / 'db.sqlite3')
+    locator = http.get(f"{base_url}/vision/rack-locator/?recipe_id={expected['rack_recipe_id']}", timeout=5)
+    locator.raise_for_status()
+    assert 'page-rack-locator' in locator.text and 'dp-camera-table-scroll' in locator.text
+    script = http.get(f'{base_url}/static/vision/js/rack_dual_point.js?v=37', timeout=5)
+    script.raise_for_status()
+    r = http.get(f'{base_url}/vision/api/recipes/plc-defaults/', timeout=5)
+    r.raise_for_status()
+    defaults = r.json()
+    assert defaults.get('success') is True and all(defaults.get(key) == value for key, value in expected.items()), defaults
+
+    log = RUN / name / 'logs/plc-listener.log'
+    if listener_on:
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            if log.is_file() and 'memory:102' in log.read_text(encoding='utf-8'):
+                return expected
+            time.sleep(.2)
+        raise AssertionError(f'No simulated PLC scan in {log}')
+    assert not log.exists(), f'Unexpected external PLC listener log: {log}'
+    return expected
+
+
+threading.Thread(target=fixture.serve_forever, daemon=True).start()
 try:
-    external = launch('ExternalControl', 18107)
-    agv = launch('AGVControl', 18106)
-    for port, running in [(18106, True), (18107, False)]:
-        status = http.get(f'http://127.0.0.1:{port}/devices/api/plc-status/', timeout=5).json()
-        assert status['global_running'] is running, status
-        for route in ('/mes/records/', '/devices/plc-config/', '/vision/rack-location/recipes/'):
-            r = http.get(f'http://127.0.0.1:{port}{route}', timeout=10)
-            assert r.status_code == 200, (route, r.status_code)
-    assert http.get('http://127.0.0.1:18108/', timeout=5).status_code == 200
+    external = launch('ExternalControl', external_port)
+    launch('AGVControl', agv_port)
+    agv_defaults = check_role('AGVControl', agv_port, True)
+    assert check_role('ExternalControl', external_port, False) == agv_defaults
+    assert http.get(f'{gateway_url}/', timeout=5).status_code == 200
     assert submit('health')['role'] == 'mes_gateway'
     completed(submit('self_test')['id'])
     assert calls == [], 'Self test must not call MES'
@@ -163,10 +221,11 @@ try:
     task_id = submit('rack_query', 'SMOKE-RACK-002')['id']
     time.sleep(3)
     assert len(calls) == 1
-    external = launch('ExternalControl', 18107)
+    launch('ExternalControl', external_port)
     assert completed(task_id)['rack_code'] == 'SMOKE-RACK-002'
     assert len(calls) == 2
-    print('PASS: both full EXEs, AGV PLC autostart, external PLC off, HTTP roundtrip, SOAP query result, offline recovery.')
+    print('PASS: both full EXEs, AGV simulated PLC scan, external PLC off, saved 2D/3D defaults, HTTP/SOAP and offline recovery.')
+    print('PLC default recipe IDs:', agv_defaults)
     print('Evidence:', RUN)
 finally:
     for process in processes:

@@ -20,7 +20,7 @@ SALT = 'rack-dual-point-image-v1'
 
 def draft_config(width, height):
     """Only pixel regions are needed to build a point-cloud template."""
-    return {'rois': [], 'imageSize': [width, height]}
+    return {'algorithm': 'cloud_center', 'rois': [], 'imageSize': [width, height]}
 
 
 def error_response(exc):
@@ -101,11 +101,11 @@ def prepare(request):
         cloud_token = signing.dumps({'path': str(cloud_path), 'mtime': cloud_stat.st_mtime_ns,
                                     'size': cloud_stat.st_size}, salt=SALT+'-depth')
         recipe = RackLocationRecipe.objects.get(pk=data['recipe_id']) if data.get('recipe_id') else None
-        algorithm = data.get('algorithm', 'cloud_match')
+        algorithm = data.get('algorithm', 'cloud_center')
         config_key, reference_key = algorithm_keys(algorithm)
         config = (recipe.roi_config or {}).get(config_key) if recipe else None
         reference = (recipe.roi_config or {}).get(reference_key) if recipe else None
-        if not config and algorithm == 'cloud_center':
+        if not config:
             config = {**draft_config(w, h), 'algorithm': algorithm}
         if reference:
             reference = {'measurement': {**reference['measurement'],
@@ -171,13 +171,13 @@ def save_config(request):
         image = _read_image(_signed_image(data['image_token']))
         config = data['config']
         validate_config(config, image.shape)
-        config_key, reference_key = algorithm_keys(config.get('algorithm', 'cloud_match'))
+        config_key, reference_key = algorithm_keys(config.get('algorithm', 'cloud_center'))
         with transaction.atomic():
             recipe = RackLocationRecipe.objects.select_for_update().get(pk=data['recipe_id'])
             recipe.roi_config = {**(recipe.roi_config or {}), config_key: config}
             recipe.save(update_fields=['roi_config'])
         return JsonResponse({'success': True, 'recipe_id': recipe.pk, 'config': config,
-                             'message': 'ROI 配置已保存；可继续使用已有标准模板计算偏差'})
+                             'message': 'ROI 配置已保存；若修改了区域或层数，请重新保存点云标准模板'})
     except (OSError, ValueError, KeyError, TypeError, signing.BadSignature, RackLocationRecipe.DoesNotExist) as exc:
         return error_response(exc)
 
@@ -224,7 +224,9 @@ def recompute_robot_deviation(request):
         if not stored_result.get('success'):
             raise ValueError('原始计算未成功，没有有效的相机坐标可以转换')
 
-        reference_key = 'cloud_match_reference' if record.result_data.get('source') == 'cloud_match' else 'dual_point_camera_reference'
+        reference_key = ('cloud_center_reference' if record.result_data.get('algorithm') == 'cloud_center'
+                         else 'cloud_match_reference' if record.result_data.get('source') == 'cloud_match'
+                         else 'dual_point_camera_reference')
         recipe = record.recipe
         reference = (recipe.roi_config or {}).get(reference_key) if recipe else None
         if not reference:
@@ -286,7 +288,7 @@ def cloud_match(request):
         if package['cloud'].shape[:2] != image.shape[:2]:
             raise ValueError('原图与点云尺寸不一致')
         recipe = RackLocationRecipe.objects.get(pk=data['recipe_id'])
-        algorithm = (data.get('config') or {}).get('algorithm', 'cloud_match')
+        algorithm = (data.get('config') or {}).get('algorithm', 'cloud_center')
         config_key, reference_key = algorithm_keys(algorithm)
         if action == 'save_template':
             config = data['config']
@@ -307,7 +309,7 @@ def cloud_match(request):
             config = data.get('config') or (recipe.roi_config or {}).get(config_key) or {}
             if reference and required_targets(config) != required_targets(reference['config']):
                 raise ValueError('料架层数与标准模板不同，请重新保存点云标准模板')
-            if algorithm == 'cloud_center' and reference and config != reference['config']:
+            if reference and config != reference['config']:
                 raise ValueError('ROI 已变化，请重新保存当前算法的点云标准模板')
             from .rack_cloud_service import evaluate_cloud
             from django.conf import settings

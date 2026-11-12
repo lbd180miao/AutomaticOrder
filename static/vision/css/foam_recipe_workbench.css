@@ -52,6 +52,15 @@
 .foam-recipe-basic-fields { display:grid;gap:8px;margin-bottom:12px; }
 .foam-recipe-basic-fields label { display:grid;gap:4px;color:var(--text-muted);font-size:calc(10px + var(--ui-font-increase, 0px));font-weight:700; }
 .foam-recipe-basic-fields input,.foam-recipe-basic-fields textarea { width:100%;min-width:0;padding:8px 9px;border:1px solid var(--border-strong);border-radius:6px;font:inherit;resize:vertical; }
+.foam-current-settings { margin-bottom:14px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); }
+.foam-current-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
+.foam-current-heading h3 { margin:0; font-size:1em; }
+#foam-parameter-summary { margin:4px 0 0; }
+#foam-parameter-values:not([hidden]) { display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 12px; margin:8px 0 0; }
+#foam-parameter-values dt { color:var(--text-muted); }
+#foam-parameter-values dd { margin:0; text-align:right; font-weight:600; }
+.foam-roi-details { margin:8px 0; }
+.foam-roi-details summary { cursor:pointer; color:var(--text-muted); }
 #foam-recipe-tools-host .roi-calibration-panel { margin:0;padding:0;border:0;background:transparent; }
 #foam-recipe-tools-host .roi-head { padding-top:12px;border-top:1px solid var(--border);color:var(--text); }
 #foam-recipe-tools-host .roi-tools { align-items:stretch; }

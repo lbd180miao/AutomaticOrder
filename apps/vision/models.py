@@ -410,6 +410,19 @@ class VisionRecipe(TimeStampedModel):
         return f'{self.name}({self.recipe_type}, POS {self.pos})'
 
 
+class PlcVisionDefaults(TimeStampedModel):
+    """The singleton selection used by PLC automatic vision requests."""
+
+    foam_recipe = models.ForeignKey(VisionRecipe, null=True, blank=True,
+                                    on_delete=models.SET_NULL)
+    rack_recipe = models.ForeignKey(RackLocationRecipe, null=True, blank=True,
+                                    on_delete=models.SET_NULL)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(pk=1),
+                                              name='plc_vision_defaults_singleton')]
+
+
 class RackMeasurementProfile(TimeStampedModel):
     """2D 料架层高/层距测量参数，供手动调试和 PLC 自动流程共用。"""
 

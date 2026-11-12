@@ -1,11 +1,21 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}3D 料架定位工作台 - AutomaticBoxing{% endblock %}
+{% block page_class %}page-rack-locator{% endblock %}
 {% block content %}
 
 <style>
   /* ========== 3D 料架定位工作台 ========== */
-  .rl-workbench { display:flex; flex-direction:column; gap:0; }
+  .page-rack-locator { max-width: 1920px; padding-inline: clamp(16px, 2vw, 32px); }
+  .rl-workbench {
+    --ui-font-increase: 4px;
+    display: flex;
+    flex-direction: column;
+    font-size: 17px;
+  }
+  @media (max-width: 600px) {
+    .rl-recipe-bar #recipe-select { min-width: 0; flex-basis: 100%; }
+  }
 
   /* 标题栏 */
   .rl-title-bar {
@@ -329,12 +339,7 @@
   <input type="hidden" id="recipe-id"><input type="hidden" id="layer-no" value="1">
   <div class="rl-action-bar">
     <button id="btn-capture" class="btn">采集点云</button>
-    <label for="dp-algorithm">定位算法：
-      <select id="dp-algorithm" aria-label="定位算法">
-        <option value="cloud_match">点云模板匹配（旧版·双框）</option>
-        <option value="cloud_center">点云模板中心匹配（新版·单框）</option>
-      </select>
-    </label>
+    <span>定位算法：点云匹配</span>
     <button id="dp-evaluate" class="btn btn-success">开始计算</button>
     <button id="btn-export-package" class="btn" disabled>保存数据包</button>
     <button id="btn-packages" class="btn btn-secondary">数据包管理</button>
@@ -383,6 +388,6 @@ window.rackLocatorConfig = {
 };
 </script>
 <script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=60"></script>
-<script src="{% static 'vision/js/offline_package_manager.js' %}?v=22"></script>
-<script src="{% static 'vision/js/rack_dual_point.js' %}?v=35"></script>
+<script src="{% static 'vision/js/offline_package_manager.js' %}?v=23"></script>
+<script src="{% static 'vision/js/rack_dual_point.js' %}?v=37"></script>
 {% endblock %}

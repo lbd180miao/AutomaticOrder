@@ -31,6 +31,10 @@ from .recipe_utils import (
 logger = logging.getLogger(__name__)
 
 
+class FoamRecipeConfigurationError(ValueError):
+    """The selected foam recipe cannot be used for inspection."""
+
+
 def _within_tolerance(measured, expected, tolerance):
     return abs(Decimal(str(measured)) - Decimal(str(expected))) <= Decimal(str(tolerance))
 
@@ -128,10 +132,29 @@ class VisionService:
         return tuple(self.locate_rack(product, rack, recipe, side, min_confidence=min_confidence)
                      for side in ('LEFT', 'RIGHT'))
 
+    def _foam_recipe_config(self, recipe_id, position_index, require_ready_recipe):
+        try:
+            if recipe_id:
+                recipes = VisionRecipe.objects.filter(recipe_type='FOAM_2D')
+                if require_ready_recipe:
+                    recipes = recipes.filter(is_active=True)
+                recipe = recipes.filter(pk=recipe_id).first()
+                if recipe is None:
+                    raise ValueError('指定的 2D 泡棉配方不可用')
+            else:
+                recipe = get_active_foam_2d_recipe_by_pos(position_index)
+            config = build_foam_inspection_config(recipe) if recipe else {}
+            if require_ready_recipe and not config.get('standard_template_ready'):
+                raise ValueError(config.get('standard_template_error') or '请先完成 2D 泡棉配方示教')
+            return recipe, config
+        except (TypeError, ValueError) as exc:
+            raise FoamRecipeConfigurationError(str(exc)) from exc
+
     def inspect_foam(self, product, rack, position_index=0, simulated_pass=True,
                      inspection_config=None, use_camera=False,
                      camera_code='CAM-INSPECT-FOAM-01',
-                     recipe_id=None, use_recipe=True, captured_image_path=None):
+                     recipe_id=None, use_recipe=True, captured_image_path=None, *,
+                     require_ready_recipe=False):
         """泡棉贴附检测，保存 FoamInspectionResult。
 
         参数：
@@ -144,6 +167,10 @@ class VisionService:
             'task_create': round((time.perf_counter() - pipeline_started) * 1000, 1),
         }
         try:
+            phase_started = time.perf_counter()
+            recipe, recipe_config = (self._foam_recipe_config(recipe_id, position_index, require_ready_recipe)
+                                     if use_recipe else (None, {}))
+            recipe_config_ms = (time.perf_counter() - phase_started) * 1000
             image = None
             camera_image_path = ''
             if use_camera:
@@ -165,6 +192,8 @@ class VisionService:
                     )
                     timings_ms.update(capture.get('timings_ms') or {})
                     camera_image_path = capture.get('image_path') or ''
+                    if require_ready_recipe and not camera_image_path:
+                        raise RuntimeError(capture.get('error') or '2D 相机未返回采集图像')
                 if camera_image_path:
                     phase_started = time.perf_counter()
                     image_path = Path(camera_image_path)
@@ -178,26 +207,13 @@ class VisionService:
 
             phase_started = time.perf_counter()
             profile, calibration_config = self._foam_calibration_config(camera_code)
-            recipe = None
-            recipe_config = {}
-            if use_recipe:
-                if recipe_id:
-                    recipe = (
-                        VisionRecipe.objects
-                        .filter(id=recipe_id, recipe_type='FOAM_2D')
-                        .first()
-                    )
-                else:
-                    recipe = get_active_foam_2d_recipe_by_pos(position_index)
-                if recipe:
-                    recipe_config = build_foam_inspection_config(recipe)
             merged_config = {}
             if inspection_config:
                 merged_config.update(inspection_config)
             merged_config.update(calibration_config)
             merged_config.update(recipe_config)
             timings_ms['config_load'] = round(
-                (time.perf_counter() - phase_started) * 1000,
+                recipe_config_ms + (time.perf_counter() - phase_started) * 1000,
                 1,
             )
 

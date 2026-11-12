@@ -30,41 +30,49 @@ def main(argv=None):
     args = parser.parse_args(argv)
     from pathlib import Path
     from instance_lock import acquire
+    executable = Path(sys.executable).resolve() if getattr(sys, 'frozen', False) else None
     directory = Path(args.data_dir or os.environ.get('AUTOMATIC_ORDER_DATA_DIR') or
-                     (Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent)).resolve()
+                     (executable.parent if executable else Path(__file__).parent)).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     instance_handle = acquire(directory)
     if args.data_dir:
         os.environ['AUTOMATIC_ORDER_DATA_DIR'] = os.path.abspath(args.data_dir)
     from deployment import configure, start_gateway
-    deployment = configure(directory)
+    deployment = configure(directory, executable=executable)
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'AutomaticOrder.settings')
     import whitenoise.middleware  # Ensure PyInstaller includes this module.
     import django
     django.setup()
-    from waitress import serve
+    from waitress import create_server
     from django.core.wsgi import get_wsgi_application
     from django.conf import settings
     print(f'AutomaticOrder: threads={args.threads}, media={settings.MEDIA_ROOT}', flush=True)
     application = get_wsgi_application()
     from apps.vision.history_retention import run_startup_cleanup
     run_startup_cleanup()
-    gateway_server = start_gateway(directory) if deployment.get('role') == 'external' else None
     from apps.workflow.listener import start_listener, stop_listener
-    if settings.MES_GATEWAY_ENABLED:
-        from apps.mes.remote_client import start_worker
-        start_worker()
-    if not args.no_browser:
-        import threading
-        import webbrowser
-        threading.Timer(2, lambda: webbrowser.open(f'http://127.0.0.1:{args.port}')).start()
-    start_listener()
+    # Bind before starting the PLC worker. If the port is already in use,
+    # this instance must not send a scan or acknowledge a hardware trigger.
+    server = create_server(application, host=args.host, port=args.port, threads=args.threads)
+    gateway_server = None
     try:
-        serve(application, host=args.host, port=args.port, threads=args.threads)
+        if deployment.get('role') == 'external':
+            gateway_server = start_gateway(directory)
+        if settings.MES_GATEWAY_ENABLED:
+            from apps.mes.remote_client import start_worker
+            start_worker()
+        start_listener()
+        if not args.no_browser:
+            import threading
+            import webbrowser
+            threading.Timer(2, lambda: webbrowser.open(f'http://127.0.0.1:{server.effective_port}')).start()
+        print(f'Serving on http://{server.effective_host}:{server.effective_port}', flush=True)
+        server.run()
     finally:
         stop_listener()
         if gateway_server is not None:
             gateway_server.close()
+        server.close()
     return 0
 
 

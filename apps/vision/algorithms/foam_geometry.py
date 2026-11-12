@@ -11,6 +11,14 @@ class ProductRegistrationError(ValueError):
     pass
 
 
+def uses_foam_mm_alignment(cfg):
+    return (
+        float(cfg.get('mm_per_pixel_x', 0) or 0) > 0
+        and float(cfg.get('mm_per_pixel_y', 0) or 0) > 0
+        and float(cfg.get('max_offset_mm', 0) or 0) > 0
+    )
+
+
 def geometry_config(algorithm):
     result = {}
     specifications = {

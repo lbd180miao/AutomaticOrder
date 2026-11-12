@@ -189,7 +189,7 @@ def capture_position(recipe_id, layer_no, *, on_captured=None):
     recipe = RackLocationRecipe.objects.get(pk=recipe_id, enabled=True)
     if not 1 <= layer_no <= recipe.layer_count:
         raise ValueError('当前层号超出配方范围')
-    if not (recipe.roi_config or {}).get('cloud_match_reference'):
+    if not (recipe.roi_config or {}).get('cloud_center_reference'):
         return {'is_success': False, 'error_message': '请先保存点云标准模板'}
     from apps.vision.rack_location import Rack3DLocator, RackLocationService
     captured = Rack3DLocator().capture(recipe_id=recipe_id, layer_no=layer_no)

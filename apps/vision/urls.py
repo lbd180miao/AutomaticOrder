@@ -2,6 +2,8 @@ from django.urls import path, include
 from django.shortcuts import render
 
 from . import views
+from .plc_defaults import api_plc_defaults
+from .recipe_transfer import export_recipe, import_recipe
 from . import rack_dual_point_views
 from . import offline_data_views
 from . import views_foam_profile
@@ -9,6 +11,9 @@ from . import views_foam_profile
 app_name = 'vision'
 
 urlpatterns = [
+    path('api/recipes/transfer/<str:kind>/<int:recipe_id>/export/', export_recipe, name='recipe_export'),
+    path('api/recipes/transfer/<str:kind>/import/', import_recipe, name='recipe_import'),
+    path('api/recipes/plc-defaults/', api_plc_defaults, name='api_plc_defaults'),
     path('api/foam/records/<int:result_id>/save-images/', views.api_foam_save_images, name='api_foam_save_images'),
     path('api/foam/records/<int:result_id>/image/<str:kind>/', views.api_foam_record_image, name='api_foam_record_image'),
     path('api/rack-location/dual-point/cloud-match/', rack_dual_point_views.cloud_match, name='rack_dual_point_cloud_match'),

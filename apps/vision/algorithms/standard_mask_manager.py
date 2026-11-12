@@ -207,7 +207,7 @@ class StandardMaskManager:
             # during inspection and must never redefine a saved ROI.
             from .foam_inspector import _ratio_box_to_pixels
             width, height = image.shape[1], image.shape[0]
-            bounds = _ratio_box_to_pixels(cfg.get('layer_search_roi', [0, 0, 1, 1]), width, height)
+            bounds = _ratio_box_to_pixels(cfg['layer_search_roi'], width, height) if layer_mode else None
             extracted = {}
             for side in self.SIDES:
                 box = _ratio_box_to_pixels(cfg['foam_rois'][str(recipe.pos)][side], width, height)

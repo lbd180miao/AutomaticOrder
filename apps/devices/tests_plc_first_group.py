@@ -64,7 +64,7 @@ class CaptureRouteTests(SimpleTestCase):
         from unittest.mock import patch
         from .plc_position_debug import capture_position
         from django.test import override_settings
-        recipe = SimpleNamespace(roi_config={'cloud_match_reference':{'version':'cloud_match_v1'}}, layer_count=3,
+        recipe = SimpleNamespace(roi_config={'cloud_center_reference':{'version':'cloud_match_v1'}}, layer_count=3,
                                  max_offset_x=100,max_offset_y=100,max_offset_z=100,max_offset_rz=10)
         result = {'locate_ok':True, 'robot_groups':{'A':{'coordinate_system':'robot_base',
                    'translation_mm':{'x':1,'y':2,'z':3}, 'rotation_deg':{'rz':0}}}}

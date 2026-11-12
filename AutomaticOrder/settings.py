@@ -45,6 +45,9 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool('DJANGO_DEBUG', True)
 
+# Debug history is retained indefinitely unless cleanup is explicitly enabled.
+VISION_HISTORY_AUTO_CLEANUP = env_bool('VISION_HISTORY_AUTO_CLEANUP', False)
+
 ALLOWED_HOSTS = env_list(
     'DJANGO_ALLOWED_HOSTS',
     '127.0.0.1,localhost,testserver,*',
@@ -68,10 +71,10 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',
     'apps.core',
     'apps.production',      # Model层被workflow/vision/core引用，保留后端，导航已隐藏
-    'apps.workflow',
+    'apps.workflow',        # Its runserver extends Django's staticfiles command.
+    'django.contrib.staticfiles',
     'apps.devices',
     'apps.vision',
     'apps.coordinates',     # 手眼标定后端服务，导航已隐藏
@@ -185,9 +188,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # 3D 深度相机料架定位运行模式：'MOCK'（模拟，无需硬件）/ 'REAL'（真实相机+机器人）
 RACK_3D_POSITIONING_MODE = os.environ.get('RACK_3D_POSITIONING_MODE', 'MOCK').upper()
-# Deployment executables start polling automatically; management commands do not.
-PLC_LISTENER_AUTO_START = env_bool('PLC_LISTENER_AUTO_START', getattr(sys, 'frozen', False))
+# Only the serving entry points consult this setting; other commands never poll.
+PLC_LISTENER_AUTO_START = env_bool('PLC_LISTENER_AUTO_START', True)
 MES_GATEWAY_ENABLED = env_bool('MES_GATEWAY_ENABLED', (DATA_DIR / 'agv_gateway.json').exists())
+RVC_CAMERA_SERVICE_PORT = int(os.environ.get('RVC_CAMERA_SERVICE_PORT', '8001'))
 
 AUTOMATIC_ORDER = {
     'USE_SIMULATED_DEVICES': env_bool('USE_SIMULATED_DEVICES', False),
@@ -249,8 +253,8 @@ AUTOMATIC_ORDER = {
     # RVC 3D 相机：PyRVC 运行在独立进程 rvc_service，
     # Django 启动时自动拉起（AppConfig.ready），无需手动开第二个终端。
     'RVC_CAMERA': {
-        'SERVICE_URL': os.environ.get('RVC_CAMERA_SERVICE_URL', 'http://127.0.0.1:8001'),
-        'SERVICE_PORT': int(os.environ.get('RVC_CAMERA_SERVICE_PORT', '8001')),
+        'SERVICE_URL': os.environ.get('RVC_CAMERA_SERVICE_URL', f'http://127.0.0.1:{RVC_CAMERA_SERVICE_PORT}'),
+        'SERVICE_PORT': RVC_CAMERA_SERVICE_PORT,
         # Django 启动时是否自动拉起相机服务子进程（False=手动启动 python -m rvc_service）
         'AUTO_START': os.environ.get('RVC_CAMERA_AUTO_START', 'true').lower() not in ('0', 'false', 'no', 'off'),
         # 相机默认 IP（网线直连，网卡需同网段 169.254.x.x / 255.255.0.0）

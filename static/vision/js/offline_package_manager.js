@@ -202,7 +202,7 @@
       const data = await request(packageUrl(state.selectedName, 'reprocess'), {
         method: 'POST',
         body: JSON.stringify({ recipe_id: recipeId, layer_no: layerNo, modified_roi: snapshot.roi_config,
-          algorithm: byId('dp-algorithm')?.value || 'cloud_match' }),
+          algorithm: 'cloud_center' }),
       });
       window.rackLocatorOfflineBridge?.renderResult(data.result);
       message('重新定位完成。');

@@ -9,7 +9,7 @@ from django.test import SimpleTestCase
 
 from .algorithms.foam_quality import measure_integrity, quality_config
 from .algorithms.foam_inspector import (
-    _detect_foam_side, _inspect_calibrated_sides, _shadow_layer_mask,
+    FoamInspector, _detect_foam_side, _inspect_calibrated_sides, _shadow_layer_mask,
     _apply_image_quality_adjustments,
 )
 from .models import VisionRecipe
@@ -181,18 +181,21 @@ class QualityRecipeTests(SimpleTestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 build_foam_inspection_config(recipe)
 
-    def test_roi_is_standard_without_files_and_ignores_old_algorithm(self):
+    def test_color_overrides_stale_mode_without_changing_roi_standard(self):
         from .algorithms.foam_inspector import _inspect_layer_sides
         recipe = self.recipe()
         recipe.standard_template_config = {'foam_segmentation': 'shadow-graphcut-fast-v2'}
         image = np.zeros((120, 200, 3), np.uint8)
         image[20:60, 20:60] = 240
         image[20:60, 120:160] = 240
-        for material in ('white', 'gray'):
-            recipe.algorithm_config = {'material_type': material, 'foam_segmentation': 'fixed-threshold'}
+        for material, stale_mode, expected_mode in (
+            ('white', 'shadow-graphcut-v1', 'fixed-threshold'),
+            ('gray', 'fixed-threshold', 'gray-graphcut-v3'),
+        ):
+            recipe.algorithm_config = {'material_type': material, 'foam_segmentation': stale_mode}
             cfg = build_foam_inspection_config(recipe)
             self.assertTrue(cfg['standard_template_ready'])
-            self.assertEqual(cfg['foam_segmentation'], 'fixed-threshold')
+            self.assertEqual(cfg['foam_segmentation'], expected_mode)
             sides = _inspect_layer_sides(image, cfg['foam_rois']['0'], cfg)
             for side in ('left', 'right'):
                 self.assertEqual(np.count_nonzero(sides[side]['standard_mask']), 1600)
@@ -201,6 +204,36 @@ class QualityRecipeTests(SimpleTestCase):
         cfg = build_foam_inspection_config(recipe)
         sides = _inspect_layer_sides(image, cfg['foam_rois']['0'], cfg)
         self.assertEqual(np.count_nonzero(sides['left']['standard_mask']), 2000)
+
+    def test_gray_segmentation_runs_with_only_the_two_standard_rois(self):
+        recipe = self.recipe()
+        del recipe.roi_config['layerSearchROI']
+        recipe.algorithm_config = {'material_type': 'gray'}
+        image = np.full((120, 200, 3), 30, np.uint8)
+        image[20:60, 20:60] = 90
+        image[20:60, 120:160] = 100
+        cfg = build_foam_inspection_config(recipe)
+        result, _, _, sides = _inspect_calibrated_sides(image, cfg['foam_rois']['0'], 0, cfg)
+        self.assertTrue(result['is_passed'])
+        self.assertGreater(sides['left']['coverage_ratio'], .95)
+        self.assertGreater(sides['right']['coverage_ratio'], .95)
+
+    def test_selected_recipe_inspects_positions_other_than_its_saved_pos(self):
+        recipe = self.recipe()
+        recipe.algorithm_config = {'material_type': 'gray', 'foam_segmentation': 'fixed-threshold'}
+        image = np.full((120, 200, 3), 30, np.uint8)
+        image[20:60, 20:60] = 90
+        image[20:60, 120:160] = 100
+        config = build_foam_inspection_config(recipe)
+        with patch('apps.vision.algorithms.foam_inspector.foam_archive.save_image',
+                   return_value=(b'image', 200, 120)):
+            result = FoamInspector(simulate=False).inspect(
+                position_index=9, inspection_config=config, image=image,
+            )
+        self.assertTrue(result['is_passed'])
+        self.assertEqual(result['position_index'], 9)
+        self.assertEqual(set(result['sides']), {'left', 'right'})
+        self.assertEqual(result['result_data']['effective_config']['foam_segmentation'], 'gray-graphcut-v3')
 
     def test_missing_roi_is_not_a_ready_standard(self):
         recipe = self.recipe()

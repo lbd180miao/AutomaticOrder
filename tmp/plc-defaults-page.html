@@ -1,0 +1,2648 @@
+
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>视觉配方系统 - AutomaticBoxing</title>
+  <link rel="stylesheet" href="/static/css/app.css?v=20261111-readable-fonts">
+  
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">AutomaticBoxing</div>
+    <nav class="main-nav" aria-label="主导航">
+      
+      <a href="/devices/status/" class="">设备</a>
+      <a href="/vision/tasks/" class="">视觉</a>
+      <a href="/vision/recipes/" class="active">配方</a>
+      <a href="/mes/records/" class="">MES</a>
+      
+    </nav>
+    <div class="topbar-status" aria-label="系统状态">
+      <time class="topbar-clock" id="system-clock" aria-label="系统时间"></time>
+      <a class="alarm-chip has-alarm" href="/alarms/" title="未处理报警">
+        <span aria-hidden="true">♢</span> 报警 12
+      </a>
+      <a class="settings-link " href="/settings/" title="系统设置" aria-label="系统设置">⚙</a>
+    </div>
+  </header>
+  <main class="page ">
+    
+    
+
+
+<style>
+/* ========== 视觉配方管理页面样式 v2.0 ========== */
+.recipe-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* 标题栏 */
+.recipe-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.recipe-title-bar h1 {
+  margin: 0;
+  font-size: calc(22px + var(--ui-font-increase, 0px));
+  font-weight: 700;
+}
+.recipe-title-copy {
+  max-width: 660px;
+}
+.recipe-title-copy .eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--primary);
+  font-size: calc(11px + var(--ui-font-increase, 0px));
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+.recipe-title-copy p {
+  margin: 7px 0 0;
+  color: var(--text-muted);
+  font-size: calc(13px + var(--ui-font-increase, 0px));
+  line-height: 1.6;
+}
+.recipe-title-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.recipe-title-bar h1::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 20px;
+  background: var(--primary);
+  border-radius: 3px;
+  margin-right: 10px;
+  vertical-align: -3px;
+}
+
+/* 选项卡 */
+.recipe-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.recipe-tab {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: calc(14px + var(--ui-font-increase, 0px));
+  transition: all 0.25s;
+  text-decoration: none;
+  color: var(--text);
+  display: inline-block;
+}
+.recipe-tab:hover {
+  background: var(--primary-soft);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(59,130,246,0.12);
+}
+.recipe-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  box-shadow: 0 2px 10px rgba(59,130,246,0.28);
+}
+
+/* 标签页内容淡入动画 */
+@keyframes tabFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.recipe-tab-section.tab-active {
+  animation: tabFadeIn 0.3s ease;
+}
+
+/* 配方内容区 */
+.recipe-content {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 20px 24px;
+}
+
+/* 当前POS提示 */
+.recipe-current-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: calc(13px + var(--ui-font-increase, 0px));
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+.recipe-current-hint strong {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+/* 2D 配方业务层级：料架规格 → 产品档案 → 检测位置 */
+.foam-system-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.foam-system-header h2 { margin: 0; color: #172033; font-size: calc(20px + var(--ui-font-increase, 0px)); }
+.foam-system-header p { margin: 6px 0 0; color: var(--text-muted); font-size: calc(13px + var(--ui-font-increase, 0px)); }
+.view-only-note {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
+  font-weight: 700;
+}
+.recipe-structure-flow {
+  display: grid;
+  grid-template-columns: 1fr 34px 1.25fr 34px 1.15fr;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+.structure-node {
+  padding: 15px 16px;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.structure-node.active { border-color: #93c5fd; background: #eff6ff; }
+.structure-node small { display: block; margin-bottom: 6px; color: #64748b; font-size: calc(11px + var(--ui-font-increase, 0px)); font-weight: 800; letter-spacing: .08em; }
+.structure-node strong { display: block; color: #172033; font-size: calc(15px + var(--ui-font-increase, 0px)); }
+.structure-node span { display: block; margin-top: 4px; color: #64748b; font-size: calc(12px + var(--ui-font-increase, 0px)); line-height: 1.45; }
+.structure-arrow { display: grid; place-items: center; color: #94a3b8; font-size: calc(18px + var(--ui-font-increase, 0px)); }
+.configuration-level {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.configuration-level + .configuration-level { margin-top: 12px; }
+.configuration-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.configuration-heading h3 { margin: 0; color: #1e293b; font-size: calc(16px + var(--ui-font-increase, 0px)); }
+.configuration-heading p { margin: 4px 0 0; color: #64748b; font-size: calc(12px + var(--ui-font-increase, 0px)); }
+.level-number {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #1e293b;
+  color: #fff;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
+}
+.rack-option-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.rack-option { position: relative; padding: 14px 14px 13px; border: 1px solid #dbe3ef; border-radius: 10px; background: #f8fafc; }
+.rack-option.active { border: 2px solid var(--primary); padding: 13px 13px 12px; background: var(--primary-soft); }
+.rack-option strong, .rack-option span { display: block; }
+.rack-option strong { color: #1e293b; font-size: calc(15px + var(--ui-font-increase, 0px)); }
+.rack-option span { margin-top: 5px; color: #64748b; font-size: calc(12px + var(--ui-font-increase, 0px)); }
+.rack-option em { position: absolute; top: 10px; right: 10px; padding: 3px 7px; border-radius: 999px; background: var(--primary); color: #fff; font-size: calc(10px + var(--ui-font-increase, 0px)); font-style: normal; font-weight: 800; }
+.product-profile {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.25fr) repeat(3, minmax(110px, .75fr));
+  overflow: hidden;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+.product-profile > div { padding: 15px 16px; border-left: 1px solid #dbeafe; }
+.product-profile > div:first-child { border-left: 0; background: #eff6ff; }
+.product-profile span, .product-profile strong, .product-profile small { display: block; }
+.product-profile span { color: #64748b; font-size: calc(11px + var(--ui-font-increase, 0px)); font-weight: 700; }
+.product-profile strong { margin-top: 5px; color: #172033; font-size: calc(18px + var(--ui-font-increase, 0px)); }
+.product-profile small { margin-top: 4px; color: #64748b; font-size: calc(11px + var(--ui-font-increase, 0px)); }
+.product-code { display: inline-grid !important; place-items: center; float: left; width: 34px; height: 34px; margin: 0 10px 0 0; border-radius: 8px; background: #2563eb; color: #fff !important; font-size: calc(17px + var(--ui-font-increase, 0px)) !important; }
+.foam-profile-manager { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.foam-profile-manager .configuration-level + .configuration-level { margin-top: 0; }
+.foam-profile-list { display: grid; gap: 8px; min-height: 80px; }
+.foam-profile-item { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; padding: 12px 13px; border: 1px solid #dbe3ef; border-radius: 9px; background: #f8fafc; color: #1e293b; cursor: pointer; text-align: left; }
+.foam-profile-item:hover { border-color: #93c5fd; background: #f8fbff; }
+.foam-profile-item.active { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.10); background: #eff6ff; }
+.foam-profile-item strong { font-size: calc(13px + var(--ui-font-increase, 0px)); }
+.foam-profile-item small { color: #64748b; font-size: calc(10px + var(--ui-font-increase, 0px)); }
+.foam-profile-item .profile-count { grid-row: 1 / span 2; grid-column: 2; align-self: center; padding: 4px 7px; border-radius: 999px; background: #e2e8f0; color: #475569; font-size: calc(10px + var(--ui-font-increase, 0px)); font-weight: 800; }
+.foam-profile-item.active .profile-count { background: #dbeafe; color: #1d4ed8; }
+.foam-profile-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; color: #475569; font-size: calc(12px + var(--ui-font-increase, 0px)); }
+.capacity-button { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #1e293b; cursor: pointer; font-size: calc(18px + var(--ui-font-increase, 0px)); line-height: 1; }
+.capacity-button:hover { border-color: #60a5fa; color: #1d4ed8; }
+.text-action { margin-left: auto; border: 0; background: transparent; color: #2563eb; cursor: pointer; font-size: calc(11px + var(--ui-font-increase, 0px)); font-weight: 700; }
+.text-action + .text-action { margin-left: 0; }
+.text-action.danger { color: #dc2626; }
+.foam-overflow-warning { margin-bottom: 12px; padding: 10px 12px; border: 1px solid #fcd34d; border-radius: 8px; background: #fffbeb; color: #92400e; font-size: calc(12px + var(--ui-font-increase, 0px)); line-height: 1.5; }
+.matrix-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 22px 0 14px; }
+.matrix-heading h3 { margin: 0; color: #1e293b; font-size: calc(17px + var(--ui-font-increase, 0px)); }
+.matrix-heading p { margin: 5px 0 0; color: #64748b; font-size: calc(12px + var(--ui-font-increase, 0px)); }
+.matrix-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.matrix-stat { min-width: 78px; padding: 8px 10px; border: 1px solid #dbe3ef; border-radius: 8px; background: #f8fafc; text-align: center; }
+.matrix-stat strong, .matrix-stat span { display: block; }
+.matrix-stat strong { color: #1e293b; font-size: calc(16px + var(--ui-font-increase, 0px)); }
+.matrix-stat span { margin-top: 2px; color: #64748b; font-size: calc(10px + var(--ui-font-increase, 0px)); }
+.recipe-current-context { display: flex; align-items: center; gap: 7px; margin-bottom: 12px; padding: 9px 12px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #475569; font-size: calc(12px + var(--ui-font-increase, 0px)); }
+.recipe-current-context strong { color: #1d4ed8; }
+
+/* 配方卡片列表 */
+#foam-recipe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.recipe-layer-section { overflow: hidden; border: 1px solid #dbe3ef; border-radius: 12px; background: #f8fafc; }
+.recipe-layer-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 15px; border-bottom: 1px solid #dbe3ef; background: #f1f5f9; }
+.recipe-layer-head strong { color: #1e293b; font-size: calc(14px + var(--ui-font-increase, 0px)); }
+.recipe-layer-head span { color: #64748b; font-size: calc(11px + var(--ui-font-increase, 0px)); }
+.recipe-position-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 12px; }
+.recipe-slot-card { min-width: 0; padding: 13px; border: 1px solid #dbe3ef; border-radius: 9px; background: #fff; }
+.recipe-slot-card.active { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.12); }
+.recipe-slot-card.pending { border-style: dashed; background: rgba(255,255,255,.55); }
+.slot-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.slot-card-top h4 { margin: 0; color: #1e293b; font-size: calc(13px + var(--ui-font-increase, 0px)); }
+.slot-card-top small { display: block; margin-top: 3px; color: #64748b; font-size: calc(10px + var(--ui-font-increase, 0px)); }
+.slot-status { flex: 0 0 auto; padding: 3px 6px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: calc(9px + var(--ui-font-increase, 0px)); font-weight: 800; }
+.slot-status.pending { background: #f1f5f9; color: #64748b; }
+.slot-data-name { overflow: hidden; margin: 10px 0 8px; color: #334155; font-size: calc(11px + var(--ui-font-increase, 0px)); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.slot-roi-state { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 8px; }
+.slot-roi-state span { padding: 5px 6px; border-radius: 5px; background: #f1f5f9; color: #475569; font-size: calc(9px + var(--ui-font-increase, 0px)); text-align: center; }
+.slot-roi-state span.ready { background: #ecfdf5; color: #047857; }
+.slot-threshold { color: #64748b; font-size: calc(10px + var(--ui-font-increase, 0px)); line-height: 1.5; }
+.slot-actions { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; }
+.slot-actions .btn { padding: 5px 8px; font-size: calc(10px + var(--ui-font-increase, 0px)); }
+.slot-actions .slot-delete { border-color: #fecaca; background: #fff; color: #dc2626; }
+.slot-actions .slot-delete:hover { background: #fef2f2; }
+.slot-details { margin-top: 9px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+.slot-details summary { color: #2563eb; cursor: pointer; font-size: calc(10px + var(--ui-font-increase, 0px)); font-weight: 700; }
+.slot-details .foam-template-summary { padding: 8px; font-size: calc(9px + var(--ui-font-increase, 0px)); overflow-wrap: anywhere; }
+.slot-details .foam-template-side { font-family: inherit; }
+.slot-pending-copy { min-height: 78px; display: grid; place-items: center; color: #94a3b8; font-size: calc(11px + var(--ui-font-increase, 0px)); line-height: 1.5; text-align: center; }
+.slot-create-button { width: 100%; padding: 7px 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #475569; cursor: pointer; font-size: calc(10px + var(--ui-font-increase, 0px)); font-weight: 700; }
+.slot-create-button:hover { border-color: #93c5fd; color: #1d4ed8; }
+
+@media (max-width: 1100px) {
+  .recipe-position-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .product-profile { grid-template-columns: 1.3fr repeat(3, 1fr); }
+}
+@media (max-width: 760px) {
+  .recipe-title-bar, .foam-system-header, .matrix-heading { align-items: stretch; flex-direction: column; }
+  .recipe-title-actions { justify-content: flex-start; }
+  .recipe-structure-flow { grid-template-columns: 1fr; gap: 7px; }
+  .structure-arrow { transform: rotate(90deg); }
+  .rack-option-grid, .product-profile, .recipe-position-grid { grid-template-columns: 1fr; }
+  .foam-profile-manager { grid-template-columns: 1fr; }
+  .product-profile > div { border-left: 0; border-top: 1px solid #dbeafe; }
+  .product-profile > div:first-child { border-top: 0; }
+}
+
+/* 配方卡片 */
+.recipe-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  background: var(--surface-2);
+  transition: all 0.2s;
+}
+.recipe-card:hover {
+  box-shadow: var(--shadow-sm);
+}
+.recipe-card.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.recipe-card.manual {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+.recipe-card h3 {
+  margin: 0 0 10px;
+  font-size: calc(15px + var(--ui-font-increase, 0px));
+  font-weight: 700;
+  color: #1f2937;
+}
+.recipe-card-row {
+  font-size: calc(13px + var(--ui-font-increase, 0px));
+  color: var(--text-muted);
+  margin: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.recipe-card-row strong {
+  color: var(--text);
+}
+.recipe-card-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+#foam-recipe-list,
+#rack3d-recipe-list {
+  display: grid;
+  gap: 10px;
+}
+.recipe-card-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+  color: #1f2937;
+  font-size: calc(15px + var(--ui-font-increase, 0px));
+  font-weight: 700;
+}
+.recipe-card-summary::-webkit-details-marker { display: none; }
+.recipe-card-summary::before {
+  content: "▸";
+  flex: 0 0 auto;
+  color: #64748b;
+  transition: transform .2s ease;
+}
+.recipe-card[open] > .recipe-card-summary::before { transform: rotate(90deg); }
+.recipe-card-name { min-width: 0; overflow-wrap: anywhere; }
+#recipe-tab-foam2d .recipe-card-summary { flex-wrap: wrap; }
+#foam-recipe-search { min-width: 0; width: min(100%, 340px); padding: 8px 12px; border: 1px solid var(--border); border-radius: 7px; }
+.rack-number-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
+  font-weight: 700;
+}
+.recipe-rename-button {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid #93c5fd;
+  border-radius: 7px;
+  background: #fff;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: calc(11px + var(--ui-font-increase, 0px));
+  font-weight: 700;
+}
+.recipe-rename-button:hover { background: #eff6ff; }
+.recipe-copy-button {
+  border-color: #86efac;
+  color: #15803d;
+}
+.recipe-copy-button:hover { background: #f0fdf4; }
+.recipe-delete-button {
+  border-color: #fecaca;
+  color: #dc2626;
+}
+.recipe-delete-button:hover { background: #fef2f2; }
+.recipe-card-body {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.foam-template-summary {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
+  line-height: 1.7;
+}
+.foam-template-summary.ready {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.foam-template-summary.missing {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+.foam-template-title {
+  font-weight: 800;
+  color: #334155;
+  margin-bottom: 4px;
+}
+.foam-template-side {
+  color: #475569;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.foam-template-meta {
+  color: #64748b;
+  margin-top: 4px;
+}
+
+/* 空状态 */
+.recipe-empty {
+  padding: 40px 28px;
+  color: var(--text-muted);
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: calc(14px + var(--ui-font-increase, 0px));
+}
+
+/* Toast 提示框 */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 16px 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 280px;
+  animation: slideInRight 0.3s ease;
+}
+@keyframes slideInRight {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+}
+.toast.success {
+  border-left: 4px solid #10b981;
+}
+.toast.error {
+  border-left: 4px solid #ef4444;
+}
+.toast.info {
+  border-left: 4px solid #3b82f6;
+}
+.toast-icon {
+  font-size: calc(24px + var(--ui-font-increase, 0px));
+  line-height: 1;
+}
+.toast-content {
+  flex: 1;
+}
+.toast-title {
+  font-weight: 600;
+  font-size: calc(14px + var(--ui-font-increase, 0px));
+  margin: 0 0 4px 0;
+  color: var(--text);
+}
+.toast-message {
+  font-size: calc(13px + var(--ui-font-increase, 0px));
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Modal 弹窗 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(3px);
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.modal-content {
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.modal-header h3 {
+  margin: 0;
+  font-size: calc(18px + var(--ui-font-increase, 0px));
+  font-weight: 700;
+}
+.modal-close {
+  background: none;
+  border: none;
+  font-size: calc(24px + var(--ui-font-increase, 0px));
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+.modal-close:hover {
+  color: var(--text);
+}
+.modal-body {
+  padding: 24px;
+}
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.form-group {
+  margin-bottom: 16px;
+}
+.form-group label {
+  display: block;
+  font-size: calc(13px + var(--ui-font-increase, 0px));
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: calc(14px + var(--ui-font-increase, 0px));
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.form-group small {
+  display: block;
+  margin-top: 4px;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
+  color: var(--text-muted);
+}
+
+/* 3D配方表单专用样式 */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+.form-section {
+  margin: 20px 0;
+  padding: 18px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.form-section-title {
+  font-size: calc(14px + var(--ui-font-increase, 0px));
+  font-weight: 700;
+  color: #475569;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.form-section-title::before {
+  content: "▸";
+  color: var(--primary);
+}
+
+/* 3D配方卡片专用徽章 */
+.layer-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: #fff;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  min-width: 50px;
+}
+.status-badge {
+  margin-left: auto;
+  font-size: calc(11px + var(--ui-font-increase, 0px));
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.status-badge.enabled {
+  background: #d1fae5;
+  color: #065f46;
+}
+.status-badge.disabled {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.recipe-card-summary .layer-badge {
+  margin-right: 6px;
+}
+.recipe-card.disabled {
+  opacity: 0.6;
+  background: #f9fafb;
+}
+.rack3d-data-block {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #f8fafc;
+}
+.rack3d-data-title {
+  margin-bottom: 7px;
+  color: #334155;
+  font-weight: 700;
+}
+.rack3d-roi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+  gap: 6px;
+}
+.rack3d-roi-item {
+  padding: 6px 8px;
+  border-left: 4px solid #22c55e;
+  border-radius: 5px;
+  background: #fff;
+  color: #475569;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
+}
+.rack3d-template-ok { color: #15803d; font-weight: 700; }
+.rack3d-template-empty { color: #94a3b8; }
+.rack3d-template-detail {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
+  line-height: 1.6;
+}
+.rack3d-readonly-note {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: calc(12px + var(--ui-font-increase, 0px));
+}
+.rack-master-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+.rack-master-heading h2 { margin: 4px 0 6px; color: #0f172a; }
+.rack-master-heading p { margin: 0; color: #64748b; }
+.rack-master-kicker { color: #2563eb; font-size: calc(12px + var(--ui-font-increase, 0px)); font-weight: 800; letter-spacing: .12em; }
+.rack-master-grid {
+  display: grid;
+  grid-template-columns: minmax(250px, 310px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.rack-master-panel {
+  border: 1px solid #dbe4f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .05);
+}
+.rack-master-list-head { padding: 15px 16px 10px; font-weight: 800; color: #334155; }
+.rack-master-list { padding: 0 8px 10px; max-height: 680px; overflow: auto; }
+.rack-master-list-item {
+  width: 100%;
+  margin: 3px 0;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+}
+.rack-master-list-item:hover { background: #f8fafc; }
+.rack-master-list-item.active { border-color: #93c5fd; background: #eff6ff; }
+.rack-master-list-item strong { display: block; color: #0f172a; }
+.rack-master-list-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; color: #64748b; font-size: calc(12px + var(--ui-font-increase, 0px)); }
+.rack-master-detail { min-height: 330px; padding: 18px; }
+.rack-master-detail-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.rack-master-detail-head h3 { margin: 3px 0 5px; color: #0f172a; font-size: calc(22px + var(--ui-font-increase, 0px)); }
+.rack-master-detail-head p { margin: 0; color: #64748b; }
+.rack-master-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rack-master-badges { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0; }
+.rack-master-badge { padding: 5px 9px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: calc(12px + var(--ui-font-increase, 0px)); font-weight: 700; }
+.rack-master-badge.ok { background: #dcfce7; color: #166534; }
+.rack-master-badge.warn { background: #fef3c7; color: #92400e; }
+.rack-master-badge.error { background: #fee2e2; color: #991b1b; }
+.rack-master-stats { display: grid; grid-template-columns: repeat(5, minmax(105px, 1fr)); gap: 9px; }
+.rack-master-stat { padding: 11px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; }
+.rack-master-stat small { display: block; color: #64748b; }
+.rack-master-stat strong { display: block; margin-top: 3px; color: #0f172a; font-size: calc(17px + var(--ui-font-increase, 0px)); }
+.rack-master-section { margin-top: 18px; }
+.rack-master-section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; color: #1e293b; font-weight: 800; }
+.rack-layout-preview { display: grid; gap: 7px; }
+.rack-layout-row { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; }
+.rack-layout-layer { color: #475569; font-size: calc(12px + var(--ui-font-increase, 0px)); font-weight: 700; }
+.rack-layout-slots { display: grid; grid-template-columns: repeat(var(--slot-count), minmax(30px, 1fr)); gap: 5px; }
+.rack-layout-slot { padding: 7px 3px; border: 1px solid #bfdbfe; border-radius: 6px; background: #eff6ff; color: #1d4ed8; font-size: calc(11px + var(--ui-font-increase, 0px)); text-align: center; }
+.rack-mapping-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: calc(13px + var(--ui-font-increase, 0px)); }
+.rack-mapping-table th, .rack-mapping-table td { padding: 9px 8px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: middle; }
+.rack-mapping-table th { background: #f8fafc; color: #475569; }
+.rack-mapping-table select, .rack-mapping-table input { min-width: 135px; padding: 7px 8px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
+.rack-mapping-scroll { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 9px; }
+.rack-resolver { display: grid; grid-template-columns: minmax(120px, .7fr) minmax(120px, .7fr) auto minmax(260px, 2fr); gap: 9px; align-items: end; padding: 13px; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; }
+.rack-resolver label { display: block; margin-bottom: 5px; color: #475569; font-size: calc(12px + var(--ui-font-increase, 0px)); font-weight: 700; }
+.rack-resolver input, .rack-resolver select { width: 100%; padding: 8px; border: 1px solid #93c5fd; border-radius: 7px; background: #fff; }
+.rack-resolver-result { min-height: 38px; padding: 9px 11px; border-radius: 7px; background: #fff; color: #1e3a8a; }
+.rack-validation-list { margin: 8px 0 0; padding-left: 20px; color: #92400e; font-size: calc(13px + var(--ui-font-increase, 0px)); }
+.rack-technical-library { margin-top: 0; border: 1px solid #dbe4f0; border-radius: 12px; background: #fff; }
+.rack-technical-title { padding: 15px 17px; color: #334155; font-weight: 800; }
+.rack-technical-body { padding: 0 16px 16px; }
+.rack-technical-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; color: #64748b; font-size: calc(13px + var(--ui-font-increase, 0px)); }
+.rack-master-empty { padding: 60px 24px; color: #64748b; text-align: center; }
+.rack-process-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.4fr) minmax(200px, .8fr) auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #dbe4f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.rack-process-select-wrap label { display: block; margin-bottom: 5px; color: #64748b; font-size: calc(11px + var(--ui-font-increase, 0px)); font-weight: 800; }
+.rack-process-select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; font-weight: 700; }
+.rack-process-status { color: #475569; font-size: calc(13px + var(--ui-font-increase, 0px)); }
+.rack-process-status strong { display: block; margin-bottom: 3px; color: #0f172a; }
+.rack-process-toolbar-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.rack-process-scenes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.rack-process-scene-tab {
+  position: relative;
+  min-height: 78px;
+  padding: 12px 13px 11px 47px;
+  border: 1px solid #dbe4f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #475569;
+  text-align: left;
+  cursor: pointer;
+}
+.rack-process-scene-tab::after { content: '→'; position: absolute; right: -8px; top: 29px; z-index: 2; color: #94a3b8; font-weight: 800; }
+.rack-process-scene-tab:last-child::after { display: none; }
+.rack-process-scene-tab.active { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 2px rgba(37,99,235,.1); }
+.rack-scene-number { position: absolute; left: 12px; top: 13px; display: grid; place-items: center; width: 27px; height: 27px; border-radius: 8px; background: #e2e8f0; color: #475569; font-size: calc(12px + var(--ui-font-increase, 0px)); font-weight: 900; }
+.rack-process-scene-tab.active .rack-scene-number { background: #2563eb; color: #fff; }
+.rack-process-scene-tab strong, .rack-process-scene-tab small { display: block; }
+.rack-process-scene-tab strong { color: #0f172a; font-size: calc(14px + var(--ui-font-increase, 0px)); }
+.rack-process-scene-tab small { margin-top: 4px; color: #64748b; line-height: 1.35; }
+.rack-process-detail { padding: 0; overflow: hidden; }
+.rack-scene-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 18px 20px; border-bottom: 1px solid #e2e8f0; background: linear-gradient(135deg,#f8fafc,#eff6ff); }
+.rack-scene-head h3 { margin: 4px 0 5px; color: #0f172a; font-size: calc(21px + var(--ui-font-increase, 0px)); }
+.rack-scene-head p { margin: 0; color: #64748b; }
+.rack-scene-tag { color: #2563eb; font-size: calc(11px + var(--ui-font-increase, 0px)); font-weight: 900; letter-spacing: .1em; }
+.rack-scene-body { padding: 18px 20px 20px; }
+.rack-flow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.rack-flow-card { position: relative; padding: 16px 16px 16px 58px; border: 1px solid #dbe4f0; border-radius: 11px; background: #fff; min-height: 125px; }
+.rack-flow-card.wide { grid-column: 1 / -1; }
+.rack-flow-step { position: absolute; left: 15px; top: 16px; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: #e0e7ff; color: #3730a3; font-weight: 900; }
+.rack-flow-card h4 { margin: 0 0 5px; color: #1e293b; font-size: calc(15px + var(--ui-font-increase, 0px)); }
+.rack-flow-card p { margin: 0; color: #64748b; font-size: calc(13px + var(--ui-font-increase, 0px)); line-height: 1.6; }
+.rack-flow-values { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.rack-flow-value { padding: 6px 9px; border-radius: 7px; background: #f1f5f9; color: #334155; font-size: calc(12px + var(--ui-font-increase, 0px)); }
+.rack-flow-value strong { color: #0f172a; }
+.rack-flow-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.rack-flow-arrow { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 8px; color: #64748b; font-size: calc(12px + var(--ui-font-increase, 0px)); font-weight: 800; }
+.rack-flow-arrow::before, .rack-flow-arrow::after { content: ''; height: 1px; flex: 1; background: #dbe4f0; }
+.rack-loop-banner { display: flex; justify-content: space-between; gap: 15px; align-items: center; margin-bottom: 12px; padding: 13px 16px; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #1e3a8a; }
+.rack-loop-banner strong { font-size: calc(16px + var(--ui-font-increase, 0px)); }
+.rack-loop-banner span { font-size: calc(12px + var(--ui-font-increase, 0px)); }
+.rack-flow-result { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; margin-top: 12px; }
+.rack-flow-result > div { padding: 9px; border-radius: 8px; text-align: center; font-size: calc(12px + var(--ui-font-increase, 0px)); font-weight: 800; }
+.rack-flow-ok { background: #dcfce7; color: #166534; }
+.rack-flow-ng { background: #fee2e2; color: #991b1b; }
+.rack-flow-or { color: #94a3b8; }
+.rack-mapping-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.rack-mapping-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; }
+.rack-mapping-card-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 8px; }
+.rack-mapping-card-head strong { color: #1e293b; }
+.rack-mapping-card select, .rack-mapping-card input { width: 100%; margin-top: 7px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
+.rack-mapping-card .btn { margin-top: 8px; width: 100%; }
+.rack-scene-note { margin-top: 12px; padding: 10px 12px; border-left: 4px solid #f59e0b; background: #fffbeb; color: #92400e; font-size: calc(12px + var(--ui-font-increase, 0px)); line-height: 1.55; }
+.rack-upload-timeline { display: grid; gap: 8px; }
+.rack-upload-step { display: grid; grid-template-columns: 42px minmax(0,1fr) auto; align-items: center; gap: 11px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 9px; }
+.rack-upload-step > span:first-child { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #e0e7ff; color: #3730a3; font-weight: 900; }
+.rack-upload-step strong, .rack-upload-step small { display: block; }
+.rack-upload-step small { margin-top: 3px; color: #64748b; }
+.rack-policy-badge { padding: 5px 8px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: calc(11px + var(--ui-font-increase, 0px)); font-weight: 800; }
+@media (max-width: 1000px) {
+  .rack-master-grid { grid-template-columns: 1fr; }
+  .rack-master-list { max-height: 260px; }
+  .rack-master-stats { grid-template-columns: repeat(2, 1fr); }
+  .rack-resolver { grid-template-columns: 1fr 1fr; }
+  .rack-resolver-result { grid-column: 1 / -1; }
+  .rack-process-scenes { grid-template-columns: repeat(2, 1fr); }
+  .rack-process-scene-tab:nth-child(2)::after { display: none; }
+  .rack-process-toolbar { grid-template-columns: 1fr; }
+  .rack-process-toolbar-actions { justify-content: flex-start; }
+}
+@media (max-width: 680px) {
+  .rack-process-scenes, .rack-flow-grid, .rack-mapping-cards { grid-template-columns: 1fr; }
+  .rack-process-scene-tab::after { display: none; }
+  .rack-upload-step { grid-template-columns: 38px 1fr; }
+  .rack-policy-badge { grid-column: 2; justify-self: start; }
+}
+</style>
+
+<div class="recipe-page">
+  <div class="recipe-title-bar">
+    <div class="recipe-title-copy">
+      <span class="eyebrow">VISION RECIPE SYSTEM</span>
+      <h1>视觉配方管理</h1>
+    </div>
+    <div class="recipe-title-actions">
+      <button id="btn-create-recipe" class="btn btn-sm" style="background:var(--success);" type="button">新增配方</button>
+      <a href="/vision/foam-inspector/" class="btn btn-secondary btn-sm" id="btn-foam-workbench">进入 2D 工作台</a>
+      <a href="/vision/rack-locator/" class="btn btn-secondary btn-sm" id="btn-rack-workbench" style="display:none;">进入 3D 工作台</a>
+      <a href="/vision/tasks/" class="btn btn-secondary btn-sm">返回视觉中心</a>
+    </div>
+  </div>
+
+  <nav class="recipe-tabs" aria-label="视觉配方类型">
+    <button class="recipe-tab active" data-recipe-tab="foam2d" type="button">泡棉检测配方（2D）</button>
+    <button class="recipe-tab" data-recipe-tab="rack3d" type="button">料架定位配方（3D）</button>
+  </nav>
+
+  <div class="recipe-content">
+    <section id="recipe-tab-foam2d" class="recipe-tab-section tab-active">
+      <section class="rack-technical-library">
+        <div class="rack-technical-title">2D 泡棉配方库</div>
+        <div class="rack-technical-body">
+          <div class="rack-technical-head">
+            <input id="foam-recipe-search" type="search" placeholder="搜索配方名称、颜色或编号" aria-label="搜索泡棉配方" oninput="renderRecipeCards()">
+            <button class="btn btn-sm" type="button" onclick="openCreateModal()">＋ 新增配方</button>
+          </div>
+          <div class="rack-technical-head">
+            <label for="plc-default-foam">PLC 默认 2D 配方</label>
+            <select id="plc-default-foam" onchange="savePlcDefault('foam', this.value)"><option value="">正在读取…</option></select>
+            <span id="plc-default-foam-status" role="status"></span>
+          </div>
+          <div id="foam-recipe-list"><div class="recipe-empty">正在读取配方…</div></div>
+        </div>
+      </section>
+    </section>
+
+    <section id="recipe-tab-rack3d" class="recipe-tab-section" style="display:none;">
+      <section class="rack-technical-library">
+        <div class="rack-technical-title">3D 定位技术配方库</div>
+        <div class="rack-technical-body">
+          <div class="rack-technical-head">
+            <span>每条配方可独立复制、重命名或删除；复制会完整继承 ROI、标准坐标和点云标准模板。</span>
+            <button id="rack3d-create-button" class="btn btn-sm" type="button" onclick="open3DCopyModal()">＋ 新增配方</button>
+          </div>
+          <div class="rack-technical-head">
+            <label for="plc-default-rack">PLC 默认 3D 配方</label>
+            <select id="plc-default-rack" onchange="savePlcDefault('rack', this.value)"><option value="">正在读取…</option></select>
+            <span id="plc-default-rack-status" role="status"></span>
+          </div>
+          <div id="rack3d-recipe-list"><div class="recipe-empty">正在读取 3D 配方…</div></div>
+        </div>
+      </section>
+    </section>
+  </div>
+</div>
+
+<!-- 快速修改 3D 配方命名 -->
+<div id="recipe-rename-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:520px;">
+    <div class="modal-header">
+      <h3 id="rename-3d-modal-title">修改配方信息</h3>
+      <button class="modal-close" type="button" onclick="close3DRenameModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="rename-3d-id">
+      <input type="hidden" id="rename-3d-source-id">
+      <div id="rename-3d-copy-note" class="rack3d-readonly-note" style="display:none;margin:0 0 14px;">
+        将复制原配方的 ROI、标准坐标、点云标准模板和算法参数；创建后会自动进入 3D 工作台继续修改并保存。
+      </div>
+      <div id="rename-3d-source-group" class="form-group" style="display:none;">
+        <label for="rename-3d-source-select">复制已有配方 <span style="color:red;">*</span></label>
+        <select id="rename-3d-source-select" onchange="change3DCopySource(this.value)"></select>
+        <small>选择一份最接近的新配方作为模板。</small>
+      </div>
+      <div class="form-group">
+        <label>配方名称 <span style="color:red;">*</span></label>
+        <input type="text" id="rename-3d-name" placeholder="例如：A线 3D 料架定位配方">
+        <small id="rename-3d-name-help" style="display:none;">已自动生成副本名称，可在复制前重新命名。</small>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>料架层数 <span style="color:red;">*</span></label>
+          <select id="rename-3d-layer-count">
+            <option value="3">3 层料架配方</option>
+            <option value="2">2 层料架配方</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>料架号 <span style="color:red;">*</span></label>
+          <input type="text" id="rename-3d-rack-no" placeholder="例如：RACK-01">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" type="button" onclick="close3DRenameModal()">取消</button>
+      <button id="rename-3d-save-button" class="btn btn-sm" type="button" onclick="save3DRename()">保存修改</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新增/编辑配方弹窗 -->
+<div id="recipe-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modal-title">新增配方</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>配方名称 <span style="color:red;">*</span></label>
+        <input type="text" id="modal-name" placeholder="例如：标准料架泡棉检测">
+      </div>
+      <div class="form-group">
+        <label>复制已有配方（可选）</label>
+        <select id="modal-copy-source"><option value="">不复制，使用默认参数</option></select>
+        <small>复制会继承 ROI、阈值、算法参数和标准模板；保存后仍是独立的整架配方。</small>
+      </div>
+      <div class="form-group">
+        <label>备注</label>
+        <textarea id="modal-remark" rows="3" placeholder="选填：配方说明或备注"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">取消</button>
+      <button class="btn btn-sm" style="background:var(--success);" onclick="submitModal()">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3D配方新增/编辑弹窗 -->
+<div id="recipe-3d-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modal-3d-title">新增3D配方</h3>
+      <button class="modal-close" onclick="close3DModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="modal-3d-id">
+
+      <div class="form-group">
+        <label>配方名称 <span style="color:red;">*</span></label>
+        <input type="text" id="modal-3d-name" placeholder="例如：A线 3D 料架定位配方" required>
+        <small>用于识别整套料架定位配方，不再按单层命名。</small>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>料架层数 <span style="color:red;">*</span></label>
+          <select id="modal-3d-layer-count">
+            <option value="3">3 层料架配方</option>
+            <option value="2">2 层料架配方</option>
+          </select>
+          <small>选择这份配方对应的完整料架规格。</small>
+        </div>
+        <div class="form-group">
+          <label>料架号 <span style="color:red;">*</span></label>
+          <input type="text" id="modal-3d-rack-type" placeholder="例如：RACK-01" required>
+          <small>一个料架号对应一份 3D 配方。</small>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">点云范围（相机坐标系 mm）</div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>X Min</label>
+            <input type="number" id="modal-3d-roi-x-min" step="0.1" placeholder="-100">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>X Max</label>
+            <input type="number" id="modal-3d-roi-x-max" step="0.1" placeholder="100">
+          </div>
+          <div></div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Y Min</label>
+            <input type="number" id="modal-3d-roi-y-min" step="0.1" placeholder="-100">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Y Max</label>
+            <input type="number" id="modal-3d-roi-y-max" step="0.1" placeholder="100">
+          </div>
+          <div></div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Z Min</label>
+            <input type="number" id="modal-3d-roi-z-min" step="0.1" placeholder="700">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Z Max</label>
+            <input type="number" id="modal-3d-roi-z-max" step="0.1" placeholder="900">
+          </div>
+          <div></div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">标准坐标（mm）</div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标准 X</label>
+            <input type="number" id="modal-3d-std-x" step="0.001" placeholder="100.000" value="0">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标准 Y</label>
+            <input type="number" id="modal-3d-std-y" step="0.001" placeholder="200.000" value="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标准 Z</label>
+            <input type="number" id="modal-3d-std-z" step="0.001" placeholder="800.000" value="0">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标准 Rz</label>
+            <input type="number" id="modal-3d-std-rz" step="0.001" placeholder="0.000" value="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">工作台示教数据（只读同步）</div>
+        <div id="modal-3d-workbench-data"></div>
+        <div class="rack3d-readonly-note">
+          外框、Π1、Π2、Π3 与坐标标准模板由「3D 料架定位工作台」采集、框选和保存；此处同步展示，编辑配方不会覆盖这些数据。
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="close3DModal()">取消</button>
+      <button class="btn btn-sm" style="background:var(--success);" onclick="submit3DModal()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 料架主配方新增/编辑弹窗 -->
+<div id="rack-master-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:760px;">
+    <div class="modal-header">
+      <h3 id="rack-master-modal-title">新增料架主配方</h3>
+      <button class="modal-close" onclick="closeRackMasterModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="rack-master-id">
+      <div class="form-row">
+        <div class="form-group"><label>配方编码 *</label><input id="rack-master-code" type="text" placeholder="MES-RACK-A"></div>
+        <div class="form-group"><label>配方名称 *</label><input id="rack-master-name" type="text" placeholder="A产品三层料架"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>产品编码</label><input id="rack-master-product" type="text" placeholder="MES产品编码"></div>
+        <div class="form-group"><label>料架类型 *</label><input id="rack-master-type" type="text" placeholder="RACK-A"></div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group"><label>工位位置数</label><select id="rack-master-position-count"><option value="2">1号位 + 2号位</option><option value="1">仅1号位</option></select></div>
+        <div class="form-group"><label>层数</label><input id="rack-master-layers" type="number" min="1" value="3"></div>
+        <div class="form-group"><label>每层件数</label><input id="rack-master-per-layer" type="number" min="1" value="5"></div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group"><label>总装箱数量</label><input id="rack-master-total" type="number" min="1" value="15"></div>
+        <div class="form-group"><label>层高 mm</label><input id="rack-master-height" type="number" step="0.001" value="0"></div>
+        <div class="form-group"><label>层距 mm</label><input id="rack-master-spacing" type="number" step="0.001" value="0"></div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group"><label>X 容差 mm</label><input id="rack-master-tol-x" type="number" step="0.001" value="0"></div>
+        <div class="form-group"><label>Y 容差 mm</label><input id="rack-master-tol-y" type="number" step="0.001" value="0"></div>
+        <div class="form-group"><label>Z 容差 mm</label><input id="rack-master-tol-z" type="number" step="0.001" value="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>装箱顺序</label><select id="rack-master-direction"><option value="BOTTOM_UP_LEFT_RIGHT">从下到上、从左到右</option><option value="BOTTOM_UP_RIGHT_LEFT">从下到上、从右到左</option><option value="TOP_DOWN_LEFT_RIGHT">从上到下、从左到右</option><option value="TOP_DOWN_RIGHT_LEFT">从上到下、从右到左</option></select></div>
+        <div class="form-group"><label>满框条件</label><select id="rack-master-full"><option value="QUANTITY_REACHED">达到总装箱数量</option><option value="PLC_OR_QUANTITY">PLC满框信号或达到数量</option></select></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;"><input id="rack-master-active" type="checkbox" checked> 启用此主配方</label>
+      <div class="rack3d-readonly-note">保存主配方不会修改已有 3D 定位配方；层数或位置数增加后，新层位会显示为“待映射”。</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeRackMasterModal()">取消</button>
+      <button class="btn btn-sm" style="background:var(--success);" onclick="saveRackMasterRecipe()">保存主配方</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2D配方编辑弹窗 -->
+<div id="recipe-edit-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:580px;">
+    <div class="modal-header">
+      <h3 id="edit-modal-title">编辑配方</h3>
+      <button class="modal-close" onclick="closeEditModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-modal-id">
+
+      <!-- POS 信息 -->
+      <div style="margin-bottom:16px;padding:10px 14px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border);font-size:calc(13px + var(--ui-font-increase, 0px));color:var(--text-muted);">
+        适用范围：<strong id="edit-modal-pos" style="color:var(--primary);"></strong>
+        <span style="margin-left:10px;font-size:calc(12px + var(--ui-font-increase, 0px));">· ROI坐标以图片像素为单位</span>
+      </div>
+
+      
+      <!-- 阈值配置 -->
+      <div class="form-section">
+        <div class="form-section-title">⚙️ 判定阈值</div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>最低覆盖率</label>
+            <input type="number" required id="edit-thresh-cov" min="0" max="1" step="0.01" placeholder="0.08">
+            
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>最低得分</label>
+            <input type="number" required id="edit-thresh-score" min="0" max="1" step="0.01" placeholder="0.8">
+            
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>最大偏移(px)</label>
+            <input type="number" required id="edit-thresh-x" min="0" step="1" placeholder="30">
+            
+          </div>
+        </div>
+      </div>
+
+<div class="form-section"><div class="form-section-title">配方信息</div>
+<div class="form-group"><label for="edit-name">配方名称</label><input id="edit-name" required></div>
+<div class="form-group"><label for="edit-remark">备注</label><input id="edit-remark"></div>
+<label><input id="edit-active" type="checkbox">启用配方</label></div>
+<div class="form-section"><div class="form-section-title">毫米标定与偏移</div><div class="form-row-3">
+<div class="form-group"><label for="edit-quality-pixels-per-mm-x">X 像素/毫米</label><input id="edit-quality-pixels-per-mm-x" type="number" min="0" step="0.1" required></div><div class="form-group"><label for="edit-quality-pixels-per-mm-y">Y 像素/毫米</label><input id="edit-quality-pixels-per-mm-y" type="number" min="0" step="0.1" required></div><div class="form-group"><label for="edit-quality-max-offset-x-mm">X 最大偏移(mm)</label><input id="edit-quality-max-offset-x-mm" type="number" min="0" step="0.1" required></div><div class="form-group"><label for="edit-quality-max-offset-y-mm">Y 最大偏移(mm)</label><input id="edit-quality-max-offset-y-mm" type="number" min="0" step="0.1" required></div></div></div>          <details class="foam-quality-settings" open>
+            <summary>材质与完整性判定</summary>
+            
+            <div class="form-row-3">
+              <label class="form-group">泡棉颜色<select id="edit-quality-material"><option value="unspecified">未标注</option><option value="white">白色</option><option value="gray">灰色</option></select></label>
+              <label class="form-group">分割方式<select id="edit-quality-segmentation"><option value="fixed-threshold">固定亮度阈值</option><option value="shadow-graphcut-v1">阴影分割</option><option value="shadow-graphcut-fast-v2">快速阴影分割</option><option value="gray-graphcut-v3">灰色局部对比分割</option></select></label>
+              <label>最低亮度 V（0–255）<input id="edit-quality-min-v" type="number" min="0" max="255" step="1" required></label>
+              <label>最高饱和度 S（0–255）<input id="edit-quality-max-s" type="number" min="0" max="255" step="1" required></label>
+              
+              <label class="form-group">判定方式<select id="edit-quality-decision-mode"><option value="legacy">原位置覆盖率与偏移</option><option value="separated-v2">独立完整性与偏移</option></select></label>
+              <label class="form-group">最小面积比<input id="edit-quality-min-area-ratio" type="number" min="0" step="0.01" placeholder="需样件验证"></label>
+              <label class="form-group">最大面积比<input id="edit-quality-max-area-ratio" type="number" min="0" step="0.01" placeholder="需样件验证"></label>
+              <label class="form-group">最大缺损比例<input id="edit-quality-max-missing-ratio" type="number" min="0" max="1" step="0.01" placeholder="需样件验证"></label>
+              <label class="form-group">最大超出比例<input id="edit-quality-max-excess-ratio" type="number" min="0" step="0.01" placeholder="需样件验证"></label>
+            </div>
+            <div class="form-row-3">
+              <label class="form-group"><input id="edit-quality-registration-enabled" type="checkbox">启用产品本体定位</label>
+              <label class="form-group">产品最大位移(px)<input id="edit-quality-registration-shift" type="number" min="1" max="2000" step="1" value="120"></label>
+              <label class="form-group">产品最大转角(度)<input id="edit-quality-registration-rotation" type="number" min="0" max="15" step="0.1" value="3"></label>
+              <label class="form-group"><input id="edit-quality-merge-enabled" type="checkbox">合并相邻泡棉碎片</label>
+              <label class="form-group">碎片最大间隙(px)<input id="edit-quality-merge-gap" type="number" min="1" max="200" step="1" value="12"></label>
+              <label class="form-group">碎片颜色距离上限<input id="edit-quality-merge-color" type="number" min="0" max="100" step="1" value="25"></label>
+            </div>
+            
+            <p id="edit-quality-effective-mode" role="status"></p>
+          </details>
+
+      <!-- 标准模板位置（由检测工作台示教并持久化到配方） -->
+      <div class="form-section">
+        <div class="form-section-title">标准模板</div>
+        <div id="edit-standard-template-data"></div>
+        
+        <a id="edit-standard-template-workbench" href="/vision/foam-inspector/" class="btn btn-secondary btn-sm" style="margin-top:10px;text-decoration:none;">前往工作台示教模板</a>
+      </div>
+
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeEditModal()">取消</button>
+      <button class="btn btn-sm" style="background:var(--success);" onclick="submitEditModal()">💾 保存配方</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  视觉配方管理 · 前端逻辑 v1.2 (无Loading版本)
+// ============================================================
+console.log('配方管理页面已加载 - 整架共用配方库');
+
+const API = {
+  recipes: '/vision/api/recipes/',
+  recipeByPos: '/vision/api/recipes/foam-2d/by-pos/',
+  saveRecipe: '/vision/api/recipes/foam-2d/save/',
+  createRecipe: '/vision/api/recipes/foam-2d/create/',
+  deleteRecipe: (id) => `/vision/api/recipes/foam-2d/${id}/delete/`,
+  foamRackSpecs: '/vision/api/foam/rack-specs/',
+  foamRackSpec: (id) => `/vision/api/foam/rack-specs/${id}/`,
+  foamProducts: (rackId) => `/vision/api/foam/rack-specs/${rackId}/products/`,
+  foamProduct: (id) => `/vision/api/foam/product-layouts/${id}/`,
+  foamLayoutRecipes: (id) => `/vision/api/foam/product-layouts/${id}/recipes/`,
+  defaultRecipes: '/vision/api/recipes/foam-2d/defaults/',
+  rackMasterRecipes: '/vision/api/rack-master-recipes/',
+  rackMasterMappingSave: '/vision/api/rack-master-mappings/save/',
+  rackMasterValidate: (id) => `/vision/api/rack-master-recipes/${id}/validate/`,
+  rackMasterResolve: (id) => `/vision/api/rack-master-recipes/${id}/resolve/`,
+  // 3D料架定位配方API
+  rack3dRecipes: '/vision/api/rack-location/recipes/',
+  rack3dRecipeUpdate: (id) => `/vision/api/rack-location/recipes/${id}/update/`,
+};
+
+function getCsrf() {
+  return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+}
+
+function showToast(message, type = 'success', duration = 2000) {
+  const icons = {
+    success: '✅',
+    error: '❌',
+    info: 'ℹ️'
+  };
+
+  const titles = {
+    success: '操作成功',
+    error: '操作失败',
+    info: '提示'
+  };
+
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `
+    <div class="toast-icon">${icons[type]}</div>
+    <div class="toast-content">
+      <div class="toast-title">${titles[type]}</div>
+      <div class="toast-message">${message}</div>
+    </div>
+  `;
+
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.animation = 'slideOutRight 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// 兼容旧代码，但不显示loading
+function showLoading(msg = '处理中...') {
+  // 不显示loading，静默处理
+}
+
+function hideLoading() {
+  // 不做任何事
+}
+
+// ── 配方状态 ───────────────────────────────────────
+let foam2DRecipes = [];
+let modalMode = 'create';
+let editingRecipeId = null;
+let foamCopySources = [];
+
+async function foamApi(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'X-CSRFToken': getCsrf(),
+      ...(options.body ? {'Content-Type': 'application/json'} : {}),
+      ...(options.headers || {}),
+    },
+  });
+  const data = await response.json();
+  if (!response.ok || !data.success) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
+  return data;
+}
+
+async function loadRecipes() {
+  try {
+    const data = await foamApi(API.recipes + '?recipe_type=FOAM_2D');
+    foam2DRecipes = data.recipes || [];
+    foamCopySources = foam2DRecipes;
+    await loadPlcDefault('foam', foam2DRecipes);
+    const editId = Number(new URLSearchParams(window.location.search).get('edit'));
+    if (editId && !window.foamInitialEditOpened) {
+      window.foamInitialEditOpened = true;
+      openEditModal(editId);
+    }
+    renderRecipeCards();
+  } catch (error) {
+    document.getElementById('foam-recipe-list').textContent = '加载失败：' + error.message;
+  }
+}
+
+async function loadPlcDefault(kind, recipes) {
+  const select = document.getElementById(`plc-default-${kind}`);
+  const status = document.getElementById(`plc-default-${kind}-status`);
+  try {
+    const response = await fetch('/vision/api/recipes/plc-defaults/');
+    if (!response.ok) throw new Error('读取默认配方失败');
+    const data = await response.json();
+    const selected = data[`${kind}_recipe_id`];
+    select.replaceChildren(new Option('请选择默认配方', ''));
+    select.options[0].disabled = true;
+    recipes.forEach(recipe => {
+      const enabled = kind === 'foam' ? recipe.is_active : recipe.enabled;
+      const name = kind === 'foam' ? recipe.name : recipe.recipe_name;
+      const option = new Option(`${name}${enabled ? '' : '（已停用）'}`, recipe.id);
+      option.disabled = !enabled;
+      select.add(option);
+    });
+    select.value = selected || '';
+    const recipe = recipes.find(item => item.id === selected);
+    const enabled = recipe && (kind === 'foam' ? recipe.is_active : recipe.enabled);
+    status.textContent = enabled ? 'PLC 下次调用使用此配方，选择后自动保存' : '未设置可用默认配方，PLC 自动视觉将报错';
+  } catch (error) {
+    status.textContent = error.message;
+  }
+}
+
+async function savePlcDefault(kind, recipeId) {
+  if (!recipeId) return;
+  const select = document.getElementById(`plc-default-${kind}`);
+  select.disabled = true;
+  try {
+    const response = await fetch('/vision/api/recipes/plc-defaults/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({kind, recipe_id: Number(recipeId)}),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || '默认配方保存失败');
+    showToast('默认配方已保存，PLC 下次调用生效', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    await loadPlcDefault(kind, kind === 'foam' ? foam2DRecipes : rack3DRecipes);
+    select.disabled = false;
+  }
+}
+
+function isRoiConfigured(r) {
+  if (!r || typeof r !== 'object') return false;
+  if (r.type === 'polygon') return Array.isArray(r.points) && r.points.length >= 3;
+  if ('x1r' in r && 'x2r' in r) return r.x2r > r.x1r && r.y2r > r.y1r;
+  return (r.width || 0) > 0 && (r.height || 0) > 0;
+}
+function roiLabel(r) {
+  if (!r || typeof r !== 'object') return '⚠️ 未配置';
+  if (r.type === 'polygon') return `✅ 多边形(${(r.points || []).length}点)`;
+  if ('x1r' in r) return `✅ 比例坐标 [${r.x1r?.toFixed(3)},${r.y1r?.toFixed(3)}→${r.x2r?.toFixed(3)},${r.y2r?.toFixed(3)}]`;
+  return `✅ x=${r.x}, y=${r.y}, w=${r.width}, h=${r.height}`;
+}
+
+function escape2DHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function finiteNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function thresholdValue(config, keys, fallback) {
+  for (const key of keys) {
+    if (config?.[key] !== undefined && config[key] !== null) return finiteNumber(config[key], fallback);
+  }
+  return fallback;
+}
+
+function roiPixelGeometry(roi, recipe) {
+  if (!roi || typeof roi !== 'object') return {x:0, y:0, width:0, height:0};
+  const imageWidth = Math.max(1, finiteNumber(recipe?.image_width, 1));
+  const imageHeight = Math.max(1, finiteNumber(recipe?.image_height, 1));
+  if (roi.type === 'polygon' && Array.isArray(roi.points) && roi.points.length >= 3) {
+    const xs = roi.points.map(point => finiteNumber(point?.[0]) * imageWidth);
+    const ys = roi.points.map(point => finiteNumber(point?.[1]) * imageHeight);
+    const x = Math.round(Math.min(...xs));
+    const y = Math.round(Math.min(...ys));
+    return {
+      x, y,
+      width: Math.max(0, Math.round(Math.max(...xs)) - x),
+      height: Math.max(0, Math.round(Math.max(...ys)) - y),
+    };
+  }
+  if (['x1r','y1r','x2r','y2r'].every(key => roi[key] !== undefined)) {
+    const x = Math.round(finiteNumber(roi.x1r) * imageWidth);
+    const y = Math.round(finiteNumber(roi.y1r) * imageHeight);
+    return {
+      x, y,
+      width: Math.max(0, Math.round(finiteNumber(roi.x2r) * imageWidth) - x),
+      height: Math.max(0, Math.round(finiteNumber(roi.y2r) * imageHeight) - y),
+    };
+  }
+  return {
+    x: finiteNumber(roi.x),
+    y: finiteNumber(roi.y),
+    width: finiteNumber(roi.width),
+    height: finiteNumber(roi.height),
+  };
+}
+
+function editedRoiOrOriginal(original, edited, recipe) {
+  const current = roiPixelGeometry(original, recipe);
+  const unchanged = ['x','y','width','height'].every(key => finiteNumber(edited[key]) === finiteNumber(current[key]));
+  return unchanged ? JSON.parse(JSON.stringify(original || {})) : edited;
+}
+
+function foamTemplateSideHtml(sideName, sideData) {
+  if (!sideData || !finiteNumber(sideData.pixels)) {
+    return `<div class="foam-template-side">${sideName}：未保存完整位置数据</div>`;
+  }
+  const box = sideData.bounding_box || {};
+  return `<div class="foam-template-side">${sideName}：面积 ${finiteNumber(sideData.pixels)}px · 中心 (${finiteNumber(sideData.centroid_x).toFixed(1)}, ${finiteNumber(sideData.centroid_y).toFixed(1)}) · 边界框 [${finiteNumber(box.x)}, ${finiteNumber(box.y)}, ${finiteNumber(box.width)}, ${finiteNumber(box.height)}]</div>`;
+}
+
+function foamTemplateSummaryHtml(recipe) {
+  const status = recipe.standard_template_status || {};
+  const sides = status.sides || recipe.standard_template?.sides || {};
+  if (!status.ready) {
+    return `<div class="foam-template-summary missing"><div class="foam-template-title">⚠️ 标准模板未完成</div><div>${escape2DHtml(status.reason || '请使用合格样件重新示教左右模板')}</div></div>`;
+  }
+  return `
+    <div class="foam-template-summary ready">
+      <div class="foam-template-title">✅ 标准模板位置已保存到配方</div>
+      ${foamTemplateSideHtml('左侧', sides.left)}
+      ${foamTemplateSideHtml('右侧', sides.right)}
+      <div class="foam-template-meta">版本 ${escape2DHtml(status.version || recipe.standard_template_version || '—')} · 示教时间 ${escape2DHtml(status.built_at || recipe.standard_template_built_at || '—')}</div>
+    </div>`;
+}
+
+// ── 渲染配方卡片 ───────────────────────────────────
+function renderRecipeCards() {
+  const query = document.getElementById('foam-recipe-search').value.trim().toLowerCase();
+  const recipes = foam2DRecipes.filter(r => `${r.id} ${r.name} ${r.remark || ''} ${r.foam_summary?.material_label || ''} ${r.foam_summary?.segmentation_label || ''} ${r.foam_summary?.configured_mode || ''}`.toLowerCase().includes(query));
+  const expanded = new Set([...document.querySelectorAll('#foam-recipe-list details[open]')].map(item => item.id));
+  document.getElementById('foam-recipe-list').innerHTML = recipes.length ? recipes.map(recipe => {
+    const t = recipe.threshold_config || {};
+    const separated = t.decision_mode === 'separated-v2';
+    const value = (label, content) => `<div class="rack3d-roi-item"><strong>${label}：</strong><span>${escape2DHtml(content)}</span></div>`;
+    const ratio = key => t[key] == null ? '未配置' : `${(100 * finiteNumber(t[key])).toFixed(1)}%`;
+    return `<details class="recipe-card ${recipe.is_active ? '' : 'disabled'}" id="recipe-2d-${recipe.id}" ${expanded.has(`recipe-2d-${recipe.id}`) ? 'open' : ''}>
+      <summary class="recipe-card-summary">
+        <span class="recipe-card-name">${escape2DHtml(recipe.name)}</span>
+        <span class="rack-number-badge">${escape2DHtml(recipe.foam_summary?.material_label || '未标注颜色')}</span>
+        <span class="status-badge ${recipe.is_active ? 'enabled' : 'disabled'}">${recipe.is_active ? '✔ 已启用' : '草稿 / 已停用'}</span>
+        <button class="recipe-rename-button recipe-copy-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); copyRecipe(${recipe.id})">增加（复制）</button>
+        <button class="recipe-rename-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); openEditModal(${recipe.id})">编辑参数</button>
+        <button class="recipe-rename-button recipe-delete-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); deleteRecipeById(${recipe.id})">删除</button>
+      </summary>
+      <div class="recipe-card-body">
+        <div class="rack3d-data-block">
+          <div class="rack3d-data-title">检测参数</div>
+          <div class="rack3d-roi-grid">
+            ${value('分割方式', recipe.foam_summary?.segmentation_label || '—')}
+            ${value('判定方式', separated ? '独立完整性与偏移' : '覆盖率与偏移')}
+            ${separated ? value('面积比', `${ratio('min_area_ratio')} ～ ${ratio('max_area_ratio')}`) + value('缺损 / 超出上限', `${ratio('max_missing_ratio')} / ${ratio('max_excess_ratio')}`) : value('最低覆盖率', `${(100 * thresholdValue(t, ['coverage_threshold','minCoverage'], .75)).toFixed(1)}%`)}
+            ${value('允许偏移 X / Y', `${thresholdValue(t, ['max_offset_x_mm','maxOffsetXMm','max_offset_mm','maxOffsetMm'], 2)} / ${thresholdValue(t, ['max_offset_y_mm','maxOffsetYMm','max_offset_mm','maxOffsetMm'], 2)} mm`)}
+          </div>
+        </div>
+        <div class="rack3d-data-block">
+          <div class="rack3d-data-title">工作台示教</div>
+          <div class="rack3d-roi-grid">
+            ${value('左 ROI', isRoiConfigured(recipe.roi_config?.leftFoamROI) ? '已配置' : '未配置')}
+            ${value('右 ROI', isRoiConfigured(recipe.roi_config?.rightFoamROI) ? '已配置' : '未配置')}
+            ${value('标准模板', recipe.standard_template_status?.ready ? '已就绪' : '待示教')}
+            ${value('毫米标定', t.pixels_per_mm_x > 0 && t.pixels_per_mm_y > 0 ? '已配置' : '未配置')}
+          </div>
+        </div>
+        <div class="recipe-card-actions">
+          <a class="btn btn-sm" href="/vision/foam-inspector/?recipe_id=${recipe.id}">进入 2D 工作台</a>
+        </div>
+      </div>
+    </details>`;
+  }).join('') : '<div class="recipe-empty">暂无匹配配方</div>';
+}
+
+// ── 选择配方编辑（已弃用，保留兼容）───────────────
+window.selectRecipeForEdit = function(recipeId) {
+  // 此函数已废弃，直接打开编辑弹窗
+  openEditModal(recipeId);
+};
+
+// ── 打开编辑弹窗 ────────────────────────────────────
+window.openEditModal = function(recipeId) {
+  const recipe = foam2DRecipes.find(r => r.id === recipeId);
+  if (!recipe) return;
+
+  const a = recipe?.algorithm_config || {};
+  const t = recipe?.threshold_config || {};
+  document.getElementById('edit-quality-registration-enabled').checked = a.product_registration?.enabled === true;
+  document.getElementById('edit-quality-registration-shift').value = a.product_registration?.max_shift_px ?? 120;
+  document.getElementById('edit-quality-registration-rotation').value = a.product_registration?.max_rotation_deg ?? 3;
+  document.getElementById('edit-quality-merge-enabled').checked = a.fragment_merge?.enabled === true;
+  document.getElementById('edit-quality-merge-gap').value = a.fragment_merge?.max_gap_px ?? 12;
+  document.getElementById('edit-quality-merge-color').value = a.fragment_merge?.max_color_distance ?? 25;
+  document.getElementById('edit-quality-material').value = a.material_type || 'unspecified';
+  document.getElementById('edit-quality-min-v').value = a.segmentation_config?.foam_min_v ?? 140;
+  document.getElementById('edit-quality-max-s').value = a.segmentation_config?.foam_max_s ?? 80;
+  document.getElementById('edit-quality-segmentation').value = a.foam_segmentation || 'fixed-threshold';
+  document.getElementById('edit-quality-decision-mode').value = t.decision_mode || 'legacy';
+  for (const key of ['min_area_ratio', 'max_area_ratio', 'max_missing_ratio', 'max_excess_ratio']) {
+    document.getElementById('edit-quality-' + key.replaceAll('_', '-')).value = t[key] ?? '';
+  }
+  for (const [key, fallback] of Object.entries({pixels_per_mm_x:0, pixels_per_mm_y:0, max_offset_x_mm:2, max_offset_y_mm:2})) {
+    document.getElementById('edit-quality-' + key.replaceAll('_', '-')).value = t[key] ?? ({max_offset_x_mm:t.maxOffsetXMm, max_offset_y_mm:t.maxOffsetYMm})[key] ?? fallback;
+  }
+  document.getElementById('edit-name').value = recipe.name;
+  document.getElementById('edit-remark').value = recipe.remark || '';
+  document.getElementById('edit-active').checked = recipe.is_active;
+
+  // 填充弹窗数据
+  const roi = recipe.roi_config || {};
+  const left = roi.leftFoamROI || {};
+  const right = roi.rightFoamROI || {};
+  const thresh = recipe.threshold_config || {};
+  const leftPixels = roiPixelGeometry(left, recipe);
+  const rightPixels = roiPixelGeometry(right, recipe);
+
+  document.getElementById('edit-modal-title').textContent = `编辑配方 · ${recipe.name}`;
+  document.getElementById('edit-modal-id').value = recipe.id;
+  document.getElementById('edit-modal-pos').textContent = '整架所有位置共用';
+
+  // 阈值
+  document.getElementById('edit-thresh-cov').value = thresholdValue(thresh, ['coverage_threshold','minCoverage'], 0.75);
+  document.getElementById('edit-thresh-score').value = thresholdValue(thresh, ['score_threshold','minScore'], 0.8);
+  document.getElementById('edit-thresh-x').value = thresholdValue(thresh, ['max_offset_px','maxOffsetX'], 30);
+  document.getElementById('edit-standard-template-data').innerHTML = foamTemplateSummaryHtml(recipe);
+  document.getElementById('edit-standard-template-workbench').href = `/vision/foam-inspector/?recipe_id=${recipe.id}`;
+
+  document.getElementById('recipe-edit-modal').style.display = 'flex';
+};
+
+// ── 关闭编辑弹窗 ────────────────────────────────────
+window.closeEditModal = function() {
+  document.getElementById('recipe-edit-modal').style.display = 'none';
+};
+
+// ── 提交编辑弹窗保存 ────────────────────────────────
+window.submitEditModal = async function() {
+  const recipeId = Number(document.getElementById('edit-modal-id').value);
+  const recipe = foam2DRecipes.find(r => r.id === recipeId);
+  if (!recipe) {
+    showToast('未找到配方，请刷新页面', 'error');
+    return;
+  }
+
+  for (const input of document.querySelectorAll('#recipe-edit-modal input')) {
+    if (!input.checkValidity()) { input.reportValidity(); return; }
+  }
+  if (!document.getElementById('edit-name').value.trim()) { showToast('请输入配方名称', 'error'); return; }
+  const coverageThreshold = Number(document.getElementById('edit-thresh-cov').value);
+  const scoreThreshold = Number(document.getElementById('edit-thresh-score').value);
+  const maxOffsetPx = Number(document.getElementById('edit-thresh-x').value);
+  const threshold_config = {
+    ...(recipe.threshold_config || {}),
+    coverage_threshold: coverageThreshold,
+    minCoverage: coverageThreshold,
+    score_threshold: scoreThreshold,
+    minScore: scoreThreshold,
+    max_offset_px: maxOffsetPx,
+    maxOffsetX: maxOffsetPx,
+    maxOffsetY: maxOffsetPx,
+  };
+
+  threshold_config.decision_mode = document.getElementById('edit-quality-decision-mode').value;
+  for (const key of ['min_area_ratio', 'max_area_ratio', 'max_missing_ratio', 'max_excess_ratio']) {
+    const input = document.getElementById('edit-quality-' + key.replaceAll('_', '-'));
+    if (input.value === '') {
+      threshold_config[key] = null;
+      if (threshold_config.decision_mode === 'separated-v2') {
+        alert('独立完整性模式需要填写四个完整性门限。');
+        return;
+      }
+    } else {
+      if (!input.checkValidity() || !Number.isFinite(Number(input.value))) {
+        alert('完整性门限无效，请检查输入。');
+        return;
+      }
+      threshold_config[key] = Number(input.value);
+    }
+  }
+
+  for (const key of ['pixels_per_mm_x','pixels_per_mm_y','max_offset_x_mm','max_offset_y_mm']) {
+    threshold_config[key] = Number(document.getElementById('edit-quality-' + key.replaceAll('_', '-')).value);
+  }
+  threshold_config.maxOffsetXMm = threshold_config.max_offset_x_mm;
+  threshold_config.maxOffsetYMm = threshold_config.max_offset_y_mm;
+  if (document.getElementById('edit-quality-registration-enabled').checked && (recipe.roi_config?.productAnchorROIs || []).length < 2) {
+    showToast('请先在示教工作台绘制两个产品本体基准区', 'error'); return;
+  }
+  try {
+    const res = await fetch(API.saveRecipe, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: recipe.id,
+        shared_recipe: true,
+        pos: recipe.pos,
+        name: document.getElementById('edit-name').value.trim(),
+        camera_side: recipe.camera_side,
+        image_width: recipe.image_width,
+        image_height: recipe.image_height,
+        roi_config: recipe.roi_config || {},
+        threshold_config,
+    algorithm_config: {
+      ...(recipe.algorithm_config || {}),
+      material_type: document.getElementById('edit-quality-material').value,
+      segmentation_config: {...(recipe.algorithm_config?.segmentation_config || {}), foam_min_v: Number(document.getElementById('edit-quality-min-v').value), foam_max_s: Number(document.getElementById('edit-quality-max-s').value)},
+      foam_segmentation: document.getElementById('edit-quality-segmentation').value,
+      product_registration: {
+        ...(recipe?.algorithm_config?.product_registration || {}),
+        enabled: document.getElementById('edit-quality-registration-enabled').checked,
+        max_shift_px: Number(document.getElementById('edit-quality-registration-shift').value),
+        max_rotation_deg: Number(document.getElementById('edit-quality-registration-rotation').value),
+      },
+      fragment_merge: {
+        ...(recipe?.algorithm_config?.fragment_merge || {}),
+        enabled: document.getElementById('edit-quality-merge-enabled').checked,
+        max_gap_px: Number(document.getElementById('edit-quality-merge-gap').value),
+        max_color_distance: Number(document.getElementById('edit-quality-merge-color').value),
+      },
+    },
+        is_active: document.getElementById('edit-active').checked,
+        remark: document.getElementById('edit-remark').value.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('配方保存成功', 'success');
+      closeEditModal();
+      await loadRecipes();
+    } else {
+      showToast(data.error || '保存失败', 'error');
+    }
+  } catch (e) {
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+};
+
+// ── 新增配方 ────────────────────────────────────────
+window.openCreateModal = function() {
+  // 如果当前在3D配方标签页，打开3D Modal
+  if (currentTab === 'rack3d') {
+    openRackMasterModal();
+    return;
+  }
+
+  // 2D配方的新增逻辑
+  modalMode = 'create';
+  editingRecipeId = null;
+  document.getElementById('modal-title').textContent = '新增配方';
+  document.getElementById('modal-name').value = '';
+  document.getElementById('modal-remark').value = '';
+  renderCopySourceOptions();
+  document.getElementById('recipe-modal').style.display = 'flex';
+};
+
+function renderCopySourceOptions(selectedId = '') {
+  const select = document.getElementById('modal-copy-source');
+  select.replaceChildren(new Option('不复制，使用默认参数', ''));
+  foamCopySources.forEach(source => {
+    select.add(new Option(
+      source.name,
+      String(source.id),
+    ));
+  });
+  select.value = selectedId ? String(selectedId) : '';
+}
+
+window.copyRecipe = function(recipeId) {
+  const recipe = foam2DRecipes.find(r => r.id === recipeId);
+  if (!recipe) return;
+
+  modalMode = 'create';
+  editingRecipeId = null;
+  document.getElementById('modal-title').textContent = '复制配方';
+  document.getElementById('modal-name').value = recipe.name + ' (副本)';
+  document.getElementById('modal-remark').value = recipe.remark || '';
+  renderCopySourceOptions(recipe.id);
+  document.getElementById('recipe-modal').style.display = 'flex';
+};
+
+// ── 删除配方 ────────────────────────────────────────
+window.deleteRecipeById = function(recipeId) {
+  const recipe = foam2DRecipes.find(r => r.id === recipeId);
+  if (recipe) deleteRecipe(recipeId, recipe.name);
+};
+
+window.deleteRecipe = async function(recipeId, recipeName) {
+  if (!confirm(`确定要删除配方「${recipeName}」吗？\n\n此操作无法撤销！`)) return;
+
+  try {
+    const res = await fetch(API.deleteRecipe(recipeId), {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf() },
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('配方删除成功', 'success');
+      await loadRecipes();
+    } else {
+      showToast(data.error || '删除失败', 'error');
+    }
+  } catch (e) {
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+};
+
+// ── 关闭弹窗 ────────────────────────────────────────
+window.closeModal = function() {
+  document.getElementById('recipe-modal').style.display = 'none';
+};
+
+// ── 提交弹窗 ────────────────────────────────────────
+window.submitModal = async function() {
+  const name = document.getElementById('modal-name').value.trim();
+  const remark = document.getElementById('modal-remark').value.trim();
+  const sourceRecipeId = document.getElementById('modal-copy-source').value;
+
+  if (!name) {
+    showToast('请输入配方名称', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(API.createRecipe, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name,
+        shared_recipe: true,
+        pos: 0,
+        source_recipe_id: sourceRecipeId || null,
+        remark: remark,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('配方创建成功', 'success');
+      closeModal();
+      await loadRecipes();
+      openEditModal(data.recipe.id);
+    } else {
+      showToast(data.error || '创建失败', 'error');
+    }
+  } catch (e) {
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+};
+
+// ── 标签页切换 ──────────────────────────────────────
+let currentTab = 'foam2d'; // 当前激活的标签页
+
+document.querySelectorAll('.recipe-tab[data-recipe-tab]').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const tabName = tab.dataset.recipeTab;
+
+    // 切换激活状态
+    document.querySelectorAll('.recipe-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+
+    // 切换显示内容（带淡入动画）
+    document.querySelectorAll('.recipe-tab-section').forEach(section => {
+      section.classList.remove('tab-active');
+      section.style.display = 'none';
+    });
+    const activeSection = document.getElementById(`recipe-tab-${tabName}`);
+    if (activeSection) {
+      activeSection.style.display = '';
+      requestAnimationFrame(() => activeSection.classList.add('tab-active'));
+    }
+
+    currentTab = tabName;
+    updateWorkbenchButtons(tabName);
+
+    if (tabName === 'rack3d') load3DRecipes();
+  });
+});
+
+
+// ── 更新工作台按钮显示 ─────────────────────────────
+function updateWorkbenchButtons(tabName) {
+  const foamBtn = document.getElementById('btn-foam-workbench');
+  const rackBtn = document.getElementById('btn-rack-workbench');
+  const createBtn = document.getElementById('btn-create-recipe');
+
+  if (tabName === 'foam2d') {
+    // 2D配方标签页：显示泡棉检测工作台
+    if(foamBtn) foamBtn.style.display = '';
+    if(rackBtn) rackBtn.style.display = 'none';
+    if(createBtn) createBtn.style.display = '';
+    if(createBtn) createBtn.textContent = '新增配方';
+  } else if (tabName === 'rack3d') {
+    // 3D配方标签页：显示料架定位工作台
+    if(foamBtn) foamBtn.style.display = 'none';
+    if(rackBtn) rackBtn.style.display = '';
+    if(createBtn) createBtn.style.display = 'none';
+  } else {
+    if(foamBtn) foamBtn.style.display = 'none';
+    if(rackBtn) rackBtn.style.display = 'none';
+    if(createBtn) createBtn.style.display = 'none';
+  }
+}
+
+// ============================================================
+//  3D配方管理逻辑
+// ============================================================
+let rack3DRecipes = [];
+let rackMasterRecipes = [];
+let selectedRackMasterId = null;
+let currentRackScene = 'basic';
+
+function escape3DHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function selectedRackMasterRecipe() {
+  return rackMasterRecipes.find(item => item.id === selectedRackMasterId) || null;
+}
+
+async function loadRackMasterRecipes() {
+  try {
+    const response = await fetch(API.rackMasterRecipes);
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || '读取失败');
+    rackMasterRecipes = data.recipes || [];
+    if (!rackMasterRecipes.some(item => item.id === selectedRackMasterId)) {
+      selectedRackMasterId = rackMasterRecipes[0]?.id || null;
+    }
+    renderRackMasterList();
+    renderRackMasterDetail();
+  } catch (error) {
+    const select = document.getElementById('rack-master-select');
+    if (select) select.innerHTML = `<option>读取失败：${escape3DHtml(error.message)}</option>`;
+    const target = document.getElementById('rack-master-detail');
+    if (target) target.innerHTML = `<div class="rack-master-empty">读取失败：${escape3DHtml(error.message)}</div>`;
+    showToast('料架主配方读取失败：' + error.message, 'error');
+  }
+}
+
+function renderRackMasterList() {
+  const target = document.getElementById('rack-master-select');
+  const status = document.getElementById('rack-master-status');
+  if (!target) return;
+  if (!rackMasterRecipes.length) {
+    target.innerHTML = '<option value="">暂无料架主配方</option>';
+    if (status) status.innerHTML = '<strong>尚未配置</strong>请先新增一份料架主配方';
+    return;
+  }
+  target.innerHTML = rackMasterRecipes.map(recipe => `<option value="${recipe.id}" ${recipe.id === selectedRackMasterId ? 'selected' : ''}>${escape3DHtml(recipe.recipe_code)} · ${escape3DHtml(recipe.name)} · ${escape3DHtml(recipe.product_code || '未关联产品')}</option>`).join('');
+  const recipe = selectedRackMasterRecipe();
+  const validation = recipe?.validation || {};
+  if (status && recipe) {
+    const state = validation.production_ready ? '生产就绪' : '需要完善配置';
+    status.innerHTML = `<strong>${state}</strong>${recipe.layer_count}层 × ${recipe.quantity_per_layer}件 · ${validation.mapping_ready_count || 0}/${validation.mapping_total_count || 0} 层位就绪`;
+  }
+}
+
+window.selectRackMasterRecipe = function(id) {
+  selectedRackMasterId = id;
+  renderRackMasterList();
+  renderRackMasterDetail();
+};
+
+window.selectRackWorkflowScene = function(scene) {
+  currentRackScene = scene;
+  document.querySelectorAll('[data-rack-scene]').forEach(button => {
+    button.classList.toggle('active', button.dataset.rackScene === scene);
+  });
+  renderRackMasterDetail();
+};
+
+function renderRackLayout(recipe) {
+  const layers = Math.max(0, Number(recipe.layer_count) || 0);
+  const slots = Math.max(0, Number(recipe.quantity_per_layer) || 0);
+  if (!layers || !slots) return '<div class="rack-master-empty">请先设置层数和每层件数</div>';
+  const topDown = String(recipe.loading_direction).startsWith('TOP_DOWN');
+  const rightLeft = String(recipe.loading_direction).endsWith('RIGHT_LEFT');
+  const layerNumbers = Array.from({length: layers}, (_, index) => layers - index);
+  return `<div class="rack-layout-preview">${layerNumbers.map(layerNo => {
+    const logicalLayer = topDown ? layers - layerNo + 1 : layerNo;
+    const positions = Array.from({length: slots}, (_, index) => {
+      const logicalSlot = rightLeft ? slots - index : index + 1;
+      const order = (logicalLayer - 1) * slots + logicalSlot;
+      return `<div class="rack-layout-slot" title="装箱顺序 ${order}">${order}</div>`;
+    });
+    return `<div class="rack-layout-row"><div class="rack-layout-layer">第 ${layerNo} 层</div><div class="rack-layout-slots" style="--slot-count:${slots}">${positions.join('')}</div></div>`;
+  }).join('')}</div>`;
+}
+
+function rackVisionOptions(mapping, rackType) {
+  const selectedId = Number(mapping.rack_location_recipe_id || 0);
+  const options = rack3DRecipes.map(recipe => {
+    const mismatch = (recipe.position_no !== mapping.station_position_no || recipe.layer_no !== mapping.layer_no);
+    const typeHint = recipe.rack_type && rackType && recipe.rack_type !== rackType ? ` · ${recipe.rack_type}` : '';
+    return `<option value="${recipe.id}" ${recipe.id === selectedId ? 'selected' : ''}>${escape3DHtml(recipe.recipe_name)} · P${recipe.position_no}/L${recipe.layer_no}${mismatch ? '（层位不同）' : ''}${escape3DHtml(typeHint)}</option>`;
+  });
+  return `<option value="">待选择</option>${options.join('')}`;
+}
+
+function rackSceneHeader(sectionCode, title, description, recipe, actionHtml = '') {
+  return `<div class="rack-scene-head"><div><span class="rack-scene-tag">${sectionCode} · ${escape3DHtml(recipe.recipe_code)} · V${recipe.version}</span><h3>${title}</h3><p>${description}</p></div><div class="rack-flow-actions">${actionHtml}</div></div>`;
+}
+
+function renderRackBasicScene(recipe) {
+  const validation = recipe.validation || {};
+  return `${rackSceneHeader('RECIPE 01', '基础与 MES 配方参数', '这里仅维护料框、产品和装箱工艺参数，不显示生产运行状态。', recipe, '<button class="btn btn-sm" onclick="openRackMasterModal(selectedRackMasterId)">编辑基础参数</button>')}
+    <div class="rack-scene-body">
+      <div class="rack-master-badges"><span class="rack-master-badge ${recipe.is_active ? 'ok' : 'error'}">${recipe.is_active ? '已启用' : '已停用'}</span><span class="rack-master-badge ${validation.valid ? 'ok' : 'error'}">${validation.valid ? '基础参数有效' : '基础参数待完善'}</span><span class="rack-master-badge">${escape3DHtml(recipe.loading_direction_label)}</span><span class="rack-master-badge">${escape3DHtml(recipe.full_condition_label)}</span></div>
+      <div class="rack-flow-grid">
+        <article class="rack-flow-card" style="padding-left:16px;"><h4>配方身份</h4><p>MES 与本地数据库用于识别这份料架装箱配方的关键字段。</p><div class="rack-flow-values"><span class="rack-flow-value"><strong>配方编码</strong> ${escape3DHtml(recipe.recipe_code)}</span><span class="rack-flow-value"><strong>名称</strong> ${escape3DHtml(recipe.name)}</span><span class="rack-flow-value"><strong>产品</strong> ${escape3DHtml(recipe.product_code || '未关联')}</span><span class="rack-flow-value"><strong>料架类型</strong> ${escape3DHtml(recipe.rack_type || '未配置')}</span></div></article>
+        <article class="rack-flow-card" style="padding-left:16px;"><h4>装箱结构</h4><p>定义层数、每层件数、工位数量和整框容量。</p><div class="rack-flow-values"><span class="rack-flow-value"><strong>工位</strong> ${recipe.station_position_count} 个</span><span class="rack-flow-value"><strong>层数</strong> ${recipe.layer_count} 层</span><span class="rack-flow-value"><strong>每层</strong> ${recipe.quantity_per_layer} 件</span><span class="rack-flow-value"><strong>总数量</strong> ${recipe.total_quantity} 件</span></div></article>
+        <article class="rack-flow-card" style="padding-left:16px;"><h4>MES 尺寸参数</h4><p>用于与 2D/3D 实测结果进行配方比对。</p><div class="rack-flow-values"><span class="rack-flow-value"><strong>层高</strong> ${format3DNumber(recipe.layer_height)} mm</span><span class="rack-flow-value"><strong>层距</strong> ${format3DNumber(recipe.layer_spacing)} mm</span></div></article>
+        <article class="rack-flow-card" style="padding-left:16px;"><h4>允许偏差</h4><p>视觉实测与 MES 理论值的放行范围。</p><div class="rack-flow-values"><span class="rack-flow-value"><strong>ΔX</strong> ±${format3DNumber(recipe.tolerance_x)} mm</span><span class="rack-flow-value"><strong>ΔY</strong> ±${format3DNumber(recipe.tolerance_y)} mm</span><span class="rack-flow-value"><strong>ΔZ</strong> ±${format3DNumber(recipe.tolerance_z)} mm</span></div></article>
+        <article class="rack-flow-card wide" style="padding-left:16px;min-height:0;"><details><summary style="cursor:pointer;font-weight:800;color:#334155;">装箱位置预览 · ${escape3DHtml(recipe.loading_direction_label)}</summary><div style="margin-top:12px;">${renderRackLayout(recipe)}</div></details></article>
+      </div>
+    </div>`;
+}
+
+function renderRackPositionRecipeScene(recipe, positionNo) {
+  if (positionNo > recipe.station_position_count) {
+    return `${rackSceneHeader(`RECIPE 0${positionNo + 1}`, `${positionNo}号位定位配方`, '当前主配方尚未启用该工位。', recipe, '<button class="btn btn-sm" onclick="openRackMasterModal(selectedRackMasterId)">启用2号位</button>')}<div class="rack-master-empty">请在基础参数中把“工位位置数”改为 2，然后再配置2号位各层定位配方。</div>`;
+  }
+  const mappings = (recipe.mappings || []).filter(mapping => mapping.station_position_no === positionNo);
+  const readyCount = mappings.filter(mapping => mapping.ready).length;
+  const cards = mappings.map(mapping => {
+    const stateClass = mapping.ready ? 'ok' : mapping.rack_location_recipe_id ? 'warn' : 'error';
+    const stateText = mapping.ready ? '已就绪' : mapping.rack_location_recipe_id ? '配方待完善' : '未选择';
+    const issues = (mapping.issues || []).join('、');
+    return `<div class="rack-mapping-card"><div class="rack-mapping-card-head"><strong>第 ${mapping.layer_no} 层</strong><span class="rack-master-badge ${stateClass}" title="${escape3DHtml(issues)}">${stateText}</span></div><label style="font-size:calc(12px + var(--ui-font-increase, 0px));color:#64748b;">3D 定位配方</label><select id="rack-map-recipe-${positionNo}-${mapping.layer_no}">${rackVisionOptions(mapping, recipe.rack_type)}</select><label style="display:block;margin-top:8px;font-size:calc(12px + var(--ui-font-increase, 0px));color:#64748b;">机器人目标位</label><input id="rack-map-target-${positionNo}-${mapping.layer_no}" value="${escape3DHtml(mapping.robot_target_code || '')}" placeholder="ROBOT_P${positionNo}_L${mapping.layer_no}"><button class="btn btn-secondary btn-sm" onclick="saveRackMapping(${positionNo}, ${mapping.layer_no})">保存第 ${mapping.layer_no} 层</button></div>`;
+  }).join('');
+  return `${rackSceneHeader(`RECIPE 0${positionNo + 1}`, `${positionNo}号位 · 分层定位配方`, `为${positionNo}号位的每一层选择独立 3D 定位配方和机器人目标位。`, recipe, '<a href="/vision/rack-locator/" class="btn btn-secondary btn-sm">3D 示教工作台</a><button class="btn btn-sm" onclick="create3DRecipe()">新增3D配方</button>')}
+    <div class="rack-scene-body"><div class="rack-loop-banner"><div><strong>${positionNo}号位：${readyCount}/${recipe.layer_count} 层已就绪</strong><br><span>配方映射只建立引用，不会修改原有 3D ROI、模板或标定数据。</span></div><span>${escape3DHtml(recipe.rack_type)}</span></div><div class="rack-mapping-cards">${cards || '<div class="rack-master-empty">暂无可配置层，请先设置层数。</div>'}</div>${recipe.layer_count > 3 ? '<div class="rack-scene-note">现有 3D 定位算法仅支持第1～3层；第4层及以上数据会保留，但不能标记为生产就绪。</div>' : ''}</div>`;
+}
+
+function renderRackInspectionScene(recipe) {
+  return `${rackSceneHeader('RECIPE 04', '检测配方与装箱规则', '集中查看这份料架配方关联的泡棉和装箱规则入口。', recipe)}
+    <div class="rack-scene-body"><div class="rack-flow-grid">
+      <article class="rack-flow-card" style="padding-left:16px;"><h4>2D 泡棉检测配方</h4><p>本料架共 ${recipe.total_quantity} 个装箱位置；整架共用一套泡棉检测 ROI 和阈值。</p><div class="rack-flow-actions"><a href="/vision/foam-inspector/" class="btn btn-sm">编辑泡棉配方</a><a href="/vision/recipes/?tab=foam2d" class="btn btn-secondary btn-sm">查看泡棉配方</a></div></article>
+      <article class="rack-flow-card" style="padding-left:16px;"><h4>装箱顺序</h4><p>根据已完成数量计算当前层、当前件和下一装箱位置。</p><div class="rack-flow-values"><span class="rack-flow-value"><strong>方向</strong> ${escape3DHtml(recipe.loading_direction_label)}</span><span class="rack-flow-value"><strong>每层</strong> ${recipe.quantity_per_layer} 件</span></div></article>
+      <article class="rack-flow-card" style="padding-left:16px;"><h4>满框条件</h4><p>定义装箱循环何时结束并进入整框上传。</p><div class="rack-flow-values"><span class="rack-flow-value"><strong>条件</strong> ${escape3DHtml(recipe.full_condition_label)}</span><span class="rack-flow-value"><strong>计划数量</strong> ${recipe.total_quantity} 件</span></div><div class="rack-flow-actions"><button class="btn btn-secondary btn-sm" onclick="openRackMasterModal(selectedRackMasterId)">编辑装箱规则</button></div></article>
+    </div><div class="rack-scene-note">该页只管理配方。PLC 握手、报警锁站、MES 上传和断电补传属于运行流程，不在这里操作。</div></div>`;
+}
+
+function renderRackMasterDetail() {
+  const target = document.getElementById('rack-master-detail');
+  if (!target) return;
+  const recipe = selectedRackMasterRecipe();
+  if (!recipe) {
+    target.innerHTML = '<div class="rack-master-empty">请先新增或选择一份料架主配方。</div>';
+    return;
+  }
+  const renderers = {
+    basic: renderRackBasicScene,
+    position1: recipeValue => renderRackPositionRecipeScene(recipeValue, 1),
+    position2: recipeValue => renderRackPositionRecipeScene(recipeValue, 2),
+    inspection: renderRackInspectionScene,
+  };
+  target.innerHTML = (renderers[currentRackScene] || renderRackBasicScene)(recipe);
+}
+
+window.openRackMasterModal = function(id = null) {
+  const recipe = rackMasterRecipes.find(item => item.id === Number(id)) || null;
+  document.getElementById('rack-master-modal-title').textContent = recipe ? '编辑料架主配方' : '新增料架主配方';
+  document.getElementById('rack-master-id').value = recipe?.id || '';
+  document.getElementById('rack-master-code').value = recipe?.recipe_code || '';
+  document.getElementById('rack-master-name').value = recipe?.name || '';
+  document.getElementById('rack-master-product').value = recipe?.product_code || '';
+  document.getElementById('rack-master-type').value = recipe?.rack_type || '';
+  document.getElementById('rack-master-position-count').value = recipe?.station_position_count || 2;
+  document.getElementById('rack-master-layers').value = recipe?.layer_count || 3;
+  document.getElementById('rack-master-per-layer').value = recipe?.quantity_per_layer || 5;
+  document.getElementById('rack-master-total').value = recipe?.total_quantity || 15;
+  document.getElementById('rack-master-height').value = recipe?.layer_height || 0;
+  document.getElementById('rack-master-spacing').value = recipe?.layer_spacing || 0;
+  document.getElementById('rack-master-tol-x').value = recipe?.tolerance_x || 0;
+  document.getElementById('rack-master-tol-y').value = recipe?.tolerance_y || 0;
+  document.getElementById('rack-master-tol-z').value = recipe?.tolerance_z || 0;
+  document.getElementById('rack-master-direction').value = recipe?.loading_direction || 'BOTTOM_UP_LEFT_RIGHT';
+  document.getElementById('rack-master-full').value = recipe?.full_condition || 'QUANTITY_REACHED';
+  document.getElementById('rack-master-active').checked = recipe?.is_active ?? true;
+  document.getElementById('rack-master-modal').style.display = 'flex';
+};
+
+window.closeRackMasterModal = function() {
+  document.getElementById('rack-master-modal').style.display = 'none';
+};
+
+window.saveRackMasterRecipe = async function() {
+  const id = document.getElementById('rack-master-id').value;
+  const payload = {
+    id: id || undefined,
+    recipe_code: document.getElementById('rack-master-code').value.trim(),
+    name: document.getElementById('rack-master-name').value.trim(),
+    product_code: document.getElementById('rack-master-product').value.trim(),
+    rack_type: document.getElementById('rack-master-type').value.trim(),
+    station_position_count: Number(document.getElementById('rack-master-position-count').value),
+    layer_count: Number(document.getElementById('rack-master-layers').value),
+    quantity_per_layer: Number(document.getElementById('rack-master-per-layer').value),
+    total_quantity: Number(document.getElementById('rack-master-total').value),
+    layer_height: Number(document.getElementById('rack-master-height').value),
+    layer_spacing: Number(document.getElementById('rack-master-spacing').value),
+    tolerance_x: Number(document.getElementById('rack-master-tol-x').value),
+    tolerance_y: Number(document.getElementById('rack-master-tol-y').value),
+    tolerance_z: Number(document.getElementById('rack-master-tol-z').value),
+    loading_direction: document.getElementById('rack-master-direction').value,
+    full_condition: document.getElementById('rack-master-full').value,
+    is_active: document.getElementById('rack-master-active').checked,
+  };
+  if (!payload.recipe_code || !payload.name || !payload.rack_type) return showToast('配方编码、名称和料架类型不能为空', 'error');
+  try {
+    const response = await fetch(API.rackMasterRecipes, {method: id ? 'PATCH' : 'POST', headers: {'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || '保存失败');
+    selectedRackMasterId = data.recipe.id;
+    closeRackMasterModal();
+    await loadRackMasterRecipes();
+    showToast(data.message || '料架主配方已保存', 'success');
+  } catch (error) { showToast('保存失败：' + error.message, 'error'); }
+};
+
+window.saveRackMapping = async function(positionNo, layerNo) {
+  const recipe = selectedRackMasterRecipe();
+  if (!recipe) return;
+  const payload = {rack_recipe_id: recipe.id, station_position_no: positionNo, layer_no: layerNo, rack_location_recipe_id: document.getElementById(`rack-map-recipe-${positionNo}-${layerNo}`).value || null, robot_target_code: document.getElementById(`rack-map-target-${positionNo}-${layerNo}`).value.trim(), enabled: true};
+  try {
+    const response = await fetch(API.rackMasterMappingSave, {method: 'POST', headers: {'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || '保存失败');
+    await loadRackMasterRecipes();
+    showToast(data.message || '映射已保存', 'success');
+  } catch (error) { showToast('映射保存失败：' + error.message, 'error'); }
+};
+
+window.validateRackMasterRecipe = async function() {
+  const recipe = selectedRackMasterRecipe();
+  if (!recipe) return;
+  const response = await fetch(API.rackMasterValidate(recipe.id));
+  const data = await response.json();
+  if (!data.success) return showToast(data.error || '检查失败', 'error');
+  const validation = data.validation;
+  showToast(validation.production_ready ? '主配方和视觉映射均已生产就绪' : `检查完成：${validation.errors.length} 个结构问题，${validation.warnings.length} 个视觉提醒`, validation.production_ready ? 'success' : 'info', 3500);
+};
+
+window.resolveRackPosition = async function() {
+  const recipe = selectedRackMasterRecipe();
+  if (!recipe) return;
+  const completed = Number(document.getElementById('rack-resolve-completed').value || 0);
+  const position = Number(document.getElementById('rack-resolve-position').value || 1);
+  const target = document.getElementById('rack-resolver-result');
+  try {
+    const response = await fetch(`${API.rackMasterResolve(recipe.id)}?completed_quantity=${completed}&station_position_no=${position}`);
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || '计算失败');
+    const result = data.resolution;
+    if (result.is_full) {
+      target.textContent = `已满框：${result.completed_quantity}/${result.planned_quantity}`;
+    } else {
+      const mapping = result.mapping;
+      const next = result.next ? `；下一位置：第${result.next.layer_no}层第${result.next.slot_no}件` : '；本件完成后满框';
+      target.textContent = `当前：第${result.current.layer_no}层第${result.current.slot_no}件${next}；3D配方：${mapping?.rack_location_recipe_name || '未映射'}`;
+    }
+  } catch (error) { target.textContent = '计算失败：' + error.message; }
+};
+
+function format3DNumber(value, digits = 3) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  return Number.isInteger(number) ? String(number) : number.toFixed(digits).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function formatPixelRoi(roi) {
+  if (!roi || !['x', 'y', 'w', 'h'].every(key => Number.isFinite(Number(roi[key])))) {
+    return '<span class="rack3d-template-empty">未框选</span>';
+  }
+  return `x=${format3DNumber(roi.x)} y=${format3DNumber(roi.y)} w=${format3DNumber(roi.w)} h=${format3DNumber(roi.h)}`;
+}
+
+function formatTemplatePlane(label, plane) {
+  if (!plane) return `${label}：—`;
+  const normal = Array.isArray(plane.normal) ? plane.normal : [];
+  const normalText = [0, 1, 2].map(index => format3DNumber(normal[index], 4)).join(', ');
+  const offset = plane.offset ?? plane.d;
+  const inlier = Number.isFinite(Number(plane.inlier_ratio))
+    ? `${(Number(plane.inlier_ratio) * 100).toFixed(1)}%`
+    : '—';
+  return `${label} N=[${normalText}] D=${format3DNumber(offset, 3)} 内点率=${inlier} 点数=${format3DNumber(plane.point_count)}`;
+}
+
+function render3DWorkbenchData(recipe) {
+  const roiConfig = recipe?.roi_config || {};
+  const rois = roiConfig.cloud_center_config?.rois || [];
+  const reference = roiConfig.cloud_center_reference;
+  const measurement = reference?.measurement;
+  const valid = measurement?.success && measurement.coordinateSystem === 'camera' && measurement.unit === 'mm';
+  const labels = [['P1_cross', '模板区域 1'], ['P2_cross', '模板区域 2']].slice(0, roiConfig.cloud_center_config?.rack_layers === 2 ? 1 : 2);
+  const templateRows = ['P1', 'P2'].slice(0, labels.length).map((name, index) => {
+    const point = valid ? measurement.points?.find(item => item.name === name && item.success) : null;
+    const coords = point?.xyz;
+    const text = Array.isArray(coords) && coords.length === 3 && coords.every(Number.isFinite)
+      ? coords.map(value => format3DNumber(value)).join(' / ') : '—';
+    return `<div class="rack3d-template-detail">模板区域 ${index + 1}：${text}</div>`;
+  }).join('');
+  return `
+    <div class="rack3d-data-block">
+      <div class="rack3d-data-title">单框模板区域（2D 原图像素）</div>
+      <div class="rack3d-roi-grid">${labels.map(([target, label]) => {
+        const roi = rois.find(item => item.target === target);
+        return `<div class="rack3d-roi-item">${label}：${formatPixelRoi(roi ? {...roi, w: roi.width ?? roi.w, h: roi.height ?? roi.h} : null)}</div>`;
+      }).join('')}</div>
+    </div>
+    <div class="rack3d-data-block">
+      <div class="rack3d-data-title">点云标准模板中心（相机原始 X / Y / Z · mm）</div>
+      ${valid ? '<div class="rack3d-template-ok">✔ 已保存标准模板</div>' : '<div class="rack3d-template-empty">尚未示教，标准模板为空。</div>'}
+      ${templateRows}
+      ${reference?.taught_at ? `<div class="rack3d-template-detail">保存时间：${escape3DHtml(new Date(reference.taught_at).toLocaleString('zh-CN', {hour12:false}))}</div>` : ''}
+    </div>
+  `;
+}
+
+function update3DModalWorkbenchData(recipe) {
+  const target = document.getElementById('modal-3d-workbench-data');
+  if (target) target.innerHTML = render3DWorkbenchData(recipe || {});
+}
+
+// ── 加载3D配方 ──────────────────────────────────────
+async function load3DRecipes() {
+  try {
+    const res = await fetch('/vision/api/vision/3d/recipes/');
+    const data = await res.json();
+    if (data.success) {
+      rack3DRecipes = data.recipes || data.data?.recipes || [];
+      render3DRecipeCards();
+      renderRackMasterDetail();
+    } else {
+      showToast('加载3D配方失败', 'error');
+    }
+  } catch (e) {
+    console.error('加载3D配方失败：', e);
+    showToast('网络连接失败', 'error');
+  }
+}
+
+// ── 渲染3D配方卡片 ─────────────────────────────────
+function render3DRecipeCards() {
+  loadPlcDefault('rack', rack3DRecipes);
+  const list = document.getElementById('rack3d-recipe-list');
+
+  if (!rack3DRecipes.length) {
+    list.innerHTML = `
+      <div class="recipe-empty">
+        <div>暂无 3D 配方数据，请先建立一份基础配方。</div>
+        <button class="btn btn-sm" type="button" style="margin-top:12px;" onclick="create3DRecipe()">＋ 新增配方</button>
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = rack3DRecipes.map(recipe => {
+    const cameraRoi = recipe.roi_config?.camera_roi || {};
+    const isDisabled = !recipe.enabled;
+
+    return `
+      <details class="recipe-card ${isDisabled ? 'disabled' : ''}" id="recipe-3d-${recipe.id}">
+        <summary class="recipe-card-summary">
+          <span class="recipe-card-name">${escape3DHtml(recipe.recipe_name)}</span>
+          <span class="layer-badge">${recipe.layer_count || 3} 层料架配方</span>
+          <span class="rack-number-badge">料架号：${escape3DHtml(recipe.rack_type || '未设置')}</span>
+          <span class="status-badge ${recipe.enabled ? 'enabled' : 'disabled'}">
+            ${recipe.enabled ? '✔ 已启用' : '✕ 已禁用'}
+          </span>
+          <button class="recipe-rename-button recipe-copy-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); open3DCopyModal(${recipe.id})">增加（复制）</button>
+          <button class="recipe-rename-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); open3DRenameModal(${recipe.id})">修改命名</button>
+          <button class="recipe-rename-button recipe-delete-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); delete3DRecipe(${recipe.id})">删除</button>
+        </summary>
+        <div class="recipe-card-body">
+          ${render3DWorkbenchData(recipe)}
+          <div class="recipe-card-actions">
+            <button class="btn btn-sm" onclick="edit3DRecipe(${recipe.id})">编辑</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggle3DEnabled(${recipe.id}, ${recipe.enabled})">
+              ${recipe.enabled ? '禁用' : '启用'}
+            </button>
+          </div>
+        </div>
+      </details>
+    `;
+  }).join('');
+}
+
+// ── 快速修改配方身份信息 ────────────────────────────
+window.open3DRenameModal = function(id) {
+  const recipe = rack3DRecipes.find(item => Number(item.id) === Number(id));
+  if (!recipe) return showToast('配方不存在或尚未加载', 'error');
+  document.getElementById('rename-3d-modal-title').textContent = '修改配方信息';
+  document.getElementById('rename-3d-save-button').textContent = '保存修改';
+  document.getElementById('rename-3d-copy-note').style.display = 'none';
+  document.getElementById('rename-3d-source-group').style.display = 'none';
+  document.getElementById('rename-3d-name-help').style.display = 'none';
+  document.getElementById('rename-3d-source-id').value = '';
+  document.getElementById('rename-3d-id').value = recipe.id;
+  document.getElementById('rename-3d-name').value = recipe.recipe_name || '';
+  document.getElementById('rename-3d-layer-count').value = String(recipe.layer_count || 3);
+  document.getElementById('rename-3d-rack-no').value = recipe.rack_type || '';
+  document.getElementById('recipe-rename-modal').style.display = 'flex';
+  document.getElementById('rename-3d-name').focus();
+};
+
+function apply3DCopySource(id) {
+  const recipe = rack3DRecipes.find(item => Number(item.id) === Number(id));
+  if (!recipe) return false;
+  document.getElementById('rename-3d-source-id').value = recipe.id;
+  document.getElementById('rename-3d-name').value = `${recipe.recipe_name || '3D配方'} - 副本`;
+  document.getElementById('rename-3d-layer-count').value = String(recipe.layer_count || 3);
+  document.getElementById('rename-3d-rack-no').value = recipe.rack_type || '';
+  return true;
+}
+
+window.change3DCopySource = function(id) {
+  apply3DCopySource(id);
+};
+
+window.open3DCopyModal = function(id = null) {
+  if (!rack3DRecipes.length) {
+    showToast('暂无可复制的配方，请先新建一份空白配方', 'info');
+    create3DRecipe();
+    return;
+  }
+  const selectedId = Number(id) || Number(rack3DRecipes[0].id);
+  const sourceSelect = document.getElementById('rename-3d-source-select');
+  sourceSelect.innerHTML = rack3DRecipes.map(recipe => `
+    <option value="${recipe.id}">${escape3DHtml(recipe.recipe_name)}｜${recipe.layer_count || 3} 层｜${escape3DHtml(recipe.rack_type || '未设置')}</option>
+  `).join('');
+  sourceSelect.value = String(selectedId);
+  document.getElementById('rename-3d-modal-title').textContent = '新增配方（复制已有）';
+  document.getElementById('rename-3d-save-button').textContent = '复制并进入 3D 工作台';
+  document.getElementById('rename-3d-copy-note').style.display = '';
+  document.getElementById('rename-3d-source-group').style.display = '';
+  document.getElementById('rename-3d-name-help').style.display = '';
+  document.getElementById('rename-3d-id').value = '';
+  if (!apply3DCopySource(selectedId)) return showToast('配方不存在或尚未加载', 'error');
+  document.getElementById('recipe-rename-modal').style.display = 'flex';
+  document.getElementById('rename-3d-name').focus();
+};
+
+window.close3DRenameModal = function() {
+  document.getElementById('recipe-rename-modal').style.display = 'none';
+};
+
+window.save3DRename = async function() {
+  const id = Number(document.getElementById('rename-3d-id').value);
+  const sourceRecipeId = Number(document.getElementById('rename-3d-source-id').value);
+  const recipeName = document.getElementById('rename-3d-name').value.trim();
+  const layerCount = Number(document.getElementById('rename-3d-layer-count').value);
+  const rackNo = document.getElementById('rename-3d-rack-no').value.trim();
+  if ((!id && !sourceRecipeId) || !recipeName) return showToast('请填写配方名称', 'error');
+  if (![2, 3].includes(layerCount)) return showToast('请选择 2 层或 3 层料架配方', 'error');
+  if (!rackNo) return showToast('请填写料架号', 'error');
+
+  try {
+    const isCopy = Boolean(sourceRecipeId);
+    const response = await fetch('/vision/api/vision/3d/recipes/', {
+      method: isCopy ? 'POST' : 'PATCH',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({
+        ...(isCopy ? {source_recipe_id: sourceRecipeId} : {id}),
+        recipe_name: recipeName,
+        layer_count: layerCount,
+        rack_type: rackNo,
+      }),
+    });
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || '保存失败');
+    close3DRenameModal();
+    if (isCopy) {
+      const createdRecipeId = data.data?.recipe?.id || data.recipe?.id;
+      if (!createdRecipeId) throw new Error('副本已创建，但未返回新配方ID');
+      window.location.assign(`/vision/rack-locator/?recipe_id=${encodeURIComponent(createdRecipeId)}`);
+      return;
+    }
+    await load3DRecipes();
+    showToast('配方信息已更新', 'success');
+  } catch (error) {
+    showToast('保存失败：' + error.message, 'error');
+  }
+};
+
+// ── 新增3D配方 ──────────────────────────────────────
+window.create3DRecipe = function() {
+  document.getElementById('modal-3d-title').textContent = '新增3D配方';
+  document.getElementById('modal-3d-id').value = '';
+  document.getElementById('modal-3d-name').value = '';
+  document.getElementById('modal-3d-layer-count').value = '3';
+  document.getElementById('modal-3d-rack-type').value = '';
+  document.getElementById('modal-3d-roi-x-min').value = '';
+  document.getElementById('modal-3d-roi-x-max').value = '';
+  document.getElementById('modal-3d-roi-y-min').value = '';
+  document.getElementById('modal-3d-roi-y-max').value = '';
+  document.getElementById('modal-3d-roi-z-min').value = '';
+  document.getElementById('modal-3d-roi-z-max').value = '';
+  document.getElementById('modal-3d-std-x').value = '0';
+  document.getElementById('modal-3d-std-y').value = '0';
+  document.getElementById('modal-3d-std-z').value = '0';
+  document.getElementById('modal-3d-std-rz').value = '0';
+  update3DModalWorkbenchData(null);
+  document.getElementById('recipe-3d-modal').style.display = 'flex';
+  document.getElementById('modal-3d-name').focus();
+};
+
+// ── 编辑3D配方 ──────────────────────────────────────
+window.edit3DRecipe = async function(id) {
+  try {
+    const res = await fetch(`/vision/api/vision/3d/recipes/?id=${id}`);
+    const data = await res.json();
+    if (!data.success) {
+      showToast('获取配方失败：' + (data.error || '未知错误'), 'error');
+      return;
+    }
+
+    if (!data.recipes || data.recipes.length === 0) {
+      showToast('配方不存在', 'error');
+      return;
+    }
+
+    const recipe = data.recipes[0];
+    document.getElementById('modal-3d-title').textContent = '编辑3D配方';
+    document.getElementById('modal-3d-id').value = recipe.id;
+    document.getElementById('modal-3d-name').value = recipe.recipe_name || '';
+    document.getElementById('modal-3d-layer-count').value = String(recipe.layer_count || 3);
+    document.getElementById('modal-3d-rack-type').value = recipe.rack_type || '';
+
+    // 点云范围使用 camera_roi；四个像素 ROI 由工作台维护，只读展示。
+    const roi = recipe.roi_config?.camera_roi || {};
+    document.getElementById('modal-3d-roi-x-min').value = roi.x_min ?? '';
+    document.getElementById('modal-3d-roi-x-max').value = roi.x_max ?? '';
+    document.getElementById('modal-3d-roi-y-min').value = roi.y_min ?? '';
+    document.getElementById('modal-3d-roi-y-max').value = roi.y_max ?? '';
+    document.getElementById('modal-3d-roi-z-min').value = roi.z_min ?? '';
+    document.getElementById('modal-3d-roi-z-max').value = roi.z_max ?? '';
+
+    // 标准坐标
+    document.getElementById('modal-3d-std-x').value = recipe.standard_x || 0;
+    document.getElementById('modal-3d-std-y').value = recipe.standard_y || 0;
+    document.getElementById('modal-3d-std-z').value = recipe.standard_z || 0;
+    document.getElementById('modal-3d-std-rz').value = recipe.standard_rz || 0;
+    update3DModalWorkbenchData(recipe);
+
+    document.getElementById('recipe-3d-modal').style.display = 'flex';
+  } catch (e) {
+    console.error('编辑配方失败:', e);
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+};
+
+// ── 切换3D配方启用状态 ─────────────────────────────
+window.toggle3DEnabled = async function(id, currentEnabled) {
+  const newEnabled = !currentEnabled;
+  try {
+    const res = await fetch('/vision/api/vision/3d/recipes/', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({ id: Number(id), enabled: newEnabled }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(newEnabled ? '配方已启用' : '配方已禁用', 'success');
+      await load3DRecipes();
+    } else {
+      showToast('操作失败：' + (data.error || '未知错误'), 'error');
+    }
+  } catch (e) {
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+};
+
+// ── 删除3D配方 ──────────────────────────────────────
+window.delete3DRecipe = async function(id) {
+  const recipe = rack3DRecipes.find(item => Number(item.id) === Number(id));
+  const name = recipe?.recipe_name || `#${id}`;
+  if (!confirm(`确定要删除配方「${name}」吗？\n\n此操作不可恢复！`)) return;
+
+  try {
+    const res = await fetch('/vision/api/vision/3d/recipes/', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({ id: Number(id) }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('配方已删除', 'success');
+      await load3DRecipes();
+    } else {
+      showToast('删除失败：' + (data.error || '未知错误'), 'error');
+    }
+  } catch (e) {
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+};
+
+// ── 关闭3D Modal ────────────────────────────────────
+window.close3DModal = function() {
+  document.getElementById('recipe-3d-modal').style.display = 'none';
+};
+
+// ── 提交3D Modal ────────────────────────────────────
+window.submit3DModal = async function() {
+  const id = document.getElementById('modal-3d-id').value;
+  const name = document.getElementById('modal-3d-name').value.trim();
+  const layerCount = Number(document.getElementById('modal-3d-layer-count').value);
+  const rackNo = document.getElementById('modal-3d-rack-type').value.trim();
+
+  // 表单验证
+  if (!name) {
+    showToast('请填写配方名称', 'error');
+    document.getElementById('modal-3d-name').focus();
+    return;
+  }
+  if (![2, 3].includes(layerCount)) {
+    showToast('请选择 2 层或 3 层料架配方', 'error');
+    document.getElementById('modal-3d-layer-count').focus();
+    return;
+  }
+  if (!rackNo) {
+    showToast('请填写料架号', 'error');
+    document.getElementById('modal-3d-rack-type').focus();
+    return;
+  }
+
+  const numberOrNull = (elementId) => {
+    const value = document.getElementById(elementId).value;
+    if (value === '') return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const existingRecipe = id
+    ? rack3DRecipes.find(recipe => String(recipe.id) === String(id))
+    : null;
+  const existingRoiConfig = existingRecipe?.roi_config || {};
+
+  const payload = {
+    recipe_name: name,
+    layer_count: layerCount,
+    rack_type: rackNo,
+    standard_x: Number(document.getElementById('modal-3d-std-x').value) || 0,
+    standard_y: Number(document.getElementById('modal-3d-std-y').value) || 0,
+    standard_z: Number(document.getElementById('modal-3d-std-z').value) || 0,
+    standard_rz: Number(document.getElementById('modal-3d-std-rz').value) || 0,
+    // 保留工作台维护的点云模板配置，仅更新 camera_roi。
+    roi_config: {
+      ...existingRoiConfig,
+      camera_roi: {
+        x_min: numberOrNull('modal-3d-roi-x-min'),
+        x_max: numberOrNull('modal-3d-roi-x-max'),
+        y_min: numberOrNull('modal-3d-roi-y-min'),
+        y_max: numberOrNull('modal-3d-roi-y-max'),
+        z_min: numberOrNull('modal-3d-roi-z-min'),
+        z_max: numberOrNull('modal-3d-roi-z-max'),
+      },
+    },
+    enabled: true,
+  };
+
+  if (id) {
+    payload.id = Number(id);
+  }
+
+  try {
+    const res = await fetch('/vision/api/vision/3d/recipes/', {
+      method: id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+
+    if (data.success) {
+      showToast(id ? '配方已更新' : '配方已创建', 'success');
+      close3DModal();
+      await load3DRecipes();
+    } else {
+      showToast('保存失败：' + (data.error || '未知错误'), 'error');
+    }
+  } catch (e) {
+    console.error('保存配方失败:', e);
+    showToast('网络请求失败：' + e.message, 'error');
+  }
+};
+
+// ── ESC键关闭所有Modal ──────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    close3DModal();
+    close3DRenameModal();
+    closeRackMasterModal();
+    closeEditModal();
+  }
+});
+
+// ── 3D Modal 点击背景关闭 ───────────────────────────
+document.getElementById('recipe-3d-modal')?.addEventListener('click', function(e) {
+  if (e.target === this) close3DModal();
+});
+
+document.getElementById('recipe-rename-modal')?.addEventListener('click', function(e) {
+  if (e.target === this) close3DRenameModal();
+});
+
+document.getElementById('rack-master-modal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeRackMasterModal();
+});
+
+// ── 编辑Modal 点击背景关闭 ──────────────────────────
+document.getElementById('recipe-edit-modal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeEditModal();
+});
+
+// ── 初始化 ───────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  if (!document.querySelector('[name=csrfmiddlewaretoken]')) {
+    const inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'csrfmiddlewaretoken';
+    inp.value = 'X6FNZBPGBdLfVAsgww8VNvRkFwXtFevLvvLAAAxAIIfLTqq3Yg76wnyinjQI60yi';
+    document.body.appendChild(inp);
+  }
+
+  document.getElementById('btn-create-recipe')?.addEventListener('click', openCreateModal);
+
+
+  loadRecipes();
+  const requestedTab = new URLSearchParams(window.location.search).get('tab');
+  if (requestedTab === 'rack3d') {
+    document.querySelector(`.recipe-tab[data-recipe-tab="${requestedTab}"]`)?.click();
+  } else {
+    updateWorkbenchButtons('foam2d');
+  }
+});
+</script>
+
+
+  </main>
+  <script src="/static/js/app.js"></script>
+  
+</body>
+</html>

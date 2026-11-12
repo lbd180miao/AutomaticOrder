@@ -624,6 +624,31 @@
   color: var(--primary);
 }
 
+#recipe-edit-modal .form-section {
+  margin: 12px 0;
+  padding: 14px;
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+#recipe-edit-modal .form-section-title { color: var(--text); margin-bottom: 10px; }
+#recipe-edit-modal .form-section-title::before { content: none; }
+.foam-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr));
+  gap: 8px 12px;
+}
+.foam-form-grid .form-group { min-width: 0; margin: 0; }
+.foam-form-grid [type="number"] { min-width: 0; }
+.foam-field-block { margin-top: 10px; }
+#recipe-edit-modal [hidden] { display: none; }
+.foam-toggle { display: flex; align-items: center; gap: 7px; margin-top: 10px; }
+.foam-form-note { color: var(--text-muted); font-size: 0.875em; margin: 7px 0 0; }
+.foam-form-details summary { cursor: pointer; font-weight: 700; }
+.foam-advanced-group { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.foam-advanced-group h4 { margin: 0 0 8px; font-size: 0.95em; }
+.foam-advanced-group > .foam-toggle { margin-top: 0; }
+#edit-standard-template-workbench { display: inline-flex; margin-top: 8px; }
+
 /* 3D配方卡片专用徽章 */
 .layer-badge {
   display: inline-flex;
@@ -879,6 +904,8 @@
       <h1>视觉配方管理</h1>
     </div>
     <div class="recipe-title-actions">
+      <button class="btn btn-sm" id="btn-import-recipe" type="button" onclick="document.getElementById('recipe-json-file').click()">导入 JSON</button>
+      <input id="recipe-json-file" type="file" accept=".json,application/json" hidden onchange="importRecipeJson(this)">
       <button id="btn-create-recipe" class="btn btn-sm" style="background:var(--success);" type="button">新增配方</button>
       <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-secondary btn-sm" id="btn-foam-workbench">进入 2D 工作台</a>
       <a href="{% url 'vision:rack_locator_panel' %}" class="btn btn-secondary btn-sm" id="btn-rack-workbench" style="display:none;">进入 3D 工作台</a>
@@ -900,6 +927,11 @@
             <input id="foam-recipe-search" type="search" placeholder="搜索配方名称、颜色或编号" aria-label="搜索泡棉配方" oninput="renderRecipeCards()">
             <button class="btn btn-sm" type="button" onclick="openCreateModal()">＋ 新增配方</button>
           </div>
+          <div class="rack-technical-head">
+            <label for="plc-default-foam">PLC 默认 2D 配方</label>
+            <select id="plc-default-foam" onchange="savePlcDefault('foam', this.value)"><option value="">正在读取…</option></select>
+            <span id="plc-default-foam-status" role="status"></span>
+          </div>
           <div id="foam-recipe-list"><div class="recipe-empty">正在读取配方…</div></div>
         </div>
       </section>
@@ -912,6 +944,11 @@
           <div class="rack-technical-head">
             <span>每条配方可独立复制、重命名或删除；复制会完整继承 ROI、标准坐标和点云标准模板。</span>
             <button id="rack3d-create-button" class="btn btn-sm" type="button" onclick="open3DCopyModal()">＋ 新增配方</button>
+          </div>
+          <div class="rack-technical-head">
+            <label for="plc-default-rack">PLC 默认 3D 配方</label>
+            <select id="plc-default-rack" onchange="savePlcDefault('rack', this.value)"><option value="">正在读取…</option></select>
+            <span id="plc-default-rack-status" role="status"></span>
           </div>
           <div id="rack3d-recipe-list"><div class="recipe-empty">正在读取 3D 配方…</div></div>
         </div>
@@ -1157,75 +1194,98 @@
     <div class="modal-body">
       <input type="hidden" id="edit-modal-id">
 
-      <!-- POS 信息 -->
-      <div style="margin-bottom:16px;padding:10px 14px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border);font-size:calc(13px + var(--ui-font-increase, 0px));color:var(--text-muted);">
-        适用范围：<strong id="edit-modal-pos" style="color:var(--primary);"></strong>
-        <span style="margin-left:10px;font-size:calc(12px + var(--ui-font-increase, 0px));">· ROI坐标以图片像素为单位</span>
-      </div>
-
-      
-      <!-- 阈值配置 -->
-      <div class="form-section">
-        <div class="form-section-title">⚙️ 判定阈值</div>
-        <div class="form-row-3">
-          <div class="form-group" style="margin-bottom:0;">
-            <label>最低覆盖率</label>
-            <input type="number" required id="edit-thresh-cov" min="0" max="1" step="0.01" placeholder="0.08">
-            
-          </div>
-          <div class="form-group" style="margin-bottom:0;">
-            <label>最低得分</label>
-            <input type="number" required id="edit-thresh-score" min="0" max="1" step="0.01" placeholder="0.8">
-            
-          </div>
-          <div class="form-group" style="margin-bottom:0;">
-            <label>最大偏移(px)</label>
-            <input type="number" required id="edit-thresh-x" min="0" step="1" placeholder="30">
-            
+      <p class="foam-form-note">整架所有检测位置共用此配方。</p>
+      <section class="form-section">
+        <h4 class="form-section-title">配方信息</h4>
+        <div class="foam-form-grid">
+          <div class="form-group"><label for="edit-name">配方名称</label><input id="edit-name" required></div>
+          <div class="form-group"><label for="edit-remark">备注</label><input id="edit-remark"></div>
+          <div class="form-group">
+            <label for="edit-quality-material">泡棉颜色</label>
+            <select id="edit-quality-material">
+              <option value="unspecified">未标注（沿用当前分割）</option>
+              <option value="white">白色</option>
+              <option value="gray">灰色</option>
+            </select>
+            <small id="edit-quality-segmentation" role="status"></small>
           </div>
         </div>
-      </div>
+        <label class="foam-toggle"><input id="edit-active" type="checkbox">启用配方</label>
+      </section>
 
-<div class="form-section"><div class="form-section-title">配方信息</div>
-<div class="form-group"><label for="edit-name">配方名称</label><input id="edit-name" required></div>
-<div class="form-group"><label for="edit-remark">备注</label><input id="edit-remark"></div>
-<label><input id="edit-active" type="checkbox">启用配方</label></div>
-<div class="form-section"><div class="form-section-title">毫米标定与偏移</div><div class="form-row-3">
-<div class="form-group"><label for="edit-quality-pixels-per-mm-x">X 像素/毫米</label><input id="edit-quality-pixels-per-mm-x" type="number" min="0" step="0.1" required></div><div class="form-group"><label for="edit-quality-pixels-per-mm-y">Y 像素/毫米</label><input id="edit-quality-pixels-per-mm-y" type="number" min="0" step="0.1" required></div><div class="form-group"><label for="edit-quality-max-offset-x-mm">X 最大偏移(mm)</label><input id="edit-quality-max-offset-x-mm" type="number" min="0" step="0.1" required></div><div class="form-group"><label for="edit-quality-max-offset-y-mm">Y 最大偏移(mm)</label><input id="edit-quality-max-offset-y-mm" type="number" min="0" step="0.1" required></div></div></div>          <details class="foam-quality-settings" open>
-            <summary>材质与完整性判定</summary>
-            
-            <div class="form-row-3">
-              <label class="form-group">泡棉颜色<select id="edit-quality-material"><option value="unspecified">未标注</option><option value="white">白色</option><option value="gray">灰色</option></select></label>
-              <label class="form-group">分割方式<select id="edit-quality-segmentation"><option value="fixed-threshold">固定亮度阈值</option><option value="shadow-graphcut-v1">阴影分割</option><option value="shadow-graphcut-fast-v2">快速阴影分割</option><option value="gray-graphcut-v3">灰色局部对比分割</option></select></label>
-              <label>最低亮度 V（0–255）<input id="edit-quality-min-v" type="number" min="0" max="255" step="1" required></label>
-              <label>最高饱和度 S（0–255）<input id="edit-quality-max-s" type="number" min="0" max="255" step="1" required></label>
-              
-              <label class="form-group">判定方式<select id="edit-quality-decision-mode"><option value="legacy">原位置覆盖率与偏移</option><option value="separated-v2">独立完整性与偏移</option></select></label>
-              <label class="form-group">最小面积比<input id="edit-quality-min-area-ratio" type="number" min="0" step="0.01" placeholder="需样件验证"></label>
-              <label class="form-group">最大面积比<input id="edit-quality-max-area-ratio" type="number" min="0" step="0.01" placeholder="需样件验证"></label>
-              <label class="form-group">最大缺损比例<input id="edit-quality-max-missing-ratio" type="number" min="0" max="1" step="0.01" placeholder="需样件验证"></label>
-              <label class="form-group">最大超出比例<input id="edit-quality-max-excess-ratio" type="number" min="0" step="0.01" placeholder="需样件验证"></label>
-            </div>
-            <div class="form-row-3">
-              <label class="form-group"><input id="edit-quality-registration-enabled" type="checkbox">启用产品本体定位</label>
-              <label class="form-group">产品最大位移(px)<input id="edit-quality-registration-shift" type="number" min="1" max="2000" step="1" value="120"></label>
-              <label class="form-group">产品最大转角(度)<input id="edit-quality-registration-rotation" type="number" min="0" max="15" step="0.1" value="3"></label>
-              <label class="form-group"><input id="edit-quality-merge-enabled" type="checkbox">合并相邻泡棉碎片</label>
-              <label class="form-group">碎片最大间隙(px)<input id="edit-quality-merge-gap" type="number" min="1" max="200" step="1" value="12"></label>
-              <label class="form-group">碎片颜色距离上限<input id="edit-quality-merge-color" type="number" min="0" max="100" step="1" value="25"></label>
-            </div>
-            
-            <p id="edit-quality-effective-mode" role="status"></p>
-          </details>
+      <section class="form-section">
+        <h4 class="form-section-title">合格判定</h4>
+        <div class="foam-form-grid">
+          <div class="form-group">
+            <label for="edit-quality-decision-mode">判定方式</label>
+            <select id="edit-quality-decision-mode">
+              <option value="legacy">覆盖率与偏移</option>
+              <option value="separated-v2">独立完整性与偏移</option>
+            </select>
+          </div>
+          <div id="edit-coverage-fields" class="form-group">
+            <label for="edit-thresh-cov">最低覆盖率 (%)</label>
+            <input id="edit-thresh-cov" type="number" min="0" max="100" step="any" required>
+          </div>
+        </div>
+        <p id="edit-decision-hint" class="foam-form-note"></p>
+        <label class="foam-toggle" id="edit-optional-integrity"><input id="edit-use-integrity" type="checkbox">追加完整性限制</label>
+        <div id="edit-integrity-fields" class="foam-form-grid foam-field-block" hidden>
+          <div class="form-group"><label for="edit-quality-min-area-ratio">最小面积比 (%)</label><input id="edit-quality-min-area-ratio" type="number" min="0" step="any"></div>
+          <div class="form-group"><label for="edit-quality-max-area-ratio">最大面积比 (%)</label><input id="edit-quality-max-area-ratio" type="number" min="0" step="any"></div>
+          <div class="form-group"><label for="edit-quality-max-missing-ratio">最大缺损比例 (%)</label><input id="edit-quality-max-missing-ratio" type="number" min="0" max="100" step="any"></div>
+          <div class="form-group"><label for="edit-quality-max-excess-ratio">最大超出比例 (%)</label><input id="edit-quality-max-excess-ratio" type="number" min="0" step="any"></div>
+          <div class="form-group"><label for="edit-quality-max-local-missing-ratio">单分区最大缺损 (%) · 可选</label><input id="edit-quality-max-local-missing-ratio" type="number" min="0" max="100" step="any"></div>
+        </div>
+        <div id="edit-offset-px-fields" class="foam-form-grid foam-field-block">
+          <div class="form-group"><label for="edit-offset-x-px">X 最大偏移 (px)</label><input id="edit-offset-x-px" type="number" min="0" step="any" required></div>
+          <div class="form-group"><label for="edit-offset-y-px">Y 最大偏移 (px)</label><input id="edit-offset-y-px" type="number" min="0" step="any" required></div>
+        </div>
+        <div id="edit-offset-mm-fields" class="foam-form-grid foam-field-block" hidden>
+          <div class="form-group"><label for="edit-quality-max-offset-x-mm">X 最大偏移 (mm)</label><input id="edit-quality-max-offset-x-mm" type="number" min="0" step="any" required></div>
+          <div class="form-group"><label for="edit-quality-max-offset-y-mm">Y 最大偏移 (mm)</label><input id="edit-quality-max-offset-y-mm" type="number" min="0" step="any" required></div>
+        </div>
+        <p id="edit-offset-hint" class="foam-form-note" role="status"></p>
+      </section>
 
-      <!-- 标准模板位置（由检测工作台示教并持久化到配方） -->
-      <div class="form-section">
-        <div class="form-section-title">标准模板</div>
+      <details class="form-section foam-form-details" id="edit-advanced-settings">
+        <summary>高级参数</summary>
+        <div class="foam-advanced-group">
+          <h4>毫米标定</h4>
+          <label class="foam-toggle"><input id="edit-use-mm" type="checkbox">完成标定后使用毫米公差</label>
+          <div class="foam-form-grid foam-field-block">
+            <div class="form-group"><label for="edit-quality-pixels-per-mm-x">X 像素/毫米</label><input id="edit-quality-pixels-per-mm-x" type="number" min="0" step="any" required></div>
+            <div class="form-group"><label for="edit-quality-pixels-per-mm-y">Y 像素/毫米</label><input id="edit-quality-pixels-per-mm-y" type="number" min="0" step="any" required></div>
+          </div>
+        </div>
+        <div id="edit-hsv-fields" class="foam-advanced-group" hidden>
+          <h4>阈值分割</h4>
+          <div class="foam-form-grid">
+            <div class="form-group"><label for="edit-quality-min-v">最低亮度 V（0–255）</label><input id="edit-quality-min-v" type="number" min="0" max="255" step="1" required></div>
+            <div class="form-group"><label for="edit-quality-max-s">最高饱和度 S（0–255）</label><input id="edit-quality-max-s" type="number" min="0" max="255" step="1" required></div>
+          </div>
+        </div>
+        <div class="foam-advanced-group">
+          <label class="foam-toggle"><input id="edit-quality-registration-enabled" type="checkbox">启用产品本体定位</label>
+          <div id="edit-registration-fields" class="foam-form-grid foam-field-block" hidden>
+            <div class="form-group"><label for="edit-quality-registration-shift">产品最大位移 (px)</label><input id="edit-quality-registration-shift" type="number" min="1" max="2000" step="1" required></div>
+            <div class="form-group"><label for="edit-quality-registration-rotation">产品最大转角 (°)</label><input id="edit-quality-registration-rotation" type="number" min="0" max="15" step="any" required></div>
+          </div>
+        </div>
+        <div class="foam-advanced-group">
+          <label class="foam-toggle"><input id="edit-quality-merge-enabled" type="checkbox">合并相邻泡棉碎片</label>
+          <div id="edit-merge-fields" class="foam-form-grid foam-field-block" hidden>
+            <div class="form-group"><label for="edit-quality-merge-gap">碎片最大间隙 (px)</label><input id="edit-quality-merge-gap" type="number" min="1" max="200" step="1" required></div>
+            <div class="form-group"><label for="edit-quality-merge-color">碎片颜色距离上限</label><input id="edit-quality-merge-color" type="number" min="0" max="100" step="any" required></div>
+          </div>
+        </div>
+      </details>
+
+      <section class="form-section">
+        <h4 class="form-section-title">标准 ROI</h4>
         <div id="edit-standard-template-data"></div>
-        
-        <a id="edit-standard-template-workbench" href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-secondary btn-sm" style="margin-top:10px;text-decoration:none;">前往工作台示教模板</a>
-      </div>
-
+        <a id="edit-standard-template-workbench" href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-secondary btn-sm">在工作台查看或修改 ROI</a>
+      </section>
 
     </div>
     <div class="modal-footer">
@@ -1235,6 +1295,7 @@
   </div>
 </div>
 
+<script src="{% static 'vision/js/foam_recipe_summary.js' %}"></script>
 <script>
 // ============================================================
 //  视觉配方管理 · 前端逻辑 v1.2 (无Loading版本)
@@ -1331,6 +1392,7 @@ async function loadRecipes() {
     const data = await foamApi(API.recipes + '?recipe_type=FOAM_2D');
     foam2DRecipes = data.recipes || [];
     foamCopySources = foam2DRecipes;
+    await loadPlcDefault('foam', foam2DRecipes);
     const editId = Number(new URLSearchParams(window.location.search).get('edit'));
     if (editId && !window.foamInitialEditOpened) {
       window.foamInitialEditOpened = true;
@@ -1339,6 +1401,53 @@ async function loadRecipes() {
     renderRecipeCards();
   } catch (error) {
     document.getElementById('foam-recipe-list').textContent = '加载失败：' + error.message;
+  }
+}
+
+async function loadPlcDefault(kind, recipes) {
+  const select = document.getElementById(`plc-default-${kind}`);
+  const status = document.getElementById(`plc-default-${kind}-status`);
+  try {
+    const response = await fetch('{% url "vision:api_plc_defaults" %}');
+    if (!response.ok) throw new Error('读取默认配方失败');
+    const data = await response.json();
+    const selected = data[`${kind}_recipe_id`];
+    select.replaceChildren(new Option('请选择默认配方', ''));
+    select.options[0].disabled = true;
+    recipes.forEach(recipe => {
+      const enabled = kind === 'foam' ? recipe.is_active : recipe.enabled;
+      const name = kind === 'foam' ? recipe.name : recipe.recipe_name;
+      const option = new Option(`${name}${enabled ? '' : '（已停用）'}`, recipe.id);
+      option.disabled = !enabled;
+      select.add(option);
+    });
+    select.value = selected || '';
+    const recipe = recipes.find(item => item.id === selected);
+    const enabled = recipe && (kind === 'foam' ? recipe.is_active : recipe.enabled);
+    status.textContent = enabled ? 'PLC 下次调用使用此配方，选择后自动保存' : '未设置可用默认配方，PLC 自动视觉将报错';
+  } catch (error) {
+    status.textContent = error.message;
+  }
+}
+
+async function savePlcDefault(kind, recipeId) {
+  if (!recipeId) return;
+  const select = document.getElementById(`plc-default-${kind}`);
+  select.disabled = true;
+  try {
+    const response = await fetch('{% url "vision:api_plc_defaults" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({kind, recipe_id: Number(recipeId)}),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || '默认配方保存失败');
+    showToast('默认配方已保存，PLC 下次调用生效', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    await loadPlcDefault(kind, kind === 'foam' ? foam2DRecipes : rack3DRecipes);
+    select.disabled = false;
   }
 }
 
@@ -1376,65 +1485,13 @@ function thresholdValue(config, keys, fallback) {
   return fallback;
 }
 
-function roiPixelGeometry(roi, recipe) {
-  if (!roi || typeof roi !== 'object') return {x:0, y:0, width:0, height:0};
-  const imageWidth = Math.max(1, finiteNumber(recipe?.image_width, 1));
-  const imageHeight = Math.max(1, finiteNumber(recipe?.image_height, 1));
-  if (roi.type === 'polygon' && Array.isArray(roi.points) && roi.points.length >= 3) {
-    const xs = roi.points.map(point => finiteNumber(point?.[0]) * imageWidth);
-    const ys = roi.points.map(point => finiteNumber(point?.[1]) * imageHeight);
-    const x = Math.round(Math.min(...xs));
-    const y = Math.round(Math.min(...ys));
-    return {
-      x, y,
-      width: Math.max(0, Math.round(Math.max(...xs)) - x),
-      height: Math.max(0, Math.round(Math.max(...ys)) - y),
-    };
-  }
-  if (['x1r','y1r','x2r','y2r'].every(key => roi[key] !== undefined)) {
-    const x = Math.round(finiteNumber(roi.x1r) * imageWidth);
-    const y = Math.round(finiteNumber(roi.y1r) * imageHeight);
-    return {
-      x, y,
-      width: Math.max(0, Math.round(finiteNumber(roi.x2r) * imageWidth) - x),
-      height: Math.max(0, Math.round(finiteNumber(roi.y2r) * imageHeight) - y),
-    };
-  }
-  return {
-    x: finiteNumber(roi.x),
-    y: finiteNumber(roi.y),
-    width: finiteNumber(roi.width),
-    height: finiteNumber(roi.height),
-  };
-}
-
-function editedRoiOrOriginal(original, edited, recipe) {
-  const current = roiPixelGeometry(original, recipe);
-  const unchanged = ['x','y','width','height'].every(key => finiteNumber(edited[key]) === finiteNumber(current[key]));
-  return unchanged ? JSON.parse(JSON.stringify(original || {})) : edited;
-}
-
-function foamTemplateSideHtml(sideName, sideData) {
-  if (!sideData || !finiteNumber(sideData.pixels)) {
-    return `<div class="foam-template-side">${sideName}：未保存完整位置数据</div>`;
-  }
-  const box = sideData.bounding_box || {};
-  return `<div class="foam-template-side">${sideName}：面积 ${finiteNumber(sideData.pixels)}px · 中心 (${finiteNumber(sideData.centroid_x).toFixed(1)}, ${finiteNumber(sideData.centroid_y).toFixed(1)}) · 边界框 [${finiteNumber(box.x)}, ${finiteNumber(box.y)}, ${finiteNumber(box.width)}, ${finiteNumber(box.height)}]</div>`;
-}
-
 function foamTemplateSummaryHtml(recipe) {
   const status = recipe.standard_template_status || {};
-  const sides = status.sides || recipe.standard_template?.sides || {};
   if (!status.ready) {
-    return `<div class="foam-template-summary missing"><div class="foam-template-title">⚠️ 标准模板未完成</div><div>${escape2DHtml(status.reason || '请使用合格样件重新示教左右模板')}</div></div>`;
+    return `<div class="foam-template-summary missing">${escape2DHtml(status.reason || '请在工作台绘制并保存左右标准 ROI')}</div>`;
   }
-  return `
-    <div class="foam-template-summary ready">
-      <div class="foam-template-title">✅ 标准模板位置已保存到配方</div>
-      ${foamTemplateSideHtml('左侧', sides.left)}
-      ${foamTemplateSideHtml('右侧', sides.right)}
-      <div class="foam-template-meta">版本 ${escape2DHtml(status.version || recipe.standard_template_version || '—')} · 示教时间 ${escape2DHtml(status.built_at || recipe.standard_template_built_at || '—')}</div>
-    </div>`;
+  const search = isRoiConfigured(recipe.roi_config?.layerSearchROI) ? '本层搜索区已配置' : '本层搜索区待配置';
+  return `<div class="foam-template-summary ready">左右标准 ROI 已配置 · ${search}</div>`;
 }
 
 // ── 渲染配方卡片 ───────────────────────────────────
@@ -1443,37 +1500,27 @@ function renderRecipeCards() {
   const recipes = foam2DRecipes.filter(r => `${r.id} ${r.name} ${r.remark || ''} ${r.foam_summary?.material_label || ''} ${r.foam_summary?.segmentation_label || ''} ${r.foam_summary?.configured_mode || ''}`.toLowerCase().includes(query));
   const expanded = new Set([...document.querySelectorAll('#foam-recipe-list details[open]')].map(item => item.id));
   document.getElementById('foam-recipe-list').innerHTML = recipes.length ? recipes.map(recipe => {
-    const t = recipe.threshold_config || {};
-    const separated = t.decision_mode === 'separated-v2';
     const value = (label, content) => `<div class="rack3d-roi-item"><strong>${label}：</strong><span>${escape2DHtml(content)}</span></div>`;
-    const ratio = key => t[key] == null ? '未配置' : `${(100 * finiteNumber(t[key])).toFixed(1)}%`;
     return `<details class="recipe-card ${recipe.is_active ? '' : 'disabled'}" id="recipe-2d-${recipe.id}" ${expanded.has(`recipe-2d-${recipe.id}`) ? 'open' : ''}>
       <summary class="recipe-card-summary">
         <span class="recipe-card-name">${escape2DHtml(recipe.name)}</span>
-        <span class="rack-number-badge">${escape2DHtml(recipe.foam_summary?.material_label || '未标注颜色')}</span>
+        <span class="rack-number-badge">${escape2DHtml(recipe.foam_summary?.material_label || '未标注颜色')} · ${escape2DHtml(recipe.foam_summary?.segmentation_label || '—')}</span>
         <span class="status-badge ${recipe.is_active ? 'enabled' : 'disabled'}">${recipe.is_active ? '✔ 已启用' : '草稿 / 已停用'}</span>
         <button class="recipe-rename-button recipe-copy-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); copyRecipe(${recipe.id})">增加（复制）</button>
         <button class="recipe-rename-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); openEditModal(${recipe.id})">编辑参数</button>
+        <button class="recipe-rename-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); exportRecipeJson('foam2d', ${recipe.id}, this)">导出 JSON</button>
         <button class="recipe-rename-button recipe-delete-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); deleteRecipeById(${recipe.id})">删除</button>
       </summary>
       <div class="recipe-card-body">
         <div class="rack3d-data-block">
           <div class="rack3d-data-title">检测参数</div>
           <div class="rack3d-roi-grid">
-            ${value('分割方式', recipe.foam_summary?.segmentation_label || '—')}
-            ${value('判定方式', separated ? '独立完整性与偏移' : '覆盖率与偏移')}
-            ${separated ? value('面积比', `${ratio('min_area_ratio')} ～ ${ratio('max_area_ratio')}`) + value('缺损 / 超出上限', `${ratio('max_missing_ratio')} / ${ratio('max_excess_ratio')}`) : value('最低覆盖率', `${(100 * thresholdValue(t, ['coverage_threshold','minCoverage'], .75)).toFixed(1)}%`)}
-            ${value('允许偏移 X / Y', `${thresholdValue(t, ['max_offset_x_mm','maxOffsetXMm','max_offset_mm','maxOffsetMm'], 2)} / ${thresholdValue(t, ['max_offset_y_mm','maxOffsetYMm','max_offset_mm','maxOffsetMm'], 2)} mm`)}
+            ${foamDecisionSummary(recipe).map(([label, content]) => value(label, content)).join('')}
           </div>
         </div>
         <div class="rack3d-data-block">
           <div class="rack3d-data-title">工作台示教</div>
-          <div class="rack3d-roi-grid">
-            ${value('左 ROI', isRoiConfigured(recipe.roi_config?.leftFoamROI) ? '已配置' : '未配置')}
-            ${value('右 ROI', isRoiConfigured(recipe.roi_config?.rightFoamROI) ? '已配置' : '未配置')}
-            ${value('标准模板', recipe.standard_template_status?.ready ? '已就绪' : '待示教')}
-            ${value('毫米标定', t.pixels_per_mm_x > 0 && t.pixels_per_mm_y > 0 ? '已配置' : '未配置')}
-          </div>
+          ${foamTemplateSummaryHtml(recipe)}
         </div>
         <div class="recipe-card-actions">
           <a class="btn btn-sm" href="{% url 'vision:foam_inspector_interactive' %}?recipe_id=${recipe.id}">进入 2D 工作台</a>
@@ -1489,54 +1536,93 @@ window.selectRecipeForEdit = function(recipeId) {
   openEditModal(recipeId);
 };
 
-// ── 打开编辑弹窗 ────────────────────────────────────
+const foamIntegrityKeys = [
+  'min_area_ratio', 'max_area_ratio', 'max_missing_ratio', 'max_excess_ratio', 'max_local_missing_ratio',
+];
+
+function foamEditField(key) {
+  return document.getElementById('edit-quality-' + key.replaceAll('_', '-'));
+}
+
+function setFoamEditFieldsVisible(id, visible) {
+  const group = document.getElementById(id);
+  group.hidden = !visible;
+  for (const input of group.querySelectorAll('input')) input.disabled = !visible;
+}
+
+function refreshFoamEditFields(recipe) {
+  const material = foamEditField('material').value;
+  const summary = recipe.foam_summary || {};
+  const usesThreshold = material === 'white' || (material === 'unspecified' && summary.uses_hsv_thresholds);
+  const algorithmLabel = {gray: '阴影分割', white: '阈值分割'}[material] || summary.segmentation_label || '阈值分割';
+  foamEditField('segmentation').textContent = '使用' + algorithmLabel;
+  setFoamEditFieldsVisible('edit-hsv-fields', usesThreshold);
+
+  const separated = foamEditField('decision_mode').value === 'separated-v2';
+  setFoamEditFieldsVisible('edit-coverage-fields', !separated);
+  setFoamEditFieldsVisible('edit-optional-integrity', !separated);
+  setFoamEditFieldsVisible('edit-integrity-fields', separated || document.getElementById('edit-use-integrity').checked);
+  for (const key of foamIntegrityKeys.slice(0, 4)) foamEditField(key).required = separated;
+  document.getElementById('edit-decision-hint').textContent = separated
+    ? '泡棉形状对齐后检查面积、缺损和超出，位置偏移单独判定。'
+    : '按泡棉在标准 ROI 内的覆盖比例和位置偏移判定。';
+
+  const mm = document.getElementById('edit-use-mm').checked
+    && foamEditField('pixels_per_mm_x').valueAsNumber > 0
+    && foamEditField('pixels_per_mm_y').valueAsNumber > 0;
+  setFoamEditFieldsVisible('edit-offset-mm-fields', mm);
+  setFoamEditFieldsVisible('edit-offset-px-fields', !mm);
+  document.getElementById('edit-offset-hint').textContent = mm
+    ? '偏移按毫米判定。标定系数见高级参数。'
+    : '偏移按像素判定。可在高级参数设置毫米标定。';
+
+  setFoamEditFieldsVisible('edit-registration-fields', foamEditField('registration_enabled').checked);
+  setFoamEditFieldsVisible('edit-merge-fields', foamEditField('merge_enabled').checked);
+}
+
 window.openEditModal = function(recipeId) {
   const recipe = foam2DRecipes.find(r => r.id === recipeId);
   if (!recipe) return;
 
-  const a = recipe?.algorithm_config || {};
-  const t = recipe?.threshold_config || {};
-  document.getElementById('edit-quality-registration-enabled').checked = a.product_registration?.enabled === true;
-  document.getElementById('edit-quality-registration-shift').value = a.product_registration?.max_shift_px ?? 120;
-  document.getElementById('edit-quality-registration-rotation').value = a.product_registration?.max_rotation_deg ?? 3;
-  document.getElementById('edit-quality-merge-enabled').checked = a.fragment_merge?.enabled === true;
-  document.getElementById('edit-quality-merge-gap').value = a.fragment_merge?.max_gap_px ?? 12;
-  document.getElementById('edit-quality-merge-color').value = a.fragment_merge?.max_color_distance ?? 25;
-  document.getElementById('edit-quality-material').value = a.material_type || 'unspecified';
-  document.getElementById('edit-quality-min-v').value = a.segmentation_config?.foam_min_v ?? 140;
-  document.getElementById('edit-quality-max-s').value = a.segmentation_config?.foam_max_s ?? 80;
-  document.getElementById('edit-quality-segmentation').value = a.foam_segmentation || 'fixed-threshold';
-  document.getElementById('edit-quality-decision-mode').value = t.decision_mode || 'legacy';
-  for (const key of ['min_area_ratio', 'max_area_ratio', 'max_missing_ratio', 'max_excess_ratio']) {
-    document.getElementById('edit-quality-' + key.replaceAll('_', '-')).value = t[key] ?? '';
+  const algorithm = recipe.algorithm_config || {};
+  const thresholds = recipe.threshold_config || {};
+  const alignment = recipe.foam_summary?.alignment || {};
+  foamEditField('registration_enabled').checked = algorithm.product_registration?.enabled === true;
+  foamEditField('registration_shift').value = algorithm.product_registration?.max_shift_px ?? 120;
+  foamEditField('registration_rotation').value = algorithm.product_registration?.max_rotation_deg ?? 3;
+  foamEditField('merge_enabled').checked = algorithm.fragment_merge?.enabled === true;
+  foamEditField('merge_gap').value = algorithm.fragment_merge?.max_gap_px ?? 12;
+  foamEditField('merge_color').value = algorithm.fragment_merge?.max_color_distance ?? 25;
+  foamEditField('material').value = recipe.foam_summary?.material_type || 'unspecified';
+  foamEditField('min_v').value = algorithm.segmentation_config?.foam_min_v ?? 140;
+  foamEditField('max_s').value = algorithm.segmentation_config?.foam_max_s ?? 80;
+  foamEditField('decision_mode').value = thresholds.decision_mode || 'legacy';
+  document.getElementById('edit-use-integrity').checked = foamIntegrityKeys.some(key => thresholds[key] != null);
+  for (const key of foamIntegrityKeys) {
+    foamEditField(key).value = thresholds[key] == null ? '' : Number((thresholds[key] * 100).toPrecision(12));
   }
-  for (const [key, fallback] of Object.entries({pixels_per_mm_x:0, pixels_per_mm_y:0, max_offset_x_mm:2, max_offset_y_mm:2})) {
-    document.getElementById('edit-quality-' + key.replaceAll('_', '-')).value = t[key] ?? ({max_offset_x_mm:t.maxOffsetXMm, max_offset_y_mm:t.maxOffsetYMm})[key] ?? fallback;
-  }
+  document.getElementById('edit-use-mm').checked = (alignment.max_offset_mm ?? 2) > 0;
+  foamEditField('pixels_per_mm_x').value = alignment.pixels_per_mm_x ?? 0;
+  foamEditField('pixels_per_mm_y').value = alignment.pixels_per_mm_y ?? 0;
+  foamEditField('max_offset_x_mm').value = alignment.max_offset_x_mm ?? 2;
+  foamEditField('max_offset_y_mm').value = alignment.max_offset_y_mm ?? 2;
+  document.getElementById('edit-offset-x-px').value = alignment.max_offset_x_px ?? 30;
+  document.getElementById('edit-offset-y-px').value = alignment.max_offset_y_px ?? 30;
   document.getElementById('edit-name').value = recipe.name;
   document.getElementById('edit-remark').value = recipe.remark || '';
   document.getElementById('edit-active').checked = recipe.is_active;
-
-  // 填充弹窗数据
-  const roi = recipe.roi_config || {};
-  const left = roi.leftFoamROI || {};
-  const right = roi.rightFoamROI || {};
-  const thresh = recipe.threshold_config || {};
-  const leftPixels = roiPixelGeometry(left, recipe);
-  const rightPixels = roiPixelGeometry(right, recipe);
+  document.getElementById('edit-thresh-cov').value = Number((thresholdValue(thresholds, ['coverage_threshold', 'minCoverage'], 0.75) * 100).toPrecision(12));
 
   document.getElementById('edit-modal-title').textContent = `编辑配方 · ${recipe.name}`;
   document.getElementById('edit-modal-id').value = recipe.id;
-  document.getElementById('edit-modal-pos').textContent = '整架所有位置共用';
-
-  // 阈值
-  document.getElementById('edit-thresh-cov').value = thresholdValue(thresh, ['coverage_threshold','minCoverage'], 0.75);
-  document.getElementById('edit-thresh-score').value = thresholdValue(thresh, ['score_threshold','minScore'], 0.8);
-  document.getElementById('edit-thresh-x').value = thresholdValue(thresh, ['max_offset_px','maxOffsetX'], 30);
+  document.getElementById('edit-advanced-settings').open = false;
   document.getElementById('edit-standard-template-data').innerHTML = foamTemplateSummaryHtml(recipe);
-  document.getElementById('edit-standard-template-workbench').href = `/vision/foam-inspector/?recipe_id=${recipe.id}`;
+  document.getElementById('edit-standard-template-workbench').href = `{% url 'vision:foam_inspector_interactive' %}?recipe_id=${recipe.id}`;
 
-  document.getElementById('recipe-edit-modal').style.display = 'flex';
+  refreshFoamEditFields(recipe);
+  const modal = document.getElementById('recipe-edit-modal');
+  modal.oninput = () => refreshFoamEditFields(recipe);
+  modal.style.display = 'flex';
 };
 
 // ── 关闭编辑弹窗 ────────────────────────────────────
@@ -1554,49 +1640,82 @@ window.submitEditModal = async function() {
   }
 
   for (const input of document.querySelectorAll('#recipe-edit-modal input')) {
-    if (!input.checkValidity()) { input.reportValidity(); return; }
-  }
-  if (!document.getElementById('edit-name').value.trim()) { showToast('请输入配方名称', 'error'); return; }
-  const coverageThreshold = Number(document.getElementById('edit-thresh-cov').value);
-  const scoreThreshold = Number(document.getElementById('edit-thresh-score').value);
-  const maxOffsetPx = Number(document.getElementById('edit-thresh-x').value);
-  const threshold_config = {
-    ...(recipe.threshold_config || {}),
-    coverage_threshold: coverageThreshold,
-    minCoverage: coverageThreshold,
-    score_threshold: scoreThreshold,
-    minScore: scoreThreshold,
-    max_offset_px: maxOffsetPx,
-    maxOffsetX: maxOffsetPx,
-    maxOffsetY: maxOffsetPx,
-  };
-
-  threshold_config.decision_mode = document.getElementById('edit-quality-decision-mode').value;
-  for (const key of ['min_area_ratio', 'max_area_ratio', 'max_missing_ratio', 'max_excess_ratio']) {
-    const input = document.getElementById('edit-quality-' + key.replaceAll('_', '-'));
-    if (input.value === '') {
-      threshold_config[key] = null;
-      if (threshold_config.decision_mode === 'separated-v2') {
-        alert('独立完整性模式需要填写四个完整性门限。');
-        return;
-      }
-    } else {
-      if (!input.checkValidity() || !Number.isFinite(Number(input.value))) {
-        alert('完整性门限无效，请检查输入。');
-        return;
-      }
-      threshold_config[key] = Number(input.value);
+    if (!input.checkValidity()) {
+      const details = input.closest('details');
+      if (details) details.open = true;
+      input.reportValidity();
+      return;
     }
   }
+  const name = document.getElementById('edit-name').value.trim();
+  if (!name) { showToast('请输入配方名称', 'error'); return; }
 
-  for (const key of ['pixels_per_mm_x','pixels_per_mm_y','max_offset_x_mm','max_offset_y_mm']) {
-    threshold_config[key] = Number(document.getElementById('edit-quality-' + key.replaceAll('_', '-')).value);
+  const threshold_config = {decision_mode: foamEditField('decision_mode').value};
+  const coverage = document.getElementById('edit-thresh-cov');
+  if (!coverage.disabled) {
+    threshold_config.coverage_threshold = coverage.valueAsNumber / 100;
+    threshold_config.minCoverage = threshold_config.coverage_threshold;
   }
-  threshold_config.maxOffsetXMm = threshold_config.max_offset_x_mm;
-  threshold_config.maxOffsetYMm = threshold_config.max_offset_y_mm;
-  if (document.getElementById('edit-quality-registration-enabled').checked && (recipe.roi_config?.productAnchorROIs || []).length < 2) {
-    showToast('请先在示教工作台绘制两个产品本体基准区', 'error'); return;
+  for (const key of foamIntegrityKeys) {
+    const input = foamEditField(key);
+    threshold_config[key] = input.disabled || input.value === '' ? null : input.valueAsNumber / 100;
   }
+
+  const alignment = recipe.foam_summary?.alignment || {};
+  const useMm = document.getElementById('edit-use-mm').checked;
+  if (useMm !== ((alignment.max_offset_mm ?? 2) > 0)) {
+    // Keep per-axis millimeter limits when the legacy mode flag changes.
+    threshold_config.max_offset_mm = useMm ? 2 : 0;
+    threshold_config.max_offset_x_mm = foamEditField('max_offset_x_mm').valueAsNumber;
+    threshold_config.max_offset_y_mm = foamEditField('max_offset_y_mm').valueAsNumber;
+  }
+  for (const axis of ['x', 'y']) {
+    const scale = foamEditField('pixels_per_mm_' + axis).valueAsNumber;
+    if (scale !== (alignment['pixels_per_mm_' + axis] ?? 0)) {
+      threshold_config['pixels_per_mm_' + axis] = scale;
+      if (scale === 0) threshold_config['mm_per_pixel_' + axis] = 0;
+    }
+    const mmInput = foamEditField('max_offset_' + axis + '_mm');
+    const pxInput = document.getElementById('edit-offset-' + axis + '-px');
+    const offsetInput = mmInput.disabled ? pxInput : mmInput;
+    const unit = mmInput.disabled ? 'px' : 'mm';
+    threshold_config[`max_offset_${axis}_${unit}`] = offsetInput.valueAsNumber;
+  }
+  if ('max_offset_x_px' in threshold_config) {
+    threshold_config.maxOffsetX = threshold_config.max_offset_x_px;
+    threshold_config.maxOffsetY = threshold_config.max_offset_y_px;
+    threshold_config.max_offset_px = Math.max(threshold_config.maxOffsetX, threshold_config.maxOffsetY);
+  }
+  if ('max_offset_x_mm' in threshold_config) {
+    threshold_config.maxOffsetXMm = threshold_config.max_offset_x_mm;
+    threshold_config.maxOffsetYMm = threshold_config.max_offset_y_mm;
+  }
+
+  const algorithm_config = {material_type: foamEditField('material').value};
+  if (!foamEditField('min_v').disabled) {
+    algorithm_config.segmentation_config = {
+      foam_min_v: foamEditField('min_v').valueAsNumber,
+      foam_max_s: foamEditField('max_s').valueAsNumber,
+    };
+  }
+  const registration = foamEditField('registration_enabled').checked;
+  if (registration && !recipe.algorithm_config?.product_registration?.enabled
+      && ((recipe.roi_config?.productAnchorROIs || []).length < 2 || !recipe.standard_template?.source_image_path)) {
+    showToast('请先在工作台绘制两个产品基准区，并保存合格样件参考图', 'error');
+    return;
+  }
+  algorithm_config.product_registration = {...recipe.algorithm_config?.product_registration, enabled: registration};
+  if (registration) {
+    algorithm_config.product_registration.max_shift_px = foamEditField('registration_shift').valueAsNumber;
+    algorithm_config.product_registration.max_rotation_deg = foamEditField('registration_rotation').valueAsNumber;
+  }
+  const merge = foamEditField('merge_enabled').checked;
+  algorithm_config.fragment_merge = {...recipe.algorithm_config?.fragment_merge, enabled: merge};
+  if (merge) {
+    algorithm_config.fragment_merge.max_gap_px = foamEditField('merge_gap').valueAsNumber;
+    algorithm_config.fragment_merge.max_color_distance = foamEditField('merge_color').valueAsNumber;
+  }
+
   try {
     const res = await fetch(API.saveRecipe, {
       method: 'POST',
@@ -1605,30 +1724,13 @@ window.submitEditModal = async function() {
         id: recipe.id,
         shared_recipe: true,
         pos: recipe.pos,
-        name: document.getElementById('edit-name').value.trim(),
+        name,
         camera_side: recipe.camera_side,
         image_width: recipe.image_width,
         image_height: recipe.image_height,
         roi_config: recipe.roi_config || {},
         threshold_config,
-    algorithm_config: {
-      ...(recipe.algorithm_config || {}),
-      material_type: document.getElementById('edit-quality-material').value,
-      segmentation_config: {...(recipe.algorithm_config?.segmentation_config || {}), foam_min_v: Number(document.getElementById('edit-quality-min-v').value), foam_max_s: Number(document.getElementById('edit-quality-max-s').value)},
-      foam_segmentation: document.getElementById('edit-quality-segmentation').value,
-      product_registration: {
-        ...(recipe?.algorithm_config?.product_registration || {}),
-        enabled: document.getElementById('edit-quality-registration-enabled').checked,
-        max_shift_px: Number(document.getElementById('edit-quality-registration-shift').value),
-        max_rotation_deg: Number(document.getElementById('edit-quality-registration-rotation').value),
-      },
-      fragment_merge: {
-        ...(recipe?.algorithm_config?.fragment_merge || {}),
-        enabled: document.getElementById('edit-quality-merge-enabled').checked,
-        max_gap_px: Number(document.getElementById('edit-quality-merge-gap').value),
-        max_color_distance: Number(document.getElementById('edit-quality-merge-color').value),
-      },
-    },
+        algorithm_config,
         is_active: document.getElementById('edit-active').checked,
         remark: document.getElementById('edit-remark').value.trim(),
       }),
@@ -2103,29 +2205,28 @@ function formatTemplatePlane(label, plane) {
 
 function render3DWorkbenchData(recipe) {
   const roiConfig = recipe?.roi_config || {};
-  const rois = roiConfig.cloud_match_config?.rois || [];
-  const reference = roiConfig.cloud_match_reference;
+  const rois = roiConfig.cloud_center_config?.rois || [];
+  const reference = roiConfig.cloud_center_reference;
   const measurement = reference?.measurement;
   const valid = measurement?.success && measurement.coordinateSystem === 'camera' && measurement.unit === 'mm';
-  const labels = [['P1_horizontal', 'ROI1 · P1 横杆'], ['P1_vertical', 'ROI2 · P1 立柱'],
-                  ['P2_horizontal', 'ROI3 · P2 横杆'], ['P2_vertical', 'ROI4 · P2 立柱']];
-  const templateRows = ['P1', 'P2'].map(name => {
+  const labels = [['P1_cross', '模板区域 1'], ['P2_cross', '模板区域 2']].slice(0, roiConfig.cloud_center_config?.rack_layers === 2 ? 1 : 2);
+  const templateRows = ['P1', 'P2'].slice(0, labels.length).map((name, index) => {
     const point = valid ? measurement.points?.find(item => item.name === name && item.success) : null;
     const coords = point?.xyz;
     const text = Array.isArray(coords) && coords.length === 3 && coords.every(Number.isFinite)
       ? coords.map(value => format3DNumber(value)).join(' / ') : '—';
-    return `<div class="rack3d-template-detail">${name}：${text}</div>`;
+    return `<div class="rack3d-template-detail">模板区域 ${index + 1}：${text}</div>`;
   }).join('');
   return `
     <div class="rack3d-data-block">
-      <div class="rack3d-data-title">四个 ROI 框（2D 原图像素）</div>
+      <div class="rack3d-data-title">单框模板区域（2D 原图像素）</div>
       <div class="rack3d-roi-grid">${labels.map(([target, label]) => {
         const roi = rois.find(item => item.target === target);
         return `<div class="rack3d-roi-item">${label}：${formatPixelRoi(roi ? {...roi, w: roi.width ?? roi.w, h: roi.height ?? roi.h} : null)}</div>`;
       }).join('')}</div>
     </div>
     <div class="rack3d-data-block">
-      <div class="rack3d-data-title">点云标准模板参考点（相机原始 X / Y / Z · mm）</div>
+      <div class="rack3d-data-title">点云标准模板中心（相机原始 X / Y / Z · mm）</div>
       ${valid ? '<div class="rack3d-template-ok">✔ 已保存标准模板</div>' : '<div class="rack3d-template-empty">尚未示教，标准模板为空。</div>'}
       ${templateRows}
       ${reference?.taught_at ? `<div class="rack3d-template-detail">保存时间：${escape3DHtml(new Date(reference.taught_at).toLocaleString('zh-CN', {hour12:false}))}</div>` : ''}
@@ -2158,6 +2259,7 @@ async function load3DRecipes() {
 
 // ── 渲染3D配方卡片 ─────────────────────────────────
 function render3DRecipeCards() {
+  loadPlcDefault('rack', rack3DRecipes);
   const list = document.getElementById('rack3d-recipe-list');
 
   if (!rack3DRecipes.length) {
@@ -2185,7 +2287,8 @@ function render3DRecipeCards() {
           </span>
           <button class="recipe-rename-button recipe-copy-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); open3DCopyModal(${recipe.id})">增加（复制）</button>
           <button class="recipe-rename-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); open3DRenameModal(${recipe.id})">修改命名</button>
-          <button class="recipe-rename-button recipe-delete-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); delete3DRecipe(${recipe.id})">删除</button>
+          <button class="recipe-rename-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); exportRecipeJson('rack3d', ${recipe.id}, this)">导出 JSON</button>
+        <button class="recipe-rename-button recipe-delete-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); delete3DRecipe(${recipe.id})">删除</button>
         </summary>
         <div class="recipe-card-body">
           ${render3DWorkbenchData(recipe)}
@@ -2530,6 +2633,60 @@ document.getElementById('rack-master-modal')?.addEventListener('click', function
 document.getElementById('recipe-edit-modal')?.addEventListener('click', function(e) {
   if (e.target === this) closeEditModal();
 });
+
+// JSON transfer uses the saved recipe, including template and ROI data.
+window.exportRecipeJson = async function(kind, id, button) {
+  button.disabled = true;
+  try {
+    const response = await fetch(`/vision/api/recipes/transfer/${kind}/${id}/export/`);
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || '导出失败');
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${kind}-recipe-${id}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('配方 JSON 已导出', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
+};
+
+window.importRecipeJson = async function(input) {
+  const file = input.files[0];
+  const kind = currentTab;
+  input.value = '';
+  if (!file) return;
+  if (file.size > 32 * 1024 * 1024) {
+    showToast('请选择不超过 32 MB 的 JSON 文件', 'error');
+    return;
+  }
+  const button = document.getElementById('btn-import-recipe');
+  button.disabled = true;
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await fetch(`/vision/api/recipes/transfer/${kind}/import/`, {
+      method: 'POST', headers: {'X-CSRFToken': getCsrf()}, body: form,
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || '导入失败');
+    await (kind === 'foam2d' ? loadRecipes() : load3DRecipes());
+    showToast(`已导入「${data.name}」，PLC 默认配方保持不变`, 'success');
+    if (data.warnings.length) alert('配方已导入，请检查以下关联：\n' + data.warnings.join('\n'));
+  } catch (error) {
+    showToast('导入失败：' + error.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
+};
 
 // ── 初始化 ───────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {

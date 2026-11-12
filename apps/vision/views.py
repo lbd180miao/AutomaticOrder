@@ -50,6 +50,7 @@ from .recipe_utils import (
     has_complete_foam_template_side_metadata,
     serialize_recipe,
     foam_identity_summary,
+    foam_segmentation_mode,
 )
 from .services import VisionService
 from .rack_location import (
@@ -522,7 +523,13 @@ def api_foam_recipe_save(request):
                            'product_registration', 'fragment_merge'}
                 if set(algorithm) - allowed:
                     raise ValueError('Unsupported algorithm_config field')
-                recipe.algorithm_config = {**(recipe.algorithm_config or {}), **algorithm}
+                previous_algorithm = recipe.algorithm_config or {}
+                updated_algorithm = {**previous_algorithm, **algorithm}
+                if algorithm.get('material_type') == 'unspecified' and 'foam_segmentation' not in algorithm:
+                    updated_algorithm['foam_segmentation'] = foam_segmentation_mode(previous_algorithm)
+                elif updated_algorithm.get('material_type') in ('white', 'gray'):
+                    updated_algorithm['foam_segmentation'] = foam_segmentation_mode(updated_algorithm)
+                recipe.algorithm_config = updated_algorithm
             if save_mode in {'draft', 'publish'}:
                 recipe.is_active = save_mode == 'publish'
             else:
@@ -1391,19 +1398,22 @@ def api_foam_inspection_records(request):
             original_img = task.images.filter(image_type='ORIGINAL').first()
             result_img = task.images.filter(image_type='RESULT').first()
             saved_original = foam_archive.root() / f'{r.id}_original.png'
-            if not original_img and not saved_original.is_file():
-                continue  # 数据记录没有永久图片，不能用于导入
+            has_original = bool(original_img and original_img.file.storage.exists(original_img.file.name)) or saved_original.is_file()
+            saved_result = foam_archive.root() / f'{r.id}_result.png'
             data.append({
                 'id': r.id,
                 'task_id': task.id,
-                'created_at': r.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'created_at': timezone.localtime(r.created_at).strftime('%Y-%m-%d %H:%M:%S'),
                 'position_index': r.position_index,
                 'is_passed': r.is_passed,
                 'is_present': r.is_present,
                 'score': float(r.score),
                 'coverage_ratio': float(r.coverage_ratio),
-                'original_image_url': original_img.file.url if original_img else f'/vision/api/foam/records/{r.id}/image/original/',
-                'result_image_url': result_img.file.url if result_img else '',
+                'has_original_image': has_original,
+                'original_image_url': (original_img.file.url if original_img and original_img.file.storage.exists(original_img.file.name)
+                                       else f'/vision/api/foam/records/{r.id}/image/original/' if saved_original.is_file() else ''),
+                'result_image_url': (result_img.file.url if result_img and result_img.file.storage.exists(result_img.file.name)
+                                     else f'/vision/api/foam/records/{r.id}/image/result/' if saved_result.is_file() else ''),
             })
         return JsonResponse({'success': True, 'records': data})
     except Exception as e:
@@ -2763,7 +2773,7 @@ def api_rack_location_recipe_detail(request, recipe_id):
         serialized = _serialize_rack_location_recipe(recipe)
         
         from .rack_cloud_roi import config_status
-        roi_info = config_status((recipe.roi_config or {}).get('cloud_match_config'))
+        roi_info = config_status((recipe.roi_config or {}).get('cloud_center_config'))
 
         serialized['roi_info'] = roi_info
         
