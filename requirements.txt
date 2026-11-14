@@ -12,3 +12,6 @@ zeep==4.3.3
 
 # RVC 3D 相机（独立相机服务进程使用；import 名为 PyRVC）
 PyRVC==1.15.0
+
+# Source server entry point (Windows-compatible WSGI)
+waitress>=3.0,<4

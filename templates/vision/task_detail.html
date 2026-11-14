@@ -30,23 +30,26 @@
   </div>
 </section>
 
+{% if task.error_message %}
+<section class="panel"><h2>失败原因</h2><p style="white-space:pre-wrap;color:#b42318;">{{ task.error_message }}</p></section>
+{% endif %}
 <h2 class="section-title">相机画面</h2>
 <div class="cam-grid">
   <div class="cam-card">
     <div class="cam-head">
-      <span>原始画面</span>
+      <span>相机原始 2D 图</span>
       {% if task.task_type == 'FOAM_INSPECTION' %}<span class="badge badge-muted">2D检测相机</span>
-      {% else %}<span class="badge badge-muted">深度相机</span>{% endif %}
+      {% else %}<span class="badge badge-muted">3D 相机同步 2D 图</span>{% endif %}
     </div>
     <div class="cam-body">
       {% if original %}<img src="{{ original.file.url }}" alt="原图">
       {% elif foam_original_available %}<img src="{% url 'vision:api_foam_record_image' foam_result.pk 'original' %}" alt="原图">
-      {% else %}<p class="empty" style="color:#8a97a5;">无图像</p>{% endif %}
+      {% else %}<p class="empty" style="color:#8a97a5;">本条记录未保存对应 2D 图像</p>{% endif %}
     </div>
   </div>
   <div class="cam-card">
     <div class="cam-head">
-      <span>识别结果（ROI 标注）</span>
+      <span>2D 图（配方 ROI 标注）</span>
       {% if foam_result %}
         {% if foam_result.is_passed %}<span class="badge badge-ok">合格</span>{% else %}<span class="badge badge-fail">不合格</span>{% endif %}
       {% elif rack_result %}
@@ -54,9 +57,9 @@
       {% endif %}
     </div>
     <div class="cam-body">
-      {% if result_img %}<img src="{{ result_img.file.url }}" alt="结果图">
+      {% if result_img and original or result_img and foam_result %}<img src="{{ result_img.file.url }}" alt="结果图">
       {% elif foam_result_available %}<img src="{% url 'vision:api_foam_record_image' foam_result.pk 'result' %}" alt="结果图">
-      {% else %}<p class="empty" style="color:#8a97a5;">无图像</p>{% endif %}
+      {% else %}<p class="empty" style="color:#8a97a5;">本条记录未保存对应 2D 图像</p>{% endif %}
     </div>
     {% if task.task_type == 'FOAM_INSPECTION' %}
     <div class="cam-legend">
@@ -66,9 +69,7 @@
     </div>
     {% else %}
     <div class="cam-legend">
-      <span><i class="legend-axis"></i>立柱定位基准</span>
-      <span><i class="legend-roi"></i>装箱区 ROI</span>
-      <span>白色箭头：X/Y 补偿向量</span>
+      <span><i class="legend-roi"></i>采集时配方的定位 ROI</span>
     </div>
     {% endif %}
   </div>
@@ -133,6 +134,13 @@
 {% if rack_result.result_data.source == 'dual_point_evaluate' or rack_result.result_data.source == 'cloud_match' %}
 {# ── Dual-point evaluate result: show only XYZ table + robot deviation table ── #}
 {% with dp=rack_result.result_data %}
+{% if dp.result.registration.region_warnings %}
+<section class="panel"><h3>区域匹配提示</h3>
+{% for warning in dp.result.registration.region_warnings %}
+<p style="color:#925900;white-space:pre-wrap;">{{ warning }}</p>
+{% endfor %}
+</section>
+{% endif %}
 <h2 class="section-title">交点坐标数据</h2>
 <div class="table-wrap">
   <table class="data-table">

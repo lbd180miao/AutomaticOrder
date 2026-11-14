@@ -103,7 +103,7 @@ def deliver_once():
                 response.raise_for_status()
                 body = response.json()
                 if body.get('id') != task['id'] or body.get('state') not in {
-                    'accepted', 'running', 'succeeded', 'failed', 'unknown'}:
+                    'accepted', 'waiting_manual', 'running', 'succeeded', 'failed', 'unknown'}:
                     raise ValueError('网关响应格式不正确')
                 with database() as db:
                     db.execute('UPDATE tasks SET state=?,result=?,error=?,updated=? WHERE id=?',
@@ -157,12 +157,14 @@ class RemoteMesClient(MesClient):
             cycle = StationCycle.objects.filter(rack__rack_code=payload.get('rack_code', '')).order_by('-pk').first()
             cycle_id = getattr(self, 'context_cycle', cycle.pk if cycle else None)
             payload = {**payload, '_packing_cycle': cycle_id}
+            if getattr(self, 'context_request', None):
+                payload['_input_request'] = self.context_request
             identity = {k: v for k, v in payload.items() if k != 'completed_at'}
             key = json.dumps([cycle_id, action, identity], sort_keys=True, ensure_ascii=False)
         task_id = submit(action, payload, key)
         if getattr(self, 'nonblocking', False):
             data = result(task_id)
-            if data['gateway_state'] in {'pending', 'accepted', 'running'}:
+            if data['gateway_state'] in {'pending', 'accepted', 'waiting_manual', 'running'}:
                 raise RemotePending(task_id)
             return data
         deadline = time.monotonic() + float(config().get('wait_seconds', 20))

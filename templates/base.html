@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}AutomaticBoxing{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20261111-readable-fonts">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20261113-clock-only">
   {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -21,10 +21,6 @@
     </nav>
     <div class="topbar-status" aria-label="系统状态">
       <time class="topbar-clock" id="system-clock" aria-label="系统时间"></time>
-      <a class="alarm-chip {% if nav_alarm_count %}has-alarm{% endif %}" href="{% url 'alarms:alarm_list' %}" title="未处理报警">
-        <span aria-hidden="true">♢</span> 报警 {{ nav_alarm_count }}
-      </a>
-      <a class="settings-link {% if request.path == '/settings/' or '/devices/' in request.path %}active{% endif %}" href="{% url 'core:system_settings' %}" title="系统设置" aria-label="系统设置">⚙</a>
     </div>
   </header>
   <main class="page {% block page_class %}{% endblock %}">

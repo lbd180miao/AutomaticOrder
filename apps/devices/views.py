@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 
 from .models import Device, DeviceSignalRecord
 from apps.core.constants import DeviceType, DeviceStatus
-from .plc_db100 import DB100_POINTS, DB_NUMBER
+from .plc_db100 import DB100_POINTS, DB_NUMBER, ACTIVE_OUTPUT_NAMES
 
 
 PLC_POINT_DEFINITIONS = DB100_POINTS
@@ -32,6 +32,8 @@ def api_plc_global(request):
     action = request.POST.get('action')
     if action not in ('start', 'stop'):
         return JsonResponse({'error': '请选择启动或关闭'}, status=400)
+    if action == 'stop' and settings.PLC_LISTENER_AUTO_START:
+        return JsonResponse({'error': 'PLC 随软件持续监听，退出软件后结束'}, status=409)
     if action == 'start' and not _get_plc_device():
         return JsonResponse({'error': '请先配置并启用 PLC 设备'}, status=400)
     try:
@@ -46,7 +48,7 @@ def api_plc_global(request):
 
 
 def _close_debug_plc(adapter):
-    if adapter is not None and not getattr(settings, 'AUTOMATIC_ORDER', {}).get('USE_SIMULATED_DEVICES', True):
+    if adapter is not None and not getattr(settings, 'AUTOMATIC_ORDER', {}).get('USE_SIMULATED_DEVICES', False):
         try:
             adapter.disconnect()
         except Exception:
@@ -54,60 +56,55 @@ def _close_debug_plc(adapter):
 
 PLC_SCENES = (
     {
-        'key': 'rack', 'number': 1, 'name': '料框入站检查',
-        'subtitle': '料框码、MES 配方与可装箱判定',
+        'key': 'barcode', 'number': 1, 'name': '产品条码读取与绑定',
+        'subtitle': '工作中信号 0→1：将当次产品条码绑定到对应料框；PLC 约5秒后复位',
+        'phases': ('WAIT_PRODUCT', 'WAIT_MARK_RESET'),
+        'points': (
+            ('当前产品条码', 'product_barcode', 'DBB0', 'IN', 'text'),
+            ('料箱 1 工作中', 'rack_working', 'DBX68.7', 'IN', 'trigger'),
+            ('料箱 2 工作中', 'rack_working_2', 'DBX69.0', 'IN', 'trigger'),
+        ),
+    },
+    {
+        'key': 'rack', 'number': 2, 'name': '料框入站检查',
+        'subtitle': '两路料框码 DBB24 / DBB46：分别读取并查询 MES',
         'phases': ('WAIT_RACK', 'WAIT_RACK_RESET', 'WAIT_RECIPE_VERIFY', 'WAIT_RECIPE_RESET'),
         'points': (
-            ('料框到位触发', 'rack_trigger', 'DBX46.0', 'IN', 'trigger'),
-            ('料框码', 'rack_barcode', 'DBB24', 'IN', 'text'),
-            ('料框处理结果', 'rack_result', 'DBX48.6', 'OUT', 'result'),
-            ('料框处理完成', 'rack_done', 'DBX48.5', 'OUT', 'done'),
-            ('配方校验触发', 'recipe_verify_trigger', 'DBX46.1', 'IN', 'trigger'),
-            ('可装箱结果', 'boxing_allowed', 'DBX49.0', 'OUT', 'result'),
-            ('配方校验完成', 'recipe_verify_done', 'DBX48.7', 'OUT', 'done'),
+            ('料框码 1', 'rack_barcode', 'DBB24', 'IN', 'text'),
+            ('料框码 2', 'rack_barcode_2', 'DBB46', 'IN', 'text'),
+            ('料架种类 1', 'rack_type_code', 'DBW100', 'OUT', 'text'),
+            ('料架种类 2', 'rack_type_code_2', 'DBW102', 'OUT', 'text'),
         ),
     },
     {
-        'key': 'position', 'number': 2, 'name': '料架定位补偿',
-        'subtitle': '3D 定位与两组 XYZ 写入',
+        'key': 'position', 'number': 3, 'name': '料架定位补偿',
+        'subtitle': 'DB2.DBX68.3：仅 0→1 触发，回写两组 XYZ',
         'phases': ('WAIT_POSITION', 'WAIT_POSITION_RESET'),
         'points': (
-            ('3D 定位触发', 'position_trigger', 'DBX46.2', 'IN', 'trigger'),
-            ('当前层补偿 ΔX', 'layer_delta_x', 'DBD50', 'OUT', 'real'),
-            ('当前层补偿 ΔY', 'layer_delta_y', 'DBD54', 'OUT', 'real'),
-            ('当前层补偿 ΔZ', 'layer_delta_z', 'DBD58', 'OUT', 'real'),
-            ('当前层补偿 ΔX2', 'layer_delta_x2', 'DBD62', 'OUT', 'real'),
-            ('当前层补偿 ΔY2', 'layer_delta_y2', 'DBD66', 'OUT', 'real'),
-            ('当前层补偿 ΔZ2', 'layer_delta_z2', 'DBD70', 'OUT', 'real'),
-            ('3D 定位结果', 'position_success', 'DBX49.2', 'OUT', 'result'),
-            ('3D 拍照完成', 'position_done', 'DBX49.1', 'OUT', 'done'),
+            ('3D 定位触发', 'position_trigger', 'DBX68.3', 'IN', 'trigger'),
+            ('当前层补偿 ΔX', 'layer_delta_x', 'DBD76', 'OUT', 'real'),
+            ('当前层补偿 ΔY', 'layer_delta_y', 'DBD80', 'OUT', 'real'),
+            ('当前层补偿 ΔZ', 'layer_delta_z', 'DBD84', 'OUT', 'real'),
+            ('当前层补偿 ΔX2', 'layer_delta_x2', 'DBD88', 'OUT', 'real'),
+            ('当前层补偿 ΔY2', 'layer_delta_y2', 'DBD92', 'OUT', 'real'),
+            ('当前层补偿 ΔZ2', 'layer_delta_z2', 'DBD96', 'OUT', 'real'),
         ),
     },
     {
-        'key': 'product', 'number': 3, 'name': '产品装箱与泡棉检测',
-        'subtitle': '产品条码、绑定与泡棉结果记录',
+        'key': 'product', 'number': 4, 'name': '泡棉视觉检测',
+        'subtitle': 'DB2.DBX68.4：仅 0→1 触发',
         'phases': ('WAIT_PRODUCT', 'WAIT_MARK_RESET', 'WAIT_FOAM', 'WAIT_FOAM_RESET'),
         'points': (
-            ('产品条码就绪', 'mark_trigger', 'DBX22.0', 'IN', 'trigger'),
-            ('当前产品条码', 'product_barcode', 'DBB0', 'IN', 'text'),
-            ('条码校验结果', 'product_barcode_valid', 'DBX48.2', 'OUT', 'result'),
-            ('条码处理完成', 'mark_read_done', 'DBX48.1', 'OUT', 'done'),
-            ('单件 MES 上传完成', 'product_mes_upload_done', 'DBX48.3', 'OUT', 'done'),
-            ('单件 MES 上传结果', 'product_mes_upload_success', 'DBX48.4', 'OUT', 'result'),
-            ('泡棉视觉检测触发', 'foam_trigger', 'DBX46.3', 'IN', 'trigger'),
-            ('泡棉检测结果', 'foam_passed', 'DBX74.1', 'OUT', 'result'),
-            ('泡棉记录完成', 'foam_done', 'DBX74.0', 'OUT', 'done'),
+            ('泡棉视觉检测触发', 'foam_trigger', 'DBX68.4', 'IN', 'trigger'),
         ),
     },
     {
-        'key': 'upload', 'number': 4, 'name': '装箱完成与 MES 上传',
-        'subtitle': '整框数据上传、结果回写与补传',
+        'key': 'upload', 'number': 5, 'name': '装箱完成与 MES 上传',
+        'subtitle': 'DB2.DBX68.5 / 68.6：分别上升沿上传料框 1 / 2',
         'phases': ('WAIT_BOXING', 'WAIT_BOXING_RESET', 'COMPLETED'),
         'points': (
-            ('装箱完成 / 上传触发', 'boxing_trigger', 'DBX46.4', 'IN', 'trigger'),
-            ('MES 上传结果', 'mes_upload_success', 'DBX74.3', 'OUT', 'result'),
-            ('MES 上传完成', 'mes_upload_done', 'DBX74.2', 'OUT', 'done'),
-            ('工位锁定', 'workstation_locked', 'DBX74.4', 'OUT', 'lock'),
+            ('MES 封箱上传触发 1', 'boxing_trigger', 'DBX68.5', 'IN', 'trigger'),
+            ('MES 封箱上传触发 2', 'boxing_trigger_2', 'DBX68.6', 'IN', 'trigger'),
         ),
     },
 )
@@ -148,12 +145,10 @@ def _build_station_snapshot(plc, plc_connected, heartbeat_age, cycle, recent_sig
     rack = cycle.rack if cycle and cycle.rack_id else None
     product = cycle.product if cycle and cycle.workflow_id else None
     overrides = {
-        'rack_barcode': rack.rack_code if rack else None,
         'rack_result': True if rack else None,
         'boxing_allowed': cycle.recipe_verified if cycle else None,
         'layer_delta_z': cycle.position_delta_z if cycle else None,
         'position_success': True if cycle and cycle.position_delta_z is not None else None,
-        'product_barcode': product.product_code if product else None,
         'product_barcode_valid': True if product else None,
         'mes_upload_success': cycle.mes_upload_success if cycle else None,
         'workstation_locked': cycle.is_locked if cycle else False,
@@ -236,6 +231,10 @@ def _get_plc_device():
 
 def status(request):
     return render(request, 'devices/status.html')
+
+
+def alarm_records(request):
+    return render(request, 'devices/alarm_records.html')
 
 
 def signals(request):
@@ -352,7 +351,7 @@ def plc_debug(request):
         'db_number': DB_NUMBER,
         'foam_recipes': VisionRecipe.objects.filter(recipe_type='FOAM_2D', is_active=True).order_by('name'),
         'position_recipes': RackLocationRecipe.objects.filter(enabled=True).order_by('recipe_name'),
-        'simulated': getattr(settings, 'AUTOMATIC_ORDER', {}).get('USE_SIMULATED_DEVICES', True),
+        'simulated': getattr(settings, 'AUTOMATIC_ORDER', {}).get('USE_SIMULATED_DEVICES', False),
     })
 
 
@@ -537,7 +536,7 @@ def api_plc_position_debug(request, mode="position"):
     from . import plc_foam_debug
     foam = mode == "foam"
     trigger_point = "foam_trigger" if foam else "position_trigger"
-    trigger_address = "DB2.DBX46.3" if foam else "DB2.DBX46.2"
+    trigger_address = "DB2.DBX68.4" if foam else "DB2.DBX68.3"
     try:
         data = json.loads(request.body)
         action = data.get('action')
@@ -610,3 +609,54 @@ def api_plc_position_debug(request, mode="position"):
 @require_POST
 def api_plc_foam_debug(request):
     return api_plc_position_debug(request, mode="foam")
+
+
+def api_plc_logs(request):
+    from .listener_logs import cleanup
+    from .models import PLCListenerLog, PLCLogWindow
+    from apps.workflow.listener import listener_running, input_status, debug_status
+    cleanup()
+    category = request.GET.get('category', '')
+    rows = PLCListenerLog.objects.all()
+    if category in ('2d', '3d', 'mes', 'rack', 'connection'):
+        rows = rows.filter(category=category)
+    alarms = PLCListenerLog.objects.filter(message__startswith='[报警]')
+    from django.utils.dateparse import parse_date
+    from django.utils import timezone
+    from datetime import datetime, time, timedelta
+    raw = request.GET.get('alarm_from', '').strip()
+    try:
+        if raw:
+            day = parse_date(raw)
+            if day is None:
+                raise ValueError('日期格式无效，请按年、月、日选择')
+            start = timezone.make_aware(datetime.combine(day, time.min))
+            end = timezone.make_aware(datetime.combine(day + timedelta(days=1), time.min))
+            alarms = alarms.filter(created_at__gte=start, created_at__lt=end)
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    window = PLCLogWindow.objects.get(pk=1)
+    from datetime import timedelta
+    response = JsonResponse({'records': list(rows.order_by('-pk').values(
+        'id', 'created_at', 'category', 'message')[:200]),
+        'alarms': list(alarms.order_by('-pk').values(
+            'id', 'created_at', 'category', 'message')[:50]),
+        'debug': debug_status(),
+        'inputs': input_status(), 'auto_start': settings.PLC_LISTENER_AUTO_START, 'running': listener_running(), 'next_clear_at': window.started_at + timedelta(days=2)})
+    response['Cache-Control'] = 'no-store'
+    return response
+
+
+@require_POST
+def api_plc_listener_debug(request):
+    from apps.workflow.listener import set_debug_enabled
+    raw = request.POST.get('enabled')
+    if raw not in ('true', 'false'):
+        return JsonResponse({'error': '请选择调试开关状态'}, status=400)
+    enabled = raw == 'true'
+    if enabled:
+        return JsonResponse({'error': '双料框协议仅允许上升沿触发，不支持高电平重复提交'}, status=409)
+    state = set_debug_enabled(enabled)
+    from .listener_logs import record
+    record('connection', '已恢复正常 PLC 上升沿触发逻辑')
+    return JsonResponse(state)

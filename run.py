@@ -3,6 +3,13 @@ import argparse
 import os
 import sys
 
+# Numerical libraries otherwise create a pool per CPU for every web/camera
+# process. Apply before any NumPy/SciPy/SDK import, including worker dispatch.
+# Preserve an explicit site tuning value.
+for _thread_setting in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS',
+                        'NUMEXPR_NUM_THREADS', 'BLIS_NUM_THREADS'):
+    os.environ.setdefault(_thread_setting, '1')
+
 
 def positive_threads(value):
     value = int(value)
@@ -35,6 +42,9 @@ def main(argv=None):
                      (executable.parent if executable else Path(__file__).parent)).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     instance_handle = acquire(directory)
+    if executable:
+        from startup_registration import register
+        register(executable, directory)
     if args.data_dir:
         os.environ['AUTOMATIC_ORDER_DATA_DIR'] = os.path.abspath(args.data_dir)
     from deployment import configure, start_gateway
@@ -43,6 +53,8 @@ def main(argv=None):
     import whitenoise.middleware  # Ensure PyInstaller includes this module.
     import django
     django.setup()
+    import logging
+    logging.getLogger('apps.rvc_camera').setLevel(logging.INFO)
     from waitress import create_server
     from django.core.wsgi import get_wsgi_application
     from django.conf import settings
@@ -77,4 +89,16 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    argv = sys.argv[1:]
+    if argv[:1] == ['--hik-capture']:
+        # Hardware subprocesses must never recursively start the web launcher.
+        raise SystemExit(main(argv))
+    from runtime_guard import run_logged, supervise, watch_guardian
+    if argv[:1] == ['--rvc-service']:
+        raise SystemExit(run_logged(main, argv))
+    if argv[:1] == ['--web-server']:
+        watch_guardian()
+        raise SystemExit(run_logged(main, argv[1:]))
+    if getattr(sys, 'frozen', False) and not any(a in argv for a in ('--help', '-h')):
+        raise SystemExit(supervise(argv))
+    raise SystemExit(run_logged(main, argv))

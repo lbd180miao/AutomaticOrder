@@ -242,14 +242,17 @@ def match_template(cloud, metadata, template):
         if failed:
             failures.append(reason)
     regions = evaluate_regions(template, target, transform)
+    region_warnings = []
     for index, region in enumerate(regions):
         if not region['quality_passed']:
-            failures.append(f'模板区域 {index+1}：'+'；'.join(region['failure_reasons']))
+            region_warnings.append(f'模板区域 {index+1}：'+'；'.join(region['failure_reasons'])
+                                   + '；该区域参考点按整体匹配变换计算')
     passed = not failures
     diagnostics = {'fitness': fit.fitness, 'rmse_mm': fit.inlier_rmse, 'shift_mm': shift,
                    'rotation_deg': angle, 'constraint_ratio': condition, 'matched_points': len(pairs),
                    'source_points': len(source.points), 'target_points': len(target.points),
                    'quality_passed': passed, 'failure_reasons': failures,
+                   'region_warnings': region_warnings, 'quality_policy': 'global_with_region_warnings',
                    'limits': limits, 'transform': transform.tolist(), 'regions': regions}
     # The observed center uses unique matched target samples, not the entire
     # search volume. Occlusion/density can move it independently of the template.
@@ -266,6 +269,7 @@ def match_template(cloud, metadata, template):
     summary = (f'模板覆盖率 {fit.fitness:.1%}；残差 {fit.inlier_rmse:.3f}mm；'
                f'中心位移 {shift:.3f}mm；旋转 {angle:.3f}°；约束比 {condition:.6f}')
     warnings = [summary, '实验模式：参考点为模板区域参考点的刚体变换推算；重复结构仍需人工核对。']
+    warnings.extend(region_warnings)
     if template.get('sampling') != 'measured_points_v1':
         warnings.append('当前为旧版质心模板；请在标准帧重新保存点云模板，以启用原始测量点精配准并消除自匹配偏差。')
     return {'success': passed, 'coordinateSystem': 'camera', 'unit': 'mm', 'algorithm_version': VERSION,

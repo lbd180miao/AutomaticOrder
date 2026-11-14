@@ -1016,7 +1016,7 @@
       <div class="form-group">
         <label>复制已有配方（可选）</label>
         <select id="modal-copy-source"><option value="">不复制，使用默认参数</option></select>
-        <small>复制会继承 ROI、阈值、算法参数和标准模板；保存后仍是独立的整架配方。</small>
+        <small>复制会继承标准 ROI、阈值、算法参数和标定比例；保存后仍是独立的整架配方。</small>
       </div>
       <div class="form-group">
         <label>备注</label>
@@ -1266,13 +1266,6 @@
           </div>
         </div>
         <div class="foam-advanced-group">
-          <label class="foam-toggle"><input id="edit-quality-registration-enabled" type="checkbox">启用产品本体定位</label>
-          <div id="edit-registration-fields" class="foam-form-grid foam-field-block" hidden>
-            <div class="form-group"><label for="edit-quality-registration-shift">产品最大位移 (px)</label><input id="edit-quality-registration-shift" type="number" min="1" max="2000" step="1" required></div>
-            <div class="form-group"><label for="edit-quality-registration-rotation">产品最大转角 (°)</label><input id="edit-quality-registration-rotation" type="number" min="0" max="15" step="any" required></div>
-          </div>
-        </div>
-        <div class="foam-advanced-group">
           <label class="foam-toggle"><input id="edit-quality-merge-enabled" type="checkbox">合并相邻泡棉碎片</label>
           <div id="edit-merge-fields" class="foam-form-grid foam-field-block" hidden>
             <div class="form-group"><label for="edit-quality-merge-gap">碎片最大间隙 (px)</label><input id="edit-quality-merge-gap" type="number" min="1" max="200" step="1" required></div>
@@ -1486,7 +1479,7 @@ function thresholdValue(config, keys, fallback) {
 }
 
 function foamTemplateSummaryHtml(recipe) {
-  const status = recipe.standard_template_status || {};
+  const status = recipe.standard_roi_status || recipe.standard_template_status || {};
   if (!status.ready) {
     return `<div class="foam-template-summary missing">${escape2DHtml(status.reason || '请在工作台绘制并保存左右标准 ROI')}</div>`;
   }
@@ -1519,7 +1512,7 @@ function renderRecipeCards() {
           </div>
         </div>
         <div class="rack3d-data-block">
-          <div class="rack3d-data-title">工作台示教</div>
+          <div class="rack3d-data-title">标准泡棉 ROI</div>
           ${foamTemplateSummaryHtml(recipe)}
         </div>
         <div class="recipe-card-actions">
@@ -1576,7 +1569,6 @@ function refreshFoamEditFields(recipe) {
     ? '偏移按毫米判定。标定系数见高级参数。'
     : '偏移按像素判定。可在高级参数设置毫米标定。';
 
-  setFoamEditFieldsVisible('edit-registration-fields', foamEditField('registration_enabled').checked);
   setFoamEditFieldsVisible('edit-merge-fields', foamEditField('merge_enabled').checked);
 }
 
@@ -1587,9 +1579,6 @@ window.openEditModal = function(recipeId) {
   const algorithm = recipe.algorithm_config || {};
   const thresholds = recipe.threshold_config || {};
   const alignment = recipe.foam_summary?.alignment || {};
-  foamEditField('registration_enabled').checked = algorithm.product_registration?.enabled === true;
-  foamEditField('registration_shift').value = algorithm.product_registration?.max_shift_px ?? 120;
-  foamEditField('registration_rotation').value = algorithm.product_registration?.max_rotation_deg ?? 3;
   foamEditField('merge_enabled').checked = algorithm.fragment_merge?.enabled === true;
   foamEditField('merge_gap').value = algorithm.fragment_merge?.max_gap_px ?? 12;
   foamEditField('merge_color').value = algorithm.fragment_merge?.max_color_distance ?? 25;
@@ -1697,17 +1686,6 @@ window.submitEditModal = async function() {
       foam_min_v: foamEditField('min_v').valueAsNumber,
       foam_max_s: foamEditField('max_s').valueAsNumber,
     };
-  }
-  const registration = foamEditField('registration_enabled').checked;
-  if (registration && !recipe.algorithm_config?.product_registration?.enabled
-      && ((recipe.roi_config?.productAnchorROIs || []).length < 2 || !recipe.standard_template?.source_image_path)) {
-    showToast('请先在工作台绘制两个产品基准区，并保存合格样件参考图', 'error');
-    return;
-  }
-  algorithm_config.product_registration = {...recipe.algorithm_config?.product_registration, enabled: registration};
-  if (registration) {
-    algorithm_config.product_registration.max_shift_px = foamEditField('registration_shift').valueAsNumber;
-    algorithm_config.product_registration.max_rotation_deg = foamEditField('registration_rotation').valueAsNumber;
   }
   const merge = foamEditField('merge_enabled').checked;
   algorithm_config.fragment_merge = {...recipe.algorithm_config?.fragment_merge, enabled: merge};

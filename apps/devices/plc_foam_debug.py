@@ -20,7 +20,7 @@ def capture_foam(recipe_id):
     from apps.vision.algorithms.foam_inspector import FoamInspector
     from apps.vision.services import VisionService
     recipe = get_recipe(recipe_id)
-    simulated = getattr(settings, 'AUTOMATIC_ORDER', {}).get('USE_SIMULATED_DEVICES', True)
+    simulated = getattr(settings, 'AUTOMATIC_ORDER', {}).get('USE_SIMULATED_DEVICES', False)
     result = VisionService(foam_inspector=FoamInspector(simulate=simulated)).inspect_foam(
         product=None, rack=None, position_index=recipe.pos,
         use_camera=True, recipe_id=recipe.pk, use_recipe=True,
@@ -30,7 +30,6 @@ def capture_foam(recipe_id):
 
 
 def step(state, plc, capture=capture_foam, save=lambda: None):
-    plc.tick_heartbeat()
     trigger = plc.read_point('foam_trigger')
     state['trigger'] = trigger
     phase = state['phase']
@@ -39,11 +38,11 @@ def step(state, plc, capture=capture_foam, save=lambda: None):
             state['phase'] = 'WAIT_TRIGGER'
         return
     if phase in ('WAIT_ACK', 'WAIT_RESET'):
-        if not plc.read_point('foam_done'):
-            state.update(phase='WAIT_TRIGGER', message='等待下一次 2D 触发')
+        if not trigger:
+            state.update(phase='WAIT_TRIGGER', message='等待下一次触发')
             save()
         return
-    if phase == 'WAIT_TRIGGER' and (not trigger or plc.read_point('foam_done')):
+    if phase not in ('CAPTURING', 'WRITE_PENDING') and not trigger:
         return
     if phase == 'CAPTURING':
         state['pending_result'] = {'is_passed': False, 'error': '上次采集被中断，请确认后重新触发'}
@@ -51,9 +50,6 @@ def step(state, plc, capture=capture_foam, save=lambda: None):
         state.update(phase='CAPTURING', done=False, ok=False, error='', result_id=None,
                      score=None, defect_type='', message='正在拍照并检测泡棉')
         save()
-        plc.write_point('foam_passed', False)
-        plc.write_point('foam_trigger', False)
-        state['trigger'] = False
         try:
             result = capture(state['recipe_id'])
             if type(result.get('is_passed')) is not bool:
@@ -64,20 +60,10 @@ def step(state, plc, capture=capture_foam, save=lambda: None):
     state['phase'] = 'WRITE_PENDING'
     save()
     result = state['pending_result']
-    try:
-        plc.write_point('foam_passed', result['is_passed'])
-        if plc.read_point('foam_passed') != result['is_passed']:
-            raise ValueError('泡棉结果写后回读不一致')
-        # PLC may immediately consume/reset completion: do not require it to stay high.
-        plc.write_point('foam_done', True)
-    except Exception as exc:
-        state.update(error=str(exc), message='保留本次检测结果，等待重试回写')
-        save()
-        raise
     state.update(phase='WAIT_ACK', ok=result['is_passed'], done=True,
                  result_id=result.get('result_id'), score=result.get('score'),
                  defect_type=result.get('defect_type', ''), error=result.get('error', ''),
                  count=state.get('count', 0)+1, completed_at=time.strftime('%Y-%m-%d %H:%M:%S'),
-                 message='检测完成，等待 PLC 读取并复位 74.0')
+                 message='检测结果已保存（不回写PLC结果位），等待触发复位')
     state.pop('pending_result', None)
     save()

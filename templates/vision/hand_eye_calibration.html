@@ -54,6 +54,12 @@
   .he-sources .he-matrix-input { height:39px; font-size:calc(14px + var(--ui-font-increase, 0px)); }
   .he-matrix-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:11px; }
   .he-matrix-actions .he-button { min-width:76px; }
+  .he-import { margin-bottom:14px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); }
+  .he-import summary { cursor:pointer; font-weight:700; }
+  .he-import label { display:block; margin:10px 0 6px; color:var(--text-muted); font-size:12px; }
+  .he-import textarea { box-sizing:border-box; width:100%; min-height:88px; padding:9px; resize:vertical; border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); color:var(--text); font:13px/1.5 Consolas,monospace; }
+  .he-import-status { margin-top:8px; font-size:12px; color:#15803d; }
+  .he-import-status.error { color:#b91c1c; }
 
   .he-records-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 15px; border-bottom:1px solid var(--border); }
   .he-records-head h2 { margin:0; font-size:calc(16px + var(--ui-font-increase, 0px)); }
@@ -121,6 +127,13 @@
         <span class="he-pill" id="handEyeBadge">未加载</span>
       </div>
       <div class="he-card-body">
+        <details class="he-import">
+          <summary>粘贴导入手眼矩阵</summary>
+          <label for="handEyeImportText">按行排列的 16 个数，逗号或空白分隔；平移值按原值导入，不换算单位。</label>
+          <textarea id="handEyeImportText" spellcheck="false" placeholder="r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1"></textarea>
+          <div class="he-matrix-actions"><button class="he-button" type="button" id="importHandEyeButton">转换并填入矩阵</button></div>
+          <div class="he-import-status" id="handEyeImportStatus" role="status" aria-live="polite"></div>
+        </details>
         <div class="he-matrix-box"><div class="he-matrix-title"><span>4 × 4</span><span>T_flange_camera</span></div><div class="he-matrix" id="handEyeMatrix"></div></div>
         <div class="he-matrix-actions"><button class="he-button" type="button" id="editHandEyeButton">修改</button><button class="he-button primary" type="button" id="saveHandEyeButton" disabled>保存</button></div>
         <div class="he-source-note" id="handEyeNote">当前激活矩阵；展开记录后优先显示该记录保存的矩阵快照。</div>
@@ -134,6 +147,13 @@
         <span class="he-pill" id="robotPoseBadge">等待记录</span>
       </div>
       <div class="he-card-body">
+        <details class="he-import">
+          <summary>粘贴导入机器人位姿</summary>
+          <label for="robotPoseImportText">依次粘贴 X, Y, Z, RX, RY, RZ；位置单位 mm，角度单位 °，沿用当前 ZYX 欧拉角转换。</label>
+          <textarea id="robotPoseImportText" spellcheck="false" placeholder="256.564,1502.586,1281.666,-87.369,0.016,2.568"></textarea>
+          <div class="he-matrix-actions"><button class="he-button" type="button" id="importRobotPoseButton">转换并填入矩阵</button></div>
+          <div class="he-import-status" id="robotPoseImportStatus" role="status" aria-live="polite"></div>
+        </details>
         <div class="he-matrix-box"><div class="he-matrix-title"><span>4 × 4</span><span>T_base_flange</span></div><div class="he-matrix" id="robotPoseMatrix"></div></div>
         <div class="he-matrix-actions"><button class="he-button" type="button" id="editRobotPoseButton">修改</button><button class="he-button primary" type="button" id="saveRobotPoseButton" disabled>保存</button></div>
         <div class="he-source-note" id="robotPoseNote">展开记录后自动载入该次拍照位姿。</div>
@@ -266,6 +286,36 @@
     renderMatrix(handEye?'handEyeMatrix':'robotPoseMatrix',matrix,true);
     $(handEye?'editHandEyeButton':'editRobotPoseButton').disabled=true;
     $(handEye?'saveHandEyeButton':'saveRobotPoseButton').disabled=false;
+  }
+  function parseImportNumbers(text, count) {
+    const normalized=text.trim().replace(/，/g,',');
+    if(!normalized)throw new Error('请先粘贴数据。');
+    if(/(^,|,$|,\s*,)/.test(normalized))throw new Error('数据中有空值，请检查逗号之间的数字。');
+    const tokens=normalized.split(/[,\s]+/);
+    if(tokens.length!==count)throw new Error(`需要 ${count} 个数，当前为 ${tokens.length} 个。`);
+    const numeric=/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+    return tokens.map((token,index)=>{
+      const value=Number(token);
+      if(!numeric.test(token)||!Number.isFinite(value))throw new Error(`第 ${index+1} 个值不是有效数字。`);
+      return value;
+    });
+  }
+  function importMatrix(kind) {
+    const handEye=kind==='handEye',status=$(kind+'ImportStatus');
+    try {
+      const values=parseImportNumbers($(kind+'ImportText').value,handEye?16:6);
+      const matrix=handEye?Array.from({length:4},(_,row)=>values.slice(row*4,row*4+4)):
+        poseToMatrix(Object.fromEntries(keys.map((key,index)=>[key,values[index]])));
+      if(handEye&&matrix[3].some((value,index)=>Math.abs(value-[0,0,0,1][index])>1e-8))throw new Error('手眼矩阵最后一行必须为 0, 0, 0, 1。');
+      // Draft only: preserve the saved state until the existing save action succeeds.
+      renderMatrix(kind+'Matrix',matrix,true);
+      $(handEye?'editHandEyeButton':'editRobotPoseButton').disabled=true;
+      $(handEye?'saveHandEyeButton':'saveRobotPoseButton').disabled=false;
+      $(kind+'Badge').textContent='导入待保存';$(kind+'Badge').className='he-pill';
+      status.textContent='已转换并填入下方矩阵，请核对后点击“保存”。';status.className='he-import-status';
+    } catch(error) {
+      status.textContent=error.message;status.className='he-import-status error';
+    }
   }
   async function saveMatrix(kind){
     if(!Number.isInteger(state.calibrationId)||state.calibrationId<=0)throw new Error('没有当前激活的手眼标定，无法保存矩阵');
@@ -413,6 +463,8 @@
     if(activePose){try{state.robotPoseMatrix=matrixFrom(JSON.parse(activePose.textContent));renderMatrix('robotPoseMatrix',state.robotPoseMatrix);$('robotPoseBadge').textContent='已保存默认值';$('robotPoseBadge').className='he-pill ok';}catch(error){$('robotPoseNote').textContent=error.message;}}
     $('editHandEyeButton').addEventListener('click',()=>beginMatrixEdit('handEye'));$('saveHandEyeButton').addEventListener('click',handle(()=>saveMatrix('handEye')));
     $('editRobotPoseButton').addEventListener('click',()=>beginMatrixEdit('robotPose'));$('saveRobotPoseButton').addEventListener('click',handle(()=>saveMatrix('robotPose')));
+    $('importHandEyeButton').addEventListener('click',()=>importMatrix('handEye'));
+    $('importRobotPoseButton').addEventListener('click',()=>importMatrix('robotPose'));
     $('refreshRecordsButton').addEventListener('click',handle(loadRecords));
     loadRecords().catch(error=>{$('cameraRecords').innerHTML=`<div class="he-empty">${escapeHtml(error.message)}</div>`;$('recordCount').textContent='加载失败';});
   });

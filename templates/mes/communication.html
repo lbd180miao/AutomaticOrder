@@ -1,0 +1,33 @@
+<section id="mes-communication" class="mes-local" aria-labelledby="communication-title"
+ data-config-url="{% url 'mes:communication_config' %}" data-status-url="{% url 'mes:communication_status' %}" data-control-url="{% url 'mes:communication_control' %}">
+ <div class="mes-section-heading"><h2 id="communication-title">AGV电脑与外部电脑通信</h2><span id="comm-connection" class="comm-connection" role="status">检测中</span><button type="button" class="btn btn-secondary" id="comm-config-open">通信配置</button></div>
+ <div class="comm-workspace">
+  <form id="comm-send" class="comm-panel">{% csrf_token %}
+   <h3>发送请求</h3><p class="comm-caption">选择接口并填写条码，外部电脑查询后自动返回结果。</p>
+   <label>接口<select name="action"><option value="GET_RACK_RECIPE">① 查询料框类型</option><option value="UPLOAD_PRODUCT_BARCODE">② 产品绑定</option><option value="UPLOAD_BOXING_RESULT">③ 装箱完成 / 获取区位号</option></select></label>
+   <label>料框码<input name="rack_code" required maxlength="32" autocomplete="off" placeholder="请输入料框码"></label>
+   <label id="comm-product-label" hidden>产品条码<input name="product_code" maxlength="64" autocomplete="off" placeholder="请输入产品条码"></label>
+   <button type="submit" class="btn btn-primary">发送请求</button>
+   <p id="comm-feedback" role="status"></p>
+  </form>
+  <section class="comm-panel comm-response" aria-labelledby="comm-response-title">
+   <h3 id="comm-response-title">返回结果</h3><p class="comm-caption">自动接收外部电脑返回的数据。</p>
+   <div id="comm-result-status" class="comm-result-status" role="status">等待发送请求</div>
+   <dl id="comm-result-fields" class="comm-result-fields"></dl>
+   <p id="comm-result-note" class="comm-caption">发送后将在这里显示本次结果，也可以选择下方记录查看。</p>
+   <details id="comm-response-raw" hidden><summary>查看完整返回值</summary><pre id="comm-response-json"></pre></details>
+  </section>
+ </div>
+ <div class="comm-record-heading"><h3>通信记录</h3><div class="comm-record-tools"><input id="comm-filter" type="search" aria-label="筛选通信记录" placeholder="搜索条码、区位号或请求编号"><button type="button" class="btn btn-secondary" id="comm-refresh">刷新</button></div></div>
+ <div class="table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>接口</th><th>料框 / 产品条码</th><th>状态</th><th>操作</th></tr></thead><tbody id="comm-records"></tbody></table></div>
+ <p class="comm-caption">显示最近 100 条通信记录</p>
+ <dialog id="comm-record-dialog"><div class="comm-record-heading"><h3>通信记录详情</h3><button type="button" class="btn btn-secondary" id="comm-close-record">关闭</button></div><div id="comm-record-detail"></div></dialog>
+ <dialog id="comm-config-dialog"><form id="comm-config-form">
+ <h3>外部电脑通信配置</h3>
+ <label>外部电脑地址<input name="gateway_url" type="url" required placeholder="http://192.168.3.10:8001"></label>
+ <label>配对认证<input name="token" type="password" autocomplete="new-password" placeholder="留空保留当前认证"></label>
+ <p class="comm-caption">认证须与外部电脑一致。AGV WLAN：192.168.3.6；外部电脑 WLAN：192.168.3.10。</p>
+ <p id="comm-config-feedback" role="status"></p>
+ <div class="mes-dialog-actions"><button type="button" class="btn btn-secondary" id="comm-config-close">取消</button><button type="submit" class="btn btn-primary">保存配置</button></div>
+ </form></dialog>
+</section>

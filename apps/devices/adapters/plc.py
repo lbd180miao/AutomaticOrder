@@ -19,7 +19,7 @@ from .base import BaseDeviceAdapter
 
 class Snap7Transport:
     def __init__(self, address, rack=0, slot=1, tcp_port=102):
-        self.address = address
+        self.address = str(address).strip()
         self.rack = int(rack)
         self.slot = int(slot)
         self.tcp_port = int(tcp_port)
@@ -45,7 +45,7 @@ class Snap7Transport:
         except Exception as exc:
             self.connected = False
             try:
-                self.client.disconnect()
+                self.disconnect()
             except Exception:
                 pass
             raise ConnectionError(
@@ -53,12 +53,21 @@ class Snap7Transport:
                 f'(Rack {self.rack}/Slot {self.slot})：{exc}'
             ) from exc
         self.connected = True
-        return self.is_connected()
+        if not self.is_connected():
+            self.disconnect()
+            raise ConnectionError(f'PLC {self.address}:{self.tcp_port} S7 客户端未确认连接成功')
+        return True
 
     def disconnect(self):
-        if self.client is not None:
-            self.client.disconnect()
+        client, self.client = self.client, None
         self.connected = False
+        if client is not None:
+            try:
+                client.disconnect()
+            finally:
+                destroy = getattr(client, 'destroy', None)
+                if callable(destroy):
+                    destroy()
 
     def is_connected(self):
         if not (self.client and self.connected):
@@ -67,6 +76,10 @@ class Snap7Transport:
         return bool(getter()) if getter else True
 
     def read(self, db_number, offset, size):
+        # Heartbeat byte reads must not inherit the input scan's 0.5s delay.
+        # The adapter still serializes this read/modify/write with all PLC I/O.
+        if db_number == DB_NUMBER and offset == 70 and size == 1:
+            return bytes(self.client.db_read(db_number, offset, size))
         from apps.devices.plc_io import plc_read_interval
         with plc_read_interval(self):
             return bytes(self.client.db_read(db_number, offset, size))
@@ -108,7 +121,7 @@ class PLCAdapter(BaseDeviceAdapter):
 
     def __init__(self, transport=None, *, address='', rack=0, slot=1, tcp_port=102, heartbeat_interval=1):
         self.transport = transport or Snap7Transport(address, rack, slot, tcp_port)
-        self.heartbeat_interval = max(1, min(10, float(heartbeat_interval)))
+        self.heartbeat_interval = 0.5  # Fixed half-period, including legacy DB settings.
 
     def connect(self):
         return self.transport.connect()
@@ -147,6 +160,7 @@ class PLCAdapter(BaseDeviceAdapter):
     def write_point(self, name, value):
         from apps.devices.plc_io import plc_io
         point = POINTS_BY_NAME[name]
+        self._check_output_overlap(point)
         data = encode_value(point, value)
         with plc_io(self.transport):
             self._ensure_connected()
@@ -156,6 +170,21 @@ class PLCAdapter(BaseDeviceAdapter):
                 current[0] = (current[0] | mask) if bool(value) else (current[0] & ~mask)
                 data = bytes(current)
             self.transport.write(DB_NUMBER, point.offset, data)
+
+    @staticmethod
+    def _check_output_overlap(point):
+        if point.direction != 'OUT':
+            return
+        for other in POINTS_BY_NAME.values():
+            if other.name == point.name:
+                continue
+            if point.data_type == other.data_type == 'BOOL' and point.bit != other.bit:
+                continue
+            if point.offset < other.offset + other.size and other.offset < point.offset + point.size:
+                raise ValueError(
+                    f'PLC 地址冲突：输出 {point.name} DB2.DBB{point.offset} '
+                    f'与{other.direction} {other.description} DB2.DBB{other.offset} 重叠；'
+                    '请核对 PLC 地址后再写回，禁止覆盖其他点位')
 
     def read_snapshot(self):
         from apps.devices.plc_io import plc_io
@@ -168,10 +197,26 @@ class PLCAdapter(BaseDeviceAdapter):
             if point.direction == 'IN' or name in ('heartbeat', 'workstation_locked')
         }
 
-    def tick_heartbeat(self):
-        """One scheduled toggle per endpoint, shared by all processes/channels."""
+    def read_listener_snapshot(self):
+        """One contiguous read captures all nine inputs from the same PLC scan."""
         from apps.devices.plc_io import plc_io
+        with plc_io(self.transport):
+            self._ensure_connected()
+            raw = self.transport.read(DB_NUMBER, 0, 70)
+        if len(raw) != 70:
+            raise ConnectionError('PLC 九项读取长度不完整：DB2.DBB0～69')
+        return {
+            name: decode_value(point, raw[point.offset:point.offset + point.size])
+            for name, point in POINTS_BY_NAME.items() if point.direction == 'IN'
+        }
+
+    def tick_heartbeat(self):
+        """Toggle DB2.DBX70.0 every 0.5s, shared across local channels."""
+        from apps.devices.plc_io import plc_io
+        if 'heartbeat' not in POINTS_BY_NAME:
+            return False
         point = POINTS_BY_NAME['heartbeat']
+        self._check_output_overlap(point)
         with plc_io(self.transport) as handle:
             self._ensure_connected()
             now = time.time()
@@ -182,7 +227,8 @@ class PLCAdapter(BaseDeviceAdapter):
                 saved = handle.read().strip()
                 previous = float(saved) if saved else None
             data = bytearray(self.transport.read(DB_NUMBER, point.offset, 1))
-            if previous is None or now < previous or now - previous >= self.heartbeat_interval:
+            if (previous is None or now < previous
+                    or now - previous >= self.heartbeat_interval):
                 data[0] ^= 1 << point.bit
                 self.transport.write(DB_NUMBER, point.offset, data)
                 if handle is None:
@@ -197,6 +243,9 @@ class PLCAdapter(BaseDeviceAdapter):
     @contextmanager
     def maintain_heartbeat(self):
         """Keep heartbeat alive during camera/MES work, using serialized PLC I/O."""
+        if 'heartbeat' not in POINTS_BY_NAME:
+            yield
+            return
         self.tick_heartbeat()
         stop = threading.Event()
         errors = []

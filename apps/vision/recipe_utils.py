@@ -138,7 +138,7 @@ def foam_identity_summary(algorithm, *, mode=None, template_ready=False):
         'segmentation_label': FOAM_SEGMENTATION_LABELS.get(mode, mode),
         'configured_mode': mode,
         'effective_mode': effective,
-        'effective_mode_label': FOAM_SEGMENTATION_LABELS.get(effective, effective) if effective else '模板未就绪，需示教',
+        'effective_mode_label': FOAM_SEGMENTATION_LABELS.get(effective, effective) if effective else '标准 ROI 未配置，请绘制并保存',
         'uses_hsv_thresholds': mode == 'fixed-threshold',
     }
 
@@ -191,6 +191,8 @@ def serialize_recipe(recipe):
         'foam_summary': summary,
         'standard_template': recipe.standard_template_config or {},
         'standard_template_status': template_status,
+        'standard_definition': 'roi',
+        'standard_roi_status': template_status,
         'standard_template_version': recipe.standard_template_version or '',
         'standard_template_built_at': (
             recipe.standard_template_built_at.isoformat()
@@ -412,7 +414,7 @@ def build_foam_inspection_config(recipe):
     algorithm = recipe.algorithm_config or {}
     quality = quality_config(thresholds)
     segmentation = foam_segmentation_config(recipe)
-    geometry = geometry_config(algorithm)
+    geometry = geometry_config({**algorithm, 'product_registration': {'enabled': False}})
 
     left_roi_raw = roi_config.get('leftFoamROI')
     right_roi_raw = roi_config.get('rightFoamROI')
@@ -467,34 +469,13 @@ def build_foam_inspection_config(recipe):
     template = recipe.standard_template_config or {}
     if quality['decision_mode'] == 'separated-v2' and not layer_ratio:
         raise ValueError('separated-v2 requires a layerSearchROI')
-    anchors = []
-    raw_anchors = roi_config.get('productAnchorROIs') or []
-    if not isinstance(raw_anchors, list) or len(raw_anchors) > 4:
-        raise ValueError('productAnchorROIs must contain at most four rectangles')
-    for raw in raw_anchors:
-        if not isinstance(raw, dict) or raw.get('type') == 'polygon':
-            raise ValueError('Product anchors must be rectangles on the product body')
-        anchor = _pixel_roi_to_ratio(raw, recipe.image_width, recipe.image_height)
-        if anchor is None:
-            raise ValueError('Invalid product anchor ROI')
-        for other in [left, right] + anchors:
-            if max(anchor[0], other[0]) < min(anchor[2], other[2]) and max(anchor[1], other[1]) < min(anchor[3], other[3]):
-                raise ValueError('Product anchors must not overlap foam bounding boxes or each other')
-        anchors.append(anchor)
-    if geometry['product_registration']['enabled'] and (len(anchors) < 2 or not layer_ratio):
-        raise ValueError('Product registration requires two body anchors and a layer search ROI')
-    reference = template.get('source_image_path', '')
-    reference_path = Path(reference) if reference else None
-    if reference_path and not reference_path.is_absolute():
-        media_path = Path(settings.MEDIA_ROOT) / reference_path
-        reference_path = media_path if media_path.is_file() else Path(settings.BASE_DIR) / reference_path
     return {
         **quality,
         **segmentation,
         **geometry,
         **foam_offset_config(thresholds),
-        'product_anchor_rois': anchors,
-        'product_reference_path': str(reference_path) if reference_path else '',
+        'product_anchor_rois': [],
+        'product_reference_path': '',
         'material_type': algorithm.get('material_type', 'unspecified'),
         'standard_mask_space': 'layer-v3' if layer_ratio else 'side',
         'standard_from_roi': True,

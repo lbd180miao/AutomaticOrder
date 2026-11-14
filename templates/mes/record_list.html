@@ -2,7 +2,7 @@
 {% load static %}
 {% block title %}MES - AutomaticBoxing{% endblock %}
 {% block page_class %}mes-simple{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'mes/records.css' %}?v=20261111-readable-fonts">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'mes/records.css' %}?v=20261113-connection-config">{% endblock %}
 {% block content %}
 <section aria-labelledby="interfaces-title" class="mes-interfaces">
   <h1 id="interfaces-title">MES 接口</h1>
@@ -27,6 +27,7 @@
   </table></div>
   <div class="mes-table-footer"><span>共 {{ binding_page.paginator.count }} 条 · 每页 10 条</span><nav aria-label="绑定数据分页">{% if binding_page.has_previous %}<a href="?keyword={{ keyword|urlencode }}&page={{ binding_page.previous_page_number }}">上一页</a>{% endif %}<span>{{ binding_page.number }} / {{ binding_page.paginator.num_pages }} 页</span>{% if binding_page.has_next %}<a href="?keyword={{ keyword|urlencode }}&page={{ binding_page.next_page_number }}">下一页</a>{% endif %}</nav></div>
 </section>
+{% include 'mes/communication.html' %}
 <dialog id="binding-dialog" aria-labelledby="binding-dialog-title">
   <form id="binding-form" method="post" action="{% url 'mes:local_binding_save' %}">
     {% csrf_token %}<input type="hidden" name="id"><input type="hidden" name="operation" value="save">
@@ -39,5 +40,5 @@
 </dialog>
 <dialog id="binding-delete-dialog" aria-labelledby="binding-delete-title"><form id="binding-delete-form" method="post" action="{% url 'mes:local_binding_save' %}">{% csrf_token %}<input type="hidden" name="id"><input type="hidden" name="operation" value="delete"><h2 id="binding-delete-title">删除本地绑定</h2><p>确定删除料框 <strong id="binding-delete-rack"></strong> 的本地绑定？</p><p class="mes-description">删除后无法恢复，不会删除 MES 数据或生产任务。</p><p class="mes-form-error" role="alert"></p><div class="mes-dialog-actions"><button type="button" class="btn btn-secondary" data-close>取消</button><button type="submit" class="btn mes-delete-button">确认删除</button></div></form></dialog>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'mes/records.js' %}?v=20261111-inline"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'mes/communication.js' %}?v=20261113-connection-config" defer></script><script src="{% static 'mes/records.js' %}?v=20261111-inline"></script>{% endblock %}
 

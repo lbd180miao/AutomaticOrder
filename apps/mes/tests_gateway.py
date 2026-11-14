@@ -82,12 +82,17 @@ class OutboxTests(TestCase):
         from apps.mes.services import MesService
         recipe = RackRecipe.objects.create(recipe_code='TEST', name='test', rack_type='test')
         rack = Rack.objects.create(rack_code='RACK001', current_recipe=recipe)
-        cycle = StationCycle.objects.create(rack=rack, phase=StationPhase.WAIT_PRODUCT, started_at=timezone.now())
+        cycle = StationCycle.objects.create(rack=rack, phase=StationPhase.WAIT_PRODUCT, started_at=timezone.now(),
+            io_state={'listener_inputs': {'rack_barcode': 'RACK001', 'rack_barcode_round': 'round-1'}})
         plc = Mock()
         plc.read_point.return_value = False
         plc.tick_heartbeat.return_value = True
-        plc.read_snapshot.return_value = {'mark_trigger': True, 'product_barcode': 'PROD001'}
-        service = StationWorkflowService(plc=plc, mes_service=MesService(remote_client.RemoteMesClient()))
+        sample = {'rack_working': False, 'product_barcode': 'PROD001', 'rack_barcode': 'RACK001'}
+        plc.read_listener_snapshot.side_effect = lambda: dict(sample)
+        service = StationWorkflowService(plc=plc, mes_service=MesService(remote_client.RemoteMesClient()),
+                                         device_service=Mock())
+        service._poll_once_owned()  # establish the low baseline
+        sample['rack_working'] = True
         for _ in range(2):
             _, changed = service._poll_once_owned()
             self.assertFalse(changed)
@@ -99,6 +104,11 @@ class OutboxTests(TestCase):
         _, changed = service._poll_once_owned()
         self.assertTrue(changed)
         cycle.refresh_from_db()
-        self.assertEqual(cycle.phase, StationPhase.WAIT_MARK_RESET)
+        self.assertEqual(cycle.phase, StationPhase.WAIT_RACK)
         self.assertEqual(Product.objects.count(), 1)
-        self.assertEqual(plc.tick_heartbeat.call_count, 3)
+        plc.tick_heartbeat.assert_not_called()
+        sample['rack_working'] = False
+        service._poll_once_owned()
+        sample['rack_working'] = True
+        service._poll_once_owned()
+        self.assertEqual(len(remote_client.rows()), 1)

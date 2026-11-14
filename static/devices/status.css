@@ -37,3 +37,27 @@
 .mapping-fields{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:20px;align-items:end}.mapping-fields label{display:flex;flex-direction:column;gap:8px;font-size:calc(13px + var(--ui-font-increase, 0px));color:#4c5a70}.mapping-fields .mapping-enabled{flex-direction:row;align-items:center;padding-bottom:10px}.mapping-form-actions{display:flex;gap:12px;margin-top:16px}.mapping-library .mapping-secondary{background:white;color:#46546a;border:1px solid #ccd6e3}
 .mapping-table-wrap{margin-top:20px;max-height:370px;overflow:auto;border-top:1px solid #d6deea;border-bottom:1px solid #d6deea}.mapping-table{width:100%;border-collapse:collapse;background:transparent;font-size:calc(14px + var(--ui-font-increase, 0px))}.mapping-table th{position:sticky;top:0;background:#edf1f7;color:#647187;font-weight:500;text-align:left;padding:14px 18px;z-index:1}.mapping-table td{padding:15px 18px;border-bottom:1px solid #e1e6ef}.mapping-table td strong{font-weight:550}.mapping-table code{font-size:calc(16px + var(--ui-font-increase, 0px));color:#213c66;background:transparent}.mapping-table .mapping-row-actions{white-space:nowrap}.mapping-row-actions button{padding:4px 8px;background:transparent;color:var(--primary)}.mapping-row-actions button:hover{background:#e7edfa}.mapping-row-actions .mapping-delete{color:#a64a43}.mapping-status{font-size:calc(13px + var(--ui-font-increase, 0px));color:#21714d}.mapping-status.is-disabled{color:#8c6570}.mapping-hint{font-size:calc(12px + var(--ui-font-increase, 0px));color:#728096;line-height:1.7;margin:12px 0 0}
 @media(max-width:760px){.mapping-library{margin-top:32px;padding-top:24px}.mapping-heading{align-items:flex-start}.mapping-heading h2{font-size:calc(20px + var(--ui-font-increase, 0px))}.mapping-heading button{flex-shrink:0;padding:9px 12px}.mapping-heading p{font-size:calc(12px + var(--ui-font-increase, 0px))}.mapping-fields{grid-template-columns:1fr 1fr;gap:16px}.mapping-fields label:first-child{grid-column:1/-1}#mapping-editor{padding:16px}.mapping-search{flex-wrap:wrap;gap:8px}.mapping-search input{flex:1;width:auto}.mapping-table{min-width:590px}.mapping-table th,.mapping-table td{padding:12px}.mapping-search span{width:100%;text-align:right}}
+
+/* Compact PLC details; technical logs stay collapsed. */
+#plc-input-status p{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:10px 0;margin:0;border-bottom:1px solid #e1e6ef}
+#plc-input-status span:nth-child(2){color:#728096}
+#plc-log-rows{max-height:280px;overflow:auto;color:#526176}
+.device-health-card #plc-log-rows summary,.device-health-card .plc-diagnostics>summary{display:list-item;padding:10px 0;cursor:pointer;min-height:0}
+#plc-log-rows p,.plc-diagnostics pre{white-space:pre-wrap;overflow-wrap:anywhere}
+.plc-diagnostics{margin-top:16px}.plc-log-state{font-weight:600}
+@media(max-width:760px){#plc-input-status p{grid-template-columns:1fr}#plc-input-status p span{overflow-wrap:anywhere}}
+
+/* Shared overview links and the alarm history page. */
+.mapping-heading > .detail-label{flex-shrink:0;white-space:nowrap}
+.alarm-filter{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#device-alarm-error{color:var(--danger)}
+#device-alarm-error:empty{display:none}
+#device-alarm-rows{margin-top:20px}
+#device-alarm-rows details{border-top:1px solid #e1e6ef;padding:12px 0}
+#device-alarm-rows summary{cursor:pointer;overflow-wrap:anywhere}
+#device-alarm-rows details p{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-muted);line-height:1.6}
+
+.plc-listener-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.plc-debug-toggle {background:#344054;color:#fff;border:1px solid #475467;border-radius:7px;padding:8px 12px;cursor:pointer;}
+.plc-debug-toggle[aria-pressed="true"] {background:#b45309;border-color:#f59e0b;box-shadow:0 0 0 2px #fef3c7;}
+.plc-debug-toggle:disabled {opacity:.6;cursor:wait;}

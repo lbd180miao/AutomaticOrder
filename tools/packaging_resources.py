@@ -14,6 +14,17 @@ VISUAL_DATA_SUFFIXES = frozenset({
 })
 
 
+# Fixed application artwork only; captures and arbitrary SVG files remain excluded.
+UI_ICON_NAMES = ('server.svg', 'device-projector.svg', 'camera.svg',
+                 'chevron-right.svg', 'chevron-down.svg', 'cube.svg')
+UI_ASSET_PATHS = frozenset(f'{base}/devices/icons/{name}'
+                           for base in ('static', 'staticfiles') for name in UI_ICON_NAMES)
+
+
+def is_ui_asset(path):
+    return str(path).replace('\\', '/') in UI_ASSET_PATHS
+
+
 def is_visual_data(path):
     suffixes = [suffix.lower() for suffix in Path(path).suffixes]
     if suffixes and suffixes[-1] in {'.br', '.gz'}:
@@ -57,16 +68,22 @@ def copy_resources(destination):
     if media.exists() and any(p.is_file() for p in media.rglob('*')):
         raise ValueError('Output media must be empty. Build into a new deployment directory.')
     manifest = []
+    for relative in sorted(UI_ASSET_PATHS):
+        target = destination / relative
+        source = ROOT / 'static' / 'devices/icons' / target.name
+        if not target.is_file() or target.read_bytes() != source.read_bytes():
+            raise ValueError(f'Missing or changed packaged UI icon: {relative}')
+        manifest.append({'path': relative, 'bytes': target.stat().st_size, 'kind': 'ui_icon'})
     for relative in sorted(required):
         target = media / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_root / relative, target)
         manifest.append({'path': 'media/' + relative.as_posix(), 'bytes': target.stat().st_size})
     (destination / 'resource-manifest.json').write_text(json.dumps({
-        'policy': 'Only recipe-referenced standard templates; no history, captures, or point clouds.',
+        'policy': 'Only fixed UI icons and recipe-referenced standard templates; no history, captures, or point clouds.',
         'files': manifest,
     }, ensure_ascii=False, indent=2), encoding='utf-8')
-    print(f'Included {len(manifest)} standard template assets; no historical captures.')
+    print(f'Included {len(required)} standard template assets and {len(UI_ASSET_PATHS)} UI icons; no historical captures.')
 
 
 if __name__ == '__main__':

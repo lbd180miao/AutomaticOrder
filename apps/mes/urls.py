@@ -1,11 +1,15 @@
 from django.urls import path
 
 from . import views
-from . import gateway_views
+from . import gateway_views, communication_views
 
 app_name = 'mes'
 
 urlpatterns = [
+    path('communication/config/', communication_views.connection_config, name='communication_config'),
+    path('communication/', communication_views.page, name='communication'),
+    path('communication/status/', communication_views.status, name='communication_status'),
+    path('communication/control/', communication_views.control, name='communication_control'),
     path('api/local-binding/save/', views.local_binding_save, name='local_binding_save'),
     path('gateway/', gateway_views.page, name='gateway'),
     path('gateway/status/', gateway_views.status, name='gateway_status'),

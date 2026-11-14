@@ -233,6 +233,13 @@ class RvcCameraService:
             result["width"] = int(meta.get("image_width") or result["data"].shape[1])
             result["height"] = int(meta.get("image_height") or result["data"].shape[0])
 
+        # Carry the same capture's 2D frame to history, not just its preview URL.
+        if frame_type == "POINTCLOUD":
+            img_abs = meta.get("image_2d", "")
+            if img_abs and Path(img_abs).is_file():
+                from PIL import Image
+                with Image.open(img_abs) as image:
+                    result["image_2d"] = np.asarray(image.convert("RGB")).copy()
         img_rel = self._to_media_relative(meta.get("image_2d", ""))
         if img_rel:
             result["result_image_path"] = img_rel

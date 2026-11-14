@@ -177,8 +177,11 @@ class PlcVisionResultWriter:
     """
 
     def __init__(self, adapter=None, device_service: Optional[DeviceService] = None):
-        self.adapter = adapter or get_device_adapter()
-        self.device_service = device_service or DeviceService(adapter=self.adapter)
+        self.device_service = device_service or DeviceService(adapter=adapter)
+
+    @property
+    def adapter(self):
+        return self.device_service.adapter
 
     def _revalidate_offsets(self, result: RackLocationResult) -> str:
         """按当前配方阈值重新校验补偿值，返回空字符串表示通过。"""
@@ -208,7 +211,7 @@ class PlcVisionResultWriter:
         payload = result.result_data.get('plc_payload') or {}
         if not result.is_success:
             result.plc_write_status = 'SKIPPED'
-            result.plc_error_message = '定位NG，未写入有效补偿'
+            result.plc_error_message = result.error_message or '定位NG，未写入有效补偿'
             result.save(update_fields=['plc_write_status', 'plc_error_message', 'updated_at'])
             return {'success': False, 'skipped': True, 'error': result.plc_error_message}
 
@@ -425,7 +428,8 @@ class RackLocationService:
         metadata = self._frame_metadata(token, cloud)
         # Persisted captures are normalized to mm by the frame loader.
         metadata['camera'] = {**metadata.get('camera', {}), 'pointcloud_unit': 'mm'}
-        return evaluate_cloud(recipe, cloud, metadata, layer_no=layer_no, token=token, save_record=save_record)
+        return evaluate_cloud(recipe, cloud, metadata, layer_no=layer_no, token=token,
+                              save_record=save_record, task=kwargs.get('task'))
 
     def trigger(self, *, layer_no, position_no=1, recipe_id=None, rack_side=RackSide.BOTH,
                 write_plc=False, product=None, rack=None, workflow=None):

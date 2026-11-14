@@ -4,43 +4,22 @@ from django.utils import timezone
 
 from apps.core.constants import DeviceStatus, DeviceType, SignalDirection
 from .adapters.camera import CameraAdapter
-from .adapters.plc import MemoryPLCTransport, PLCAdapter
-from .adapters.simulated import SimulatedDeviceAdapter
+from .adapters.plc import PLCAdapter
 from .models import Device, DeviceSignalRecord
 
 
 def get_device_adapter(**kwargs):
-    """按配置返回设备适配器。"""
-    conf = getattr(settings, 'AUTOMATIC_ORDER', {})
+    """只返回真实设备适配器，不在配置缺失时生成模拟结果。"""
     device_type = kwargs.pop('device_type', None)
-    if device_type == DeviceType.PLC:
+    if device_type in (None, DeviceType.PLC):
         return get_plc_adapter()
-    if conf.get('USE_SIMULATED_DEVICES', True):
-        return SimulatedDeviceAdapter(**kwargs)
     if device_type in (DeviceType.DEPTH_CAMERA, DeviceType.INSPECT_CAMERA):
         return CameraAdapter()
-    # 其他真实设备适配器（PLC/Scanner...）后续按设备类型接入。
-    return SimulatedDeviceAdapter(**kwargs)
-
-
-_memory_plc_adapter = None
+    raise RuntimeError(f'未配置真实设备适配器：{device_type}')
 
 
 def get_plc_adapter():
-    """Return the configured DB2 PLC adapter.
-
-    Simulation uses a process-wide memory DB so management commands and debug
-    APIs observe the same PLC state. Production resolves rack/slot from the PLC
-    device's JSON configuration.
-    """
-    global _memory_plc_adapter
-    conf = getattr(settings, 'AUTOMATIC_ORDER', {})
-    if conf.get('USE_SIMULATED_DEVICES', True):
-        if _memory_plc_adapter is None:
-            _memory_plc_adapter = PLCAdapter(transport=MemoryPLCTransport())
-            _memory_plc_adapter.connect()
-        return _memory_plc_adapter
-
+    """根据设备配置返回真实 S7 PLC 适配器。"""
     device = Device.objects.filter(
         device_type=DeviceType.PLC, enabled=True,
     ).order_by('code').first()
@@ -64,7 +43,17 @@ class DeviceService:
     """Entry point for resolving and invoking device adapters."""
 
     def __init__(self, adapter=None):
-        self.adapter = adapter or get_device_adapter()
+        self._adapter = adapter
+
+    @property
+    def adapter(self):
+        if self._adapter is None:
+            self._adapter = get_device_adapter()
+        return self._adapter
+
+    @adapter.setter
+    def adapter(self, value):
+        self._adapter = value
 
     def record_signal(self, device_code, signal_name, signal_value,
                       direction=SignalDirection.IN, raw_payload=None):

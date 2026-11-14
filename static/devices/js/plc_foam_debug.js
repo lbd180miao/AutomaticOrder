@@ -59,8 +59,8 @@
   function display(data) {
     status.dataset.error = String(Boolean(data.error));
     const phase = data.phase === 'ARMING' ? '等待触发复位' : data.phase === 'WAIT_TRIGGER' ? '等待PLC触发'
-      : data.phase === 'WAIT_ACK' ? '等待PLC读取并复位74.0' : data.phase;
-    status.textContent = `${data.message}\n状态：${phase} · DB2.DBX46.3=${data.trigger ? 1 : 0}`
+      : data.phase === 'WAIT_ACK' ? '结果已覆盖写入，等待触发信号复位' : data.phase;
+    status.textContent = `${data.message}\n状态：${phase} · DB2.DBX68.4=${data.trigger ? 1 : 0}`
       + ` · 完成=${data.done ? 1 : 0} · 结果=${data.ok ? 'OK' : data.done ? 'NG' : '未完成'}`
       + (data.error ? '\n' + data.error : '');
     if (data.count > lastCount) {

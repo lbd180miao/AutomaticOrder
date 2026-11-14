@@ -104,3 +104,8 @@ htmlcov/
 /docs/packaging.md
 /tools/prepare_distributed.py
 /tools/finalize_distributed.py
+
+# Local paired gateway credentials
+/agv_gateway.json
+
+!apps/workflow/tests_dual_rack.py

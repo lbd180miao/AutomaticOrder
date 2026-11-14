@@ -1,5 +1,6 @@
 """Serialize S7 byte updates and heartbeat scheduling across local workers."""
 import hashlib
+import errno
 import os
 import threading
 import time
@@ -10,6 +11,23 @@ from django.conf import settings
 
 
 _lock = threading.RLock()
+
+
+def _lock_windows(handle, timeout=15):
+    """LK_LOCK retries only once a second and can starve behind the sampler."""
+    import msvcrt
+    deadline = time.monotonic() + timeout
+    while True:
+        handle.seek(0)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            return
+        except OSError as exc:
+            if exc.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                raise
+            if time.monotonic() >= deadline:
+                raise TimeoutError('本机 PLC 通信锁等待超时；请检查是否同时运行多个程序副本或调试任务') from exc
+            time.sleep(0.02)
 
 
 @contextmanager
@@ -26,10 +44,10 @@ def plc_io(transport, *, purpose='io'):
         with path.open('a+b') as initial:
             if initial.tell() == 0:
                 initial.write(b' ')
-        with path.open('r+b') as handle:
+        with path.open('r+b', buffering=0) as handle:
             if os.name == 'nt':
                 import msvcrt
-                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                _lock_windows(handle)
             else:
                 import fcntl
                 fcntl.flock(handle, fcntl.LOCK_EX)

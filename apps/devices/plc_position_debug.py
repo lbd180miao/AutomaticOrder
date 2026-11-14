@@ -104,8 +104,7 @@ def ownership(mode=None, *, scan=False, stopping=False):
 
 
 def step(state, plc, capture, save=lambda: None):
-    """Consume the request; publish capture completion before computing offsets."""
-    plc.tick_heartbeat()
+    """Compute once per input high and overwrite only six REAL results."""
     trigger = plc.read_point('position_trigger')
     state['trigger'] = trigger
     phase = state['phase']
@@ -113,13 +112,10 @@ def step(state, plc, capture, save=lambda: None):
         if not trigger:
             state.update(phase='WAIT_TRIGGER', message='等待 PLC 3D 触发')
         return
-    if phase == 'WAIT_ACK':
-        if plc.read_point('position_done') or plc.read_point('position_success'):
-            return
-        state.update(phase='WAIT_TRIGGER', message='等待下一次 3D 触发')
-        save()
-        return
-    if phase == 'WAIT_TRIGGER' and (plc.read_point('position_done') or plc.read_point('position_success')):
+    if phase in ('WAIT_ACK', 'WAIT_RESET'):
+        if not trigger:
+            state.update(phase='WAIT_TRIGGER', message='等待下一次触发')
+            save()
         return
     if phase not in ('CAPTURING', 'WRITE_PENDING') and not trigger:
         return
@@ -134,13 +130,8 @@ def step(state, plc, capture, save=lambda: None):
                      error='', values=None, result_id=None, done=False, ok=False, capture_done=False)
         save()
         try:
-            plc.write_point('position_done', False)
-            plc.write_point('position_success', False)
-            plc.write_point('position_trigger', False)
-            state['trigger'] = False
 
             def captured():
-                plc.write_point('position_done', True)
                 state['capture_done'] = True
                 save()
 
@@ -165,11 +156,8 @@ def step(state, plc, capture, save=lambda: None):
             raise ValueError(f'{name} 写后回读不一致')
 
     try:
-        verified('position_success', False)
         for axis, value in pending['values'].items():
             verified(f'layer_delta_{axis}', value)
-        # PLC can consume/reset the valid bit immediately; only data needs readback.
-        plc.write_point('position_success', pending['ok'])
     except Exception as exc:
         state.update(done=False, ok=False, error=f"{pending['error']}；PLC回写失败：{exc}".lstrip('；'),
                      message='结果尚未完整回写，将重试回写，不重复拍照')
@@ -178,41 +166,124 @@ def step(state, plc, capture, save=lambda: None):
     state.update(phase='WAIT_ACK', values=pending['values'], ok=pending['ok'], done=True,
                  error=pending['error'], count=state.get('count', 0) + 1,
                  completed_at=time.strftime('%Y-%m-%d %H:%M:%S'),
-                 message=('补偿已回写，等待 PLC 读取并复位 49.1/49.2' if pending['ok'] else
-                          '定位失败，两组X/Y/Z已回写999'))
+                 message=('补偿已覆盖写入，等待触发复位' if pending['ok'] else
+                          '定位失败，两组X/Y/Z已覆盖写入0'))
     state.pop('pending_result', None)
     save()
 
 
 def capture_position(recipe_id, layer_no, *, on_captured=None):
+    from apps.vision.models import VisionTask
+    from django.utils import timezone
+    task = VisionTask.objects.create(task_type='RACK_LOCATING', status='RUNNING', started_at=timezone.now())
+    try:
+        result = _capture_position(recipe_id, layer_no, on_captured=on_captured, task=task)
+        if not result.get('is_success'):
+            task.status = 'FAILED'
+            task.error_message = result.get('error_message') or '3D 定位失败'
+        elif task.status == 'RUNNING':
+            task.status = 'SUCCESS'
+        return result
+    except Exception as exc:
+        task.status = 'FAILED'
+        task.error_message = str(exc)
+        raise
+    finally:
+        task.finished_at = timezone.now()
+        task.save(update_fields=['status', 'error_message', 'finished_at', 'updated_at'])
+
+
+def _capture_position(recipe_id, layer_no, *, on_captured=None, task=None):
     from apps.vision.models import RackLocationRecipe
+    from .listener_logs import record
+    record('3d', f'自动采集：检查配方 ID={recipe_id}，层号={layer_no}')
     recipe = RackLocationRecipe.objects.get(pk=recipe_id, enabled=True)
     if not 1 <= layer_no <= recipe.layer_count:
         raise ValueError('当前层号超出配方范围')
-    if not (recipe.roi_config or {}).get('cloud_center_reference'):
-        return {'is_success': False, 'error_message': '请先保存点云标准模板'}
     from apps.vision.rack_location import Rack3DLocator, RackLocationService
-    captured = Rack3DLocator().capture(recipe_id=recipe_id, layer_no=layer_no)
+    record('3d', f'自动采集：开始调用 RVC 相机，配方 ID={recipe_id}')
+    try:
+        captured = Rack3DLocator().capture(recipe_id=recipe_id, layer_no=layer_no)
+    except Exception as exc:
+        record('3d', f'[报警] 自动相机采集失败：{exc}')
+        raise
+    record('3d', f'自动采集完成：点云={captured.get("pointcloud_token", "")}')
+    # Save the acquired previews before PLC feedback or calculation can fail.
+    if task is not None:
+        _attach_capture_images(task, captured, recipe=recipe)
     if on_captured is not None:
         on_captured()
+    if not (recipe.roi_config or {}).get('cloud_center_reference'):
+        return {'is_success': False, 'error_message': '相机已采集，但配方未保存点云标准模板，无法定位计算'}
+    record('3d', '自动采集：开始定位计算')
     result = RackLocationService().calculate_workbench(
         token=captured['pointcloud_token'], recipe_id=recipe_id,
-        layer_no=layer_no, save_record=True,
+        layer_no=layer_no, save_record=True, task=task,
     )
     return dual_group_position(result, recipe)
+
+
+def _attach_capture_images(task, captured, *, recipe=None):
+    """Link already persisted camera frames even when later processing fails."""
+    from urllib.parse import urlsplit, unquote
+    from apps.vision.models import VisionImage
+    from django.utils import timezone
+    root = Path(settings.MEDIA_ROOT).resolve()
+    prefix = urlsplit(settings.MEDIA_URL).path
+    for kind, key in (('DEPTH', 'pointcloud_preview_url'), ('ORIGINAL', 'raw_rgb_image_url')):
+        url = captured.get(key)
+        if not url:
+            continue
+        parsed = urlsplit(url)
+        if parsed.netloc or not parsed.path.startswith(prefix):
+            continue
+        relative = unquote(parsed.path[len(prefix):])
+        path = (root / relative).resolve()
+        if not path.is_relative_to(root) or not path.is_file():
+            continue
+        VisionImage.objects.create(vision_task=task, image_type=kind, file=relative,
+                                   width=captured.get('image_width', 0),
+                                   height=captured.get('image_height', 0), captured_at=timezone.now())
+        if kind == 'ORIGINAL' and recipe is not None:
+            import cv2
+            import numpy as np
+            from django.core.files.base import ContentFile
+            from apps.vision.rack_cloud_service import annotate_camera_rois
+            image = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
+            if image is None:
+                raise ValueError('已采集的 2D 原图无法读取')
+            config = (recipe.roi_config or {}).get('cloud_center_config') or {}
+            annotated = annotate_camera_rois(image, config)
+            ok, encoded = cv2.imencode('.png', annotated)
+            if not ok:
+                raise ValueError('2D ROI 标注图保存失败')
+            item = VisionImage(vision_task=task, image_type='RESULT', width=image.shape[1],
+                               height=image.shape[0], captured_at=timezone.now())
+            item.file.save(f'task_{task.pk}_capture_roi.png', ContentFile(encoded.tobytes()), save=True)
+
 
 
 def dual_group_position(result, recipe):
     """Map A/B robot-base translations to both PLC XYZ groups (mm)."""
     try:
-        if result.get('plc_publish_allowed') is False:
-            raise ValueError('点云匹配结果尚未允许 PLC 发布')
         if not result.get('locate_ok'):
             raise ValueError(result.get('error_message') or '3D 定位失败')
+        # Legacy publication flags describe experimental measurements, not PLC
+        # readiness. Validate the actual calibration and compensation instead.
+        robot = result.get('robot_result')
+        if robot is not None and not robot.get('success'):
+            raise ValueError(robot.get('errorMessage') or '机器人坐标转换失败，请检查手眼标定')
+        if result.get('source') == 'cloud_match' and not robot:
+            raise ValueError('缺少机器人坐标转换结果，请检查手眼标定')
+        groups = result.get('robot_groups') or {}
+        config = (getattr(recipe, 'roi_config', {}) or {}).get('cloud_center_config') or {}
+        layers = config.get('rack_layers', getattr(recipe, 'layer_count', 3 if 'B' in groups else 2))
+        if layers not in (2, 3):
+            layers = 3 if 'B' in groups else 2
         values = {}
         for name, suffix in (('A', ''), ('B', '2')):
             group = (result.get('robot_groups') or {}).get(name)
-            if name == 'B' and group is None:
+            if name == 'B' and layers == 2:
                 values.update({f'compensation_{axis}2': 0.0 for axis in 'xyz'})
                 continue
             if not group:

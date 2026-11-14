@@ -5,12 +5,15 @@ from . import views, mapping_views
 app_name = 'devices'
 
 urlpatterns = [
+    path('api/plc-listener-debug/', views.api_plc_listener_debug, name='api_plc_listener_debug'),
+    path('api/plc-logs/', views.api_plc_logs, name='api_plc_logs'),
     path('plc-mappings/', mapping_views.plc_mapping_library, name='plc_mapping_library'),
     path('api/rack-type-mappings/', mapping_views.rack_type_mappings, name='rack_type_mappings'),
     path('api/health/', views.api_device_health, name='api_device_health'),
     path('api/plc-global/', views.api_plc_global, name='api_plc_global'),
     path('api/plc-foam-debug/', views.api_plc_foam_debug, name='api_plc_foam_debug'),
     path('api/plc-position-debug/', views.api_plc_position_debug, name='api_plc_position_debug'),
+    path('alarm-records/', views.alarm_records, name='alarm_records'),
     path('status/', views.status, name='status'),
     path('signals/', views.signals, name='signals'),
     path('plc-config/', views.plc_config, name='plc_config'),

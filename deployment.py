@@ -54,8 +54,9 @@ def configure(directory, *, executable=None):
             os.environ[key] = 'false'
         _configure_external_camera(directory)
         return config
+    # AGV listening follows the software lifetime, including old data directories.
+    os.environ['PLC_LISTENER_AUTO_START'] = 'true'
     for key, value in {
-        'PLC_LISTENER_AUTO_START': config.get('plc_auto_start', True),
         'RVC_CAMERA_AUTO_START': config.get('camera_auto_start', True),
         'DM_CAMERA_AUTO_CONNECT': False,
     }.items():

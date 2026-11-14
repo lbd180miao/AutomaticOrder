@@ -13,7 +13,7 @@ from typing import Optional
 
 # 无效空码占位符集合（统一转大写比较）
 INVALID_EMPTY_PLACEHOLDERS = {
-    '', '0', '00', '000', 'NULL', 'NONE', 'EMPTY', 'N/A', 'NA',
+    '', 'NOREAD', '0', '00', '000', 'NULL', 'NONE', 'EMPTY', 'N/A', 'NA',
     '-', '--', '——', 'UNDEFINED', 'VOID', 'BLANK', '?', '???',
 }
 

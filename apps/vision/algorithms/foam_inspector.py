@@ -1285,7 +1285,7 @@ class FoamInspector:
     用于装箱机器人完成泡棉贴附后的质量校验，检查缺料和位置偏移。
     """
 
-    def __init__(self, *, simulate=True):
+    def __init__(self, *, simulate=False):
         """初始化检测器。
         
         Args:

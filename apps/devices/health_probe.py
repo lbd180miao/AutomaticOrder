@@ -8,15 +8,7 @@ from pathlib import Path
 
 def probe(payload):
     if payload['kind'] == 'plc':
-        from .adapters.plc import Snap7Transport
-        transport = Snap7Transport(payload['address'], **payload['connection'])
-        try:
-            transport.connect()
-            # An actual S7 response, not merely an open TCP port or cached flag.
-            state = transport.client.get_cpu_state()
-            return {'detail': f'S7 通信正常，CPU 状态：{state}'}
-        finally:
-            transport.disconnect()
+        return probe_plc(payload)
 
     from .adapters.hik_capture_worker import _prepare_runtime
     _prepare_runtime(payload.get('sdk_lib_dir'))
@@ -57,3 +49,42 @@ def probe(payload):
                 'address': matches[0][1] or matches[0][0]}
     finally:
         mvs.MvCamera.MV_CC_Finalize()
+
+
+def probe_plc(payload):
+    import socket
+    from .adapters.plc import Snap7Transport, PLCAdapter
+    from .plc_db100 import DB_NUMBER
+    address = payload['address'].strip()
+    connection = payload['connection']
+    port = int(connection.get('tcp_port', 102))
+    endpoint = f'{address}:{port}'
+    try:
+        with socket.create_connection((address, port), timeout=2) as sock:
+            local_ip = sock.getsockname()[0]
+    except OSError as exc:
+        return {'state': 'offline', 'detail':
+                f'TCP 端口不可达：{endpoint}。Ping 通仅说明 ICMP 有响应；请检查 PLC IP、TCP 端口、防火墙和网卡路由。原始错误：{exc}'}
+    transport = Snap7Transport(address, **connection)
+    try:
+        try:
+            if not transport.connect():
+                raise ConnectionError('客户端未确认连接成功')
+        except Exception as exc:
+            return {'state': 'offline', 'detail':
+                    f'TCP {endpoint} 可达（本机网卡 IP：{local_ip}），但 S7 建连失败。'
+                    f'请核对 PLC 型号、Rack/Slot、S7 连接资源和访问设置。{exc}'}
+        try:
+            PLCAdapter(transport).read_listener_snapshot()
+        except Exception as exc:
+            return {'state': 'offline', 'detail':
+                    f'S7 已连接（本机网卡 IP：{local_ip}），但 DB{DB_NUMBER} 五个监听地址读取失败，自动流程不可用。'
+                    f'请核对 DB 编号、长度、访问权限及优化块设置。{exc}'}
+        return {'state': 'online', 'detail':
+                f'TCP / S7 / DB{DB_NUMBER} 五个监听地址读取均正常；本机网卡 IP：{local_ip}；'
+                f'Rack={transport.rack}，Slot={transport.slot}。检测不写 PLC、不触发拍照。'}
+    finally:
+        try:
+            transport.disconnect()
+        except Exception:
+            pass

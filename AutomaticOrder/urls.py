@@ -11,7 +11,6 @@ urlpatterns = [
     path('devices/', include('apps.devices.urls')),
     path('vision/', include('apps.vision.urls')),
     path('mes/', include('apps.mes.urls')),
-    path('alarms/', include('apps.alarms.urls')),
     path('dm-camera/', include('apps.dm_camera.urls')),
     path('rvc-camera/', include('apps.rvc_camera.urls')),
 ]

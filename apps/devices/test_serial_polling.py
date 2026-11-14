@@ -11,6 +11,30 @@ from .plc_position_debug import ownership
 
 
 class SerialPollingTests(SimpleTestCase):
+    def test_windows_lock_retries_contention_without_native_one_second_wait(self):
+        import errno
+        from .plc_io import _lock_windows
+        import sys
+        native = Mock()
+        native.locking.side_effect = [OSError(errno.EACCES, 'busy'), None]
+        with patch.dict(sys.modules, msvcrt=native), \
+             patch('apps.devices.plc_io.time.sleep') as sleep:
+            _lock_windows(Mock())
+        sleep.assert_called_once_with(0.02)
+        self.assertEqual(native.locking.call_count, 2)
+        self.assertEqual(native.locking.call_args.args[1], native.LK_NBLCK)
+
+    def test_windows_lock_timeout_identifies_local_contention(self):
+        import errno
+        import sys
+        from .plc_io import _lock_windows
+        native = Mock()
+        native.locking.side_effect = OSError(errno.EDEADLK, 'Resource deadlock avoided')
+        with patch.dict(sys.modules, msvcrt=native), \
+             patch('apps.devices.plc_io.time.monotonic', side_effect=[0, 16]):
+            with self.assertRaisesRegex(TimeoutError, '本机 PLC 通信锁'):
+                _lock_windows(Mock())
+
     def test_concurrent_connections_cannot_overlap_or_skip_gap(self):
         with tempfile.TemporaryDirectory() as directory, override_settings(DATA_DIR=directory):
             events, errors = [], []

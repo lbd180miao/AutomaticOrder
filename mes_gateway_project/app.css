@@ -666,8 +666,7 @@ input[type="text"] {
   gap: 7px;
 }
 
-.topbar .status-chip,
-.topbar .alarm-chip {
+.topbar .status-chip {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -689,8 +688,6 @@ input[type="text"] {
 .status-ok i, .dot-ok { background: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,.13); }
 .status-fail i, .dot-fail { background: #fb7185; box-shadow: 0 0 0 3px rgba(251,113,133,.13); }
 .status-muted i, .dot-muted { background: #94a3b8; }
-.topbar .alarm-chip.has-alarm { color: #ffd7a1; border-color: rgba(245,158,11,.32); background: rgba(245,158,11,.1); }
-.topbar .settings-link { padding: 6px 9px; font-size: 18px; line-height: 1; }
 
 /* ---------------- 鐢熶骇杩愯 ---------------- */
 .page-subtitle { margin: 4px 0 0; color: var(--text-muted); }

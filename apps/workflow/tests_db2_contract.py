@@ -209,3 +209,39 @@ class DB2ContractTests(TestCase):
         self.poll()
         cycle = self.poll()
         self.assertEqual(cycle.bound_product_codes, ['PROD001', 'PROD002'])
+
+
+    def test_foam_before_rack_and_position_without_ack_blocking(self):
+        self.plc.write_point('foam_trigger', True)
+        cycle = self.poll()
+        self.assertEqual(cycle.phase, StationPhase.WAIT_FOAM_RESET)
+        self.assertIsNone(cycle.rack_id)
+        self.vision.inspect_foam.assert_called_once()
+        # Leave foam_done high: it must not block the rack or 3D channels.
+        self.plc.write_point('rack_barcode', 'INN010144')
+        self.plc.write_point('rack_trigger', True)
+        cycle = self.poll()
+        self.assertTrue(self.plc.read_point('rack_result'))
+        self.plc.write_point('position_trigger', True)
+        self.poll()
+        self.vision.calculate_position_offsets.assert_called_once()
+        self.assertTrue(self.plc.read_point('foam_done'))
+        self.assertTrue(self.plc.read_point('rack_done'))
+        self.poll()
+        self.vision.inspect_foam.assert_called_once()
+        self.vision.calculate_position_offsets.assert_called_once()
+
+    def test_pending_mes_does_not_block_vision_after_restart(self):
+        remote = Mock(spec=RemoteMesClient)
+        remote.get_rack_recipe.side_effect = RemotePending('task')
+        self.service.mes = MesService(client=remote)
+        self.plc.write_point('rack_barcode', 'INN010144')
+        self.plc.write_point('rack_trigger', True)
+        self.poll()
+        self.service = StationWorkflowService(plc=self.plc, mes_service=MesService(client=remote),
+            vision_gateway=self.vision, device_service=Mock(), alarm_service=Mock())
+        self.plc.write_point('foam_trigger', True)
+        cycle = self.poll()
+        self.vision.inspect_foam.assert_called_once()
+        self.assertIn('rack_trigger', cycle.io_state['channels'])
+        self.assertIn('foam_trigger', cycle.io_state['channels'])

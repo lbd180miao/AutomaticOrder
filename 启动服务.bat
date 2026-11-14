@@ -1,7 +1,5 @@
 @echo off
 cd /d "%~dp0"
-echo 正在激活虚拟环境...
-call .venv\Scripts\activate.bat
-echo 启动 Django（相机服务将自动随 Django 启动）...
-python manage.py runserver 8082
+echo Starting AutomaticOrder with Waitress on http://127.0.0.1:8082
+".venv\Scripts\python.exe" run.py --host 127.0.0.1 --port 8082
 pause

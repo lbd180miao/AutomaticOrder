@@ -109,7 +109,6 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'apps.core.context_processors.system_status',
             ],
         },
     },
@@ -176,7 +175,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = Path(os.environ.get('DJANGO_MEDIA_ROOT', DATA_DIR / 'media')).resolve()
 
 # 现场图片入口保护，避免误传超大文件耗尽进程内存。
-VISION_MAX_UPLOAD_BYTES = int(os.environ.get('VISION_MAX_UPLOAD_BYTES', 25 * 1024 * 1024))
+VISION_MAX_UPLOAD_BYTES = int(os.environ.get('VISION_MAX_UPLOAD_BYTES', 128 * 1024 * 1024))
 VISION_MAX_IMAGE_PIXELS = int(os.environ.get('VISION_MAX_IMAGE_PIXELS', 25_000_000))
 
 # 3D 料架定位离线数据包；与既有离线测试文件共用 3d_SDK/pic 根目录。
@@ -194,7 +193,7 @@ MES_GATEWAY_ENABLED = env_bool('MES_GATEWAY_ENABLED', (DATA_DIR / 'agv_gateway.j
 RVC_CAMERA_SERVICE_PORT = int(os.environ.get('RVC_CAMERA_SERVICE_PORT', '8001'))
 
 AUTOMATIC_ORDER = {
-    'USE_SIMULATED_DEVICES': env_bool('USE_SIMULATED_DEVICES', False),
+    'USE_SIMULATED_DEVICES': False,
     # MES 相关配置
     # 甲方 YFPO MES：南京服务地址；工厂、产线按实际业务配置
     'MES_BASE_URL': 'http://10.252.165.162/MESService/BaseService.svc?singleWsdl',

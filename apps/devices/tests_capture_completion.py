@@ -1,34 +1,46 @@
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from django.test import SimpleTestCase
+from django.test import TestCase
 
 from .adapters.plc import MemoryPLCTransport, PLCAdapter
 from .plc_db100 import position_values
 from .plc_position_debug import capture_position, dual_group_position, step
 
 
-class CaptureCompletionTests(SimpleTestCase):
-    def test_plc_can_ack_capture_before_calculation_finishes(self):
+class CaptureCompletionTests(TestCase):
+    def test_camera_exception_is_visible_in_vision_history(self):
+        from apps.vision.models import VisionTask
+        recipe = SimpleNamespace(roi_config={'cloud_center_reference': True}, layer_count=1)
+        with patch('apps.vision.models.RackLocationRecipe.objects.get', return_value=recipe), \
+             patch('apps.vision.rack_location.Rack3DLocator.capture', side_effect=RuntimeError('camera offline')):
+            with self.assertRaisesRegex(RuntimeError, 'camera offline'):
+                capture_position(1, 1)
+        task = VisionTask.objects.get()
+        self.assertEqual(task.status, 'FAILED')
+        self.assertEqual(task.error_message, 'camera offline')
+        self.assertIsNotNone(task.finished_at)
+
+    def test_result_only_write_does_not_touch_trigger_or_handshake(self):
         plc = PLCAdapter(MemoryPLCTransport())
         plc.write_point('position_trigger', True)
         state = {'phase': 'WAIT_TRIGGER', 'recipe_id': 1, 'layer_no': 1}
 
         def capture(*_, on_captured):
-            self.assertFalse(plc.read_point('position_trigger'))
+            self.assertTrue(plc.read_point('position_trigger'))
             on_captured()
-            self.assertTrue(plc.read_point('position_done'))
+            self.assertFalse(plc.read_point('position_done'))
             plc.write_point('position_done', False)  # PLC proceeds while calculating.
             return {'is_success': True, 'compensation_x': 1,
                     'compensation_y': 2, 'compensation_z': 3}
 
         step(state, plc, capture)
         self.assertFalse(plc.read_point('position_done'))
-        self.assertTrue(plc.read_point('position_success'))
+        self.assertFalse(plc.read_point('position_success'))
         self.assertEqual(plc.read_point('layer_delta_z2'), 0)
         step(state, plc, Mock(side_effect=AssertionError('duplicate capture')))
         self.assertEqual(state['phase'], 'WAIT_ACK')
-        plc.write_point('position_success', False)
+        plc.write_point('position_trigger', False)
         step(state, plc, Mock(side_effect=AssertionError('duplicate capture')))
         plc.write_point('position_trigger', True)
         step(state, plc, capture)
@@ -39,7 +51,7 @@ class CaptureCompletionTests(SimpleTestCase):
         plc.write_point('position_trigger', True)
         step({'phase': 'WAIT_TRIGGER', 'recipe_id': 1, 'layer_no': 1}, plc,
              Mock(side_effect=RuntimeError('camera disconnected')))
-        self.assertFalse(plc.read_point('position_trigger'))
+        self.assertTrue(plc.read_point('position_trigger'))
         self.assertFalse(plc.read_point('position_done'))
         self.assertFalse(plc.read_point('position_success'))
 
@@ -73,3 +85,27 @@ class CaptureCompletionTests(SimpleTestCase):
     def test_partial_second_group_is_not_silently_zeroed(self):
         with self.assertRaises(ValueError):
             position_values({'offset_x': 1, 'offset_y': 2, 'offset_z': 3, 'offset_x2': 4})
+
+
+class AutomaticCaptureHistoryTests(TestCase):
+    def test_acquired_frame_survives_calculation_failure(self):
+        import tempfile
+        from pathlib import Path
+        from django.test import override_settings
+        from apps.vision.models import VisionTask
+        recipe = SimpleNamespace(roi_config={'cloud_center_reference': True}, layer_count=1)
+        with tempfile.TemporaryDirectory() as folder, override_settings(MEDIA_ROOT=folder, MEDIA_URL='/media/'):
+            Path(folder, 'frame.png').write_bytes(b'captured-frame')
+            with patch('apps.vision.models.RackLocationRecipe.objects.get', return_value=recipe), \
+                 patch('apps.vision.rack_location.Rack3DLocator.capture', return_value={
+                     'pointcloud_token': 'frame.npy', 'pointcloud_preview_url': '/media/frame.png',
+                     'image_width': 2, 'image_height': 2}), \
+                 patch('apps.vision.rack_location.RackLocationService.calculate_workbench', side_effect=ValueError('ROI 已变化')):
+                with self.assertRaisesRegex(ValueError, 'ROI 已变化'):
+                    capture_position(1, 1)
+            task = VisionTask.objects.get()
+            self.assertEqual(task.status, 'FAILED')
+            self.assertEqual(task.images.get(image_type='DEPTH').file.name, 'frame.png')
+            from django.template.loader import render_to_string
+            html = render_to_string('vision/task_detail.html', {'task': task})
+            self.assertIn('ROI 已变化', html)

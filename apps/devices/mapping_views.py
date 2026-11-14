@@ -43,7 +43,7 @@ def rack_type_mappings(request):
             rows = rows.filter(pkg_type_code__icontains=query)
         point = POINTS_BY_NAME['rack_type_code']
         return JsonResponse({'items': list(rows.values('id', 'pkg_type_code', 'rack_type', 'plc_value', 'enabled')),
-                             'target': f'DB{DB_NUMBER}.DBW{point.offset}', 'data_type': point.data_type})
+                             'target': f"料架1 DB{DB_NUMBER}.DBW{point.offset} / 料架2 DB{DB_NUMBER}.DBW{POINTS_BY_NAME['rack_type_code_2'].offset}", 'data_type': point.data_type})
     action = request.POST.get('action')
     if action not in ('save', 'delete'):
         return JsonResponse({'error': '无效操作'}, status=400)

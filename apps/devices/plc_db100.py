@@ -23,9 +23,9 @@ class DB100Point:
 
 
 DB_NUMBER = 2
-DB_SIZE = 78
+DB_SIZE = 104
 PLC_SCAN_INTERVAL = 0.5  # Minimum gap after a scan completes, shared by all listeners.
-POSITION_FAILURE_OFFSET = 999.0  # 3D 联调失败哨兵值（不是有效补偿）
+POSITION_FAILURE_OFFSET = 0.0  # 无法计算时覆盖两组 XYZ 为零
 
 
 def _point(name, offset, data_type, direction, description, size, bit=0):
@@ -34,37 +34,26 @@ def _point(name, offset, data_type, direction, description, size, bit=0):
 
 DB100_POINTS = (
     _point('product_barcode', 0, 'STRING[20]', 'IN', '当前产品条码', 22, 0),
-    _point('mark_trigger', 22, 'BOOL', 'IN', '扫码完成', 1, 0),
-    _point('rack_barcode', 24, 'STRING[20]', 'IN', '料框码', 22, 0),
-    _point('rack_trigger', 46, 'BOOL', 'IN', '料框到位触发', 1, 0),
-    _point('recipe_verify_trigger', 46, 'BOOL', 'IN', '配方校验触发', 1, 1),
-    _point('position_trigger', 46, 'BOOL', 'IN', '3D 定位触发', 1, 2),
-    _point('foam_trigger', 46, 'BOOL', 'IN', '泡棉视觉检测触发', 1, 3),
-    _point('boxing_trigger', 46, 'BOOL', 'IN', 'MES 封箱上传触发', 1, 4),
-    _point('heartbeat', 48, 'BOOL', 'OUT', '心跳信号', 1, 0),
-    _point('mark_read_done', 48, 'BOOL', 'OUT', '产品条码处理完成确认', 1, 1),
-    _point('product_barcode_valid', 48, 'BOOL', 'OUT', '产品条码校验结果', 1, 2),
-    _point('product_mes_upload_done', 48, 'BOOL', 'OUT', '单件 MES 上传完成确认', 1, 3),
-    _point('product_mes_upload_success', 48, 'BOOL', 'OUT', '单件 MES 上传结果', 1, 4),
-    _point('rack_done', 48, 'BOOL', 'OUT', '料框处理完成确认', 1, 5),
-    _point('rack_result', 48, 'BOOL', 'OUT', '料框处理结果', 1, 6),
-    _point('recipe_verify_done', 48, 'BOOL', 'OUT', '配方校验完成确认', 1, 7),
-    _point('boxing_allowed', 49, 'BOOL', 'OUT', '可装箱结果', 1, 0),
-    _point('position_done', 49, 'BOOL', 'OUT', '3D 拍照完成确认', 1, 1),
-    _point('position_success', 49, 'BOOL', 'OUT', '3D 定位结果', 1, 2),
-    _point('layer_delta_x', 50, 'REAL', 'OUT', '当前层视觉补偿 ΔX1', 4, 0),
-    _point('layer_delta_y', 54, 'REAL', 'OUT', '当前层视觉补偿 ΔY1', 4, 0),
-    _point('layer_delta_z', 58, 'REAL', 'OUT', '当前层视觉补偿 ΔZ1', 4, 0),
-    _point('layer_delta_x2', 62, 'REAL', 'OUT', '当前层视觉补偿 ΔX2', 4, 0),
-    _point('layer_delta_y2', 66, 'REAL', 'OUT', '当前层视觉补偿 ΔY2', 4, 0),
-    _point('layer_delta_z2', 70, 'REAL', 'OUT', '当前层视觉补偿 ΔZ2', 4, 0),
-    _point('foam_done', 74, 'BOOL', 'OUT', '泡棉检测完成确认', 1, 0),
-    _point('foam_passed', 74, 'BOOL', 'OUT', '泡棉检测结果', 1, 1),
-    _point('mes_upload_done', 74, 'BOOL', 'OUT', 'MES 封箱上传完成确认', 1, 2),
-    _point('mes_upload_success', 74, 'BOOL', 'OUT', 'MES 封箱上传结果', 1, 3),
-    _point('workstation_locked', 74, 'BOOL', 'OUT', '工位锁定', 1, 4),
-    _point('rack_type_code', 76, 'INT', 'OUT', '料框类型', 2),
+    _point('rack_barcode', 24, 'STRING[20]', 'IN', '料框码 1', 22),
+    _point('rack_barcode_2', 46, 'STRING[20]', 'IN', '料框码 2', 22),
+    _point('position_trigger', 68, 'BOOL', 'IN', '3D 定位触发', 1, 3),
+    _point('foam_trigger', 68, 'BOOL', 'IN', '泡棉视觉检测触发', 1, 4),
+    _point('boxing_trigger', 68, 'BOOL', 'IN', 'MES 封箱上传触发 1', 1, 5),
+    _point('boxing_trigger_2', 68, 'BOOL', 'IN', 'MES 封箱上传触发 2', 1, 6),
+    _point('rack_working', 68, 'BOOL', 'IN', '料箱 1 工作中', 1, 7),
+    _point('rack_working_2', 69, 'BOOL', 'IN', '料箱 2 工作中', 1, 0),
+    _point('heartbeat', 70, 'BOOL', 'OUT', 'AGV 在线心跳（每 0.5 秒翻转）', 1, 0),
+    _point('layer_delta_x', 76, 'REAL', 'OUT', '当前层视觉补偿 ΔX1', 4, 0),
+    _point('layer_delta_y', 80, 'REAL', 'OUT', '当前层视觉补偿 ΔY1', 4, 0),
+    _point('layer_delta_z', 84, 'REAL', 'OUT', '当前层视觉补偿 ΔZ1', 4, 0),
+    _point('layer_delta_x2', 88, 'REAL', 'OUT', '当前层视觉补偿 ΔX2', 4, 0),
+    _point('layer_delta_y2', 92, 'REAL', 'OUT', '当前层视觉补偿 ΔY2', 4, 0),
+    _point('layer_delta_z2', 96, 'REAL', 'OUT', '当前层视觉补偿 ΔZ2', 4, 0),
+    _point('rack_type_code_2', 102, 'INT', 'OUT', '料架种类 2', 2),
+    _point('rack_type_code', 100, 'INT', 'OUT', '料架种类 1', 2),
 )
+
+ACTIVE_OUTPUT_NAMES = frozenset(point.name for point in DB100_POINTS if point.direction == 'OUT')
 
 POINTS_BY_NAME = {point.name: point for point in DB100_POINTS}
 

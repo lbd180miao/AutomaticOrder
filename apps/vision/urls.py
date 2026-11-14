@@ -80,6 +80,8 @@ urlpatterns = [
     path('rack-location/results/', views.rack_location_history, name='rack_location_history'),
     path('rack-location/trigger/', views.api_rack_location_trigger, name='rack_location_trigger'),
 
+    path('api/recipes/foam-2d/<int:recipe_id>/standard-roi/', views.api_foam_standard_roi_status, name='api_foam_standard_roi_status'),
+
     # API — 泡棉检测
     path('api/camera/preview/', views.api_camera_preview, name='api_camera_preview'),
     path('api/foam/calibration/', views.api_foam_calibration, name='api_foam_calibration'),
@@ -88,12 +90,6 @@ urlpatterns = [
     path('api/recipes/foam-2d/by-pos/', views.api_foam_recipe_by_pos, name='api_foam_recipe_by_pos'),
     path('api/recipes/foam-2d/defaults/', views.api_foam_recipe_defaults, name='api_foam_recipe_defaults'),
     path('api/recipes/foam-2d/save/', views.api_foam_recipe_save, name='api_foam_recipe_save'),
-    path('api/recipes/foam-2d/standard-mask/', views.api_foam_standard_mask_upload, name='api_foam_standard_mask_upload'),
-    path('api/recipes/foam-2d/<int:recipe_id>/standard-template/teach/', views.api_foam_standard_template_teach, name='api_foam_standard_template_teach'),
-    path('api/recipes/foam-2d/<int:recipe_id>/standard-template/from-result/<int:result_id>/', views.api_foam_standard_template_from_result, name='api_foam_standard_template_from_result'),
-    path('api/recipes/foam-2d/<int:recipe_id>/standard-mask/', views.api_foam_standard_mask_status, name='api_foam_standard_mask_status'),
-    path('api/recipes/foam-2d/<int:recipe_id>/standard-mask/capture/', views.api_foam_standard_mask_capture, name='api_foam_standard_mask_capture'),
-    path('api/recipes/foam-2d/<int:recipe_id>/standard-mask/<str:side>/delete/', views.api_foam_standard_mask_delete, name='api_foam_standard_mask_delete'),
     path('api/recipes/foam-2d/create/', views.api_foam_recipe_create, name='api_foam_recipe_create'),
     path('api/recipes/foam-2d/<int:recipe_id>/delete/', views.api_foam_recipe_delete, name='api_foam_recipe_delete'),
     path('api/foam/rack-specs/', views_foam_profile.api_foam_rack_specs, name='api_foam_rack_specs'),

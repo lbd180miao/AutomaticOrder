@@ -136,6 +136,7 @@
           {% if t.status == 'SUCCESS' %}<span class="badge badge-ok">{{ t.get_status_display }}</span>
           {% elif t.status == 'FAILED' %}<span class="badge badge-fail">{{ t.get_status_display }}</span>
           {% else %}<span class="badge badge-running">{{ t.get_status_display }}</span>{% endif %}
+          {% if t.error_message %}<details><summary>失败原因</summary><p style="white-space:pre-wrap;max-width:420px;">{{ t.error_message }}</p></details>{% endif %}
         </td>
         <td>
           {% with foam_result=t.foam_results.all|first rack_result=t.rack_results.all|first %}

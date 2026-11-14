@@ -161,7 +161,7 @@ def _ensure_rvc_service(cfg):
                 cmd, cwd=str(root), env=env, stdout=output,
                 stderr=subprocess.STDOUT, stdin=subprocess.PIPE, **kwargs,
             )
-        logger.warning("RVC 相机服务已启动 PID=%s，日志：%s", _rvc_proc.pid, log_dir / 'rvc-service.log')
+        logger.info("RVC 相机服务进程已启动 PID=%s（不代表相机已连接），日志：%s", _rvc_proc.pid, log_dir / 'rvc-service.log')
 
 
 def _supervise_rvc_service(cfg):

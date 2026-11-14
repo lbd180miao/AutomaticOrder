@@ -26,3 +26,13 @@ class DeviceSignalRecord(TimeStampedModel):
     direction = models.CharField(max_length=16, choices=SignalDirection.choices, default=SignalDirection.IN)
     raw_payload = models.JSONField(default=dict, blank=True)
     recorded_at = models.DateTimeField(null=True, blank=True)
+
+
+class PLCListenerLog(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    category = models.CharField(max_length=16, db_index=True)
+    message = models.TextField()
+
+
+class PLCLogWindow(models.Model):
+    started_at = models.DateTimeField()

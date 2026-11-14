@@ -18,7 +18,7 @@
 <button id="position-start" type="submit" disabled>开始监听 PLC 3D 触发</button>
 <button id="position-stop" type="button" disabled>停止监听</button>
 </form>
-<p class="hint">触发 DB2.DBX46.2 → 上位机读取后自动复位触发 → 采集成功后立即置 DBX49.1。PLC 读取拍照完成后复位 DBX49.1 并继续动作，无需等待算法计算。计算结束后，A组 XYZ 写入 DBD50 / DBD54 / DBD58，B组 XYZ 写入 DBD62 / DBD66 / DBD70（mm）；没有B组时写入0。补偿回读通过后 DBX49.2 置1，不再次置位 DBX49.1。拍照失败不发送拍照完成；无法计算时六轴写入999，结果为0。启动监听时先等待旧触发为0。</p>
+<p class="hint">DB2.DBX68.3 仅上升沿触发，PLC 约5秒后自行复位；高电平保持期间不重复拍照。两料架共用原有 XYZ 输出，每次结果覆盖上次结果。XYZ 写入 DBD76/80/84/88/92/96；仅另写料架种类 DBW100/102，其他反馈位暂不读写。</p>
 <output id="position-status" aria-live="polite">调试脚本加载中；若此提示持续存在，请检查静态文件部署并强制刷新。</output>
 <p id="position-progress" class="hint" role="status">开始监听前会先检查PLC通信；通信失败不会启动拍照。</p>
 <div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>ΔX（mm）</th><th>ΔY（mm）</th><th>ΔZ1（mm）</th><th>ΔX2（mm）</th><th>ΔY2（mm）</th><th>ΔZ2（mm）</th><th>结果 / 错误</th></tr></thead><tbody id="position-history"><tr><td colspan="9">暂无定位结果</td></tr></tbody></table></div>
@@ -32,7 +32,7 @@
 <button id="foam-start" type="submit" disabled>开始监听 PLC 2D 触发</button>
 <button id="foam-stop" type="button" disabled>停止监听</button>
 </form>
-<p class="hint">泡棉视觉检测触发 DB{{ db_number }}.DBX46.3 → 2D 相机拍照检测 → 泡棉检测结果 DBX74.1（OK 写 TRUE，NG 或异常写 FALSE）→ 泡棉检测完成确认 DBX74.0。无论检测结果 OK 或 NG，结果回读确认后，完成确认均写入 TRUE，表示本次检查已结束，实际 OK/NG 同时写入结果位并保留在界面与记录中；拍照或检测异常结果位返回 FALSE，并显示错误。上位机读取46.3后自动复位触发；完成确认保持TRUE，直到PLC读取74.1后将74.0复位。结果位保留至下一次任务开始时清零；启动时触发已为 1，须先复位再触发。</p>
+<p class="hint">DB{{ db_number }}.DBX68.4 仅上升沿触发泡棉检测，PLC 约5秒后自行复位。检测结果仅保存在上位机，不回写 PLC 结果位；保持高电平不会重复执行。启动或重连先建立基线，需观察到实际低→高再触发。</p>
 <output id="foam-status" aria-live="polite">调试脚本加载中；若此提示持续存在，请检查静态文件部署并强制刷新。</output>
 <p id="foam-progress" class="hint" role="status">开始监听前检查配方与PLC通信；通信失败不会启动拍照。</p>
 <div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>记录 ID</th><th>评分</th><th>缺陷</th><th>结果 / 错误</th></tr></thead><tbody id="foam-history"><tr><td colspan="6">暂无泡棉检测结果</td></tr></tbody></table></div>

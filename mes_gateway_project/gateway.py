@@ -16,13 +16,15 @@ from urllib.parse import parse_qs, urlparse
 from waitress import serve
 if __package__:
     from .mes_client import YfpoSoapMesClient
+    from .communication import CommunicationMixin, schema, event
 else:
     from mes_client import YfpoSoapMesClient
+    from communication import CommunicationMixin, schema, event
 
 ACTIONS = {'SELF_TEST', 'GET_RACK_RECIPE', 'UPLOAD_PRODUCT_BARCODE', 'UPLOAD_BOXING_RESULT'}
 
 
-class Gateway:
+class Gateway(CommunicationMixin):
     def __init__(self, directory, client=None):
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -48,6 +50,7 @@ class Gateway:
         db.execute('''CREATE TABLE IF NOT EXISTS tasks (
           id TEXT PRIMARY KEY, action TEXT, payload TEXT, state TEXT, result TEXT,
           created REAL, updated REAL)''')
+        schema(db)
         try:
             with db:
                 yield db
@@ -79,9 +82,13 @@ class Gateway:
                 if existing['action'] != action or existing['payload'] != encoded:
                     raise ValueError('同一请求编号不能用于不同内容')
                 return self.serialize(existing)
+            mode = db.execute('SELECT mode FROM communication_modes WHERE action=?', (action,)).fetchone()
+            state = ('waiting_manual' if mode and mode['mode'] == 'manual'
+                     and payload.get('_source') != 'communication_debug' else 'accepted')
             now = time.time()
             db.execute('INSERT INTO tasks VALUES (?,?,?,?,?,?,?)',
-                       (task_id, action, encoded, 'accepted', '{}', now, now))
+                       (task_id, action, encoded, state, '{}', now, now))
+            event(db, task_id, 'AGV → 外部电脑', 'request_received', {'action':action, 'payload':payload, 'state':state})
             row = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
         self.wake.set()
         return self.serialize(row)
@@ -95,6 +102,8 @@ class Gateway:
             db.execute("UPDATE tasks SET state='running',updated=? WHERE id=?", (time.time(), row['id']))
         payload = json.loads(row['payload'])
         action = row['action']
+        with self.db() as db:
+            event(db, row['id'], '外部电脑 → MES', 'mes_request', {'action':action, 'payload':payload})
         try:
             if action == 'SELF_TEST':
                 result = {'success': True, 'message': '网关已接收、落库并完成自检；未调用 MES 或 PLC', 'request_id': row['id']}
@@ -103,20 +112,7 @@ class Gateway:
             elif action == 'UPLOAD_PRODUCT_BARCODE':
                 result = self.client.upload_product_barcode(payload['product_code'], payload['rack_code'])
             else:
-                # The SOAP seal action sends RackCode only; all local products must be bound first.
-                codes = set(payload.get('product_codes') or [])
-                with self.db() as db:
-                    bindings = db.execute("SELECT payload,state FROM tasks WHERE action='UPLOAD_PRODUCT_BARCODE'").fetchall()
-                bound = set()
-                for binding in bindings:
-                    p = json.loads(binding['payload'])
-                    if (p.get('rack_code') == payload['rack_code'] and
-                        p.get('_packing_cycle') == payload.get('_packing_cycle') and binding['state'] == 'succeeded'):
-                        bound.add(p.get('product_code'))
-                if not codes or not codes.issubset(bound):
-                    result = {'success': False, 'business': True, 'error': '本批次单件绑定尚未全部成功，禁止封箱'}
-                else:
-                    result = self.client.upload_boxing_result(payload)
+                result = self.client.upload_boxing_result(payload)
             if result.get('success') is True:
                 state = 'succeeded'
             elif result.get('business') or action == 'GET_RACK_RECIPE':
@@ -130,6 +126,7 @@ class Gateway:
         with self.db() as db:
             db.execute('UPDATE tasks SET state=?,result=?,updated=? WHERE id=?',
                        (state, json.dumps(result, ensure_ascii=False, default=str), time.time(), row['id']))
+            event(db, row['id'], 'MES → 外部电脑', 'mes_response', {'state':state, 'result':result})
         return True
 
     def worker(self):
@@ -265,12 +262,29 @@ class Gateway:
             self.last_agv = time.time()
             if path == '/api/health' and env['REQUEST_METHOD'] == 'GET':
                 return reply('200 OK', {'success': True, 'role': 'mes_gateway', 'version': 1})
+            if path == '/api/communication' and env['REQUEST_METHOD'] == 'GET':
+                return reply('200 OK', self.communication_status())
+            if path in ('/api/communication/mode', '/api/communication/reply') and env['REQUEST_METHOD'] == 'POST':
+                length = int(env.get('CONTENT_LENGTH') or 0)
+                if not 0 < length <= 16384:
+                    raise ValueError('请求大小不合法')
+                body = json.loads(env['wsgi.input'].read(length))
+                if not isinstance(body, dict):
+                    raise ValueError('请求必须是 JSON 对象')
+                result = (self.set_communication_mode(body.get('action'), body.get('mode'))
+                          if path.endswith('/mode') else self.manual_reply(body))
+                return reply('200 OK', result)
             if path == '/api/tasks' and env['REQUEST_METHOD'] == 'POST':
                 length = int(env.get('CONTENT_LENGTH') or 0)
                 if not 0 < length <= 1024 * 1024:
                     return reply('413 Payload Too Large', {'error': '请求大小不合法'})
                 data = json.loads(env['wsgi.input'].read(length))
-                return reply('200 OK', self.accept(data))
+                task = self.accept(data)
+                if task['state'] in ('succeeded', 'failed', 'unknown'):
+                    with self.db() as db:
+                        event(db, task['id'], '外部电脑 → AGV', 'http_return',
+                              {'state':task['state'], 'result':task['result']}, once=True)
+                return reply('200 OK', task)
             return reply('404 Not Found', {'error': '接口不存在'})
         except (ValueError, KeyError, TypeError) as exc:
             return reply('400 Bad Request', {'success': False, 'error': str(exc)})

@@ -1,0 +1,1418 @@
+_accept
+212           0 RESUME                   0
+
+213           2 LOAD_FAST                1 (cycle)
+              4 LOAD_ATTR                0 (io_state)
+             24 LOAD_ATTR                3 (NULL|self + get)
+             44 LOAD_CONST               1 ('pending')
+             46 CALL                     1
+             54 STORE_FAST               5 (pending)
+
+214          56 LOAD_FAST                5 (pending)
+             58 POP_JUMP_IF_FALSE        9 (to 78)
+
+215          60 LOAD_FAST                5 (pending)
+             62 LOAD_CONST               2 ('trigger')
+             64 BINARY_SUBSCR
+             68 LOAD_FAST                3 (trigger)
+             70 COMPARE_OP              55 (!=)
+             74 POP_JUMP_IF_FALSE      160 (to 396)
+
+216          76 RETURN_CONST             0 (None)
+
+218     >>   78 LOAD_FAST                2 (snapshot)
+             80 LOAD_ATTR                3 (NULL|self + get)
+            100 LOAD_FAST                3 (trigger)
+            102 CALL                     1
+            110 POP_JUMP_IF_TRUE         1 (to 114)
+
+219         112 RETURN_CONST             0 (None)
+
+220     >>  114 LOAD_FAST                3 (trigger)
+            116 LOAD_FAST                4 (fields)
+            118 GET_ITER
+            120 LOAD_FAST_AND_CLEAR      6 (key)
+            122 SWAP                     2
+            124 BUILD_MAP                0
+            126 SWAP                     2
+        >>  128 FOR_ITER                20 (to 172)
+            132 STORE_FAST               6 (key)
+            134 LOAD_FAST                6 (key)
+            136 LOAD_FAST                2 (snapshot)
+            138 LOAD_ATTR                3 (NULL|self + get)
+            158 LOAD_FAST                6 (key)
+            160 CALL                     1
+            168 MAP_ADD                  2
+            170 JUMP_BACKWARD           22 (to 128)
+        >>  172 END_FOR
+            174 SWAP                     2
+            176 STORE_FAST               6 (key)
+
+221         178 LOAD_GLOBAL              5 (NULL + timezone)
+            188 LOAD_ATTR                6 (now)
+            208 CALL                     0
+            216 LOAD_ATTR                9 (NULL|self + isoformat)
+            236 CALL                     0
+
+220         244 LOAD_CONST               3 (('trigger', 'data', 'accepted_at'))
+            246 BUILD_CONST_KEY_MAP      3
+            248 STORE_FAST               5 (pending)
+
+222         250 LOAD_GLOBAL             11 (NULL + record)
+            260 LOAD_GLOBAL             13 (NULL + CATEGORIES)
+            270 LOAD_ATTR                2 (get)
+            290 LOAD_FAST                3 (trigger)
+            292 LOAD_CONST               4 ('mes')
+            294 CALL                     2
+            302 LOAD_CONST               5 ('收到 ')
+            304 LOAD_FAST                3 (trigger)
+            306 FORMAT_VALUE             0
+            308 LOAD_CONST               6 ('：')
+            310 LOAD_FAST                5 (pending)
+            312 LOAD_CONST               7 ('data')
+            314 BINARY_SUBSCR
+            318 FORMAT_VALUE             0
+            320 BUILD_STRING             4
+            322 CALL                     2
+            330 POP_TOP
+
+223         332 LOAD_FAST                5 (pending)
+            334 LOAD_FAST                1 (cycle)
+            336 LOAD_ATTR                0 (io_state)
+            356 LOAD_CONST               1 ('pending')
+            358 STORE_SUBSCR
+
+224         362 LOAD_FAST                0 (self)
+            364 LOAD_ATTR               15 (NULL|self + _save_io)
+            384 LOAD_FAST                1 (cycle)
+            386 CALL                     1
+            394 POP_TOP
+
+226     >>  396 LOAD_FAST                5 (pending)
+            398 LOAD_ATTR                3 (NULL|self + get)
+            418 LOAD_CONST               8 ('consumed')
+            420 CALL                     1
+            428 POP_JUMP_IF_TRUE        55 (to 540)
+
+228         430 LOAD_FAST                3 (trigger)
+            432 LOAD_CONST               9 ('mark_trigger')
+            434 COMPARE_OP              40 (==)
+            438 POP_JUMP_IF_FALSE       28 (to 496)
+
+229         440 LOAD_FAST                0 (self)
+            442 LOAD_ATTR               16 (plc)
+            462 LOAD_ATTR               19 (NULL|self + write_point)
+            482 LOAD_FAST                3 (trigger)
+            484 LOAD_CONST              10 (False)
+            486 CALL                     2
+            494 POP_TOP
+
+230     >>  496 LOAD_CONST              11 (True)
+            498 LOAD_FAST                5 (pending)
+            500 LOAD_CONST               8 ('consumed')
+            502 STORE_SUBSCR
+
+231         506 LOAD_FAST                0 (self)
+            508 LOAD_ATTR               15 (NULL|self + _save_io)
+            528 LOAD_FAST                1 (cycle)
+            530 CALL                     1
+            538 POP_TOP
+
+232     >>  540 LOAD_FAST                5 (pending)
+            542 RETURN_VALUE
+        >>  544 SWAP                     2
+            546 POP_TOP
+
+220         548 SWAP                     2
+            550 STORE_FAST               6 (key)
+            552 RERAISE                  0
+ExceptionTable:
+  124 to 172 -> 544 [3]
+_dispatch
+              0 MAKE_CELL               30 (name)
+
+285           2 RESUME                   0
+
+292           4 LOAD_FAST                1 (cycle)
+              6 LOAD_ATTR                0 (io_state)
+             26 STORE_FAST               3 (state)
+
+293          28 LOAD_FAST                3 (state)
+             30 LOAD_ATTR                3 (NULL|self + setdefault)
+             50 LOAD_CONST               1 ('listener_inputs')
+             52 BUILD_MAP                0
+             54 CALL                     2
+             62 STORE_FAST               4 (observed)
+
+294          64 LOAD_FAST                3 (state)
+             66 LOAD_ATTR                3 (NULL|self + setdefault)
+             86 LOAD_CONST               2 ('listener_queue')
+             88 BUILD_LIST               0
+             90 CALL                     2
+             98 STORE_FAST               5 (queue)
+
+295         100 LOAD_GLOBAL              5 (NULL + getattr)
+            110 LOAD_FAST                0 (self)
+            112 LOAD_CONST               3 ('_input_samples')
+            114 LOAD_FAST                2 (snapshot)
+            116 BUILD_LIST               1
+            118 CALL                     3
+            126 STORE_FAST               6 (samples)
+
+296         128 LOAD_CONST               4 (1)
+            130 LOAD_CONST               5 (('debug_status',))
+            132 IMPORT_NAME              3 (listener)
+            134 IMPORT_FROM              4 (debug_status)
+            136 STORE_FAST               7 (debug_status)
+            138 POP_TOP
+
+297         140 PUSH_NULL
+            142 LOAD_FAST                7 (debug_status)
+            144 CALL                     0
+            152 STORE_FAST               8 (debug)
+
+298         154 LOAD_CONST               6 (('position_trigger', 'foam_trigger'))
+            156 STORE_FAST               9 (vision_triggers)
+
+300         158 LOAD_FAST                5 (queue)
+            160 GET_ITER
+            162 LOAD_FAST_AND_CLEAR     10 (job)
+            164 SWAP                     2
+            166 BUILD_LIST               0
+            168 SWAP                     2
+        >>  170 FOR_ITER                49 (to 272)
+            174 STORE_FAST              10 (job)
+            176 LOAD_FAST               10 (job)
+            178 LOAD_ATTR               11 (NULL|self + get)
+            198 LOAD_CONST               7 ('debug_repeat')
+            200 CALL                     1
+            208 POP_JUMP_IF_FALSE       28 (to 266)
+
+301         210 LOAD_FAST                8 (debug)
+            212 LOAD_CONST               8 ('enabled')
+            214 BINARY_SUBSCR
+            218 POP_JUMP_IF_FALSE       25 (to 270)
+            220 LOAD_FAST               10 (job)
+            222 LOAD_ATTR               11 (NULL|self + get)
+            242 LOAD_CONST               9 ('debug_generation')
+            244 CALL                     1
+            252 LOAD_FAST                8 (debug)
+            254 LOAD_CONST              10 ('generation')
+            256 BINARY_SUBSCR
+            260 COMPARE_OP              40 (==)
+            264 POP_JUMP_IF_FALSE        2 (to 270)
+
+300     >>  266 LOAD_FAST               10 (job)
+            268 LIST_APPEND              2
+        >>  270 JUMP_BACKWARD           51 (to 170)
+        >>  272 END_FOR
+            274 SWAP                     2
+            276 STORE_FAST              10 (job)
+            278 LOAD_FAST                5 (queue)
+            280 LOAD_CONST              11 (None)
+            282 LOAD_CONST              11 (None)
+            284 STORE_SLICE
+
+302         286 LOAD_GLOBAL              5 (NULL + getattr)
+            296 LOAD_FAST                0 (self)
+            298 LOAD_CONST              12 ('_inputs_initialized')
+            300 LOAD_CONST              13 (False)
+            302 CALL                     3
+            310 POP_JUMP_IF_TRUE        32 (to 376)
+
+303         312 LOAD_CONST              14 (('position_trigger', 'foam_trigger', 'boxing_trigger'))
+            314 GET_ITER
+        >>  316 FOR_ITER                20 (to 360)
+            320 STORE_DEREF             30 (name)
+
+305         322 LOAD_FAST                4 (observed)
+            324 LOAD_ATTR                3 (NULL|self + setdefault)
+            344 LOAD_DEREF              30 (name)
+            346 LOAD_CONST              13 (False)
+            348 CALL                     2
+            356 POP_TOP
+            358 JUMP_BACKWARD           22 (to 316)
+
+303     >>  360 END_FOR
+
+306         362 LOAD_CONST              15 (True)
+            364 LOAD_FAST                0 (self)
+            366 STORE_ATTR               6 (_inputs_initialized)
+
+307     >>  376 LOAD_FAST                6 (samples)
+            378 GET_ITER
+        >>  380 EXTENDED_ARG             2
+            382 FOR_ITER               731 (to 1848)
+            386 STORE_FAST              11 (sample)
+
+308         388 LOAD_GLOBAL             15 (NULL + str)
+            398 LOAD_FAST               11 (sample)
+            400 LOAD_ATTR               11 (NULL|self + get)
+            420 LOAD_CONST              16 ('rack_barcode')
+            422 CALL                     1
+            430 COPY                     1
+            432 POP_JUMP_IF_TRUE         2 (to 438)
+            434 POP_TOP
+            436 LOAD_CONST              17 ('')
+        >>  438 CALL                     1
+            446 LOAD_ATTR               17 (NULL|self + strip)
+            466 CALL                     0
+            474 STORE_FAST              12 (code)
+
+309         476 LOAD_FAST               12 (code)
+            478 LOAD_ATTR               19 (NULL|self + casefold)
+            498 CALL                     0
+            506 LOAD_CONST              18 ('noread')
+            508 COMPARE_OP              40 (==)
+            512 POP_JUMP_IF_FALSE       40 (to 594)
+
+310         514 LOAD_FAST                4 (observed)
+            516 LOAD_ATTR               11 (NULL|self + get)
+            536 LOAD_CONST              19 ('scanner_status')
+            538 CALL                     1
+            546 LOAD_CONST              20 ('NoRead')
+            548 COMPARE_OP              55 (!=)
+            552 POP_JUMP_IF_FALSE       12 (to 578)
+
+311         554 LOAD_GLOBAL             21 (NULL + record)
+            564 LOAD_CONST              21 ('rack')
+            566 LOAD_CONST              22 ('扫码器返回 NoRead：未读到有效料框码，等待重扫；不提交 MES，不阻断独立视觉触发')
+            568 CALL                     2
+            576 POP_TOP
+
+312     >>  578 LOAD_CONST              20 ('NoRead')
+            580 LOAD_FAST                4 (observed)
+            582 LOAD_CONST              19 ('scanner_status')
+            584 STORE_SUBSCR
+
+313         588 LOAD_CONST              17 ('')
+            590 STORE_FAST              12 (code)
+            592 JUMP_FORWARD            20 (to 634)
+
+314     >>  594 LOAD_FAST               12 (code)
+            596 POP_JUMP_IF_FALSE       18 (to 634)
+
+315         598 LOAD_FAST                4 (observed)
+            600 LOAD_ATTR               23 (NULL|self + pop)
+            620 LOAD_CONST              19 ('scanner_status')
+            622 LOAD_CONST              11 (None)
+            624 CALL                     2
+            632 POP_TOP
+
+316     >>  634 LOAD_FAST               12 (code)
+            636 POP_JUMP_IF_FALSE      121 (to 880)
+            638 LOAD_FAST               12 (code)
+            640 LOAD_FAST                4 (observed)
+            642 LOAD_ATTR               11 (NULL|self + get)
+            662 LOAD_CONST              16 ('rack_barcode')
+            664 CALL                     1
+            672 COMPARE_OP              55 (!=)
+            676 POP_JUMP_IF_FALSE      101 (to 880)
+
+317         678 LOAD_GLOBAL             25 (NULL + timezone)
+            688 LOAD_ATTR               26 (now)
+            708 CALL                     0
+            716 LOAD_ATTR               29 (NULL|self + isoformat)
+            736 CALL                     0
+            744 STORE_FAST              13 (round_id)
+
+318         746 LOAD_FAST                5 (queue)
+            748 LOAD_ATTR               31 (NULL|self + append)
+            768 LOAD_CONST              23 ('rack_trigger')
+            770 LOAD_CONST              16 ('rack_barcode')
+            772 LOAD_FAST               12 (code)
+            774 BUILD_MAP                1
+
+319         776 LOAD_FAST               13 (round_id)
+
+318         778 LOAD_CONST              24 (('trigger', 'data', 'accepted_at'))
+            780 BUILD_CONST_KEY_MAP      3
+            782 CALL                     1
+            790 POP_TOP
+
+320         792 LOAD_FAST               13 (round_id)
+            794 LOAD_FAST                4 (observed)
+            796 LOAD_CONST              25 ('rack_round')
+            798 STORE_SUBSCR
+
+321         802 LOAD_FAST               12 (code)
+            804 LOAD_FAST                4 (observed)
+            806 LOAD_CONST              16 ('rack_barcode')
+            808 STORE_SUBSCR
+
+322         812 LOAD_FAST                0 (self)
+            814 LOAD_ATTR               33 (NULL|self + _record_input)
+            834 LOAD_CONST              16 ('rack_barcode')
+            836 LOAD_FAST               12 (code)
+            838 LOAD_CONST              26 (24)
+            840 CALL                     3
+            848 POP_TOP
+
+323         850 LOAD_GLOBAL             21 (NULL + record)
+            860 LOAD_CONST              21 ('rack')
+            862 LOAD_CONST              27 ('料框码首次读取或变化：')
+            864 LOAD_FAST               12 (code)
+            866 FORMAT_VALUE             0
+            868 BUILD_STRING             2
+            870 CALL                     2
+            878 POP_TOP
+
+324     >>  880 LOAD_GLOBAL             15 (NULL + str)
+            890 LOAD_FAST               11 (sample)
+            892 LOAD_ATTR               11 (NULL|self + get)
+            912 LOAD_CONST              28 ('product_barcode')
+            914 CALL                     1
+            922 COPY                     1
+            924 POP_JUMP_IF_TRUE         2 (to 930)
+            926 POP_TOP
+            928 LOAD_CONST              17 ('')
+        >>  930 CALL                     1
+            938 LOAD_ATTR               17 (NULL|self + strip)
+            958 CALL                     0
+            966 STORE_FAST              14 (product_code)
+
+325         968 LOAD_FAST               14 (product_code)
+            970 LOAD_ATTR               19 (NULL|self + casefold)
+            990 CALL                     0
+            998 LOAD_CONST              18 ('noread')
+           1000 COMPARE_OP              40 (==)
+           1004 POP_JUMP_IF_FALSE       38 (to 1082)
+
+326        1006 LOAD_FAST                4 (observed)
+           1008 LOAD_ATTR               11 (NULL|self + get)
+           1028 LOAD_CONST              29 ('product_scanner_status')
+           1030 CALL                     1
+           1038 LOAD_CONST              20 ('NoRead')
+           1040 COMPARE_OP              55 (!=)
+           1044 POP_JUMP_IF_FALSE       12 (to 1070)
+
+327        1046 LOAD_GLOBAL             21 (NULL + record)
+           1056 LOAD_CONST              30 ('mes')
+           1058 LOAD_CONST              31 ('产品扫码器返回 NoRead：等待重扫，不提交 MES')
+           1060 CALL                     2
+           1068 POP_TOP
+
+328     >> 1070 LOAD_CONST              20 ('NoRead')
+           1072 LOAD_FAST                4 (observed)
+           1074 LOAD_CONST              29 ('product_scanner_status')
+           1076 STORE_SUBSCR
+           1080 JUMP_FORWARD           167 (to 1416)
+
+329     >> 1082 LOAD_FAST               14 (product_code)
+           1084 POP_JUMP_IF_FALSE      165 (to 1416)
+
+330        1086 LOAD_FAST                4 (observed)
+           1088 LOAD_ATTR               23 (NULL|self + pop)
+           1108 LOAD_CONST              29 ('product_scanner_status')
+           1110 LOAD_CONST              11 (None)
+           1112 CALL                     2
+           1120 POP_TOP
+
+331        1122 LOAD_FAST               14 (product_code)
+           1124 LOAD_FAST                4 (observed)
+           1126 LOAD_ATTR               11 (NULL|self + get)
+           1146 LOAD_CONST              28 ('product_barcode')
+           1148 CALL                     1
+           1156 COMPARE_OP              55 (!=)
+           1160 POP_JUMP_IF_FALSE      127 (to 1416)
+
+333        1162 LOAD_FAST                5 (queue)
+           1164 LOAD_ATTR               31 (NULL|self + append)
+           1184 LOAD_CONST              32 ('mark_trigger')
+
+334        1186 LOAD_FAST               14 (product_code)
+
+335        1188 LOAD_FAST                4 (observed)
+           1190 LOAD_ATTR               11 (NULL|self + get)
+           1210 LOAD_CONST              16 ('rack_barcode')
+           1212 CALL                     1
+
+336        1220 LOAD_FAST                4 (observed)
+           1222 LOAD_ATTR               11 (NULL|self + get)
+           1242 LOAD_CONST              25 ('rack_round')
+           1244 CALL                     1
+
+334        1252 LOAD_CONST              33 (('product_barcode', 'rack_barcode', 'rack_round'))
+           1254 BUILD_CONST_KEY_MAP      3
+
+337        1256 LOAD_CONST              15 (True)
+
+338        1258 LOAD_GLOBAL             25 (NULL + timezone)
+           1268 LOAD_ATTR               26 (now)
+           1288 CALL                     0
+           1296 LOAD_ATTR               29 (NULL|self + isoformat)
+           1316 CALL                     0
+
+333        1324 LOAD_CONST              34 (('trigger', 'data', 'consumed', 'accepted_at'))
+           1326 BUILD_CONST_KEY_MAP      4
+           1328 CALL                     1
+           1336 POP_TOP
+
+339        1338 LOAD_FAST               14 (product_code)
+           1340 LOAD_FAST                4 (observed)
+           1342 LOAD_CONST              28 ('product_barcode')
+           1344 STORE_SUBSCR
+
+340        1348 LOAD_FAST                0 (self)
+           1350 LOAD_ATTR               33 (NULL|self + _record_input)
+           1370 LOAD_CONST              28 ('product_barcode')
+           1372 LOAD_FAST               14 (product_code)
+           1374 LOAD_CONST              35 (0)
+           1376 CALL                     3
+           1384 POP_TOP
+
+341        1386 LOAD_GLOBAL             21 (NULL + record)
+           1396 LOAD_CONST              30 ('mes')
+           1398 LOAD_CONST              36 ('产品条码首次读取或变化：')
+           1400 LOAD_FAST               14 (product_code)
+           1402 FORMAT_VALUE             0
+           1404 BUILD_STRING             2
+           1406 CALL                     2
+           1414 POP_TOP
+
+342     >> 1416 LOAD_CONST              14 (('position_trigger', 'foam_trigger', 'boxing_trigger'))
+           1418 GET_ITER
+        >> 1420 FOR_ITER               209 (to 1842)
+           1424 STORE_DEREF             30 (name)
+
+343        1426 LOAD_GLOBAL             35 (NULL + bool)
+           1436 LOAD_FAST               11 (sample)
+           1438 LOAD_ATTR               11 (NULL|self + get)
+           1458 LOAD_DEREF              30 (name)
+           1460 CALL                     1
+           1468 CALL                     1
+           1476 STORE_FAST              15 (value)
+
+344        1478 LOAD_FAST               15 (value)
+           1480 POP_JUMP_IF_FALSE      143 (to 1768)
+           1482 LOAD_FAST                4 (observed)
+           1484 LOAD_ATTR               11 (NULL|self + get)
+           1504 LOAD_DEREF              30 (name)
+           1506 CALL                     1
+           1514 LOAD_CONST              13 (False)
+           1516 IS_OP                    0
+           1518 POP_JUMP_IF_FALSE      124 (to 1768)
+           1520 LOAD_FAST                8 (debug)
+           1522 LOAD_CONST               8 ('enabled')
+           1524 BINARY_SUBSCR
+           1528 POP_JUMP_IF_FALSE        4 (to 1538)
+           1530 LOAD_DEREF              30 (name)
+           1532 LOAD_FAST                9 (vision_triggers)
+           1534 CONTAINS_OP              0
+           1536 POP_JUMP_IF_TRUE       115 (to 1768)
+
+345     >> 1538 LOAD_FAST                5 (queue)
+           1540 LOAD_ATTR               31 (NULL|self + append)
+           1560 LOAD_DEREF              30 (name)
+
+348        1562 LOAD_DEREF              30 (name)
+           1564 LOAD_CONST              37 ('boxing_trigger')
+           1566 COMPARE_OP              40 (==)
+           1570 POP_JUMP_IF_FALSE       35 (to 1642)
+
+346        1572 LOAD_FAST                4 (observed)
+           1574 LOAD_ATTR               11 (NULL|self + get)
+           1594 LOAD_CONST              16 ('rack_barcode')
+           1596 CALL                     1
+
+347        1604 LOAD_FAST                4 (observed)
+           1606 LOAD_ATTR               11 (NULL|self + get)
+           1626 LOAD_CONST              25 ('rack_round')
+           1628 CALL                     1
+
+345        1636 LOAD_CONST              38 (('rack_barcode', 'rack_round'))
+           1638 BUILD_CONST_KEY_MAP      2
+           1640 JUMP_FORWARD             1 (to 1644)
+
+348     >> 1642 BUILD_MAP                0
+
+349     >> 1644 LOAD_GLOBAL             25 (NULL + timezone)
+           1654 LOAD_ATTR               26 (now)
+           1674 CALL                     0
+           1682 LOAD_ATTR               29 (NULL|self + isoformat)
+           1702 CALL                     0
+
+345        1710 LOAD_CONST              24 (('trigger', 'data', 'accepted_at'))
+           1712 BUILD_CONST_KEY_MAP      3
+           1714 CALL                     1
+           1722 POP_TOP
+
+350        1724 LOAD_GLOBAL             21 (NULL + record)
+           1734 LOAD_GLOBAL             36 (CATEGORIES)
+           1744 LOAD_DEREF              30 (name)
+           1746 BINARY_SUBSCR
+           1750 LOAD_DEREF              30 (name)
+           1752 FORMAT_VALUE             0
+           1754 LOAD_CONST              39 (' 0→1')
+           1756 BUILD_STRING             2
+           1758 CALL                     2
+           1766 POP_TOP
+
+351     >> 1768 LOAD_DEREF              30 (name)
+           1770 LOAD_FAST                4 (observed)
+           1772 CONTAINS_OP              1
+           1774 POP_JUMP_IF_TRUE         8 (to 1792)
+           1776 LOAD_FAST               15 (value)
+           1778 LOAD_FAST                4 (observed)
+           1780 LOAD_DEREF              30 (name)
+           1782 BINARY_SUBSCR
+           1786 COMPARE_OP              55 (!=)
+           1790 POP_JUMP_IF_FALSE       19 (to 1830)
+
+352     >> 1792 LOAD_FAST                0 (self)
+           1794 LOAD_ATTR               33 (NULL|self + _record_input)
+           1814 LOAD_DEREF              30 (name)
+           1816 LOAD_FAST               15 (value)
+           1818 LOAD_CONST              40 (46)
+           1820 CALL                     3
+           1828 POP_TOP
+
+353     >> 1830 LOAD_FAST               15 (value)
+           1832 LOAD_FAST                4 (observed)
+           1834 LOAD_DEREF              30 (name)
+           1836 STORE_SUBSCR
+           1840 JUMP_BACKWARD          211 (to 1420)
+
+342     >> 1842 END_FOR
+           1844 EXTENDED_ARG             2
+           1846 JUMP_BACKWARD          734 (to 380)
+
+307     >> 1848 END_FOR
+
+354        1850 LOAD_FAST                8 (debug)
+           1852 LOAD_CONST               8 ('enabled')
+           1854 BINARY_SUBSCR
+           1858 POP_JUMP_IF_FALSE      107 (to 2074)
+
+355        1860 LOAD_FAST                9 (vision_triggers)
+           1862 GET_ITER
+        >> 1864 FOR_ITER               102 (to 2072)
+           1868 STORE_DEREF             30 (name)
+
+356        1870 LOAD_FAST                6 (samples)
+           1872 LOAD_CONST              41 (-1)
+           1874 BINARY_SUBSCR
+           1878 LOAD_ATTR               11 (NULL|self + get)
+           1898 LOAD_DEREF              30 (name)
+           1900 CALL                     1
+           1908 POP_JUMP_IF_TRUE         1 (to 1912)
+           1910 JUMP_BACKWARD           24 (to 1864)
+        >> 1912 LOAD_GLOBAL             39 (NULL + any)
+           1922 LOAD_CLOSURE            30 (name)
+           1924 BUILD_TUPLE              1
+           1926 LOAD_CONST              42 (<code object <genexpr> at 0x000001C6A9C2A970, file "apps\workflow\station_service.py", line 356>)
+           1928 MAKE_FUNCTION            8 (closure)
+           1930 LOAD_FAST                5 (queue)
+           1932 GET_ITER
+           1934 CALL                     0
+           1942 CALL                     1
+           1950 POP_JUMP_IF_FALSE        1 (to 1954)
+           1952 JUMP_BACKWARD           45 (to 1864)
+
+357     >> 1954 LOAD_FAST                5 (queue)
+           1956 LOAD_ATTR               31 (NULL|self + append)
+           1976 LOAD_DEREF              30 (name)
+           1978 BUILD_MAP                0
+           1980 LOAD_CONST              15 (True)
+
+358        1982 LOAD_FAST                8 (debug)
+           1984 LOAD_CONST              10 ('generation')
+           1986 BINARY_SUBSCR
+
+359        1990 LOAD_GLOBAL             25 (NULL + timezone)
+           2000 LOAD_ATTR               26 (now)
+           2020 CALL                     0
+           2028 LOAD_ATTR               29 (NULL|self + isoformat)
+           2048 CALL                     0
+
+357        2056 LOAD_CONST              43 (('trigger', 'data', 'debug_repeat', 'debug_generation', 'accepted_at'))
+           2058 BUILD_CONST_KEY_MAP      5
+           2060 CALL                     1
+           2068 POP_TOP
+           2070 JUMP_BACKWARD          104 (to 1864)
+
+355     >> 2072 END_FOR
+
+360     >> 2074 LOAD_FAST                0 (self)
+           2076 LOAD_ATTR               41 (NULL|self + _save_io)
+           2096 LOAD_FAST                1 (cycle)
+           2098 CALL                     1
+           2106 POP_TOP
+
+362        2108 LOAD_GLOBAL             42 (StationPhase)
+           2118 LOAD_ATTR               44 (WAIT_PRODUCT)
+           2138 LOAD_FAST                0 (self)
+           2140 LOAD_ATTR               46 (_product_trigger)
+
+363        2160 LOAD_CONST              44 (('product_mes_upload_done', 'product_mes_upload_success'))
+
+362        2162 BUILD_TUPLE              3
+
+364        2164 LOAD_GLOBAL             42 (StationPhase)
+           2174 LOAD_ATTR               48 (WAIT_RACK)
+           2194 LOAD_FAST                0 (self)
+           2196 LOAD_ATTR               50 (_rack_trigger)
+           2216 LOAD_CONST              45 (('rack_done',))
+           2218 BUILD_TUPLE              3
+
+365        2220 LOAD_GLOBAL             42 (StationPhase)
+           2230 LOAD_ATTR               52 (WAIT_POSITION)
+           2250 LOAD_FAST                0 (self)
+           2252 LOAD_ATTR               54 (_position_trigger)
+
+366        2272 LOAD_CONST              46 (())
+
+365        2274 BUILD_TUPLE              3
+
+367        2276 LOAD_GLOBAL             42 (StationPhase)
+           2286 LOAD_ATTR               56 (WAIT_FOAM)
+           2306 LOAD_FAST                0 (self)
+           2308 LOAD_ATTR               58 (_foam_trigger)
+           2328 LOAD_CONST              46 (())
+           2330 BUILD_TUPLE              3
+
+368        2332 LOAD_GLOBAL             42 (StationPhase)
+           2342 LOAD_ATTR               60 (WAIT_BOXING)
+           2362 LOAD_FAST                0 (self)
+           2364 LOAD_ATTR               62 (_mes_box_trigger)
+           2384 LOAD_CONST              47 (('mes_upload_done',))
+           2386 BUILD_TUPLE              3
+
+361        2388 LOAD_CONST              48 (('mark_trigger', 'rack_trigger', 'position_trigger', 'foam_trigger', 'boxing_trigger'))
+           2390 BUILD_CONST_KEY_MAP      5
+           2392 STORE_FAST              16 (handlers)
+
+370        2394 LOAD_CONST              13 (False)
+           2396 STORE_FAST              17 (changed)
+
+372        2398 LOAD_GLOBAL             65 (NULL + set)
+           2408 CALL                     0
+           2416 STORE_FAST              18 (blocked)
+
+373        2418 LOAD_GLOBAL             67 (NULL + list)
+           2428 LOAD_FAST                5 (queue)
+           2430 CALL                     1
+           2438 GET_ITER
+        >> 2440 EXTENDED_ARG             2
+           2442 FOR_ITER               749 (to 3944)
+           2446 STORE_FAST              19 (pending)
+
+374        2448 LOAD_FAST               19 (pending)
+           2450 LOAD_CONST              49 ('trigger')
+           2452 BINARY_SUBSCR
+           2456 STORE_FAST              20 (trigger)
+
+375        2458 LOAD_FAST               19 (pending)
+           2460 LOAD_ATTR               11 (NULL|self + get)
+           2480 LOAD_CONST               7 ('debug_repeat')
+           2482 CALL                     1
+           2490 POP_JUMP_IF_FALSE      211 (to 2914)
+
+376        2492 PUSH_NULL
+           2494 LOAD_FAST                7 (debug_status)
+           2496 CALL                     0
+           2504 STORE_FAST              21 (current_debug)
+
+377        2506 LOAD_GLOBAL              5 (NULL + getattr)
+           2516 LOAD_FAST                0 (self)
+           2518 LOAD_CONST              50 ('input_sampler')
+           2520 LOAD_CONST              11 (None)
+           2522 CALL                     3
+           2530 POP_JUMP_IF_FALSE      140 (to 2812)
+
+378        2532 LOAD_CONST               4 (1)
+           2534 LOAD_CONST              51 (('input_status',))
+           2536 IMPORT_NAME              3 (listener)
+           2538 IMPORT_FROM             34 (input_status)
+           2540 STORE_FAST              22 (input_status)
+           2542 POP_TOP
+
+379        2544 LOAD_CONST              35 (0)
+           2546 LOAD_CONST              11 (None)
+           2548 IMPORT_NAME             35 (time)
+           2550 STORE_FAST              23 (time)
+
+380        2552 PUSH_NULL
+           2554 LOAD_FAST               22 (input_status)
+           2556 CALL                     0
+           2564 STORE_FAST              24 (live)
+
+381        2566 LOAD_FAST               24 (live)
+           2568 LOAD_ATTR               11 (NULL|self + get)
+           2588 LOAD_CONST              52 ('error')
+           2590 CALL                     1
+           2598 POP_JUMP_IF_TRUE        71 (to 2742)
+           2600 LOAD_FAST               23 (time)
+           2602 LOAD_ATTR               73 (NULL|self + monotonic)
+           2622 CALL                     0
+           2630 LOAD_FAST               24 (live)
+           2632 LOAD_ATTR               11 (NULL|self + get)
+           2652 LOAD_CONST              53 ('sampled_at')
+           2654 LOAD_CONST              35 (0)
+           2656 CALL                     2
+           2664 BINARY_OP               10 (-)
+           2668 LOAD_CONST              54 (15)
+           2670 COMPARE_OP              68 (>)
+           2674 POP_JUMP_IF_TRUE        33 (to 2742)
+
+382        2676 LOAD_FAST               24 (live)
+           2678 LOAD_ATTR               11 (NULL|self + get)
+           2698 LOAD_CONST              55 ('values')
+           2700 BUILD_MAP                0
+           2702 CALL                     2
+           2710 LOAD_ATTR               11 (NULL|self + get)
+           2730 LOAD_FAST               20 (trigger)
+           2732 CALL                     1
+           2740 POP_JUMP_IF_TRUE        35 (to 2812)
+
+383     >> 2742 LOAD_FAST                5 (queue)
+           2744 LOAD_ATTR               75 (NULL|self + remove)
+           2764 LOAD_FAST               19 (pending)
+           2766 CALL                     1
+           2774 POP_TOP
+
+384        2776 LOAD_FAST                0 (self)
+           2778 LOAD_ATTR               41 (NULL|self + _save_io)
+           2798 LOAD_FAST                1 (cycle)
+           2800 CALL                     1
+           2808 POP_TOP
+
+385        2810 JUMP_BACKWARD          186 (to 2440)
+
+386     >> 2812 LOAD_FAST               21 (current_debug)
+           2814 LOAD_CONST               8 ('enabled')
+           2816 BINARY_SUBSCR
+           2820 POP_JUMP_IF_FALSE       11 (to 2844)
+           2822 LOAD_FAST               19 (pending)
+           2824 LOAD_CONST               9 ('debug_generation')
+           2826 BINARY_SUBSCR
+           2830 LOAD_FAST               21 (current_debug)
+           2832 LOAD_CONST              10 ('generation')
+           2834 BINARY_SUBSCR
+           2838 COMPARE_OP              55 (!=)
+           2842 POP_JUMP_IF_FALSE       35 (to 2914)
+
+387     >> 2844 LOAD_FAST                5 (queue)
+           2846 LOAD_ATTR               75 (NULL|self + remove)
+           2866 LOAD_FAST               19 (pending)
+           2868 CALL                     1
+           2876 POP_TOP
+
+388        2878 LOAD_FAST                0 (self)
+           2880 LOAD_ATTR               41 (NULL|self + _save_io)
+           2900 LOAD_FAST                1 (cycle)
+           2902 CALL                     1
+           2910 POP_TOP
+
+389        2912 JUMP_BACKWARD          237 (to 2440)
+
+390     >> 2914 LOAD_FAST               20 (trigger)
+           2916 LOAD_FAST               18 (blocked)
+           2918 CONTAINS_OP              0
+           2920 POP_JUMP_IF_FALSE        1 (to 2924)
+
+391        2922 JUMP_BACKWARD          242 (to 2440)
+
+392     >> 2924 LOAD_FAST               16 (handlers)
+           2926 LOAD_FAST               20 (trigger)
+           2928 BINARY_SUBSCR
+           2932 UNPACK_SEQUENCE          3
+           2936 STORE_FAST              25 (phase)
+           2938 STORE_FAST              26 (execute)
+           2940 STORE_FAST              27 (feedback)
+
+393        2942 LOAD_FAST               19 (pending)
+           2944 LOAD_FAST                3 (state)
+           2946 LOAD_CONST              56 ('pending')
+           2948 STORE_SUBSCR
+
+394        2952 LOAD_FAST               25 (phase)
+           2954 LOAD_FAST                1 (cycle)
+           2956 STORE_ATTR              38 (phase)
+
+395        2966 NOP
+
+396        2968 LOAD_FAST               19 (pending)
+           2970 LOAD_ATTR               11 (NULL|self + get)
+           2990 LOAD_CONST              57 ('feedback_cleared')
+           2992 CALL                     1
+           3000 POP_JUMP_IF_TRUE        57 (to 3116)
+
+397        3002 LOAD_FAST               27 (feedback)
+           3004 GET_ITER
+        >> 3006 FOR_ITER                30 (to 3070)
+           3010 STORE_DEREF             30 (name)
+
+398        3012 LOAD_FAST                0 (self)
+           3014 LOAD_ATTR               78 (plc)
+           3034 LOAD_ATTR               81 (NULL|self + write_point)
+           3054 LOAD_DEREF              30 (name)
+           3056 LOAD_CONST              13 (False)
+           3058 CALL                     2
+           3066 POP_TOP
+           3068 JUMP_BACKWARD           32 (to 3006)
+
+397     >> 3070 END_FOR
+
+399        3072 LOAD_CONST              15 (True)
+           3074 LOAD_FAST               19 (pending)
+           3076 LOAD_CONST              57 ('feedback_cleared')
+           3078 STORE_SUBSCR
+
+400        3082 LOAD_FAST                0 (self)
+           3084 LOAD_ATTR               41 (NULL|self + _save_io)
+           3104 LOAD_FAST                1 (cycle)
+           3106 CALL                     1
+           3114 POP_TOP
+
+401     >> 3116 PUSH_NULL
+           3118 LOAD_FAST               26 (execute)
+           3120 LOAD_FAST                1 (cycle)
+           3122 LOAD_FAST                2 (snapshot)
+           3124 CALL                     2
+           3132 STORE_FAST              28 (result)
+
+413        3134 LOAD_FAST               28 (result)
+           3136 POP_JUMP_IF_FALSE      251 (to 3640)
+
+414        3138 LOAD_FAST                5 (queue)
+           3140 LOAD_ATTR               75 (NULL|self + remove)
+           3160 LOAD_FAST               19 (pending)
+           3162 CALL                     1
+           3170 POP_TOP
+
+415        3172 LOAD_CONST              15 (True)
+           3174 STORE_FAST              17 (changed)
+
+416        3176 LOAD_GLOBAL             21 (NULL + record)
+           3186 LOAD_GLOBAL             36 (CATEGORIES)
+           3196 LOAD_FAST               20 (trigger)
+           3198 BINARY_SUBSCR
+           3202 LOAD_FAST               20 (trigger)
+           3204 FORMAT_VALUE             0
+           3206 LOAD_CONST              58 (' 执行完成')
+           3208 BUILD_STRING             2
+           3210 CALL                     2
+           3218 POP_TOP
+
+417        3220 LOAD_FAST               20 (trigger)
+           3222 LOAD_CONST              37 ('boxing_trigger')
+           3224 COMPARE_OP              40 (==)
+           3228 POP_JUMP_IF_FALSE      144 (to 3518)
+           3230 LOAD_FAST                1 (cycle)
+           3232 LOAD_ATTR               82 (mes_upload_success)
+           3252 POP_JUMP_IF_FALSE      132 (to 3518)
+
+418        3254 LOAD_FAST               19 (pending)
+           3256 LOAD_CONST              59 ('data')
+           3258 BINARY_SUBSCR
+           3262 LOAD_ATTR               11 (NULL|self + get)
+           3282 LOAD_CONST              25 ('rack_round')
+           3284 CALL                     1
+           3292 LOAD_FAST                3 (state)
+           3294 LOAD_ATTR               11 (NULL|self + get)
+           3314 LOAD_CONST              60 ('active_rack_round')
+           3316 CALL                     1
+           3324 COMPARE_OP              40 (==)
+           3328 POP_JUMP_IF_FALSE       94 (to 3518)
+
+419        3330 LOAD_GLOBAL             25 (NULL + timezone)
+           3340 LOAD_ATTR               26 (now)
+           3360 CALL                     0
+           3368 LOAD_FAST                1 (cycle)
+           3370 STORE_ATTR              42 (finished_at)
+
+420        3380 LOAD_FAST                1 (cycle)
+           3382 LOAD_ATTR               87 (NULL|self + save)
+           3402 LOAD_CONST              61 ('finished_at')
+           3404 LOAD_CONST              62 ('updated_at')
+           3406 BUILD_LIST               2
+           3408 KW_NAMES                63 (('update_fields',))
+           3410 CALL                     1
+           3418 POP_TOP
+
+422        3420 LOAD_FAST                0 (self)
+           3422 LOAD_ATTR               89 (NULL|self + _set_phase)
+           3442 LOAD_FAST                1 (cycle)
+           3444 LOAD_GLOBAL             42 (StationPhase)
+           3454 LOAD_ATTR               48 (WAIT_RACK)
+
+423        3474 LOAD_GLOBAL             90 (WorkflowState)
+           3484 LOAD_ATTR               92 (COMPLETED)
+
+422        3504 KW_NAMES                64 (('workflow_state',))
+           3506 CALL                     3
+           3514 POP_TOP
+           3516 JUMP_FORWARD            61 (to 3640)
+
+424     >> 3518 LOAD_FAST                1 (cycle)
+           3520 LOAD_ATTR               76 (phase)
+           3540 LOAD_GLOBAL             42 (StationPhase)
+           3550 LOAD_ATTR               94 (LOCKED)
+           3570 COMPARE_OP              55 (!=)
+           3574 POP_JUMP_IF_FALSE       32 (to 3640)
+
+425        3576 LOAD_FAST                0 (self)
+           3578 LOAD_ATTR               89 (NULL|self + _set_phase)
+           3598 LOAD_FAST                1 (cycle)
+           3600 LOAD_GLOBAL             42 (StationPhase)
+           3610 LOAD_ATTR               48 (WAIT_RACK)
+           3630 CALL                     2
+           3638 POP_TOP
+
+426     >> 3640 LOAD_FAST                1 (cycle)
+           3642 LOAD_ATTR               76 (phase)
+           3662 LOAD_GLOBAL             42 (StationPhase)
+           3672 LOAD_ATTR               94 (LOCKED)
+           3692 LOAD_GLOBAL             42 (StationPhase)
+           3702 LOAD_ATTR               92 (COMPLETED)
+           3722 BUILD_TUPLE              2
+           3724 CONTAINS_OP              0
+           3726 POP_JUMP_IF_FALSE       68 (to 3864)
+
+427        3728 LOAD_FAST                1 (cycle)
+           3730 LOAD_ATTR               76 (phase)
+           3750 LOAD_GLOBAL             42 (StationPhase)
+           3760 LOAD_ATTR               92 (COMPLETED)
+           3780 COMPARE_OP              40 (==)
+           3784 POP_JUMP_IF_FALSE       18 (to 3822)
+
+428        3786 LOAD_FAST                3 (state)
+           3788 LOAD_ATTR               23 (NULL|self + pop)
+           3808 LOAD_CONST              56 ('pending')
+           3810 LOAD_CONST              11 (None)
+           3812 CALL                     2
+           3820 POP_TOP
+
+429     >> 3822 LOAD_FAST                0 (self)
+           3824 LOAD_ATTR               41 (NULL|self + _save_io)
+           3844 LOAD_FAST                1 (cycle)
+           3846 CALL                     1
+           3854 POP_TOP
+
+430        3856 LOAD_FAST               17 (changed)
+           3858 SWAP                     2
+           3860 POP_TOP
+           3862 RETURN_VALUE
+
+431     >> 3864 LOAD_FAST                3 (state)
+           3866 LOAD_ATTR               23 (NULL|self + pop)
+           3886 LOAD_CONST              56 ('pending')
+           3888 LOAD_CONST              11 (None)
+           3890 CALL                     2
+           3898 POP_TOP
+
+432        3900 LOAD_FAST                1 (cycle)
+           3902 LOAD_ATTR               87 (NULL|self + save)
+           3922 BUILD_LIST               0
+           3924 LOAD_CONST              66 (('io_state', 'phase', 'updated_at'))
+           3926 LIST_EXTEND              1
+           3928 KW_NAMES                63 (('update_fields',))
+           3930 CALL                     1
+           3938 POP_TOP
+           3940 EXTENDED_ARG             2
+           3942 JUMP_BACKWARD          752 (to 2440)
+
+373     >> 3944 END_FOR
+
+433        3946 LOAD_FAST               17 (changed)
+           3948 RETURN_VALUE
+        >> 3950 SWAP                     2
+           3952 POP_TOP
+
+300        3954 SWAP                     2
+           3956 STORE_FAST              10 (job)
+           3958 RERAISE                  0
+        >> 3960 PUSH_EXC_INFO
+
+402        3962 LOAD_GLOBAL             96 (RemotePending)
+           3972 CHECK_EXC_MATCH
+           3974 POP_JUMP_IF_FALSE       20 (to 4016)
+           3976 POP_TOP
+
+403        3978 LOAD_FAST               18 (blocked)
+           3980 LOAD_ATTR               99 (NULL|self + add)
+           4000 LOAD_FAST               20 (trigger)
+           4002 CALL                     1
+           4010 POP_TOP
+           4012 POP_EXCEPT
+           4014 JUMP_BACKWARD           76 (to 3864)
+
+404     >> 4016 LOAD_GLOBAL            100 (Exception)
+           4026 CHECK_EXC_MATCH
+           4028 POP_JUMP_IF_FALSE      100 (to 4230)
+           4030 STORE_FAST              29 (exc)
+
+407        4032 LOAD_FAST                0 (self)
+           4034 LOAD_ATTR              103 (NULL|self + _write_failure_result)
+           4054 LOAD_FAST                1 (cycle)
+           4056 CALL                     1
+           4064 POP_TOP
+
+408        4066 LOAD_FAST                0 (self)
+           4068 LOAD_ATTR              105 (NULL|self + _channel_failure)
+           4088 LOAD_FAST                1 (cycle)
+           4090 LOAD_FAST               20 (trigger)
+           4092 LOAD_GLOBAL             15 (NULL + str)
+           4102 LOAD_FAST               29 (exc)
+           4104 CALL                     1
+
+409        4112 LOAD_GLOBAL              5 (NULL + getattr)
+           4122 LOAD_FAST               29 (exc)
+           4124 LOAD_CONST              65 ('source')
+           4126 LOAD_GLOBAL            106 (AlarmSource)
+           4136 LOAD_ATTR              108 (WORKFLOW)
+           4156 CALL                     3
+
+408        4164 CALL                     4
+           4172 POP_TOP
+
+410        4174 LOAD_FAST                5 (queue)
+           4176 LOAD_ATTR               75 (NULL|self + remove)
+           4196 LOAD_FAST               19 (pending)
+           4198 CALL                     1
+           4206 POP_TOP
+
+411        4208 LOAD_CONST              15 (True)
+           4210 STORE_FAST              17 (changed)
+           4212 POP_EXCEPT
+           4214 LOAD_CONST              11 (None)
+           4216 STORE_FAST              29 (exc)
+           4218 DELETE_FAST             29 (exc)
+           4220 JUMP_BACKWARD          179 (to 3864)
+        >> 4222 LOAD_CONST              11 (None)
+           4224 STORE_FAST              29 (exc)
+           4226 DELETE_FAST             29 (exc)
+           4228 RERAISE                  1
+
+404     >> 4230 RERAISE                  0
+        >> 4232 COPY                     3
+           4234 POP_EXCEPT
+           4236 RERAISE                  1
+ExceptionTable:
+  166 to 272 -> 3950 [2]
+  2968 to 3132 -> 3960 [1]
+  3960 to 4010 -> 4232 [2] lasti
+  4016 to 4030 -> 4232 [2] lasti
+  4032 to 4210 -> 4222 [2] lasti
+  4222 to 4230 -> 4232 [2] lasti
+
+Disassembly of <code object <genexpr> at 0x000001C6A9C2A970, file "apps\workflow\station_service.py", line 356>:
+              0 COPY_FREE_VARS           1
+
+356           2 RETURN_GENERATOR
+              4 POP_TOP
+              6 RESUME                   0
+              8 LOAD_FAST                0 (.0)
+        >>   10 FOR_ITER                12 (to 38)
+             14 STORE_FAST               1 (job)
+             16 LOAD_FAST                1 (job)
+             18 LOAD_CONST               0 ('trigger')
+             20 BINARY_SUBSCR
+             24 LOAD_DEREF               2 (name)
+             26 COMPARE_OP              40 (==)
+             30 YIELD_VALUE              1
+             32 RESUME                   1
+             34 POP_TOP
+             36 JUMP_BACKWARD           14 (to 10)
+        >>   38 END_FOR
+             40 RETURN_CONST             1 (None)
+        >>   42 CALL_INTRINSIC_1         3 (INTRINSIC_STOPITERATION_ERROR)
+             44 RERAISE                  1
+ExceptionTable:
+  6 to 40 -> 42 [0] lasti
+_position_trigger
+643           0 RESUME                   0
+
+644           2 LOAD_FAST                0 (self)
+              4 LOAD_ATTR                1 (NULL|self + _accept)
+             24 LOAD_FAST                1 (cycle)
+             26 LOAD_FAST                2 (snapshot)
+             28 LOAD_CONST               1 ('position_trigger')
+             30 CALL                     3
+             38 STORE_FAST               3 (pending)
+
+645          40 LOAD_FAST                3 (pending)
+             42 POP_JUMP_IF_NOT_NONE     1 (to 46)
+
+646          44 RETURN_CONST             2 (False)
+
+647     >>   46 LOAD_CONST               3 ('values')
+             48 LOAD_FAST                3 (pending)
+             50 CONTAINS_OP              1
+             52 POP_JUMP_IF_FALSE      131 (to 316)
+
+648          54 LOAD_FAST                3 (pending)
+             56 LOAD_ATTR                3 (NULL|self + get)
+             76 LOAD_CONST               4 ('capture_started')
+             78 CALL                     1
+             86 POP_JUMP_IF_FALSE       26 (to 140)
+
+649          88 LOAD_GLOBAL              5 (NULL + StationStepError)
+             98 LOAD_CONST               5 ('上次 3D 任务被中断，请确认后重新触发')
+            100 LOAD_GLOBAL              6 (AlarmSource)
+            110 LOAD_ATTR                8 (VISION)
+            130 CALL                     2
+            138 RAISE_VARARGS            1
+
+650     >>  140 LOAD_CONST               6 (True)
+            142 LOAD_FAST                3 (pending)
+            144 LOAD_CONST               4 ('capture_started')
+            146 STORE_SUBSCR
+
+651         150 LOAD_FAST                0 (self)
+            152 LOAD_ATTR               11 (NULL|self + _save_io)
+            172 LOAD_FAST                1 (cycle)
+            174 CALL                     1
+            182 POP_TOP
+
+652         184 LOAD_GLOBAL             13 (NULL + record)
+            194 LOAD_CONST               7 ('3d')
+            196 LOAD_CONST               8 ('3D 触发已受理，正在检查默认配方并请求相机拍照')
+            198 CALL                     2
+            206 POP_TOP
+
+653         208 LOAD_CONST               9 (<code object captured at 0x000001C6AB0DDFB0, file "apps\workflow\station_service.py", line 653>)
+            210 MAKE_FUNCTION            0
+            212 STORE_FAST               4 (captured)
+
+655         214 LOAD_FAST                0 (self)
+            216 LOAD_ATTR               14 (vision)
+            236 LOAD_ATTR               17 (NULL|self + calculate_position_offsets)
+
+656         256 LOAD_FAST                1 (cycle)
+            258 LOAD_FAST                4 (captured)
+
+655         260 KW_NAMES                10 (('on_captured',))
+            262 CALL                     2
+            270 STORE_FAST               5 (values)
+
+658         272 LOAD_FAST                5 (values)
+            274 LOAD_FAST                3 (pending)
+            276 LOAD_CONST               3 ('values')
+            278 STORE_SUBSCR
+
+659         282 LOAD_FAST                0 (self)
+            284 LOAD_ATTR               11 (NULL|self + _save_io)
+            304 LOAD_FAST                1 (cycle)
+            306 CALL                     1
+            314 POP_TOP
+
+660     >>  316 LOAD_FAST                3 (pending)
+            318 LOAD_CONST               3 ('values')
+            320 BINARY_SUBSCR
+            324 STORE_FAST               5 (values)
+
+661         326 LOAD_CONST              11 (0)
+            328 LOAD_CONST              12 (('position_values',))
+            330 IMPORT_NAME              9 (apps.devices.plc_db100)
+            332 IMPORT_FROM             10 (position_values)
+            334 STORE_FAST               6 (position_values)
+            336 POP_TOP
+
+662         338 PUSH_NULL
+            340 LOAD_FAST                6 (position_values)
+            342 LOAD_FAST                5 (values)
+            344 LOAD_ATTR               23 (NULL|self + items)
+            364 CALL                     0
+            372 GET_ITER
+            374 LOAD_FAST_AND_CLEAR      7 (axis)
+            376 LOAD_FAST_AND_CLEAR      8 (value)
+            378 SWAP                     3
+            380 BUILD_MAP                0
+            382 SWAP                     2
+        >>  384 FOR_ITER                11 (to 410)
+            388 UNPACK_SEQUENCE          2
+            392 STORE_FAST               7 (axis)
+            394 STORE_FAST               8 (value)
+            396 LOAD_CONST              13 ('compensation_')
+            398 LOAD_FAST                7 (axis)
+            400 FORMAT_VALUE             0
+            402 BUILD_STRING             2
+            404 LOAD_FAST                8 (value)
+            406 MAP_ADD                  2
+            408 JUMP_BACKWARD           13 (to 384)
+        >>  410 END_FOR
+            412 SWAP                     3
+            414 STORE_FAST               8 (value)
+            416 STORE_FAST               7 (axis)
+            418 CALL                     1
+            426 STORE_FAST               5 (values)
+
+663         428 LOAD_FAST                5 (values)
+            430 LOAD_ATTR               23 (NULL|self + items)
+            450 CALL                     0
+            458 GET_ITER
+        >>  460 FOR_ITER                46 (to 556)
+            464 UNPACK_SEQUENCE          2
+            468 STORE_FAST               7 (axis)
+            470 STORE_FAST               8 (value)
+
+664         472 LOAD_CONST              14 ('layer_delta_')
+            474 LOAD_FAST                7 (axis)
+            476 FORMAT_VALUE             0
+            478 BUILD_STRING             2
+            480 STORE_FAST               9 (name)
+
+665         482 LOAD_FAST                0 (self)
+            484 LOAD_ATTR               25 (NULL|self + _write)
+            504 LOAD_FAST                9 (name)
+            506 LOAD_FAST                8 (value)
+            508 LOAD_GLOBAL             26 (POINTS_BY_NAME)
+            518 LOAD_FAST                9 (name)
+            520 BINARY_SUBSCR
+            524 LOAD_ATTR               28 (offset)
+            544 CALL                     3
+            552 POP_TOP
+            554 JUMP_BACKWARD           48 (to 460)
+
+663     >>  556 END_FOR
+
+666         558 LOAD_FAST                5 (values)
+            560 LOAD_ATTR               23 (NULL|self + items)
+            580 CALL                     0
+            588 GET_ITER
+        >>  590 FOR_ITER                67 (to 728)
+            594 UNPACK_SEQUENCE          2
+            598 STORE_FAST               7 (axis)
+            600 STORE_FAST               8 (value)
+
+667         602 LOAD_FAST                0 (self)
+            604 LOAD_ATTR               30 (plc)
+            624 LOAD_ATTR               33 (NULL|self + read_point)
+            644 LOAD_CONST              14 ('layer_delta_')
+            646 LOAD_FAST                7 (axis)
+            648 FORMAT_VALUE             0
+            650 BUILD_STRING             2
+            652 CALL                     1
+            660 LOAD_FAST                8 (value)
+            662 COMPARE_OP              55 (!=)
+            666 POP_JUMP_IF_TRUE         1 (to 670)
+            668 JUMP_BACKWARD           40 (to 590)
+
+668     >>  670 LOAD_GLOBAL              5 (NULL + StationStepError)
+            680 LOAD_FAST                7 (axis)
+            682 FORMAT_VALUE             0
+            684 LOAD_CONST              15 (' 写后回读不一致')
+            686 BUILD_STRING             2
+            688 LOAD_GLOBAL              6 (AlarmSource)
+            698 LOAD_ATTR               34 (DEVICE)
+            718 CALL                     2
+            726 RAISE_VARARGS            1
+
+666     >>  728 END_FOR
+
+669         730 LOAD_GLOBAL             37 (NULL + Decimal)
+            740 LOAD_GLOBAL             39 (NULL + str)
+            750 LOAD_FAST                5 (values)
+            752 LOAD_CONST              16 ('z')
+            754 BINARY_SUBSCR
+            758 CALL                     1
+            766 CALL                     1
+            774 STORE_FAST              10 (delta_z)
+
+670         776 LOAD_FAST               10 (delta_z)
+            778 LOAD_FAST                1 (cycle)
+            780 STORE_ATTR              20 (position_delta_z)
+
+671         790 LOAD_CONST              17 (('x', 'y', 'z'))
+            792 GET_ITER
+            794 LOAD_FAST_AND_CLEAR     11 (a)
+            796 SWAP                     2
+            798 BUILD_LIST               0
+            800 SWAP                     2
+        >>  802 FOR_ITER                 7 (to 820)
+            806 STORE_FAST              11 (a)
+            808 LOAD_FAST                5 (values)
+            810 LOAD_FAST               11 (a)
+            812 BINARY_SUBSCR
+            816 LIST_APPEND              2
+            818 JUMP_BACKWARD            9 (to 802)
+        >>  820 END_FOR
+            822 SWAP                     2
+            824 STORE_FAST              11 (a)
+
+672         826 LOAD_CONST              18 (('x2', 'y2', 'z2'))
+            828 GET_ITER
+            830 LOAD_FAST_AND_CLEAR     11 (a)
+            832 SWAP                     2
+            834 BUILD_LIST               0
+            836 SWAP                     2
+        >>  838 FOR_ITER                 7 (to 856)
+            842 STORE_FAST              11 (a)
+            844 LOAD_FAST                5 (values)
+            846 LOAD_FAST               11 (a)
+            848 BINARY_SUBSCR
+            852 LIST_APPEND              2
+            854 JUMP_BACKWARD            9 (to 838)
+        >>  856 END_FOR
+            858 SWAP                     2
+            860 STORE_FAST              11 (a)
+
+671         862 BUILD_LIST               2
+            864 LOAD_FAST                1 (cycle)
+            866 STORE_ATTR              21 (positioning_matrix)
+
+673         876 LOAD_FAST                1 (cycle)
+            878 LOAD_ATTR               45 (NULL|self + save)
+            898 BUILD_LIST               0
+            900 LOAD_CONST              19 (('position_delta_z', 'positioning_matrix', 'updated_at'))
+            902 LIST_EXTEND              1
+            904 KW_NAMES                20 (('update_fields',))
+            906 CALL                     1
+            914 POP_TOP
+
+674         916 LOAD_FAST                0 (self)
+            918 LOAD_ATTR               47 (NULL|self + _set_phase)
+
+675         938 LOAD_FAST                1 (cycle)
+            940 LOAD_GLOBAL             48 (StationPhase)
+            950 LOAD_ATTR               50 (WAIT_POSITION_RESET)
+            970 LOAD_CONST              21 ('POSITIONED')
+
+676         972 LOAD_GLOBAL             52 (EventSource)
+            982 LOAD_ATTR                8 (VISION)
+           1002 LOAD_CONST              22 ('当前层两组 XYZ 已写入 DB2.DBD50～70')
+
+677        1004 LOAD_FAST                5 (values)
+           1006 LOAD_GLOBAL             54 (WorkflowState)
+           1016 LOAD_ATTR               56 (RACK_LOCATED)
+
+674        1036 KW_NAMES                23 (('event_type', 'source', 'message', 'payload', 'workflow_state'))
+           1038 CALL                     7
+           1046 POP_TOP
+
+679        1048 RETURN_CONST             6 (True)
+        >> 1050 SWAP                     2
+           1052 POP_TOP
+
+662        1054 SWAP                     3
+           1056 STORE_FAST               8 (value)
+           1058 STORE_FAST               7 (axis)
+           1060 RERAISE                  0
+        >> 1062 SWAP                     2
+           1064 POP_TOP
+
+671        1066 SWAP                     2
+           1068 STORE_FAST              11 (a)
+           1070 RERAISE                  0
+        >> 1072 SWAP                     2
+           1074 POP_TOP
+
+672        1076 SWAP                     2
+           1078 STORE_FAST              11 (a)
+           1080 RERAISE                  0
+ExceptionTable:
+  380 to 410 -> 1050 [5]
+  798 to 820 -> 1062 [2]
+  834 to 856 -> 1072 [3]
+
+Disassembly of <code object captured at 0x000001C6AB0DDFB0, file "apps\workflow\station_service.py", line 653>:
+653           0 RESUME                   0
+
+654           2 LOAD_GLOBAL              1 (NULL + record)
+             12 LOAD_CONST               1 ('3d')
+             14 LOAD_CONST               2 ('3D 相机采集完成，开始自动计算并保存视觉历史')
+             16 CALL                     2
+             24 POP_TOP
+             26 RETURN_CONST             0 (None)

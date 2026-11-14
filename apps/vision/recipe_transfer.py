@@ -1,13 +1,6 @@
 """Versioned, create-only JSON transfer for both vision recipe families."""
-import base64
-import binascii
 import json
-import re
-import shutil
-import uuid
-from pathlib import Path
 
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models, transaction, IntegrityError
@@ -60,19 +53,25 @@ def unique_name(model, field, value):
     return candidate
 
 
-def template_paths(data, callback):
-    """Visit only the 2D template's documented file references, not arbitrary paths."""
-    template = data.get('standard_template_config') or {}
-    for container, key in [(template, 'source_image_path')] + [
-        (side, 'path') for side in (template.get('sides') or {}).values() if isinstance(side, dict)
-    ]:
-        if container.get(key):
-            container[key] = callback(container[key])
-    for key in ('standardMaskPaths', 'standard_mask_paths'):
-        paths = (data.get('threshold_config') or {}).get(key) or {}
-        for side, value in paths.items():
-            if value:
-                paths[side] = callback(value)
+def roi_recipe_data(data):
+    """Transfer ROI geometry and parameters, never legacy image templates."""
+    data = dict(data)
+    for key in ('standard_template_config', 'standard_template_version', 'standard_template_built_at'):
+        data.pop(key, None)
+    thresholds = data.get('threshold_config', {})
+    if not isinstance(thresholds, dict):
+        raise ValueError('threshold_config 必须是 JSON 对象')
+    data['threshold_config'] = {k: v for k, v in thresholds.items()
+                                if k not in ('standardMaskPaths', 'standard_mask_paths')}
+    algorithm = data.get('algorithm_config', {})
+    if not isinstance(algorithm, dict):
+        raise ValueError('algorithm_config 必须是 JSON 对象')
+    data['algorithm_config'] = {k: v for k, v in algorithm.items() if k != 'product_registration'}
+    roi = data.get('roi_config', {})
+    if not isinstance(roi, dict):
+        raise ValueError('roi_config 必须是 JSON 对象')
+    data['roi_config'] = {k: v for k, v in roi.items() if k != 'productAnchorROIs'}
+    return data
 
 
 @require_GET
@@ -83,9 +82,9 @@ def export_recipe(request, kind, recipe_id):
     if kind == 'foam2d':
         query = query.filter(recipe_type='FOAM_2D')
     recipe = get_object_or_404(query, pk=recipe_id)
-    payload = {'format': FORMAT, 'version': 1, 'kind': kind,
-               'recipe': snapshot(recipe), 'relations': {}, 'assets': {}}
-    # Make independent JSON containers before rewriting file references.
+    payload = {'format': FORMAT, 'version': 2, 'kind': kind,
+               'recipe': snapshot(recipe), 'relations': {}}
+    # Make independent JSON containers before removing legacy template metadata.
     payload = json.loads(json.dumps(payload, cls=DjangoJSONEncoder, allow_nan=False))
     try:
         if kind == 'foam2d':
@@ -93,28 +92,7 @@ def export_recipe(request, kind, recipe_id):
                 layout = recipe.foam_product_layout
                 payload['relations']['layout'] = snapshot(layout)
                 payload['relations']['rack_spec'] = snapshot(layout.rack_spec)
-            media = Path(settings.MEDIA_ROOT).resolve()
-            seen = {}
-            total = 0
-
-            def attach(value):
-                nonlocal total
-                if value in seen:
-                    return seen[value]
-                path = Path(value)
-                path = (path if path.is_absolute() else media / path).resolve()
-                if not path.is_relative_to(media) or not path.is_file():
-                    raise ValueError('标准模板文件缺失或不在媒体目录内，请重新示教后导出')
-                if path.suffix.lower() not in ('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff'):
-                    raise ValueError('不支持的标准模板文件类型')
-                total += path.stat().st_size
-                if total > MAX_BYTES // 2:
-                    raise ValueError('模板文件过大，无法导出为单个 JSON')
-                key = f'asset-{len(seen)}{path.suffix.lower()}'
-                payload['assets'][key] = base64.b64encode(path.read_bytes()).decode('ascii')
-                seen[value] = 'asset:' + key
-                return seen[value]
-            template_paths(payload['recipe'], attach)
+            payload['recipe'] = roi_recipe_data(payload['recipe'])
         else:
             for name in ('rois_3d', 'enhanced_rois_3d'):
                 payload['relations'][name] = [snapshot(obj) for obj in getattr(recipe, name).all()]
@@ -137,7 +115,6 @@ def reject_constant(value):
 
 @require_POST
 def import_recipe(request, kind):
-    destination = None
     try:
         upload = request.FILES.get('file')
         if not upload or upload.size > MAX_BYTES:
@@ -145,7 +122,7 @@ def import_recipe(request, kind):
         payload = json.loads(upload.read().decode('utf-8-sig'), parse_constant=reject_constant)
         json.dumps(payload, allow_nan=False)  # Also reject exponent overflow (e.g. 1e999).
         if (not isinstance(payload, dict) or payload.get('format') != FORMAT
-                or type(payload.get('version')) is not int or payload['version'] != 1
+                or type(payload.get('version')) is not int or payload['version'] not in (1, 2)
                 or kind not in KINDS or payload.get('kind') != kind):
             raise ValueError('配方格式、版本或 2D/3D 类型不匹配')
         data = payload['recipe']
@@ -183,27 +160,9 @@ def import_recipe(request, kind):
                         layout = validate(FoamProductLayout, layout_data, rack_spec=spec)
                         layout.save()
                     bindings['foam_product_layout'] = layout
-                destination = Path(settings.MEDIA_ROOT).resolve() / 'vision' / 'recipe_imports' / uuid.uuid4().hex
-                restored = {}
-
-                def restore(value):
-                    if not isinstance(value, str) or not value.startswith('asset:'):
-                        raise ValueError('模板必须包含文件内容，不能引用外部路径')
-                    key = value[6:]
-                    if key not in assets or not re.fullmatch(r'asset-[0-9]+\.(png|jpg|jpeg|bmp|tif|tiff)', key):
-                        raise ValueError('模板文件索引无效')
-                    if key not in restored:
-                        content = base64.b64decode(assets[key], validate=True)
-                        if not content:
-                            raise ValueError('模板文件为空')
-                        destination.mkdir(parents=True, exist_ok=True)
-                        target = destination / key
-                        target.write_bytes(content)
-                        restored[key] = target.relative_to(Path(settings.MEDIA_ROOT).resolve()).as_posix()
-                    return restored[key]
-                template_paths(data, restore)
-                if set(restored) != set(assets):
-                    raise ValueError('存在未引用的模板文件')
+                data = roi_recipe_data(data)
+                if assets or 'standard_template_config' in payload['recipe']:
+                    warnings.append('已忽略旧版图片模板，只导入标准 ROI 和参数')
             else:
                 if assets:
                     raise ValueError('3D 配方不支持外部模板文件')
@@ -229,7 +188,5 @@ def import_recipe(request, kind):
                     for child in children:
                         validate(child_model, child, recipe=recipe).save()
         return JsonResponse({'success': True, 'id': recipe.pk, 'name': getattr(recipe, name_field), 'warnings': warnings})
-    except (ValueError, TypeError, KeyError, AttributeError, UnicodeError, ValidationError, IntegrityError, OSError, binascii.Error, RecursionError) as exc:
-        if destination and destination.exists():
-            shutil.rmtree(destination)
+    except (ValueError, TypeError, KeyError, AttributeError, UnicodeError, ValidationError, IntegrityError, OSError, RecursionError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
