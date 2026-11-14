@@ -1093,7 +1093,7 @@ def rack_locator_panel(request):
         .order_by('-created_at')
         .first()
     )
-    recipes = RackLocationRecipe.objects.filter(enabled=True).order_by('rack_type', 'recipe_name')
+    recipes = RackLocationRecipe.objects.all().order_by('rack_type', 'recipe_name')
     return render(request, 'vision/rack_locator_panel.html', {
         'latest': latest,
         'recipes': recipes,
@@ -1781,6 +1781,9 @@ def rack_location_capture(request):
 def api_vision_3d_recipes(request):
     if request.method == 'GET':
         qs = RackLocationRecipe.objects.all().order_by('rack_type', 'recipe_name', '-updated_at')
+        if request.GET.get('summary') == '1':
+            return _api3d_success({'recipes': list(qs.values(
+                'id', 'recipe_name', 'rack_type', 'layer_no', 'enabled'))})
         recipe_id = request.GET.get('id')
         layer_no = request.GET.get('layer_no')
         enabled = request.GET.get('enabled')

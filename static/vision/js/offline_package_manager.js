@@ -7,6 +7,7 @@
   const byId = (id) => document.getElementById(id);
   const csrf = () => document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
   const state = { selectedName: null, selectedPackage: null };
+  let refreshTimer, listVersion = 0, renderedList = null;
 
   function packageUrl(name, action) {
     return `${baseUrl}${encodeURIComponent(name)}/${action ? `${action}/` : ''}`;
@@ -15,7 +16,7 @@
   function escapeHtml(value) {
     const node = document.createElement('div');
     node.textContent = value == null ? '' : String(value);
-    return node.innerHTML;
+    return node.innerHTML.replace(/"/g, '&quot;');
   }
 
   async function request(url, options) {
@@ -71,23 +72,44 @@
   }
 
   function closeModal() {
+    clearTimeout(refreshTimer);
+    listVersion++;
     const modal = byId('packages-modal');
     modal.hidden = true;
     modal.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
   }
 
-  async function loadList() {
+  async function loadList(automatic = false) {
+    clearTimeout(refreshTimer);
+    const version = ++listVersion;
     const list = byId('offline-package-list');
-    list.innerHTML = '<p class="rl-package-empty">正在加载…</p>';
-    message('正在读取数据包列表…');
+    if (!automatic) message('正在读取数据包列表…');
     try {
-      const data = await request(baseUrl);
-      renderList(data.packages || []);
-      message(`共 ${data.packages?.length || 0} 个数据包`);
+      const data = await request(baseUrl, { cache: 'no-store' });
+      if (version !== listVersion) return;
+      const packages = data.packages || [];
+      const signature = JSON.stringify(packages);
+      if (renderedList !== signature) {
+        if (state.selectedName && !packages.some(pkg => pkg.package_name === state.selectedName)) {
+          state.selectedName = null;
+          state.selectedPackage = null;
+          setActions(false);
+          byId('offline-package-detail').innerHTML = '<p class="rl-package-empty">请从左侧选择一个数据包。</p>';
+        }
+        renderList(packages);
+      }
+      if (!automatic || signature !== renderedList) message(`共 ${packages.length} 个数据包`);
+      renderedList = signature;
     } catch (error) {
-      list.innerHTML = `<p class="rl-package-empty">${escapeHtml(error.message)}</p>`;
+      if (version !== listVersion) return;
+      if (!list.querySelector('.rl-package-item')) list.textContent = error.message;
+      renderedList = null;
       message(error.message, true);
+    } finally {
+      if (version === listVersion && !byId('packages-modal').hidden) {
+        refreshTimer = setTimeout(() => loadList(true), 5000);
+      }
     }
   }
 
@@ -105,8 +127,8 @@
         : '<span>原始数据</span>';
       return `
       <button type="button" class="rl-package-item${pkg.package_name === state.selectedName ? ' selected' : ''}${isRaw ? ' raw-package' : ''}" data-package-name="${escapeHtml(pkg.package_name)}">
-        <img src="${escapeHtml(pkg.preview_url)}" alt="数据包预览" onerror="this.style.display='none'">
-        <span><strong>${escapeHtml(pkg.recipe_name)}</strong>${isRaw ? '<span class="raw-badge">原始数据</span>' : posInfo}<span>${escapeHtml(formatTime(pkg.created_at))} · ${pkg.has_result ? '已定位' : isRaw ? '未定位' : '未定位'}</span></span>
+        <img loading="lazy" src="${escapeHtml(pkg.preview_url)}" alt="数据包预览" onerror="this.style.display='none'">
+        <span><strong title="${escapeHtml(pkg.package_name)}">${escapeHtml(pkg.package_name)}</strong>${isRaw ? '<span class="raw-badge">原始数据</span>' : `<span>${escapeHtml(pkg.recipe_name)}</span>${posInfo}`}<span>${escapeHtml(formatTime(pkg.created_at))} · ${pkg.has_result ? '已定位' : '未定位'}</span></span>
       </button>`;
     }).join('');
     list.querySelectorAll('[data-package-name]').forEach((node) => {
@@ -119,6 +141,7 @@
     message('正在加载数据包详情…');
     try {
       const data = await request(packageUrl(name));
+      if (state.selectedName !== name) return;
       state.selectedPackage = data.package;
       renderDetail(data.package);
       setActions(true);
@@ -176,6 +199,7 @@
 
   async function loadSelected() {
     if (!state.selectedName) return;
+    setActions(false);
     message('正在加载数据到画布…');
     try {
       const recipeId = document.getElementById('recipe-select')?.value
@@ -184,10 +208,12 @@
           method: 'POST', 
           body: JSON.stringify({ recipe_id: recipeId }) 
       });
-      window.rackLocatorOfflineBridge.load(data.package);
+      await window.rackLocatorOfflineBridge.load(data.package);
       closeModal();
     } catch (error) {
       message(error.message, true);
+    } finally {
+      setActions(!!state.selectedName);
     }
   }
 
@@ -235,7 +261,7 @@
 
   byId('btn-packages')?.addEventListener('click', openModal);
   byId('btn-export-package')?.addEventListener('click', exportCurrent);
-  byId('btn-refresh-packages')?.addEventListener('click', loadList);
+  byId('btn-refresh-packages')?.addEventListener('click', () => loadList());
   byId('btn-load-package')?.addEventListener('click', loadSelected);
   byId('btn-reprocess-package')?.addEventListener('click', reprocessSelected);
   byId('btn-delete-package')?.addEventListener('click', deleteSelected);

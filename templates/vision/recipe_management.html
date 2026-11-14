@@ -2657,7 +2657,7 @@ window.importRecipeJson = async function(input) {
     const data = await response.json();
     if (!response.ok || !data.success) throw new Error(data.error || '导入失败');
     await (kind === 'foam2d' ? loadRecipes() : load3DRecipes());
-    showToast(`已导入「${data.name}」，PLC 默认配方保持不变`, 'success');
+    showToast(`文件「${file.name}」已导入为「${data.name}」（名称取自 JSON 内容），PLC 默认配方保持不变`, 'success');
     if (data.warnings.length) alert('配方已导入，请检查以下关联：\n' + data.warnings.join('\n'));
   } catch (error) {
     showToast('导入失败：' + error.message, 'error');

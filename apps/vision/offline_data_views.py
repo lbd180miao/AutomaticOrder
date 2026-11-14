@@ -30,7 +30,7 @@ def packages(request):
     if request.method == "GET":
         # 添加 include_raw 参数支持
         include_raw = request.GET.get('include_raw', 'true').lower() == 'true'
-        return JsonResponse({"success": True, "packages": service.list_packages(include_raw=include_raw)})
+        return JsonResponse({"success": True, "packages": service.list_packages(limit=None, include_raw=include_raw)})
     try:
         data = _request_json(request)
         if data.get("manual_save") is not True:

@@ -24,6 +24,15 @@
   const roi = () => state.config?.rois.find(r => r.target === targets[state.selected]);
   const status = text => { $('dp-status').textContent = text; };
   const currentFrame = () => window.rackLocatorOfflineBridge?.snapshot();
+  // Frame snapshots also contain saved template points and old results. Those
+  // can exceed Django's request limit; the server already owns that data.
+  const frameRequest = (snapshot = currentFrame()) => ({
+    pointcloud_token: snapshot?.pointcloud_token,
+    source: snapshot?.source,
+    raw_rgb_image_url: snapshot?.raw_rgb_image_url,
+    recipe_id: snapshot?.recipe_id,
+    layer_no: snapshot?.layer_no,
+  });
   const fmt = (value, digits = 3) => {
     if (!Number.isFinite(value)) return '—';
     const rounded = value.toFixed(digits);
@@ -143,7 +152,10 @@
     const response = await fetch(url, {method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''},
       body: JSON.stringify(body)});
-    const data = await response.json();
+    let data;
+    try { data = await response.json(); } catch (_) {
+      throw new Error(`接口未返回有效 JSON（HTTP ${response.status}）：${url}。请检查服务端错误日志。`);
+    }
     if (!response.ok || !data.success) {
       const error = new Error([data.errorCode, data.errorMessage || data.error].filter(Boolean).join('：'));
       error.stage = data.stage; error.code = data.errorCode;
@@ -318,10 +330,11 @@
   async function action(fn) {
     if (state.busy) return;
     state.busy = true; refresh();
-    try {await fn();} catch (error) {
+    try {await fn(); return true;} catch (error) {
       state.result = {success: false, stage: error.stage, errorCode: error.code, errorMessage: error.message};
       state.evaluation = {result: state.result}; state.teachToken = null;
       draw(); status(error.message);
+      return false;
     }
     finally {state.busy = false; refresh(); renderResults();}
   }
@@ -330,7 +343,7 @@
     const snapshot = currentFrame(), selectedRecipe = recipeId();
     if (!snapshot?.pointcloud_token) throw new Error('请先点击「采集点云」。');
     status('正在读取相机原图和已保存的ROI…');
-    const data = await request(panel.dataset.prepareUrl, {...snapshot, recipe_id: selectedRecipe, algorithm: algorithm()});
+    const data = await request(panel.dataset.prepareUrl, {...frameRequest(snapshot), recipe_id: selectedRecipe, algorithm: algorithm()});
     const img = new Image(); img.src = data.image_url; await img.decode();
     if (selectedRecipe !== recipeId() || snapshot.pointcloud_token !== currentFrame()?.pointcloud_token) throw new Error('加载期间配方或采集帧变化，请重新载入。');
     state.dirty = false; state.redraw = false;
@@ -381,7 +394,7 @@
     draw(); renderResults();
     status('正在进行点云多尺度 ICP 匹配…');
     const revision = state.revision;
-    const data = await request(panel.dataset.cloudMatchUrl, {...currentFrame(), ...state.prepared, config: state.config, coordinate_system: 'camera'});
+    const data = await request(panel.dataset.cloudMatchUrl, {...frameRequest(), ...state.prepared, config: state.config, coordinate_system: 'camera'});
     checkFrame(); if (revision !== state.revision) throw new Error('配置变化，请重新校验。');
     state.result = data.result; state.evaluation = data; state.teachToken = data.teach_token; state.reference = data.reference;
     draw();
@@ -394,7 +407,7 @@
   $('dp-save-standard').addEventListener('click', () => action(async () => {
     checkFrame();
     const selectedRecipe = recipeId(), revision = state.revision;
-    const data = await request(panel.dataset.cloudMatchUrl, {...currentFrame(), ...state.prepared, recipe_id: selectedRecipe, config: state.config, action: 'save_template'});
+    const data = await request(panel.dataset.cloudMatchUrl, {...frameRequest(), ...state.prepared, recipe_id: selectedRecipe, config: state.config, action: 'save_template'});
     state.result = data.result; state.evaluation = data;
     checkFrame();
     if (revision !== state.revision || selectedRecipe !== recipeId()) return;
@@ -460,18 +473,18 @@
       return {...snapshot, result: current ? state.evaluation?.result || null : null,
         roi_config: {...snapshot.roi_config, ...(current && state.config ? {[algorithm() + '_config']:state.config} : {})}};
     };
-    bridge.load = payload => {
+    bridge.load = async payload => {
+      if (state.busy || state.capturing) throw new Error('当前操作尚未完成，请稍后重新加载数据包。');
       originalLoad(payload); invalidateFrame();
       $('dp-frame-status').textContent = '数据包已加载，正在自动载入原图与ROI…';
-      // 等待点云图片加载完成后自动触发「载入原图与ROI」，省去手动点击
-      const img = document.getElementById('rl-depth-image');
-      const trigger = () => action(loadFrame);
-      if (img && (!img.complete || !img.naturalWidth)) {
-        img.addEventListener('load', trigger, { once: true });
-      } else {
-        // 图片已就绪（缓存命中），稍延迟确保 invalidateFrame 完成
-        setTimeout(trigger, 0);
+      // The prepare endpoint reads the original frame directly. A hidden preview
+      // may fail or never emit load, and must not gate the actual canvas.
+      if (!await action(loadFrame)) {
+        const message = `加载画布失败：${$('dp-status').textContent}`;
+        $('dp-frame-status').textContent = message;
+        throw new Error(message);
       }
+      $('dp-frame-status').textContent = '数据包原图与 ROI 已载入画布。';
     };
   }
   window.addEventListener('rack-cloud-result', event => {

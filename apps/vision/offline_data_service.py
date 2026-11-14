@@ -204,7 +204,7 @@ class OfflineDataPackageService:
         except (OSError, ValueError, KeyError, IndexError) as exc:
             raise OfflineDataPackageError(f"数据包详情读取失败: {package_name}: {exc}") from exc
 
-    def list_packages(self, limit: int = 100, include_raw: bool = False) -> List[Dict[str, Any]]:
+    def list_packages(self, limit: Optional[int] = 100, include_raw: bool = False) -> List[Dict[str, Any]]:
         summaries: List[Dict[str, Any]] = []
         for child in self.base_dir.iterdir():
             if not child.is_dir() or child.name.startswith("."):
@@ -218,7 +218,7 @@ class OfflineDataPackageService:
                     summaries.append(self._raw_package_summary(child))
                 continue
         summaries.sort(key=lambda item: item.get("created_at", ""), reverse=True)
-        return summaries[: max(0, int(limit))]
+        return summaries if limit is None else summaries[: max(0, int(limit))]
 
     def create_workbench_copy(self, package_name: str, recipe_id: Optional[Any] = None) -> Dict[str, Any]:
         package = self.load_package(package_name)
