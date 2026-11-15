@@ -57,14 +57,20 @@ class OfflineDataPackageService:
         result: Optional[Dict[str, Any]] = None,
         description: str = "",
         image_2d_path: Optional[Path] = None,
+        history_task=None,
     ) -> Dict[str, Any]:
         cloud = self._validate_pointcloud(pointcloud)
         hand_eye = self._validate_matrix(hand_eye_matrix, "手眼标定矩阵")
         robot_pose = self._validate_matrix(robot_pose_matrix, "机器人位姿矩阵")
         created_at = timezone.now()
-        package_name = self._unique_package_name(recipe.position_no, layer_no, created_at)
+        if history_task is None:
+            package_name = self._unique_package_name(recipe.position_no, layer_no, created_at)
+        else:
+            created_at = history_task.started_at or history_task.created_at
+            stamp = timezone.localtime(created_at).strftime("%Y-%m-%d_%H-%M-%S_%f")
+            package_name = f"{stamp}_{history_task.pk}"
         package_dir = self.base_dir / package_name
-        temp_dir = Path(tempfile.mkdtemp(prefix=f".{package_name}-", dir=self.base_dir))
+        temp_dir = Path(tempfile.mkdtemp(prefix=f".{package_name}-", dir=self.base_dir.parent if history_task else self.base_dir))
 
         metadata = {
             "package_name": package_name,
@@ -89,6 +95,7 @@ class OfflineDataPackageService:
             from .rack_cloud_roi import cloud_config
             self._write_json(temp_dir / "roi_config.json", cloud_config(roi_config))
             np.save(temp_dir / "pointcloud.npy", cloud, allow_pickle=False)
+            self._write_ply(temp_dir / "pointcloud.ply", cloud)
             np.save(temp_dir / "hand_eye_matrix.npy", hand_eye, allow_pickle=False)
             np.save(temp_dir / "robot_pose_matrix.npy", robot_pose, allow_pickle=False)
             if result:
@@ -100,8 +107,12 @@ class OfflineDataPackageService:
                     if image.size != (self._cloud_width(cloud), self._cloud_height(cloud)):
                         raise OfflineDataPackageError('2D原图尺寸与点云不一致，无法保存像素对应关系')
                     image.save(temp_dir / 'image2d.png', format='PNG')
-            os.replace(temp_dir, package_dir)
-            self._rebuild_index()
+            if history_task is not None:
+                from .history_cycle import publish
+                publish(temp_dir, package_dir)
+            else:
+                os.replace(temp_dir, package_dir)
+                self._rebuild_index()
         except Exception:
             shutil.rmtree(temp_dir, ignore_errors=True)
             raise
@@ -358,6 +369,21 @@ class OfflineDataPackageService:
             counter += 1
             candidate = f"{stem}_{counter}"
         return candidate
+
+    @staticmethod
+    def _write_ply(path: Path, cloud: np.ndarray) -> None:
+        points = cloud.reshape(-1, 3)
+        valid = np.isfinite(points).all(axis=1) & np.any(points != 0, axis=1)
+        single_precision = points.dtype.kind == "f" and points.dtype.itemsize <= 4
+        scalar = "float" if single_precision else "double"
+        header = (
+            "ply\nformat binary_little_endian 1.0\ncomment unit mm\n"
+            f"element vertex {int(valid.sum())}\n"
+            f"property {scalar} x\nproperty {scalar} y\nproperty {scalar} z\nend_header\n"
+        )
+        with path.open("wb") as stream:
+            stream.write(header.encode("ascii"))
+            points[valid].astype("<f4" if single_precision else "<f8", copy=False).tofile(stream)
 
     @staticmethod
     def _validate_pointcloud(value: np.ndarray) -> np.ndarray:

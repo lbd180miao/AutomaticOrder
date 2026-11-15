@@ -277,7 +277,7 @@ def foam_results(request):
         result.foam_identity = foam_identity_summary(algorithm) if algorithm else {'material_label': '未标注颜色', 'segmentation_label': '未记录算法'}
         result.saved_image_url = (
             f'/vision/api/foam/records/{result.id}/image/original/'
-            if (foam_archive.root() / f'{result.id}_original.png').is_file() else ''
+            if (foam_archive.image_path(result.id, 'original', result.created_at)).is_file() else ''
         )
     return render(request, 'vision/foam_result_detail.html', {'results': results})
 
@@ -1058,9 +1058,9 @@ def api_foam_inspection_records(request):
             task = r.vision_task
             original_img = task.images.filter(image_type='ORIGINAL').first()
             result_img = task.images.filter(image_type='RESULT').first()
-            saved_original = foam_archive.root() / f'{r.id}_original.png'
+            saved_original = foam_archive.image_path(r.id, 'original', r.created_at)
             has_original = bool(original_img and original_img.file.storage.exists(original_img.file.name)) or saved_original.is_file()
-            saved_result = foam_archive.root() / f'{r.id}_result.png'
+            saved_result = foam_archive.image_path(r.id, 'result', r.created_at)
             data.append({
                 'id': r.id,
                 'task_id': task.id,

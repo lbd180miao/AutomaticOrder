@@ -66,6 +66,8 @@ def main(argv=None):
     # Bind before starting the PLC worker. If the port is already in use,
     # this instance must not send a scan or acknowledge a hardware trigger.
     server = create_server(application, host=args.host, port=args.port, threads=args.threads)
+    from apps.vision.history_cycle import start_history_timer
+    start_history_timer()
     gateway_server = None
     try:
         if deployment.get('role') == 'external':

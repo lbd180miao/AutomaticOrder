@@ -67,7 +67,23 @@ def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record
         record = save_result(recipe, payload, layer_no=layer_no, token=token, product=product, rack=rack, task=task)
         save_history_images(record, cloud, token, camera_image=camera_image)
         payload['result_id'], payload['task_id'] = record.pk, record.vision_task_id
+        original = record.vision_task.images.filter(image_type='ORIGINAL').last()
+        archive_history(record.vision_task, recipe, layer_no, cloud, metadata, payload,
+                        original.file.path if original else None)
     return payload
+
+
+def archive_history(task, recipe, layer_no, cloud, metadata, result, image_path):
+    from django.conf import settings
+    from .offline_data_service import OfflineDataPackageService
+    from .offline_data_views import _hand_eye_matrix, _robot_pose_matrix
+
+    service = OfflineDataPackageService(base_dir=settings.VISION_HISTORY_PACKAGE_DIR)
+    return service.create_package(
+        cloud, _hand_eye_matrix(recipe), _robot_pose_matrix(recipe), recipe.roi_config,
+        recipe, layer_no, {**metadata.get('camera', {}), 'source': metadata.get('source', 'unknown')},
+        result=result, image_2d_path=image_path, history_task=task,
+    )
 
 
 def save_result(recipe, payload, *, layer_no, token='', product=None, rack=None, task=None):

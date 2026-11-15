@@ -209,18 +209,38 @@ def _capture_position(recipe_id, layer_no, *, on_captured=None, task=None):
         raise
     record('3d', f'自动采集完成：点云={captured.get("pointcloud_token", "")}')
     # Save the acquired previews before PLC feedback or calculation can fail.
-    if task is not None:
-        _attach_capture_images(task, captured, recipe=recipe)
-    if on_captured is not None:
-        on_captured()
-    if not (recipe.roi_config or {}).get('cloud_center_reference'):
-        return {'is_success': False, 'error_message': '相机已采集，但配方未保存点云标准模板，无法定位计算'}
-    record('3d', '自动采集：开始定位计算')
-    result = RackLocationService().calculate_workbench(
-        token=captured['pointcloud_token'], recipe_id=recipe_id,
-        layer_no=layer_no, save_record=True, task=task,
-    )
-    return dual_group_position(result, recipe)
+    token = captured['pointcloud_token']
+    service = RackLocationService()
+
+    def archive_failure(message):
+        from apps.vision.rack_cloud_service import archive_history
+        if task is None or not (Path(settings.MEDIA_ROOT) / token).is_file():
+            return
+        cloud = service._load_workbench_pointcloud(token)
+        original = task.images.filter(image_type='ORIGINAL').first()
+        archive_history(task, recipe, layer_no, cloud, service._frame_metadata(token, cloud),
+                        {'task_id': task.pk, 'is_success': False, 'error_message': message},
+                        original.file.path if original else None)
+
+    try:
+        if task is not None:
+            _attach_capture_images(task, captured, recipe=recipe)
+        if on_captured is not None:
+            on_captured()
+        if (recipe.roi_config or {}).get('cloud_center_reference'):
+            record('3d', '自动采集：开始定位计算')
+            result = service.calculate_workbench(
+                token=token, recipe_id=recipe_id, layer_no=layer_no, save_record=True, task=task,
+            )
+            return dual_group_position(result, recipe)
+    except Exception as exc:
+        from apps.vision.models import RackLocationResult
+        if task and not RackLocationResult.objects.filter(vision_task=task).exists():
+            archive_failure(str(exc))
+        raise
+    message = '相机已采集，但配方未保存点云标准模板，无法定位计算'
+    archive_failure(message)
+    return {'is_success': False, 'error_message': message}
 
 
 def _attach_capture_images(task, captured, *, recipe=None):

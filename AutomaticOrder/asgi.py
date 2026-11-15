@@ -17,3 +17,5 @@ application = get_asgi_application()
 
 from apps.vision.history_retention import run_startup_cleanup
 run_startup_cleanup()
+from apps.vision.history_cycle import start_history_timer
+start_history_timer()

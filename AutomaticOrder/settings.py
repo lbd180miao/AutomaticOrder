@@ -184,6 +184,8 @@ OFFLINE_DATA_PACKAGE_DIR = Path(
 )
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+FOAM_HISTORY_PACKAGE_DIR = DATA_DIR / '2d_SDK' / 'pic1'
+VISION_HISTORY_PACKAGE_DIR = DATA_DIR / '3d_SDK' / 'pic1'
 
 # 3D 深度相机料架定位运行模式：'MOCK'（模拟，无需硬件）/ 'REAL'（真实相机+机器人）
 RACK_3D_POSITIONING_MODE = os.environ.get('RACK_3D_POSITIONING_MODE', 'MOCK').upper()
