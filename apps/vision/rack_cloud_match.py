@@ -3,7 +3,8 @@ import numpy as np
 from .rack_cloud_roi import image_roi, required_targets
 
 VERSION = 'cloud_match_v1'
-LIMITS = {'voxel_mm': 2., 'correspondence_mm': 5., 'min_fitness': .65,
+LIMITS = {'voxel_mm': 2., 'correspondence_mm': 5., 'min_fitness': .20,
+          'region_min_fitness': .65,
           'max_rmse_mm': 2., 'max_shift_mm': 80., 'max_rotation_deg': 15.}
 
 
@@ -132,7 +133,7 @@ def evaluate_regions(template, target, transform):
         current = standard @ transform[:3, :3].T + transform[:3, 3]
         observed = np.asarray(target.points)[np.unique(pairs[:, 1])].mean(axis=0) if len(pairs) else None
         failures = []
-        if fit.fitness < limits['min_fitness']:
+        if fit.fitness < limits.get('region_min_fitness', limits['min_fitness']):
             failures.append('区域匹配覆盖率不足')
         if not len(pairs):
             failures.append('区域无有效对应点')
@@ -163,7 +164,10 @@ def match_template(cloud, metadata, template):
     if saved_sensor and current_sensor != saved_sensor:
         raise ValueError('当前点云相机与标准模板不一致或缺少相机标识')
     source_points = np.asarray(template['points'], float)
-    limits = template['limits']
+    limits = dict(template['limits'])
+    # Apply the revised default to saved templates without rewriting recipe data.
+    if limits['min_fitness'] == .65:
+        limits['min_fitness'] = LIMITS['min_fitness']
     target_points = valid(data)
     margin = limits['max_shift_mm'] + np.linalg.norm(np.ptp(source_points, axis=0)) * np.sin(np.deg2rad(limits['max_rotation_deg']))
     inside = ((target_points >= source_points.min(axis=0)-margin) &
@@ -173,7 +177,15 @@ def match_template(cloud, metadata, template):
     # Keep spatially uniform target density, including for final evaluation.
     target = downsample(target_points[inside], min(1., limits['voxel_mm']), max_points=None)
     if len(target.points) < 100:
-        raise ValueError('模板搜索范围内有效点不足 100')
+        message = f'模板搜索范围内有效点不足 100（实际 {len(target.points)}）'
+        return {
+            'success': False, 'coordinateSystem': 'camera', 'unit': 'mm',
+            'algorithm_version': VERSION, 'stage': '3d', 'points': [],
+            'errorCode': 'INVALID_INPUT', 'errorMessage': message,
+            'registration': {'quality_passed': False, 'target_points': len(target.points),
+                             'failure_reasons': [message]},
+            'warnings': [], 'plc_publish_allowed': False,
+        }
     source = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(source_points))
     transform = np.eye(4)
     for voxel, distance in ((8., 40.), (4., 15.), (2., limits['correspondence_mm']),
@@ -234,13 +246,17 @@ def match_template(cloud, metadata, template):
     failures = []
     for failed, reason in (
         (fit.fitness < limits['min_fitness'], '模板覆盖率不足，请检查遮挡、ROI 和拍照位置'),
-        (fit.inlier_rmse > limits['max_rmse_mm'], '匹配残差超限，请检查深度噪声、结构变化或重复结构误匹配'),
         (shift > limits['max_shift_mm'], '中心位移超限，请回到模板附近拍照'),
         (angle > limits['max_rotation_deg'], '旋转角度超限，请检查相机和工件姿态'),
         (condition < 1e-4, '结构约束不足，请选择包含不同朝向表面和连接处的区域'),
     ):
         if failed:
             failures.append(reason)
+    quality_warnings = []
+    if fit.inlier_rmse > limits['max_rmse_mm']:
+        quality_warnings.append(
+            f"匹配残差超限（仅警告，不阻断）：实际 {fit.inlier_rmse:.3f} mm，"
+            f"警告阈值 {limits['max_rmse_mm']:.3f} mm；请检查深度噪声、结构变化或重复结构误匹配")
     regions = evaluate_regions(template, target, transform)
     region_warnings = []
     for index, region in enumerate(regions):
@@ -252,6 +268,7 @@ def match_template(cloud, metadata, template):
                    'rotation_deg': angle, 'constraint_ratio': condition, 'matched_points': len(pairs),
                    'source_points': len(source.points), 'target_points': len(target.points),
                    'quality_passed': passed, 'failure_reasons': failures,
+                   'quality_warnings': quality_warnings, 'rmse_warning_only': True,
                    'region_warnings': region_warnings, 'quality_policy': 'global_with_region_warnings',
                    'limits': limits, 'transform': transform.tolist(), 'regions': regions}
     # The observed center uses unique matched target samples, not the entire
@@ -269,6 +286,7 @@ def match_template(cloud, metadata, template):
     summary = (f'模板覆盖率 {fit.fitness:.1%}；残差 {fit.inlier_rmse:.3f}mm；'
                f'中心位移 {shift:.3f}mm；旋转 {angle:.3f}°；约束比 {condition:.6f}')
     warnings = [summary, '实验模式：参考点为模板区域参考点的刚体变换推算；重复结构仍需人工核对。']
+    warnings.extend(quality_warnings)
     warnings.extend(region_warnings)
     if template.get('sampling') != 'measured_points_v1':
         warnings.append('当前为旧版质心模板；请在标准帧重新保存点云模板，以启用原始测量点精配准并消除自匹配偏差。')

@@ -8,7 +8,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 
 from .models import Device, DeviceSignalRecord
 from apps.core.constants import DeviceType, DeviceStatus
@@ -21,9 +21,41 @@ logger = logging.getLogger(__name__)
 
 def api_device_health(request):
     from .health import snapshot
-    response = JsonResponse(snapshot())
+    data = snapshot()
+    if request.GET.get('view') == 'inspection':
+        import time
+        from .health import STALE_AFTER
+        from apps.workflow.listener import input_status, listener_running
+        sample = input_status()
+        running = listener_running()
+        fresh = bool(running and sample.get('sampled_at') and
+                     time.monotonic() - sample['sampled_at'] <= STALE_AFTER and
+                     not sample.get('error'))
+        names = ('product_barcode', 'rack_barcode', 'rack_barcode_2', 'rack_working', 'rack_working_2')
+        data['inputs'] = {
+            'fresh': fresh, 'running': running, 'error': sample.get('error', ''),
+            'checked_at': sample.get('checked_at'),
+            'values': {name: sample.get('values', {}).get(name) for name in names} if fresh else {},
+        }
+    response = JsonResponse(data)
     response['Cache-Control'] = 'no-store'
     return response
+
+
+@require_http_methods(["GET", "POST"])
+def api_manual_debug(request):
+    from .services import get_plc_adapter
+    enabled = None
+    if request.method == 'POST':
+        value = request.POST.get('enabled')
+        if value not in ('true', 'false'):
+            return JsonResponse({'error': '请选择是否手动调试'}, status=400)
+        enabled = value == 'true'
+    try:
+        return JsonResponse({'enabled': get_plc_adapter().manual_debug(enabled)})
+    except Exception as exc:
+        logger.exception('读取或更新 PLC 手动调试状态失败')
+        return JsonResponse({'error': str(exc)}, status=503)
 
 
 @require_POST
@@ -229,8 +261,94 @@ def _get_plc_device():
     return Device.objects.filter(device_type=DeviceType.PLC, enabled=True).first()
 
 
+def _inspection_log(result, passed, verdict):
+    if result is None:
+        return []
+    task = result.vision_task
+    entries = [(task.created_at, 'INFO', f'创建视觉任务 #{task.pk}')]
+    if task.started_at:
+        entries.append((task.started_at, 'INFO', '开始检测'))
+    for image in task.images.all():
+        if image.file:
+            entries.append((image.created_at, 'INFO', f'保存{image.get_image_type_display()}：{image.file.name}'))
+    entries.append((result.created_at, 'INFO' if passed else 'WARN', verdict))
+    for message in (getattr(result, 'error_message', ''), getattr(result, 'plc_error_message', '')):
+        if message:
+            entries.append((result.created_at, 'ERROR', message))
+    if task.finished_at:
+        entries.append((task.finished_at, 'INFO', f'任务结束 · {task.get_status_display()}'))
+    if task.error_message:
+        entries.append((task.finished_at or task.updated_at, 'ERROR', task.error_message))
+    return sorted(entries, key=lambda entry: entry[0])
+
+
+def _rack_overlay(record, image):
+    from math import isfinite
+
+    width, height = image.width, image.height
+    config = record.roi_data or {}
+    result = (record.result_data or {}).get('result') or {}
+    if not width or not height:
+        return None
+    regions, centers = [], []
+    try:
+        rw, rh = config.get('imageSize') or (width, height)
+        sx, sy = width / float(rw), height / float(rh)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+    for index, roi in enumerate(config.get('rois') or []):
+        try:
+            x, y = float(roi['x']) * sx, float(roi['y']) * sy
+            w = float(roi.get('width', roi.get('w'))) * sx
+            h = float(roi.get('height', roi.get('h'))) * sy
+            if all(map(isfinite, (x, y, w, h))) and w > 0 and h > 0:
+                number = {'P1_cross': 1, 'P2_cross': 2}.get(roi.get('target'), index + 1)
+                regions.append(dict(x=x, y=y, w=w, h=h, number=number))
+        except (KeyError, TypeError, ValueError):
+            continue
+    for number, pixel in enumerate(result.get('pixels') or [], 1):
+        if isinstance(pixel, list) and len(pixel) == 2 and all(isinstance(v, (int, float)) and isfinite(v) for v in pixel):
+            centers.append(dict(x=pixel[0], y=pixel[1], number=number))
+    if regions or centers:
+        return dict(width=width, height=height, regions=regions, centers=centers,
+                    center_label='匹配中心' if result.get('success') else '候选中心')
+
+
 def status(request):
-    return render(request, 'devices/status.html')
+    from apps.vision.views import _result_payload
+    from apps.vision.models import FoamInspectionResult, RackLocationResult
+
+    from apps.mes.inspection_log import latest_communication_log
+
+    rack = RackLocationResult.objects.order_by('-created_at', '-pk').first()
+    foam = FoamInspectionResult.objects.order_by('-created_at', '-pk').first()
+    rack_overlay = None
+    rack_image = None
+    if rack:
+        images = rack.vision_task.images.exclude(file='').order_by('-pk')
+        rack_image = images.filter(image_type='RESULT').first() or images.filter(image_type='DEPTH').first()
+        original = images.filter(image_type='ORIGINAL').first()
+        if original:
+            rack_overlay = _rack_overlay(rack, original)
+            if rack_overlay:
+                rack_image = original
+    entries = latest_communication_log()
+    for source, result, passed, verdict in (
+        ('3D 料架定位', rack, rack and rack.is_success, '定位'),
+        ('2D 泡棉检测', foam, foam and foam.is_passed, '检测'),
+    ):
+        if result:
+            for moment, level, message in _inspection_log(result, passed, verdict + ('通过' if passed else '未通过')):
+                entries.append((moment, level, source, message))
+    template = 'devices/status.html'
+    if request.GET.get('section') == 'inspections':
+        template = 'devices/latest_inspections.html'
+    return render(request, template, {
+        'rack': rack, 'foam': foam, 'rack_image': rack_image, 'rack_overlay': rack_overlay,
+        'foam_payload': _result_payload(foam) if foam else None,
+        'entries': sorted(entries, key=lambda entry: entry[0], reverse=True),
+        'foam_coverage': foam.coverage_ratio * 100 if foam else None,
+    })
 
 
 def alarm_records(request):

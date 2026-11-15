@@ -49,7 +49,8 @@ def ownership(mode=None, *, scan=False, stopping=False):
                 handle.flush()
                 os.fsync(handle.fileno())
 
-            scanning = scan or mode is not None
+            # Background sampling already enforces the read interval.
+            scanning = mode is not None
             if scanning:
                 previous = state.get('_scan_finished_at', 0)
                 elapsed = time.monotonic() - previous
@@ -172,12 +173,12 @@ def step(state, plc, capture, save=lambda: None):
     save()
 
 
-def capture_position(recipe_id, layer_no, *, on_captured=None):
+def capture_position(recipe_id, layer_no, *, on_captured=None, captured_payload=None):
     from apps.vision.models import VisionTask
     from django.utils import timezone
     task = VisionTask.objects.create(task_type='RACK_LOCATING', status='RUNNING', started_at=timezone.now())
     try:
-        result = _capture_position(recipe_id, layer_no, on_captured=on_captured, task=task)
+        result = _capture_position(recipe_id, layer_no, on_captured=on_captured, task=task, captured_payload=captured_payload)
         if not result.get('is_success'):
             task.status = 'FAILED'
             task.error_message = result.get('error_message') or '3D 定位失败'
@@ -193,7 +194,7 @@ def capture_position(recipe_id, layer_no, *, on_captured=None):
         task.save(update_fields=['status', 'error_message', 'finished_at', 'updated_at'])
 
 
-def _capture_position(recipe_id, layer_no, *, on_captured=None, task=None):
+def _capture_position(recipe_id, layer_no, *, on_captured=None, task=None, captured_payload=None):
     from apps.vision.models import RackLocationRecipe
     from .listener_logs import record
     record('3d', f'自动采集：检查配方 ID={recipe_id}，层号={layer_no}')
@@ -203,7 +204,7 @@ def _capture_position(recipe_id, layer_no, *, on_captured=None, task=None):
     from apps.vision.rack_location import Rack3DLocator, RackLocationService
     record('3d', f'自动采集：开始调用 RVC 相机，配方 ID={recipe_id}')
     try:
-        captured = Rack3DLocator().capture(recipe_id=recipe_id, layer_no=layer_no)
+        captured = captured_payload if captured_payload is not None else Rack3DLocator().capture(recipe_id=recipe_id, layer_no=layer_no)
     except Exception as exc:
         record('3d', f'[报警] 自动相机采集失败：{exc}')
         raise
@@ -314,12 +315,11 @@ def dual_group_position(result, recipe):
                 value = float(group['translation_mm'][axis])
                 limit = float(getattr(recipe, f'max_offset_{axis}'))
                 if not math.isfinite(value) or not math.isfinite(limit) or abs(value) > limit:
-                    raise ValueError(f'{name}组 Δ{axis.upper()} 超出配方限值或数值无效')
+                    raise ValueError(f'{name}组 Δ{axis.upper()} 超出配方限值或数值无效（实际 {value:.3f} mm，限值 ±{limit:.3f} mm）')
                 values[f'compensation_{axis}{suffix}'] = value
             rz = float(group['rotation_deg']['rz'])
-            limit = float(recipe.max_offset_rz)
-            if not math.isfinite(rz) or not math.isfinite(limit) or abs(rz) > limit:
-                raise ValueError(f'{name}组 Rz 超出配方限值或数值无效')
+            if not math.isfinite(rz):
+                raise ValueError(f'{name}组 Rz 数值无效')
         return {'result_id': result.get('result_id'), 'is_success': True,
                 'error_message': '', 'compensation_group': 'A+B', **values}
     except (ValueError, TypeError, KeyError, OverflowError) as exc:

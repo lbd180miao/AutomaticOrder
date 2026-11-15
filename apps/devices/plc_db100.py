@@ -24,7 +24,7 @@ class DB100Point:
 
 DB_NUMBER = 2
 DB_SIZE = 104
-PLC_SCAN_INTERVAL = 0.5  # Minimum gap after a scan completes, shared by all listeners.
+PLC_SCAN_INTERVAL = 0.02  # Minimum gap after a scan completes, shared by all listeners.
 POSITION_FAILURE_OFFSET = 0.0  # 无法计算时覆盖两组 XYZ 为零
 
 

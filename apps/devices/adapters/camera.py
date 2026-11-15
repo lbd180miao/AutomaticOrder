@@ -75,7 +75,7 @@ class CameraAdapter(BaseDeviceAdapter):
         cls = type(self)
         key_payload = {k: v for k, v in payload.items() if k != 'result_path'}
         feature = Path(payload['feature_file'])
-        key_payload['feature_mtime'] = feature.stat().st_mtime_ns
+        key_payload['feature_mtime'] = feature.stat().st_mtime_ns if feature.is_file() else None
         key = json.dumps(key_payload, sort_keys=True)
         for attempt in range(2):
             if cls._worker is None or cls._worker.poll() is not None or cls._worker_key != key:
@@ -99,7 +99,16 @@ class CameraAdapter(BaseDeviceAdapter):
                         if not result.get('success'):
                             cls.close_worker()
                             raise RuntimeError(result.get('error', '相机取图失败'))
-                        return result['image_path']
+                        value = result['image_path']
+                        if isinstance(value, dict) and value.get('shared_memory'):
+                            from multiprocessing.shared_memory import SharedMemory
+                            memory = SharedMemory(name=value.pop('shared_memory'))
+                            try:
+                                value['data'] = bytes(memory.buf[:value['size']])
+                            finally:
+                                memory.close()
+                            return value
+                        return value
                     if worker.poll() is not None:
                         break
                     time.sleep(0.01)
@@ -328,6 +337,50 @@ class CameraAdapter(BaseDeviceAdapter):
                     # 关闭失败记录警告但不影响结果返回
                     import sys
                     sys.stderr.write(f'Warning: Failed to close camera: {close_exc}\n')
+
+    def acquire_frame(self, camera_code, task_type):
+        config = getattr(settings, 'AUTOMATIC_ORDER', {}).get('HIK_CAMERA', {})
+        output = Path(settings.MEDIA_ROOT) / 'hik_captures'
+        output.mkdir(parents=True, exist_ok=True)
+        feature = config.get('FEATURE_FILE') or ''
+        if feature and not Path(feature).is_absolute():
+            feature = str(Path(settings.BASE_DIR) / feature)
+        payload = dict(base_dir=str(settings.BASE_DIR), output_dir=str(output),
+                       camera_ip=config.get('CAMERA_IP'), pc_ip=config.get('PC_IP'),
+                       camera_serial=config.get('SERIAL_NUMBER'), feature_file=feature,
+                       format=config.get('FORMAT', 'PNG'), quality=config.get('QUALITY', 5),
+                       sdk_lib_dir=config.get('SDK_LIB_DIR') or '', raw_frame=True)
+        result_path = output / ('.raw_' + uuid.uuid4().hex + '.json')
+        command = ([sys.executable, '--hik-capture'] if getattr(sys, 'frozen', False)
+                   else [sys.executable, '-m', 'apps.devices.adapters.hik_capture_worker'])
+        with type(self)._capture_lock:
+            try:
+                return self._persistent_capture(command, payload, result_path)
+            finally:
+                result_path.unlink(missing_ok=True)
+
+    def persist_frame(self, frame):
+        import cv2
+        import numpy as np
+        width, height = frame['width'], frame['height']
+        pixel = frame['pixel_type']
+        data = np.frombuffer(frame['data'], dtype=np.uint8)
+        bayer = {0x01080008: cv2.COLOR_BayerGR2BGR, 0x01080009: cv2.COLOR_BayerRG2BGR,
+                 0x0108000A: cv2.COLOR_BayerGB2BGR, 0x0108000B: cv2.COLOR_BayerBG2BGR}
+        if pixel == 0x01080001 or pixel in bayer:
+            image = data.reshape(height, width)
+            if pixel in bayer:
+                image = cv2.cvtColor(image, bayer[pixel])
+        elif pixel in (0x02180014, 0x02180015):
+            image = data.reshape(height, width, 3)
+            if pixel == 0x02180014:
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        else:
+            raise RuntimeError(f'异步采集暂不支持像素格式 {pixel:#x}，请配置 Mono8/Bayer8/RGB8/BGR8')
+        target = Path(settings.MEDIA_ROOT) / 'hik_captures' / (uuid.uuid4().hex + '.png')
+        if not cv2.imwrite(str(target), image):
+            raise RuntimeError('2D 图像保存失败')
+        return str(target)
 
     def capture(self, camera_code, task_type):
         """串行执行相机采集，并记录排队与实际采集耗时。"""

@@ -1,0 +1,18 @@
+<aside class="inspection-card inspection-status" id="inspection-status" aria-labelledby="status-panel-title" data-url="{% url 'devices:api_device_health' %}?view=inspection">
+  <header><h2 id="status-panel-title">状态</h2></header>
+  <div class="inspection-status-body">
+    <ul class="inspection-device-list">
+      <li data-device="plc"><span>PLC</span><strong class="connection-state" data-state="checking">检测中</strong></li>
+      <li data-device="rvc"><span>RVC 3D 相机</span><strong class="connection-state" data-state="checking">检测中</strong></li>
+      <li data-device="hik"><span>海康 2D 相机</span><strong class="connection-state" data-state="checking">检测中</strong></li>
+      <li data-device="external"><span>外部电脑</span><strong class="connection-state" data-state="checking">检测中</strong></li>
+    </ul>
+    <dl class="inspection-plc-values">
+      <div><dt>产品条码</dt><dd data-point="product_barcode">—</dd></div>
+      <div><dt>料框码 1</dt><dd data-point="rack_barcode">—</dd></div>
+      <div><dt>料框码 2</dt><dd data-point="rack_barcode_2">—</dd></div>
+      <div><dt>料箱 1 工作中</dt><dd data-point="rack_working">—</dd></div>
+      <div><dt>料箱 2 工作中</dt><dd data-point="rack_working_2">—</dd></div>
+    </dl>
+  </div>
+</aside>

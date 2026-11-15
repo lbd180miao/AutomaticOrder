@@ -1,0 +1,39 @@
+{
+  "package_name": "2026-11-15_12-27-58_008123_1319",
+  "created_at": "2026-11-15T04:27:58.008123+00:00",
+  "source": "rvc_camera",
+  "description": "",
+  "recipe": {
+    "recipe_id": 17,
+    "recipe_name": "南京工厂",
+    "position_no": 1,
+    "rack_side": "BOTH",
+    "standard_x": 900.0,
+    "standard_y": 530.0,
+    "standard_z": 920.0,
+    "max_offset_x": 10.0,
+    "max_offset_y": 10.0,
+    "max_offset_z": 10.0,
+    "confidence_threshold": 0.6
+  },
+  "layer": {
+    "layer_no": 1
+  },
+  "camera": {
+    "pointcloud_unit": "mm",
+    "source": "rvc_camera",
+    "width": 1440,
+    "height": 1080,
+    "frame_index": null
+  },
+  "robot": {
+    "x": 900.68,
+    "y": 530.53,
+    "z": 271.4,
+    "rx": 0,
+    "ry": 0,
+    "rz": 0
+  },
+  "point_count": 1555200,
+  "has_result": true
+}

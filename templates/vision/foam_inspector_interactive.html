@@ -2,6 +2,7 @@
 {% load static %}
 {% block title %}{{ workbench_title|default:"泡棉检测工作台" }} - AutomaticBoxing{% endblock %}
 {% block page_class %}page-operation{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'vision/foam_result_summary.css' %}?v=1">{% endblock %}
 {% block content %}
 
 <style>
@@ -159,32 +160,6 @@
 }
 .cam-controls .btn { flex: 1; min-width: 110px; }
 
-/* POS 选择器 */
-.pos-selector {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-  padding: 10px 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-.pos-selector label {
-  font-weight: 600;
-  font-size: calc(13px + var(--ui-font-increase, 0px));
-  white-space: nowrap;
-}
-.pos-selector input {
-  width: 72px;
-  min-width: unset;
-  padding: 6px 10px;
-}
-.pos-selector .pos-hint {
-  font-size: calc(12px + var(--ui-font-increase, 0px));
-  color: var(--text-muted);
-}
-
 /* ROI 标定工具 */
 .roi-calibration-panel {
   margin-top: 12px;
@@ -308,90 +283,6 @@
 }
 
 /* --- 结果面板 --- */
-/* 大判定横幅 */
-.verdict-banner {
-  border-radius: var(--radius-sm);
-  padding: 18px 20px;
-  margin-bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  transition: all 0.3s ease;
-}
-.verdict-banner.pass {
-  background: linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%);
-  border: 2px solid var(--success);
-}
-.verdict-banner.fail {
-  background: linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%);
-  border: 2px solid var(--danger);
-}
-.verdict-banner.idle {
-  background: var(--surface-2);
-  border: 2px dashed var(--border);
-}
-.verdict-icon { font-size: calc(40px + var(--ui-font-increase, 0px)); flex-shrink: 0; }
-.verdict-text strong {
-  display: block;
-  font-size: calc(20px + var(--ui-font-increase, 0px));
-  font-weight: 800;
-}
-.verdict-banner.pass .verdict-text strong { color: var(--success); }
-.verdict-banner.fail .verdict-text strong { color: var(--danger); }
-.verdict-banner.idle .verdict-text strong { color: var(--text-muted); }
-.verdict-text .verdict-sub {
-  font-size: calc(13px + var(--ui-font-increase, 0px));
-  color: var(--text-muted);
-  margin-top: 3px;
-}
-
-/* 三项指标卡 */
-.metric-cards {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-bottom: 14px;
-}
-.metric-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px 10px;
-  text-align: center;
-  transition: all 0.2s;
-}
-.metric-card.ok {
-  background: var(--success-soft);
-  border-color: var(--success);
-}
-.metric-card.ng {
-  background: var(--danger-soft);
-  border-color: var(--danger);
-}
-.metric-card.idle {
-  background: var(--surface-2);
-}
-.metric-icon { font-size: calc(22px + var(--ui-font-increase, 0px)); margin-bottom: 4px; }
-.metric-label {
-  font-size: calc(11.5px + var(--ui-font-increase, 0px));
-  color: var(--text-muted);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  margin-bottom: 4px;
-}
-.metric-value {
-  font-size: calc(16px + var(--ui-font-increase, 0px));
-  font-weight: 800;
-}
-.metric-card.ok .metric-value { color: var(--success); }
-.metric-card.ng .metric-value { color: var(--danger); }
-.metric-card.idle .metric-value { color: var(--text-faint); }
-.metric-sub {
-  font-size: calc(11px + var(--ui-font-increase, 0px));
-  color: var(--text-faint);
-  margin-top: 2px;
-}
-
 /* 结果图区 */
 .result-image-area {
   width: 100%;
@@ -415,26 +306,6 @@
   padding: 30px 20px;
   font-size: calc(13px + var(--ui-font-increase, 0px));
 }
-
-/* 详细数值行 */
-.detail-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-.detail-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: calc(12px + var(--ui-font-increase, 0px));
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-}
-.detail-chip strong { color: var(--text); }
 
 /* --- 加载遮罩 --- */
 #loading-overlay {
@@ -620,11 +491,6 @@
       <h1>2D 泡棉工作台</h1>
       <p>在这里取图、绘制标准 ROI、保存配方并检测；配方参数统一在配方管理中修改。</p>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <a href="{% url 'vision:recipe_management' %}?tab=foam2d{% if foam_layout_id %}&layout_id={{ foam_layout_id|urlencode }}{% endif %}" class="btn btn-secondary btn-sm">配方管理</a>
-      <a href="{% url 'vision:foam_results' %}" class="btn btn-secondary btn-sm">历史记录</a>
-      <a href="{% url 'vision:task_list' %}" class="btn btn-secondary btn-sm">返回视觉中心</a>
-    </div>
   </div>
 
   <!-- 主体双栏 -->
@@ -646,38 +512,25 @@
           </div>
           <div id="camera-placeholder" class="camera-placeholder">
             <div class="cam-icon">📷</div>
-            <p>点击「刷新预览」获取相机画面</p>
+            <p>点击「拍照取图」获取相机画面</p>
             <p class="hint">画面应显示：保险杆表面及待检测泡棉</p>
           </div>
         </div>
 
         <!-- 相机操作 -->
         <div class="cam-controls">
-          <button id="btn-refresh-preview" class="btn btn-secondary">
-            🔄 刷新预览
-          </button>
-          <button id="btn-live-preview" class="btn btn-secondary" aria-pressed="false">
-            ▶ 开始实时预览
-          </button>
-          <button id="btn-capture-inspect" class="btn btn-success" style="background:var(--success);">
-            📸 拍照检测
-          </button>
+          <button type="button" id="btn-start-calculation" class="btn btn-primary">开始计算</button>
+          <button type="button" id="btn-refresh-preview" class="btn btn-success">拍照取图</button>
           <button id="btn-upload-left" class="btn btn-secondary" title="导入本地图片到左侧预览，可标 ROI 后再检测">
             📂 导入图片
           </button>
           <span class="text-muted">原图上传上限 {{ max_upload_mb|default:128 }} MB，保留原始分辨率</span>
           <input type="file" id="file-upload-preview" accept="image/*" style="display:none;">
-          <button id="btn-import-from-records" class="btn btn-secondary" title="从2D泡棉检测历史记录中选取图片">
-            🗂️ 从记录导入
-          </button>
+          <button type="button" id="btn-history-records" class="btn btn-secondary" title="从系统检测历史中选择原图">导入历史记录</button>
+          <button type="button" id="btn-history-folder" class="btn btn-secondary" title="选择包含一张原图的历史记录文件夹">导入本地文件夹</button>
+          <input type="file" id="foam-history-folder" webkitdirectory multiple hidden>
         </div>
 
-        <!-- POS 选择 -->
-        <div class="pos-selector">
-          <label for="pos-index">当前 POS</label>
-          <input id="pos-index" type="number" min="0" value="0" title="与 PLC 位置号保持一致">
-          <span class="pos-hint">0代表第1层，1代表第2层 · 每次检测后自动递增</span>
-        </div>
 
         <!-- ROI 标定工具 -->
         <div class="roi-calibration-panel">
@@ -691,37 +544,10 @@
             <button id="btn-start-roi-polygon" class="btn btn-secondary btn-sm" title="自由绘制不规则 ROI">✏️ 画笔</button>
             <button id="btn-save-roi" class="btn btn-sm" style="background:var(--success);">保存当前 ROI 标定</button>
             <button id="btn-save-recipe" class="btn btn-secondary btn-sm">保存草稿</button>
-            <button id="btn-publish-recipe" type="button" class="btn btn-sm" style="background:var(--primary);">验证并发布</button>
             <span id="calibration-status"></span>
             <div id="recipe-publish-feedback" role="status" aria-live="polite" hidden style="flex-basis:100%;padding:10px;border-radius:6px;background:#fff7ed;color:#9a3412;white-space:pre-line;"></div>
           </div>
-          <div class="standard-roi-panel">
-            <div class="sm-head">标准 ROI</div>
-            <span id="standard-roi-message" role="status">未检查 ROI 状态</span>
-            <details class="foam-roi-details">
-              <summary>查看左右 ROI 几何</summary>
-            <div class="sm-list">
-              <div class="sm-item" id="sm-left">
-                <div class="sm-info">
-                  <strong>左侧标准 ROI</strong>
-                  <span class="sm-status" id="sm-left-status">—</span>
-                  <div class="sm-detail" id="sm-left-detail" style="display:none;"></div>
-                </div>
-              </div>
-              <div class="sm-item" id="sm-right">
-                <div class="sm-info">
-                  <strong>右侧标准 ROI</strong>
-                  <span class="sm-status" id="sm-right-status">—</span>
-                  <div class="sm-detail" id="sm-right-detail" style="display:none;"></div>
-                </div>
-              </div>
-            </div>
-            </details>
-            <div class="sm-actions">
-              <span>标准泡棉的位置和形状由左右 ROI 定义；图片仅用于绘制和试跑，不随配方导出。</span>
-              <button id="btn-refresh-roi" class="btn btn-secondary btn-sm" type="button">刷新 ROI 状态</button>
-            </div>
-          </div>
+
         </div>
 
       </div>
@@ -733,13 +559,6 @@
         <span id="foam-recipe-save-state" class="foam-recipe-state">待选择配方</span>
       </div>
       <div class="foam-recipe-guide-body">
-        <div class="recipe-authoring-progress compact" aria-label="泡棉配方创建步骤">
-          <div class="done"><span>1</span><strong>基本信息</strong><small>配方与 POS</small></div>
-          <div class="current"><span>2</span><strong>基准图</strong><small>相机或导入</small></div>
-          <div><span>3</span><strong>标准框与层大框</strong><small>本层搜索、位置对比</small></div>
-          <div><span>4</span><strong>保存配置</strong><small>ROI 与参数</small></div>
-          <div><span>5</span><strong>验证发布</strong><small>试跑后生效</small></div>
-        </div>
         <div class="foam-recipe-basic-fields">
           <label>选择已有配方<select id="foam-recipe-select"><option value="">正在加载配方列表…</option></select></label>
         </div>
@@ -753,9 +572,7 @@
         </section>
         <div id="foam-recipe-save-actions"></div>
         <div id="foam-recipe-tools-host"></div>
-        <div class="foam-recipe-validation-note">
-          <span>左右标准 ROI 定义泡棉应有的位置、形状和面积；本层搜索区定义查找实际泡棉的范围。检测将实际泡棉与标准 ROI 比较，计算覆盖、完整性及 X/Y 偏移。纯 ROI 配方只保存坐标与参数。</span>
-        </div>
+
       </div>
     </aside>
 
@@ -773,88 +590,9 @@
 
         <div id="detection-feedback" role="status" aria-live="polite" hidden
              style="padding:12px;margin-bottom:12px;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere;"></div>
+        <div id="foam-failure-reason" role="status"></div>
         <div id="detection-timing" role="status" style="margin-bottom:10px;color:var(--text-muted);font-size:calc(13px + var(--ui-font-increase, 0px));"></div>
-        <!-- 判定大横幅 -->
-        <div id="verdict-banner" class="verdict-banner idle">
-          <div class="verdict-icon" id="verdict-icon">⏳</div>
-          <div class="verdict-text">
-            <strong id="verdict-text">等待检测</strong>
-            <div class="verdict-sub" id="verdict-sub">请点击左侧「拍照检测」或导入图片开始检测</div>
-          </div>
-        </div>
-
-        <div class="metric-cards">
-          <div id="card-present" class="metric-card idle">
-            <div class="metric-icon">●</div>
-            <div class="metric-label">泡棉存在</div>
-            <div id="value-present" class="metric-value">待检测</div>
-          </div>
-          <div id="card-aligned" class="metric-card idle">
-            <div class="metric-icon">↔</div>
-            <div class="metric-label">位置对齐</div>
-            <div id="value-aligned" class="metric-value">待检测</div>
-          </div>
-        </div>
-
-        <!-- 详细检测结果区域（方案A：左右分侧） -->
-        <div id="detailed-result" style="display:none;">
-
-          <!-- 配方标题 -->
-          <div style="padding:12px 16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;margin-bottom:16px;">
-            <div style="font-weight:700;font-size:calc(14px + var(--ui-font-increase, 0px));color:#0369a1;">
-              <span id="result-recipe-title">【POS0 配方 - 第1层泡棉检测】</span>
-            </div>
-          </div>
-
-          <!-- 左侧泡棉结果 -->
-          <div style="margin-bottom:20px;border:2px solid #e5e7eb;border-radius:8px;padding:14px;background:#fff;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:2px dashed #d1d5db;">
-              <span style="font-weight:800;font-size:calc(15px + var(--ui-font-increase, 0px));color:#374151;">━━━ 左侧泡棉 ━━━</span>
-              <span id="left-status-badge" style="padding:4px 10px;border-radius:4px;font-size:calc(13px + var(--ui-font-increase, 0px));font-weight:700;">-</span>
-            </div>
-
-            <table style="width:100%;font-size:calc(13px + var(--ui-font-increase, 0px));line-height:2.2;">
-              <tr>
-                <td style="color:#6b7280;width:120px;"><strong>覆盖率:</strong></td>
-                <td id="left-coverage-detail" style="font-family:monospace;">-</td>
-              </tr>
-
-              <tr>
-                <td style="color:#6b7280;"><strong>位置偏移:</strong></td>
-                <td id="left-offset-detail" style="font-family:monospace;">-</td>
-              </tr>
-
-            </table>
-          </div>
-
-          <!-- 右侧泡棉结果 -->
-          <div style="margin-bottom:20px;border:2px solid #e5e7eb;border-radius:8px;padding:14px;background:#fff;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:2px dashed #d1d5db;">
-              <span style="font-weight:800;font-size:calc(15px + var(--ui-font-increase, 0px));color:#374151;">━━━ 右侧泡棉 ━━━</span>
-              <span id="right-status-badge" style="padding:4px 10px;border-radius:4px;font-size:calc(13px + var(--ui-font-increase, 0px));font-weight:700;">-</span>
-            </div>
-
-            <table style="width:100%;font-size:calc(13px + var(--ui-font-increase, 0px));line-height:2.2;">
-              <tr>
-                <td style="color:#6b7280;width:120px;"><strong>覆盖率:</strong></td>
-                <td id="right-coverage-detail" style="font-family:monospace;">-</td>
-              </tr>
-
-              <tr>
-                <td style="color:#6b7280;"><strong>位置偏移:</strong></td>
-                <td id="right-offset-detail" style="font-family:monospace;">-</td>
-              </tr>
-
-            </table>
-          </div>
-
-          <!-- 最终判定 -->
-          <div id="final-verdict" style="padding:14px 18px;border-radius:6px;margin-bottom:16px;">
-            <div style="font-weight:800;font-size:calc(15px + var(--ui-font-increase, 0px));margin-bottom:4px;">━━━ 最终判定 ━━━</div>
-            <div id="final-verdict-text" style="font-size:calc(14px + var(--ui-font-increase, 0px));font-weight:700;">-</div>
-          </div>
-
-        </div>
+        {% include 'vision/foam_result_summary.html' with workbench=True %}
 
         <!-- 结果图 -->
         <div class="result-image-area" id="result-image-area">
@@ -867,15 +605,7 @@
           标注说明：蓝色＝搜索 ROI，黄色＝标准 ROI 轮廓，红色半透明＝当前检测泡棉。
         </div>
 
-        <!-- 详细数值 -->
-        <div class="detail-row" id="detail-row" style="display:none;">
-          <div class="detail-chip">POS <strong id="d-pos">—</strong></div>
-          <div class="detail-chip">配方 <strong id="d-recipe">默认配置</strong></div>
-          <div class="detail-chip">覆盖率 <strong id="d-cov">—</strong></div>
-          <div class="detail-chip">X偏移 <strong id="d-ox">—</strong></div>
-          <div class="detail-chip">Y偏移 <strong id="d-oy">—</strong></div>
-          <div class="detail-chip" id="d-defect-chip" style="display:none;">缺陷 <strong id="d-defect">—</strong></div>
-        </div>
+
 
       </div>
     </div>
@@ -885,6 +615,7 @@
 
 
 
+<script src="{% static 'vision/js/foam_result_summary.js' %}?v=1"></script>
 <script src="{% static 'vision/js/foam_recipe_summary.js' %}"></script>
 <script>
 // ============================================================
@@ -895,12 +626,9 @@ const API = {
   captureAndInspect:'{% url "vision:api_foam_capture_inspect" %}',
   uploadAndInspect: '{% url "vision:api_foam_upload_inspect" %}',
   inspectionRecords: '{% url "vision:api_foam_inspection_records" %}',
-  calibration:      '{% url "vision:api_foam_calibration" %}',
-  saveCalibration:  '{% url "vision:api_foam_calibration_save" %}',
   recipes:          '{% url "vision:api_vision_recipes" %}',
   recipeByPos:      '{% url "vision:api_foam_recipe_by_pos" %}',
   saveRecipe:       '{% url "vision:api_foam_recipe_save" %}',
-  standardRoiStatus: (id) => `/vision/api/recipes/foam-2d/${id}/standard-roi/`,
   defaultRecipes:   '{% url "vision:api_foam_recipe_defaults" %}',
 };
 const FOAM_RECIPE_EDITING = true;
@@ -909,7 +637,6 @@ const MAX_IMAGE_PIXELS = {{ max_image_pixels|default:25000000 }};
 const WORKBENCH_QUERY = new URLSearchParams(window.location.search);
 const WORKBENCH_LAYOUT_ID = WORKBENCH_QUERY.get('layout_id') || '';
 const WORKBENCH_RECIPE_ID = WORKBENCH_QUERY.get('recipe_id') || '';
-let recipeValidationCompleted = false;
 
 // ── CSRF ─────────────────────────────────────────────────
 function getCsrf() {
@@ -929,8 +656,8 @@ function hideLoading() {
 }
 
 function resetDetectionResult(title, message) {
+  document.getElementById('foam-failure-reason').textContent = '';
   lastDetectionResult = null;
-  recipeValidationCompleted = false;
   document.getElementById('btn-save-detection-images').disabled = true;
   document.getElementById('verdict-banner').className = 'verdict-banner idle';
   document.getElementById('verdict-icon').textContent = '—';
@@ -991,10 +718,7 @@ async function fetchDetectionJson(url, options = {}) {
 
 // ── 预览图更新 ───────────────────────────────────────────
 let cameraPreviewRequestInFlight = false;
-let livePreviewEnabled = false;
-let livePreviewTimer = null;
 let lastCameraCaptureToken = '';
-let currentStandardRoiReady = false;
 let lastDetectionResult = null;
 document.getElementById('btn-save-detection-images').addEventListener('click', async function () {
   const resultId = lastDetectionResult?.result_id;
@@ -1010,13 +734,6 @@ document.getElementById('btn-save-detection-images').addEventListener('click', a
   } catch (error) { showDetectionFeedback(error.message, true); }
   finally { this.disabled = false; }
 });
-
-function stopLivePreview() {
-  livePreviewEnabled = false;
-  if (livePreviewTimer) window.clearTimeout(livePreviewTimer);
-  livePreviewTimer = null;
-  updateLivePreviewButton();
-}
 
 async function waitForCameraPreviewIdle(timeoutMs = 15000) {
   const startedAt = Date.now();
@@ -1039,30 +756,10 @@ function isCameraBusyError(msg) {
   return patterns.some(p => lower.includes(p.toLowerCase()));
 }
 
-// 在页面顶部显示一个临时 toast 消息（不打断用户操作）
-function showCameraToast(msg, type = 'warn') {
-  const existing = document.getElementById('camera-toast');
-  if (existing) existing.remove();
-  const toast = document.createElement('div');
-  toast.id = 'camera-toast';
-  toast.style.cssText = [
-    'position:fixed', 'top:16px', 'right:16px', 'z-index:9999',
-    'max-width:380px', 'padding:12px 16px', 'border-radius:8px',
-    'font-size:calc(13px + var(--ui-font-increase, 0px))', 'line-height:1.5', 'box-shadow:0 4px 20px rgba(0,0,0,.4)',
-    type === 'warn'
-      ? 'background:#92400e;color:#fef3c7;border:1px solid #b45309;'
-      : 'background:#1e3a5f;color:#dbeafe;border:1px solid #3b82f6;',
-    'transition:opacity .3s',
-  ].join(';');
-  toast.textContent = msg;
-  document.body.appendChild(toast);
-  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 350); }, 4000);
-}
-
-async function refreshCameraPreview({ background = false } = {}) {
+async function refreshCameraPreview() {
   if (cameraPreviewRequestInFlight) return false;
   cameraPreviewRequestInFlight = true;
-  if (!background) showLoading('获取相机画面...');
+  showLoading('获取相机画面...');
   try {
     const {response: res, data} = await fetchDetectionJson(API.refreshPreview, {
       method: 'POST',
@@ -1075,7 +772,7 @@ async function refreshCameraPreview({ background = false } = {}) {
       return true;
     } else {
       let errorMsg = data.error || '未知错误';
-      if (!background) showDetectionFeedback('获取相机画面失败：' + errorMsg, true);
+      showDetectionFeedback('获取相机画面失败：' + errorMsg, true);
 
       // 相机占用类错误：给出结构化提示
       if (isCameraBusyError(errorMsg)) {
@@ -1089,14 +786,8 @@ async function refreshCameraPreview({ background = false } = {}) {
           '1. 关闭 MVS 软件后再试\n' +
           '2. 刷新页面重试\n' +
           '3. 重启开发服务器';
-        if (background) {
-          // 实时预览：显示 toast，不弹 alert，不停止预览，让用户继续操作
-          showCameraToast('📷 相机暂时被占用，将在下次自动重试...');
-          return false;  // 返回 false 但由调用方决定是否停止
-        } else {
-          alert('获取预览失败\n\n' + friendlyMsg);
-          return false;
-        }
+        alert('获取预览失败\n\n' + friendlyMsg);
+        return false;
       } else if (errorMsg.includes('-2147483646') || errorMsg.includes('获取图像失败')) {
         errorMsg =
           '相机无法获取图像\n\n可能原因：\n' +
@@ -1110,71 +801,21 @@ async function refreshCameraPreview({ background = false } = {}) {
         return false;
       }
 
-      if (background) {
-        showCameraToast('📷 预览失败：' + errorMsg.slice(0, 80));
-        return false;
-      }
       alert('获取预览失败\n\n' + errorMsg);
       return false;
     }
   } catch (e) {
-    if (background) {
-      showCameraToast('📷 网络请求失败，将自动重试...');
-      return false;
-    }
     showDetectionFeedback('获取相机画面失败：' + e.message, true);
     alert('网络请求失败：' + e.message);
     return false;
   } finally {
     cameraPreviewRequestInFlight = false;
-    if (!background) hideLoading();
+    hideLoading();
   }
 }
 
 document.getElementById('btn-refresh-preview').addEventListener('click', () => {
   refreshCameraPreview();
-});
-
-function updateLivePreviewButton() {
-  const button = document.getElementById('btn-live-preview');
-  button.setAttribute('aria-pressed', livePreviewEnabled ? 'true' : 'false');
-  button.textContent = livePreviewEnabled ? '⏹ 停止实时预览' : '▶ 开始实时预览';
-  button.classList.toggle('btn-warning', livePreviewEnabled);
-  button.classList.toggle('btn-secondary', !livePreviewEnabled);
-}
-
-async function runLivePreviewFrame() {
-  if (!livePreviewEnabled) return;
-  if (document.hidden) {
-    livePreviewTimer = window.setTimeout(runLivePreviewFrame, 1000);
-    return;
-  }
-  const success = await refreshCameraPreview({ background: true });
-  if (!success) {
-    // 相机占用是短暂错误，不停止实时预览，等待下一帧重试
-    if (livePreviewEnabled) {
-      livePreviewTimer = window.setTimeout(runLivePreviewFrame, 2000);  // 2s 后重试
-    }
-    return;
-  }
-  // 串行采集，上一帧完成后再请求下一帧，避免两个进程同时占用相机。
-  if (livePreviewEnabled) {
-    livePreviewTimer = window.setTimeout(runLivePreviewFrame, 250);
-  }
-}
-
-document.getElementById('btn-live-preview').addEventListener('click', () => {
-  if (livePreviewEnabled) {
-    stopLivePreview();
-  } else {
-    livePreviewEnabled = true;
-    updateLivePreviewButton();
-    runLivePreviewFrame();
-  }
-});
-
-window.addEventListener('beforeunload', () => {
-  stopLivePreview();
 });
 
 function setPreviewImage(url) {
@@ -1183,10 +824,9 @@ function setPreviewImage(url) {
   img.style.display = 'block';
   document.getElementById('camera-placeholder').style.display = 'none';
   refreshPreviewRecipeRoi();
-  updateCaptureButtonText();  // 更新按钮文本
 }
 
-// 暂存左侧导入的图片（等待「拍照检测」使用）
+// 暂存左侧导入的图片
 let pendingFile = null;
 let pendingFileDataUrl = null;  // 保存图片的DataURL用于重复检测
 
@@ -1195,9 +835,6 @@ let foam2DRecipes = [];
 let manualSelectedRecipe = null;
 let selectedRecipeForEdit = null;
 
-function currentPOS() {
-  return Number(document.getElementById('pos-index').value || 0);
-}
 function activeFoam2DRecipe() {
   const active = foam2DRecipes.filter(item => item.is_active);
   return active.length === 1 ? active[0] : null;
@@ -1206,51 +843,6 @@ function currentDetectionRecipe() {
   if (manualSelectedRecipe) return manualSelectedRecipe;
   if (FOAM_RECIPE_EDITING) return selectedRecipeForEdit;
   return activeFoam2DRecipe();
-}
-function currentDetectionPos() {
-  return currentPOS();
-}
-
-// ── 配方自动递增：检测完成后自动切换到下一个配方 ──────────────────────
-function autoIncrementRecipe() {
-  // 如果有手动选择的临时配方，不自动递增
-
-  const currentPos = currentPOS();
-  console.log('当前 POS:', currentPos);
-
-  // Recipe choice is fixed for the rack; POS is only a result sequence.
-  const nextPos = currentPos + 1;
-
-  // 更新POS输入框
-  const posInput = document.getElementById('pos-index');
-  if (posInput) {
-    posInput.value = nextPos;
-    // 触发change事件以更新UI
-    posInput.dispatchEvent(new Event('change'));
-
-    // 显示提示信息
-    showRecipeChangeNotification(currentPos, nextPos);
-  }
-}
-
-// ── 显示配方切换提示 ─────────────────────────────────────────
-function showRecipeChangeNotification(fromPos, toPos) {
-  const status = document.getElementById('calibration-status');
-  if (!status) return;
-
-  const originalText = status.textContent;
-  const originalColor = status.style.color;
-
-  status.textContent = `✅ 检测完成，已自动切换：POS ${fromPos} → POS ${toPos}`;
-  status.style.color = '#059669';
-  status.style.fontWeight = '700';
-
-  // 3秒后恢复原样
-  setTimeout(() => {
-    status.textContent = originalText;
-    status.style.color = originalColor;
-    status.style.fontWeight = '';
-  }, 3000);
 }
 function roiToRatio(roi, recipe) {
   if (roi && roi.type === 'polygon') {
@@ -1290,7 +882,7 @@ function applyRecipeRoiToOverlay(recipe) {
   cal.rois.layer = recipe.roi_config.layerSearchROI ? roiToRatio(recipe.roi_config.layerSearchROI, recipe) : null;
 
   renderRoiBoxes();
-  console.log('已应用配方 ROI:', recipe.name, 'POS:', recipe.pos);
+  console.log('已应用配方 ROI:', recipe.name);
 }
 function refreshPreviewRecipeRoi() {
   const redraw = () => {
@@ -1371,108 +963,6 @@ function renderDetectionResultSafely(result) {
   }
 }
 
-// ── 拍照检测：自动判断使用相机还是导入图片 ───────────────────────────
-document.getElementById('btn-capture-inspect').addEventListener('click', async () => {
-  const captureButton = document.getElementById('btn-capture-inspect');
-  if (captureButton.disabled) return;
-  const clickStarted = performance.now();
-  document.getElementById('detection-timing').textContent = '正在计时…';
-  captureButton.disabled = true;
-  captureButton.textContent = '⏳ 正在检测…';
-  showDetectionFeedback('正在检查配方并准备检测…');
-  try {
-    const detectionPos = currentDetectionPos();
-
-    stopLivePreview();
-    if (!(await waitForCameraPreviewIdle())) {
-      throw new Error('相机预览尚未结束，请稍后重试。');
-    }
-
-    if (!(await ensureStandardRoiForDetection())) {
-      captureButton.disabled = false;
-      return;
-    }
-
-    if (pendingFile) {
-      validateImageUpload(pendingFile);
-      // 有导入图片 → 走上传检测接口（可以重复使用同一张图片）
-      showLoading('检测导入图片...');
-      const fd = new FormData();
-      fd.append('image', pendingFile);
-      fd.append('position_index', detectionPos);
-      const recipe = currentDetectionRecipe();
-      if (recipe?.id) fd.append('recipe_id', recipe.id);
-      fd.append('use_recipe', 'true');
-      try {
-        const outcome = await requestDetection(API.uploadAndInspect, {
-          method: 'POST',
-          headers: { 'X-CSRFToken': getCsrf() },
-          body: fd,
-        });
-        if (outcome.ok) outcome.result.browser_click_started = clickStarted;
-      if (outcome.ok && renderDetectionResultSafely(outcome.result)) {
-          // 自动递增配方到下一个POS
-          autoIncrementRecipe();
-
-          // 保持图片在预览区，允许继续检测
-          if (pendingFileDataUrl) {
-            const img = document.getElementById('preview-image');
-            img.src = pendingFileDataUrl;
-          }
-        } else {
-          if (!outcome.ok) showDetectionRequestError(outcome);
-        }
-      } catch (e) {
-        console.error('检测流程发生意外错误:', e);
-        alert('检测流程异常：' + e.message);
-      } finally {
-        hideLoading();
-        captureButton.disabled = false;
-      }
-      return;
-    }
-
-    // 无导入图片 → 走相机拍照接口
-    const previewWasActive = livePreviewEnabled || cameraPreviewRequestInFlight;
-    stopLivePreview();
-    showLoading(previewWasActive ? '正在结束实时预览并拍照检测...' : '拍照检测中...');
-    try {
-      // 若预览帧正在采集，先等它释放相机，避免正式检测触发 SDK busy 后
-      // 进入 1s/2s 退避重试。
-      await waitForCameraPreviewIdle();
-      const outcome = await requestDetection(API.captureAndInspect, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          position_index: detectionPos,
-          recipe_id: currentDetectionRecipe()?.id,
-          use_recipe: true,
-        }),
-      });
-      if (outcome.ok) outcome.result.browser_click_started = clickStarted;
-      if (outcome.ok && renderDetectionResultSafely(outcome.result)) {
-        // 自动递增配方到下一个POS
-        autoIncrementRecipe();
-      } else {
-        if (!outcome.ok) showDetectionRequestError(outcome);
-      }
-    } catch (e) {
-      console.error('检测流程发生意外错误:', e);
-      alert('检测流程异常：' + e.message);
-    } finally {
-      hideLoading();
-      captureButton.disabled = false;
-    }
-  } catch (error) {
-    console.error('检测准备失败:', error);
-    showDetectionFeedback('检测失败：' + error.message, true);
-  } finally {
-    hideLoading();
-    captureButton.disabled = false;
-    updateCaptureButtonText();
-  }
-});
-
 // ── 左侧「导入图片」：显示在左侧预览区，可标 ROI，再检测 ───────────
 document.getElementById('btn-upload-left').addEventListener('click', () => {
   document.getElementById('file-upload-preview').click();
@@ -1484,7 +974,6 @@ function validateImageUpload(file) {
 }
 async function previewImportedFile(file) {
   validateImageUpload(file);
-  stopLivePreview();
   if (!(await waitForCameraPreviewIdle())) {
     throw new Error('相机预览尚未结束，请稍后重新导入');
   }
@@ -1511,7 +1000,6 @@ async function previewImportedFile(file) {
   img.style.display = 'block';
   document.getElementById('camera-placeholder').style.display = 'none';
   setPendingBadge(file.name);
-  updateCaptureButtonText();
   // A new input must not retain an annotated image from the previous inspection.
   const resultImage = document.getElementById('result-image');
   resultImage.onload = resultImage.onerror = null;
@@ -1521,6 +1009,23 @@ async function previewImportedFile(file) {
   placeholder.textContent = '原图已导入，检测完成后显示标注结果图';
   placeholder.style.display = '';
 }
+
+const foamHistoryFolder = document.getElementById('foam-history-folder');
+document.getElementById('btn-history-folder').addEventListener('click', () => foamHistoryFolder.click());
+foamHistoryFolder.addEventListener('change', async () => {
+  const files = Array.from(foamHistoryFolder.files);
+  foamHistoryFolder.value = '';
+  if (!files.length) return;
+  const images = files.filter(file => /\.(png|jpe?g|bmp|webp)$/i.test(file.name));
+  const originals = images.filter(file => /^(image2d|image|rgb|color|original|raw|\d+_original)\./i.test(file.name));
+  const candidates = originals.length ? originals : images;
+  if (candidates.length !== 1) {
+    showDetectionFeedback('请选择单条历史记录的文件夹，或点击“导入图片”直接选择原图。', true);
+    return;
+  }
+  try { await previewImportedFile(candidates[0]); }
+  catch (error) { showDetectionFeedback(error.message, true); }
+});
 
 document.getElementById('file-upload-preview').addEventListener('change', async (e) => {
   const file = e.target.files[0];
@@ -1543,74 +1048,6 @@ function showPublishFeedback(message, isError = true) {
   feedback.style.background = isError ? '#fff7ed' : '#f0fdf4';
 }
 
-function updateStandardRoiPanel(status) {
-  currentStandardRoiReady = Boolean(status?.ready);
-  for (const side of ['left', 'right']) {
-    const sideData = status?.sides?.[side] || {};
-    const statusEl = document.getElementById(`sm-${side}-status`);
-    const detailEl = document.getElementById(`sm-${side}-detail`);
-    if (!statusEl) continue;
-
-    if (sideData.exists) {
-      statusEl.className = status?.ready ? 'sm-status sm-ok' : 'sm-status sm-missing';
-      statusEl.textContent = '已配置';
-      if (detailEl) {
-        detailEl.textContent = `面积 ${sideData.pixels || sideData.pixel_count || 0} px² · 中心 (${Number(sideData.centroid_x || 0).toFixed(1)}, ${Number(sideData.centroid_y || 0).toFixed(1)}) px`;
-        detailEl.style.display = 'block';
-      }
-    } else {
-      statusEl.className = 'sm-status sm-missing';
-      statusEl.textContent = '⚠️ 未保存有效 ROI';
-      if (detailEl) {
-        detailEl.textContent = sideData.error || '请绘制标准 ROI 并保存配方';
-        detailEl.style.display = 'block';
-      }
-    }
-  }
-  const message = document.getElementById('standard-roi-message');
-  if (message) {
-    message.textContent = status?.ready
-      ? '左右标准 ROI 已配置'
-      : (status?.reason || '请配置左右标准 ROI');
-    message.style.color = status?.ready ? '#166534' : '#b45309';
-  }
-}
-
-async function loadStandardRoiStatus(recipeId) {
-  if (!recipeId) {
-    updateStandardRoiPanel({ready:false, reason:'请先保存配方', sides:{}});
-    return;
-  }
-  try {
-    const response = await fetch(API.standardRoiStatus(recipeId));
-    const data = await response.json();
-    if (!response.ok || !data.success) throw new Error(data.error || 'ROI 状态查询失败');
-    updateStandardRoiPanel(data);
-  } catch (error) {
-    updateStandardRoiPanel({ready:false, reason:error.message, sides:{}});
-  }
-}
-
-async function ensureStandardRoiForDetection() {
-  const recipe = currentDetectionRecipe();
-  if (cal.dirty) {
-    showDetectionFeedback('ROI 已修改，请先保存到配方。', true);
-    return false;
-  }
-  if (currentStandardRoiReady || recipe?.standard_roi_status?.ready || recipe?.standard_template_status?.ready) return true;
-  showDetectionFeedback('请绘制有效的左右标准 ROI 并保存配方；无需建立图片模板。', true);
-  return false;
-}
-
-// 检测前只检查已保存的标准 ROI，不取图或建立图片模板。
-window.ensureStandardRoiForDetection = ensureStandardRoiForDetection;
-
-
-
-
-
-
-
 function setPendingBadge(name) {
   let badge = document.getElementById('pending-file-badge');
   if (!badge) {
@@ -1628,7 +1065,7 @@ function setPendingBadge(name) {
   badge.append('⏳ ');
   const label = document.createElement('strong');
   label.textContent = `已导入：${name}`;
-  badge.append(label, '，可标定 ROI 后点「拍照检测」（不调用相机）');
+  badge.append(label, '，可在工作台标定 ROI');
   const clearButton = document.createElement('button');
   clearButton.type = 'button';
   clearButton.textContent = '✕ 清除';
@@ -1647,18 +1084,6 @@ function clearPendingFile() {
   pendingFileDataUrl = null;
   const badge = document.getElementById('pending-file-badge');
   if (badge) badge.style.display = 'none';
-  updateCaptureButtonText();
-}
-
-function updateCaptureButtonText() {
-  const btn = document.getElementById('btn-capture-inspect');
-  if (btn) {
-    if (pendingFile) {
-      btn.innerHTML = '🔍 检测图片';
-    } else {
-      btn.innerHTML = '📸 拍照检测';
-    }
-  }
 }
 
 // ── 右侧「导入图片检测」：先显示原图，再上传并检测 ───────────
@@ -1674,37 +1099,56 @@ document.getElementById('file-upload').addEventListener('change', async (e) => {
     e.target.value = '';
     return;
   }
-  if (!(await ensureStandardRoiForDetection())) {
-    e.target.value = '';
+  e.target.value = '';
+  await startCurrentImageCalculation();
+});
+
+let calculationBusy = false;
+document.getElementById('btn-start-calculation').addEventListener('click', startCurrentImageCalculation);
+async function startCurrentImageCalculation() {
+  if (calculationBusy) return;
+  if (cameraPreviewRequestInFlight) {
+    showDetectionFeedback('正在取图，请稍后点击开始计算', true);
     return;
   }
-  const detectionPos = currentDetectionPos();
-  const fd = new FormData();
-  fd.append('image', file);
-  fd.append('position_index', detectionPos);
+  if (!pendingFile && !lastCameraCaptureToken) {
+    showDetectionFeedback('请先拍照取图、导入图片或导入历史记录，再开始计算', true);
+    return;
+  }
   const recipe = currentDetectionRecipe();
-  if (recipe?.id) fd.append('recipe_id', recipe.id);
+  if (!recipe?.id) {
+    showDetectionFeedback('请先选择配方', true);
+    return;
+  }
+  if (cal.dirty) {
+    showDetectionFeedback('ROI 已修改，请先保存当前 ROI 标定，再开始计算', true);
+    return;
+  }
+  const fd = new FormData();
+  if (pendingFile) fd.append('image', pendingFile);
+  else fd.append('preview_capture_token', lastCameraCaptureToken);
+  fd.append('recipe_id', recipe.id);
   fd.append('use_recipe', 'true');
-  showLoading('上传并检测图片...');
+  calculationBusy = true;
+  const button = document.getElementById('btn-start-calculation');
+  button.disabled = true;
+  button.textContent = '计算中…';
+  showLoading('正在计算当前图片...');
   try {
     const outcome = await requestDetection(API.uploadAndInspect, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': getCsrf() },
-      body: fd,
+      method: 'POST', headers: {'X-CSRFToken': getCsrf()}, body: fd,
     });
-    if (outcome.ok) {
-      renderDetectionResultSafely(outcome.result);
-    } else {
-      showDetectionRequestError(outcome);
-    }
-  } catch (e) {
-    console.error('检测流程发生意外错误:', e);
-    alert('检测流程异常：' + e.message);
+    if (outcome.ok) renderDetectionResultSafely(outcome.result);
+    else showDetectionRequestError(outcome);
+  } catch (error) {
+    showDetectionFeedback('计算失败：' + error.message, true);
   } finally {
+    calculationBusy = false;
+    button.disabled = false;
+    button.textContent = '开始计算';
     hideLoading();
-    e.target.value = '';
   }
-});
+}
 
 
 // ── 渲染检测结果 ──────────────────────────────────────────
@@ -1723,12 +1167,12 @@ function showDetectionTiming(r, imageLoaded = false) {
 }
 
 function renderResult(r) {
+  document.getElementById('foam-failure-reason').textContent = r.failure_reason || '';
   showDetectionTiming(r);
   console.log('渲染检测结果:', r);
   lastDetectionResult = r;
   document.getElementById('btn-save-detection-images').disabled = false;
   if (FOAM_RECIPE_EDITING) {
-    recipeValidationCompleted = Boolean(r.is_passed);
     const recipeState = document.getElementById('foam-recipe-save-state');
     if (recipeState) {
       recipeState.textContent = r.is_passed ? '试跑通过' : '试跑待复核';
@@ -1737,84 +1181,7 @@ function renderResult(r) {
   }
 
 
-  // 判定横幅
-  const banner = document.getElementById('verdict-banner');
-  banner.className = 'verdict-banner ' + (r.is_passed ? 'pass' : 'fail');
-  document.getElementById('verdict-icon').textContent = r.is_passed ? '✅' : '❌';
-  document.getElementById('verdict-text').textContent = r.inspection_status === 'INVALID'
-    ? '检测无效 · 请检查图像与配置' : (r.is_passed ? '检测合格 · OK' : '检测不合格 · NG');
-  let sub = r.is_passed
-    ? '泡棉已检测到，贴附状态合格，进入下一循环'
-    : '泡棉检测异常，请查看下方详细信息';
-  document.getElementById('verdict-sub').textContent = sub;
-  const sideStates = Object.values(r.sides || r.result_data?.sides || {});
-  const coverageOk = sideStates.every(foamCoverageValid);
-  const separated = sideStates.some(d => d.decision_mode === 'separated-v2');
-  const presentOk = Boolean(r.is_present) && (separated || coverageOk);
-  const alignedOk = presentOk && Boolean(r.is_aligned);
-  setMetricCard('card-present', 'value-present', presentOk,
-    !r.is_present ? '未检出' : separated ? '已检测（完整性另判）' : coverageOk ? '已检测' : '覆盖不足', '●');
-  setMetricCard('card-aligned', 'value-aligned', alignedOk,
-    !presentOk ? '无法确认' : alignedOk ? '对齐' : '偏移', '↔');
-
-
-  // 显示详细结果区域
-  document.getElementById('detailed-result').style.display = 'block';
-
-  // 配方标题
-  const recipeTitle = `【POS${r.position_index} 配方 - 第${r.position_index + 1}层泡棉检测】`;
-  document.getElementById('result-recipe-title').textContent = recipeTitle;
-
-  // 渲染左右侧结果
-  if (r.sides && (r.sides.left || r.sides.right)) {
-    renderSideResult('left', r.sides.left, r);
-    renderSideResult('right', r.sides.right, r);
-  } else {
-    // 兼容旧格式：没有sides字段时隐藏详细区域
-    document.getElementById('detailed-result').style.display = 'none';
-  }
-
-  // 最终判定
-  const finalDiv = document.getElementById('final-verdict');
-  const finalText = document.getElementById('final-verdict-text');
-  if (r.is_passed) {
-    finalDiv.style.background = 'linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)';
-    finalDiv.style.border = '2px solid #10b981';
-    finalText.style.color = '#059669';
-    finalText.textContent = '✓ 合格';
-  } else {
-    finalDiv.style.background = 'linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%)';
-    finalDiv.style.border = '2px solid #ef4444';
-    finalText.style.color = '#dc2626';
-
-    // 分析不合格原因
-    let reason = '';
-    if (r.inspection_status === 'INVALID') {
-      reason = '图像或测量不可靠，请检查配置及拍摄条件';
-    } else if (r.sides) {
-      const leftNG = r.sides.left && !r.sides.left.is_present;
-      const rightNG = r.sides.right && !r.sides.right.is_present;
-      if (leftNG && rightNG) {
-        reason = '左右侧泡棉均不存在';
-      } else if (leftNG) {
-        reason = '左侧泡棉' + getDefectReason(r.sides.left);
-      } else if (rightNG) {
-        reason = '右侧泡棉' + getDefectReason(r.sides.right);
-      } else {
-        // 存在但不合格
-        const leftReason = getSideIssue(r.sides.left);
-        const rightReason = getSideIssue(r.sides.right);
-        if (leftReason && rightReason) {
-          reason = `左侧${leftReason}，右侧${rightReason}`;
-        } else {
-          reason = leftReason || rightReason || '质量不达标';
-        }
-      }
-    } else {
-      reason = formatDefect(r.defect_type);
-    }
-    finalText.textContent = '✗ 不合格 - ' + reason;
-  }
+  window.renderFoamSummary(document, r, currentDetectionRecipe()?.name);
 
   // Only hide the placeholder after the annotated image actually loads.
   const resultImg = document.getElementById('result-image');
@@ -1838,164 +1205,8 @@ function renderResult(r) {
     resultImg.removeAttribute('src');
   }
 
-  // 详细数值（保留原有显示）
-  document.getElementById('d-pos').textContent   = r.position_index;
-  document.getElementById('d-recipe').textContent = r.recipe?.name || currentDetectionRecipe()?.name || '默认配置';
-
-  const overallCoverage = Math.max(0, Math.min(1, Number(r.coverage_ratio) || 0));
-  document.getElementById('d-cov').textContent   = (overallCoverage * 100).toFixed(1) + '%';
-  document.getElementById('d-ox').textContent    = (r.offset_x_px > 0 ? '+' : '') + Number(r.offset_x_px).toFixed(1) + ' px' + (r.offset_x_mm ? ' (' + (r.offset_x_mm > 0 ? '+' : '') + Number(r.offset_x_mm).toFixed(2) + ' mm)' : '');
-  document.getElementById('d-oy').textContent    = (r.offset_y_px > 0 ? '+' : '') + Number(r.offset_y_px).toFixed(1) + ' px' + (r.offset_y_mm ? ' (' + (r.offset_y_mm > 0 ? '+' : '') + Number(r.offset_y_mm).toFixed(2) + ' mm)' : '');
-  document.getElementById('detail-row').style.display = 'flex';
-  if (!r.is_passed && r.defect_type) {
-    document.getElementById('d-defect').textContent = formatDefect(r.defect_type);
-    document.getElementById('d-defect-chip').style.display = '';
-  } else {
-    document.getElementById('d-defect-chip').style.display = 'none';
-  }
-
   // 同步更新左侧预览的ROI框
   syncResultRecipeToPreview(r);
-}
-
-// ── 渲染单侧结果（新增）────────────────────────────────────
-function foamCoverageValid(data) {
-  if (!data || !data.is_present || data.is_complete === false) return false;
-  if (data.inspection_status === 'INVALID') return false;
-  if (data.decision_mode === 'separated-v2') return data.is_complete === true;
-  const threshold = data.coverage_threshold ?? 0;
-  return Number(data.coverage_ratio ?? 0) >= Number(threshold);
-}
-
-function renderSideResult(side, data, fullResult) {
-  if (!data) return;
-
-  const prefix = side; // 'left' or 'right'
-  const sideName = side === 'left' ? '左侧' : '右侧';
-
-  // 状态徽章
-  const badge = document.getElementById(`${prefix}-status-badge`);
-  if (foamCoverageValid(data) && data.is_aligned) {
-    badge.textContent = '✓ 合格';
-    badge.style.background = '#dcfce7';
-    badge.style.color = '#059669';
-    badge.style.border = '1px solid #10b981';
-  } else {
-    const defect = getDefectReason(data);
-    badge.textContent = '✗ 不合格 (缺陷: ' + defect + ')';
-    badge.style.background = '#fee2e2';
-    badge.style.color = '#dc2626';
-    badge.style.border = '1px solid #ef4444';
-  }
-
-  // 获取阈值
-  const coverageThreshold = fullResult.sides?.[side]?.coverage_threshold ?? 0.85;
-
-  const maxOffsetMm = data.max_offset_mm;
-  const maxOffsetPx = data.max_offset_px ?? 30;
-  const maxOffsetXMm = data.max_offset_x_mm ?? maxOffsetMm;
-  const maxOffsetYMm = data.max_offset_y_mm ?? maxOffsetMm;
-  const maxOffsetXPx = data.max_offset_x_px ?? maxOffsetPx;
-  const maxOffsetYPx = data.max_offset_y_px ?? maxOffsetPx;
-
-  // 覆盖率
-  // 后端覆盖率按 0~1 返回；这里再做一次边界保护，兼容旧检测记录。
-  const coverage = Math.max(0, Math.min(1, Number(data.coverage_ratio) || 0));
-  const detectedPixels = data.detected_pixels || 0;
-  const standardPixels = data.standard_pixels || 0;
-  const coveragePercent = (coverage * 100).toFixed(1) + '%';
-  const pixelInfo = standardPixels ? (data.coverage_source === 'standard_overlap'
-    ? ` (重叠 ${data.overlap_pixels || 0} / 标准 ${standardPixels} 像素)`
-    : ` (检测 ${detectedPixels} / 标准 ${standardPixels} 像素)`) : '';
-  const coverageWarning = data.decision_mode !== 'separated-v2' && coverage < coverageThreshold ? ' ⚠️ 低于' + (coverageThreshold * 100).toFixed(0) + '%阈值' : '';
-  document.getElementById(`${prefix}-coverage-detail`).innerHTML =
-    `<strong style="color:${data.decision_mode === 'separated-v2' ? '#6b7280' : (coverage < coverageThreshold ? '#dc2626' : '#059669')}">${coveragePercent}</strong>${pixelInfo}${coverageWarning}`;
-
-
-
-  if (data.integrity) {
-    const m = data.integrity;
-    const el = document.getElementById(`${prefix}-coverage-detail`);
-    const details = document.createElement('div');
-    details.textContent = `面积比 ${(m.area_ratio * 100).toFixed(1)}% · 对齐后缺损 ${(m.missing_ratio * 100).toFixed(1)}% · 超出 ${(m.excess_ratio * 100).toFixed(1)}% · ${data.fragment_count ?? 1} 个连通区域`;
-    el.appendChild(details);
-  }
-
-  // 位置偏移
-  const offsetMm = data.offset_distance_mm || 0;
-  const offsetPx = data.offset_distance_px || 0;
-  const offsetMmX = Number(data.offset_x_mm || 0);
-  const offsetMmY = Number(data.offset_y_mm || 0);
-  const offsetPxX = Number(data.offset_x_px || 0);
-  const offsetPxY = Number(data.offset_y_px || 0);
-  const offsetDetail = ` (${offsetPxX > 0 ? '+' : ''}${offsetPxX.toFixed(1)}px, ${offsetPxY > 0 ? '+' : ''}${offsetPxY.toFixed(1)}px)`;
-
-  if (!data.is_present || !data.alignment_metric) {
-    document.getElementById(`${prefix}-offset-detail`).innerHTML =
-      '<strong style="color:#dc2626;">无法确认（泡棉不存在或覆盖不足）</strong>';
-  } else if (data.alignment_metric === 'mm' && maxOffsetMm !== null && maxOffsetMm !== undefined) {
-    const exceeded = Math.abs(offsetMmX) > maxOffsetXMm || Math.abs(offsetMmY) > maxOffsetYMm;
-    const warning = exceeded ? ` ⚠️ 限值 X±${Number(maxOffsetXMm).toFixed(1)} / Y±${Number(maxOffsetYMm).toFixed(1)}mm` : '';
-    document.getElementById(`${prefix}-offset-detail`).innerHTML =
-      `<strong style="color:${exceeded ? '#dc2626' : '#059669'}">X ${offsetMmX >= 0 ? '+' : ''}${offsetMmX.toFixed(2)} mm · Y ${offsetMmY >= 0 ? '+' : ''}${offsetMmY.toFixed(2)} mm</strong>${offsetDetail}${warning}`;
-  } else if (data.alignment_metric === 'px') {
-    const exceeded = Math.abs(offsetPxX) > maxOffsetXPx || Math.abs(offsetPxY) > maxOffsetYPx;
-    const warning = exceeded ? ` ⚠️ 限值 X±${Number(maxOffsetXPx).toFixed(0)} / Y±${Number(maxOffsetYPx).toFixed(0)}px` : '';
-    document.getElementById(`${prefix}-offset-detail`).innerHTML =
-      `<strong style="color:${exceeded ? '#dc2626' : '#059669'}">X ${offsetPxX >= 0 ? '+' : ''}${offsetPxX.toFixed(1)} px · Y ${offsetPxY >= 0 ? '+' : ''}${offsetPxY.toFixed(1)} px</strong>${warning}`;
-  } else if (offsetPxX !== 0 || offsetPxY !== 0 || offsetMm > 0) {
-    // 相对ROI中心的偏移数据
-    const displayOffset = offsetMm > 0 ? `${offsetMm.toFixed(2)} mm` : `${offsetPx.toFixed(1)} px`;
-    document.getElementById(`${prefix}-offset-detail`).innerHTML =
-      `<strong style="color:#6b7280;">${displayOffset}</strong>${offsetDetail}`;
-  } else {
-    // 完全无偏移数据
-    document.getElementById(`${prefix}-offset-detail`).innerHTML =
-      `<span style="color:#9ca3af;">-</span>`;
-  }
-
-}
-
-// ── 获取缺陷原因（新增）────────────────────────────────────
-function getDefectReason(data) {
-  if (!data) return '未检测';
-  if (data.inspection_status === 'INVALID') return '图像或测量不可靠';
-  const reasons = {area_below_minimum: '面积不足', area_above_maximum: '面积异常偏大',
-    incomplete: '形状缺损', excess_area: '超出标准区域', local_defect: '局部缺损',
-    misaligned: '位置偏移', coverage_below_threshold: '原位置覆盖不足',
-    no_foam_detected: '未找到泡棉'};
-  if (data.quality_failures?.length) return data.quality_failures.map(k => reasons[k] || k).join('、');
-  if (data.detected_pixels > 0 && data.is_complete === false) return '覆盖不足';
-  if (!data.is_present) {
-    const coverage = data.coverage_ratio || 0;
-    if (coverage < 0.05) {
-      return '不存在';
-    } else {
-      return '覆盖不足';
-    }
-  }
-  if (!data.is_aligned) return '位置偏移';
-  return '未知';
-}
-
-// ── 获取单侧问题描述（新增）────────────────────────────────
-function getSideIssue(data) {
-  if (!data || data.is_present && data.is_aligned && data.is_complete !== false) return '';
-  if (data.quality_failures?.length) return getDefectReason(data);
-  if (data.is_present && data.is_complete === false) return `覆盖不足(${(data.coverage_ratio * 100).toFixed(1)}%)`;
-
-  const issues = [];
-  if (!data.is_present) {
-    const coverage = data.coverage_ratio || 0;
-    if (coverage < 0.05) {
-      issues.push('不存在');
-    } else {
-      issues.push(`覆盖不足(${(coverage * 100).toFixed(1)}%)`);
-    }
-  }
-  if (!data.is_aligned) issues.push('位置偏移');
-
-  return issues.join('、');
 }
 
 // ── 同步结果配方到左侧预览 ─────────────────────────────────────
@@ -2009,23 +1220,7 @@ function syncResultRecipeToPreview(result) {
       applyRecipeRoiToOverlay(result.recipe);
     }
 
-    // 如果当前POS与结果POS不同，可以选择是否更新（这里保持不变，只更新ROI显示）
-    console.log('左侧预览ROI已同步到检测时使用的配方 POS', result.recipe.pos);
   }
-}
-
-function setMetricCard(cardId, valId, isOk, label, icon) {
-  const card = document.getElementById(cardId);
-  const val  = document.getElementById(valId);
-  const iconEl = card.querySelector('.metric-icon');
-  card.className = 'metric-card ' + (isOk ? 'ok' : 'ng');
-  val.textContent = label;
-  if (iconEl) iconEl.textContent = icon + (isOk ? '✓' : '✗');
-}
-
-function formatDefect(dt) {
-  const map = { NONE: '无缺陷', MISSING: '泡棉缺失/漏贴', MISALIGNED: '位置偏移', LIFTED_EDGE: '边缘起翘' };
-  return map[dt] || dt;
 }
 
 // ── 配方加载（简化版，仅用于 ROI 显示） ───────────────────
@@ -2040,7 +1235,6 @@ async function loadRecipes() {
       const requestedRecipe = foam2DRecipes.find(item => String(item.id) === WORKBENCH_RECIPE_ID);
       selectedRecipeForEdit = requestedRecipe || (foam2DRecipes.length === 1 ? foam2DRecipes[0] : null);
       if (requestedRecipe) {
-        document.getElementById('pos-index').value = requestedRecipe.pos ?? 0;
         if (!FOAM_RECIPE_EDITING) manualSelectedRecipe = requestedRecipe;
       }
       if (FOAM_RECIPE_EDITING) {
@@ -2083,15 +1277,13 @@ function selectFoamRecipeForEdit(recipeId) {
   const remarkInput = document.getElementById('foam-recipe-draft-remark');
   const stateBadge = document.getElementById('foam-recipe-save-state');
   if (recipe) {
-    document.getElementById('pos-index').value = recipe.pos ?? 0;
     if (nameInput) nameInput.value = recipe.name || '';
     if (remarkInput) remarkInput.value = recipe.remark || '';
     if (stateBadge) {
-      stateBadge.textContent = recipe.is_active ? '已发布 · 可修改' : '草稿 · 可修改';
+      stateBadge.textContent = recipe.is_active ? '已启用 · 可修改' : '未启用 · 可修改';
       stateBadge.classList.toggle('saved', Boolean(recipe.is_active));
     }
     applyRecipeRoiToOverlay(recipe);
-    loadStandardRoiStatus(recipe.id);
   } else {
     if (nameInput) nameInput.value = '新建泡棉检测配方';
     if (remarkInput) remarkInput.value = '';
@@ -2100,9 +1292,7 @@ function selectFoamRecipeForEdit(recipeId) {
       stateBadge.classList.remove('saved');
     }
     renderRoiBoxes();
-    updateStandardRoiPanel({ready:false, reason:'请先保存配方', sides:{}});
   }
-  recipeValidationCompleted = false;
   updateRecipeState();
 }
 
@@ -2134,15 +1324,12 @@ function fillFoamQualitySettings(recipe) {
 function updateRecipeState() {
   const recipe = currentDetectionRecipe();
   fillFoamQualitySettings(recipe);
-  currentStandardRoiReady = Boolean(recipe?.standard_template_status?.ready);
-  if (recipe) loadStandardRoiStatus(recipe.id);
 }
 
 function upsertSavedRecipe(savedRecipe) {
   if (!savedRecipe) return;
   const normalizedRecipe = {
     ...savedRecipe,
-    pos: Number(savedRecipe.pos ?? currentPOS()),
   };
   const index = foam2DRecipes.findIndex(recipe => Number(recipe.id) === Number(normalizedRecipe.id));
   if (index >= 0) {
@@ -2152,15 +1339,12 @@ function upsertSavedRecipe(savedRecipe) {
   }
   selectedRecipeForEdit = normalizedRecipe;
   renderFoamRecipeSelect();
-  if (Number(normalizedRecipe.pos) === currentPOS()) {
-    manualSelectedRecipe = null;
-  }
+  manualSelectedRecipe = null;
 }
 
 function showRecipeSaveSuccess(recipe, leftFoamROI, rightFoamROI) {
   const status = document.getElementById('calibration-status');
   if (!status) return;
-  const pos = recipe?.pos ?? currentPOS();
   const formatRoiInfo = (roi) => {
     if (!roi) return '未设置';
     if (roi.type === 'polygon' && roi.points) return `多边形 (${roi.points.length}个顶点)`;
@@ -2172,8 +1356,8 @@ function showRecipeSaveSuccess(recipe, leftFoamROI, rightFoamROI) {
     '；右ROI: ' + formatRoiInfo(rightFoamROI);
 }
 
-// ── 保存配方到指定 POS ───────────────────────────────────────
-async function saveRoiToRecipe(targetPos, saveMode = 'publish') {
+// ── 保存当前配方 ROI ───────────────────────────────────────
+async function saveRoiToRecipe() {
   // 查找已有配方
   const existingRecipe = currentDetectionRecipe();
   if (!existingRecipe?.id) { showPublishFeedback('请先在配方页面新建或复制配方，再选择配方绘制 ROI。'); return; }
@@ -2219,7 +1403,6 @@ async function saveRoiToRecipe(targetPos, saveMode = 'publish') {
     return;
   }
 
-  console.log('开始保存配方到 POS', targetPos);
   console.log('左侧 ROI (像素):', leftFoamROI);
   console.log('右侧 ROI (像素):', rightFoamROI);
   if (!Array.isArray(cal.rois.layer) && !(cal.rois.layer?.type === 'polygon' && cal.rois.layer.points?.length >= 3)) {
@@ -2235,7 +1418,6 @@ async function saveRoiToRecipe(targetPos, saveMode = 'publish') {
     preview_capture_token: FOAM_RECIPE_EDITING && !pendingFile ? lastCameraCaptureToken : '',
     id: existingRecipe?.id,
     shared_recipe: true,
-    pos: targetPos,
 
     camera_side: 'both',
     image_width: imageWidth,    // 保存时图片的实际尺寸（供旧格式解析参考）
@@ -2281,8 +1463,6 @@ async function saveRoiToRecipe(targetPos, saveMode = 'publish') {
       upsertSavedRecipe(savedRecipe);
       selectedRecipeForEdit = foam2DRecipes.find(recipe => Number(recipe.id) === Number(savedRecipe.id)) || savedRecipe;
       renderFoamRecipeSelect();
-      const positionModal = document.getElementById('pos-selector-modal');
-      if (positionModal) positionModal.style.display = 'none';
       // 保存成功后清除 dirty，同步 cal.rois 为刚保存的 ROI
       cal.dirty = false;
       if (savedRecipe?.roi_config) {
@@ -2298,11 +1478,10 @@ async function saveRoiToRecipe(targetPos, saveMode = 'publish') {
       renderRoiBoxes();  // 直接重绘，不覆盖 cal.rois
       showRecipeSaveSuccess(savedRecipe, leftFoamROI, rightFoamROI);
       showPublishFeedback('标准 ROI 与参数已保存，配方参数和启停状态保持不变。', false);
-      currentStandardRoiReady = Boolean(savedRecipe.standard_template_status?.ready);
       const recipeState = document.getElementById('foam-recipe-save-state');
       if (recipeState) {
         recipeState.textContent = 'ROI 配置已保存';
-        recipeState.classList.toggle('saved', saveMode === 'publish');
+        recipeState.classList.add('saved');
       }
     } else {
       const errorMsg = data.error || '未知错误';
@@ -2334,7 +1513,7 @@ function showTempRecipeSelector() {
     const right = recipe.roi_config?.rightFoamROI || {};
     return `
       <button class="btn-select-temp-recipe" data-recipe-id="${recipe.id}">
-        <strong>POS ${recipe.pos} - ${recipe.name}</strong>
+        <strong>${recipe.name}</strong>
         <div class="recipe-roi-preview">
           左: ${left.type === 'polygon' ? '多边形' : `x=${left.x || 0}, y=${left.y || 0}`} | 右: ${right.type === 'polygon' ? '多边形' : `x=${right.x || 0}, y=${right.y || 0}`}
         </div>
@@ -2549,55 +1728,6 @@ document.getElementById('roi-overlay').addEventListener('mouseup', () => {
   renderRoiBoxes();
 });
 
-document.getElementById('btn-save-roi').addEventListener('click', async () => {
-  if (cal.rois.layer || FOAM_RECIPE_EDITING) { document.getElementById('btn-save-recipe').click(); return; }
-  if (!cal.rois.left || !cal.rois.right) {
-    alert('请先分别框选左侧和右侧泡棉 ROI，再保存标定！');
-    return;
-  }
-  const pos = Number(document.getElementById('pos-index').value || 0);
-  showLoading('保存 ROI 标定...');
-  try {
-    const res = await fetch(API.saveCalibration, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        position_index: pos,
-        left:  cal.rois.left,
-        right: cal.rois.right,
-        thresholds: { coverage_threshold: 0.3, require_dark_support: true },
-      }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      document.getElementById('calibration-status').textContent = '✅ ROI 已保存，后续检测自动复用';
-      document.getElementById('roi-overlay').classList.remove('calibrating');
-    } else {
-      alert('保存失败：' + (data.error || '未知错误'));
-    }
-  } catch (e) {
-    alert('网络请求失败：' + e.message);
-  } finally {
-    hideLoading();
-  }
-});
-
-// ── 初始化：加载已有标定 ─────────────────────────────────
-async function loadCalibration() {
-  try {
-    const res  = await fetch(API.calibration);
-    const data = await res.json();
-    const pos  = document.getElementById('pos-index').value || '0';
-    const rois = data.profile?.foam_rois?.[pos] || {};
-    if (rois.left)  cal.rois.left  = rois.left;
-    if (rois.right) cal.rois.right = rois.right;
-    if (cal.rois.left || cal.rois.right) {
-      document.getElementById('calibration-status').textContent = '已加载上次 ROI 标定';
-    }
-    refreshPreviewRecipeRoi();
-  } catch (_) { /* 标定可选，不影响使用 */ }
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   // 注入 CSRF
   if (!document.querySelector('[name=csrfmiddlewaretoken]')) {
@@ -2609,11 +1739,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const toolsHost = document.getElementById('foam-recipe-tools-host');
     const calibrationPanel = document.querySelector('.roi-calibration-panel');
     if (toolsHost && calibrationPanel) toolsHost.appendChild(calibrationPanel);
-    const captureButton = document.getElementById('btn-capture-inspect');
-    document.getElementById('btn-refresh-preview').textContent = '拍照取图';
     document.getElementById('btn-save-recipe').textContent = '保存配方（ROI 标准区域）';
     document.querySelector('.roi-head').textContent = '检测区域 · 矩形或不规则区域';
-    document.querySelector('.pos-hint').textContent = '0 = 第1层，1 = 第2层，2 = 第3层';
     document.querySelector('#camera-placeholder p').textContent = '拍照或导入一张合格样件图，然后绘制三个 ROI 框';
     const tools = document.querySelector('.roi-tools');
     const modeLabel = document.createElement('label');
@@ -2658,10 +1785,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // POS only labels results; the selected rack recipe and teaching ROIs stay fixed.
-  document.getElementById('pos-index')?.addEventListener('change', () => {
-    updateRecipeState();
-  });
   document.getElementById('preview-image').addEventListener('load', () => {
     refreshPreviewRecipeRoi();
   });
@@ -2687,65 +1810,16 @@ document.addEventListener('DOMContentLoaded', () => {
     return true;
   }
 
-  // 保存配方按钮
+  document.getElementById('btn-save-roi').addEventListener('click', () => {
+    document.getElementById('btn-save-recipe').click();
+  });
   document.getElementById('btn-save-recipe')?.addEventListener('click', async () => {
     if (!ensureRecipeRois()) return;
-    if (FOAM_RECIPE_EDITING) {
-      const button = document.getElementById('btn-save-recipe');
-      button.disabled = true;
-      button.textContent = '保存中…';
-      try { await saveRoiToRecipe(currentPOS(), 'publish'); }
-      finally { button.disabled = false; button.textContent = '保存配方（ROI 标准区域）'; }
-    } else {
-      document.getElementById('pos-selector-modal').style.display = 'flex';
-    }
-  });
-
-  document.getElementById('btn-publish-recipe')?.addEventListener('click', async () => {
-    const button = document.getElementById('btn-publish-recipe');
-    showPublishFeedback('正在检查发布条件…', false);
-    try {
-      if (!cal.rois.left || !cal.rois.right) {
-        showPublishFeedback('无法发布：请先绘制左右泡棉标准框，并保存草稿。');
-        return;
-      }
-      if (!Array.isArray(cal.rois.layer) && !(cal.rois.layer?.type === 'polygon' && cal.rois.layer.points?.length >= 3)) {
-        showPublishFeedback('无法发布：请先绘制“本层搜索大框”，包含左右标准框，并保存草稿。');
-        return;
-      }
-      if (cal.dirty) {
-        showPublishFeedback('无法发布：ROI 有未保存修改。请先保存草稿，再试跑验证。');
-        return;
-      }
-      if (!currentStandardRoiReady) {
-        const reason = document.getElementById('standard-roi-message')?.textContent || '标准 ROI 未配置';
-        showPublishFeedback('无法发布：' + reason + '。请绘制并保存左右标准 ROI，再拍照试跑验证。');
-        return;
-      }
-      if (!recipeValidationCompleted) {
-        showPublishFeedback('无法发布：当前配方尚未试跑通过。请点击“拍照试跑验证”，确认左右泡棉均合格后再发布。');
-        return;
-      }
-      button.disabled = true;
-      showPublishFeedback('正在发布配方…', false);
-      await saveRoiToRecipe(currentPOS(), 'publish');
-    } catch (error) {
-      showPublishFeedback('发布失败：' + error.message);
-    } finally {
-      button.disabled = false;
-    }
-  });
-
-  document.getElementById('btn-refresh-roi')?.addEventListener('click', () => {
-    loadStandardRoiStatus(currentDetectionRecipe()?.id);
-  });
-
-  // POS 选择对话框按钮
-  document.querySelectorAll('.btn-pos').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const pos = parseInt(btn.dataset.pos);
-      saveRoiToRecipe(pos, 'publish');
-    });
+    const button = document.getElementById('btn-save-recipe');
+    button.disabled = true;
+    button.textContent = '保存中…';
+    try { await saveRoiToRecipe(); }
+    finally { button.disabled = false; button.textContent = '保存配方（ROI 标准区域）'; }
   });
 
   // 临时配方选择
@@ -2760,40 +1834,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  loadCalibration();
   loadRecipes();
 });
 </script>
-
-<!-- ========== 保存配方到POS对话框 ========== -->
-<div id="pos-selector-modal" class="modal-overlay" style="display:none;">
-  <div class="modal-dialog">
-    <div class="modal-header">
-      <h3>保存配方到指定 POS</h3>
-      <button class="modal-close" onclick="document.getElementById('pos-selector-modal').style.display='none'">&times;</button>
-    </div>
-    <div class="modal-body">
-      <p style="margin-bottom:16px;color:#6b7280;">选择要保存当前标定 ROI 的目标 POS：</p>
-      <div class="pos-options">
-        <button class="btn-pos" data-pos="0">
-          <div class="pos-label">POS 0</div>
-          <div class="pos-desc">第1层泡棉</div>
-        </button>
-        <button class="btn-pos" data-pos="1">
-          <div class="pos-label">POS 1</div>
-          <div class="pos-desc">第2层泡棉</div>
-        </button>
-        <button class="btn-pos" data-pos="2">
-          <div class="pos-label">POS 2</div>
-          <div class="pos-desc">第3层泡棉</div>
-        </button>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="document.getElementById('pos-selector-modal').style.display='none'">取消</button>
-    </div>
-  </div>
-</div>
 
 <!-- ========== 临时配方选择器 ========== -->
 <div id="temp-recipe-modal" class="modal-overlay" style="display:none;">
@@ -2989,17 +2032,24 @@ async function loadRecords() {
   document.getElementById('records-modal-loading').style.display = 'block';
   document.getElementById('records-grid').innerHTML = '';
   document.getElementById('records-empty').style.display = 'none';
+  document.getElementById('records-empty').textContent = '暂无符合条件的检测记录';
+  document.getElementById('records-count').textContent = '';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
   try {
-    const res = await fetch(API.inspectionRecords + '?limit=100');
+    const res = await fetch(API.inspectionRecords + '?limit=100', {signal: controller.signal});
     const data = await res.json();
-    if (data.success) {
-      _allRecords = data.records;
-    } else {
-      _allRecords = [];
+    if (!res.ok || !data.success || !Array.isArray(data.records)) {
+      throw new Error(data.error || `历史记录读取失败（HTTP ${res.status}）`);
     }
+    _allRecords = data.records;
   } catch(e) {
     _allRecords = [];
+    document.getElementById('records-empty').textContent = e.name === 'AbortError'
+      ? '历史记录加载超时，请关闭后重试'
+      : `历史记录加载失败：${e.message}。请关闭后重试。`;
   } finally {
+    clearTimeout(timer);
     document.getElementById('records-modal-loading').style.display = 'none';
     renderRecords();
   }
@@ -3058,7 +2108,12 @@ function renderRecords() {
   }).join('');
 
   // 绑定点击事件
-  grid.querySelectorAll('.record-card').forEach(card => {
+  grid.querySelectorAll('.record-card').forEach((card, index) => {
+    if (filtered[index].failure_reason) {
+      const reason = document.createElement('p');
+      reason.textContent = filtered[index].failure_reason;
+      card.querySelector('.record-card-info').appendChild(reason);
+    }
     card.addEventListener('click', () => selectRecordImage(card));
   });
 }
@@ -3093,7 +2148,7 @@ async function selectRecordImage(card) {
     await previewImportedFile(file);
     setPendingBadge(`记录图片 POS${pos} (${time})`);
     document.getElementById('detection-timing').textContent = '';
-    showDetectionFeedback('记录原图已导入，请确认当前配方后点击“检测图片”。');
+    showDetectionFeedback('记录原图已导入，请确认当前配方后点击“开始计算”。');
     closeRecordsModal();
   } catch (error) {
     const message = error.name === 'AbortError' ? '读取记录原图超时，请重试' : error.message;
@@ -3107,7 +2162,7 @@ async function selectRecordImage(card) {
 }
 
 // 弹窗按钮监听
-document.getElementById('btn-import-from-records').addEventListener('click', () => openRecordsModal('foam'));
+document.getElementById('btn-history-records').addEventListener('click', () => openRecordsModal());
 document.getElementById('records-modal-close').addEventListener('click', closeRecordsModal);
 document.getElementById('records-modal-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('records-modal-overlay')) closeRecordsModal();

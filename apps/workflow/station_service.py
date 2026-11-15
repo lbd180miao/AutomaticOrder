@@ -64,6 +64,105 @@ class ExistingVisionGateway:
         return {axis: float(result[f'compensation_{axis}'])
                 for axis in ('x', 'y', 'z', 'x2', 'y2', 'z2')}
 
+    def _submit_capture(self, channel, capture):
+        from concurrent.futures import Future, ThreadPoolExecutor
+        from django.db import close_old_connections
+        executors = self.__dict__.setdefault('_capture_executors', {})
+        if channel not in executors:
+            executors[channel] = ThreadPoolExecutor(max_workers=1, thread_name_prefix=channel + '-capture')
+        result = Future()
+
+        def completed(future):
+            try:
+                result.set_result(future.result())
+            except Exception as exc:
+                result.set_exception(exc)
+
+        def run():
+            close_old_connections()
+            try:
+                capture().add_done_callback(completed)
+            except Exception as exc:
+                result.set_exception(exc)
+            finally:
+                close_old_connections()
+        executors[channel].submit(run)
+        return result
+
+    def submit_position(self):
+        return self._submit_capture('3d', self._capture_position_job)
+
+    def _capture_position_job(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from django.db import close_old_connections
+        from apps.vision.plc_defaults import get_default_recipe
+        from apps.vision.rack_location import Rack3DLocator
+        from apps.devices.plc_position_debug import capture_position
+        recipe = get_default_recipe('rack')
+        recipe_id, layer_no = recipe.pk, recipe.layer_no
+        locator = Rack3DLocator()
+        acquired = locator.acquire_workbench(recipe_id=recipe_id)
+        record('3d', '3D 采集完成，后台计算中，允许下一次触发采集')
+        if not hasattr(self, '_position_executor'):
+            self._position_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='3d-calculate')
+
+        def calculate():
+            close_old_connections()
+            try:
+                payload = locator.persist_workbench(acquired)
+                result = capture_position(recipe_id, layer_no, captured_payload=payload)
+                if not result.get('is_success'):
+                    raise StationStepError(result.get('error_message') or '3D 定位失败', AlarmSource.VISION)
+                return {axis: float(result[f'compensation_{axis}'])
+                        for axis in ('x', 'y', 'z', 'x2', 'y2', 'z2')}
+            finally:
+                close_old_connections()
+        return self._position_executor.submit(calculate)
+
+    def submit_foam(self, cycle):
+        # Snapshot ownership before the cycle advances to another product/rack.
+        product, rack, position = cycle.product, cycle.rack, cycle.loaded_quantity
+
+        def capture():
+            from concurrent.futures import ThreadPoolExecutor
+            from django.db import close_old_connections
+            from apps.core.constants import VisionTaskType
+            from apps.devices.services import get_device_adapter
+            from apps.vision.plc_defaults import get_default_recipe
+            import shutil
+            import uuid
+            from pathlib import Path
+            recipe_id = get_default_recipe('foam').pk
+            adapter = self.service.camera_adapter or get_device_adapter(device_type=DeviceType.INSPECT_CAMERA)
+            from apps.devices.adapters.camera import CameraAdapter
+            raw_frame = None
+            if isinstance(adapter, CameraAdapter):
+                raw_frame = adapter.acquire_frame('CAM-INSPECT-FOAM-01', VisionTaskType.FOAM_INSPECTION)
+                target = None
+            else:
+                captured = adapter.capture('CAM-INSPECT-FOAM-01', VisionTaskType.FOAM_INSPECTION)
+                source = captured.get('image_path')
+                if not source:
+                    raise StationStepError('2D 相机未返回图像', AlarmSource.VISION)
+                source = Path(source)
+                target = source.with_name(source.stem + '_' + uuid.uuid4().hex + source.suffix)
+                shutil.copy2(source, target)
+            if not hasattr(self, '_foam_executor'):
+                self._foam_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='2d-calculate')
+
+            def calculate():
+                close_old_connections()
+                try:
+                    image_path = adapter.persist_frame(raw_frame) if raw_frame is not None else str(target)
+                    result = self.service.inspect_foam(
+                        product, rack, position_index=position, use_camera=True, use_recipe=True,
+                        recipe_id=recipe_id, captured_image_path=image_path, require_ready_recipe=True)
+                    return bool(result.is_passed)
+                finally:
+                    close_old_connections()
+            return self._foam_executor.submit(calculate)
+        return self._submit_capture('2d', capture)
+
     def measure_recipe(self, cycle):
         rack = cycle.rack or cycle.product.rack
         recipe = rack.current_recipe
@@ -124,8 +223,16 @@ class StationWorkflowService:
 
     def __init__(self, *, plc=None, mes_service=None, vision_gateway=None,
                  alarm_service=None, production_service=None, device_service=None):
+        self._position_futures = {}
+        self._foam_futures = {}
         self.plc = plc or get_plc_adapter()
         self.mes = mes_service or MesService()
+        if mes_service is None:
+            from apps.mes.services import HttpMesClient
+            from apps.mes.yfpo_soap_client import YfpoSoapMesClient
+            from apps.mes.async_client import AsyncDirectMesClient
+            if isinstance(self.mes.client, (HttpMesClient, YfpoSoapMesClient)):
+                self.mes.client = AsyncDirectMesClient(self.mes.client)
         self.vision = vision_gateway or ExistingVisionGateway()
         self.alarms = alarm_service or AlarmService()
         self.production = production_service or ProductionService()
@@ -308,7 +415,12 @@ class StationWorkflowService:
         changed = False
         # Pending HTTP work in one channel must not stop other independent channels.
         blocked = set()
-        for pending in list(queue):
+        # Dispatch fresh captures before old result writes or MES work.
+        # Stable sorting preserves capture order within each camera.
+        dispatch = sorted(queue, key=lambda job: not (
+            job['trigger'] in ('position_trigger', 'foam_trigger')
+            and not job.get('capture_started')))
+        for pending in dispatch:
             trigger = pending['trigger']
             channel = (trigger, pending.get('data', {}).get('rack_slot'))
             if channel in blocked:
@@ -586,19 +698,45 @@ class StationWorkflowService:
         pending = self._accept(cycle, snapshot, 'position_trigger')
         if pending is None:
             return False
-        if 'values' not in pending:
-            if pending.get('capture_started'):
-                raise StationStepError('上次 3D 任务被中断，请确认后重新触发', AlarmSource.VISION)
-            pending['capture_started'] = True
+        asynchronous = isinstance(self.vision, ExistingVisionGateway) and not self.vision.simulated
+        if asynchronous and 'values' not in pending:
+            import uuid
+            job_id = pending.get('position_job_id')
+            if not job_id:
+                if pending.get('capture_started'):
+                    raise StationStepError('上次 3D 任务被中断，请重新触发', AlarmSource.VISION)
+                job_id = uuid.uuid4().hex
+                pending.update(position_job_id=job_id, capture_started=True)
+                self._save_io(cycle)
+                self._position_futures[job_id] = self.vision.submit_position()
+            future = self._position_futures.get(job_id)
+            if future is None:
+                raise StationStepError('后台 3D 任务已中断，请重新触发', AlarmSource.VISION)
+            if not future.done():
+                return False
+            queue = cycle.io_state.get('listener_queue', [])
+            if pending in queue and any(job.get('trigger') == 'position_trigger'
+                                        for job in queue[:queue.index(pending)]):
+                return False
+            try:
+                pending['values'] = future.result()
+            finally:
+                self._position_futures.pop(job_id, None)
             self._save_io(cycle)
-            record('3d', '3D 触发已受理，正在检查默认配方并请求相机拍照')
-            def captured():
-                record('3d', '3D 相机采集完成，开始自动计算并保存视觉历史')
-            values = self.vision.calculate_position_offsets(
-                cycle, on_captured=captured,
-            )
-            pending['values'] = values
-            self._save_io(cycle)
+        elif not asynchronous:
+            if 'values' not in pending:
+                if pending.get('capture_started'):
+                    raise StationStepError('上次 3D 任务被中断，请确认后重新触发', AlarmSource.VISION)
+                pending['capture_started'] = True
+                self._save_io(cycle)
+                record('3d', '3D 触发已受理，正在检查默认配方并请求相机拍照')
+                def captured():
+                    record('3d', '3D 相机采集完成，开始自动计算并保存视觉历史')
+                values = self.vision.calculate_position_offsets(
+                    cycle, on_captured=captured,
+                )
+                pending['values'] = values
+                self._save_io(cycle)
         values = pending['values']
         from apps.devices.plc_db100 import position_values
         values = position_values({f'compensation_{axis}': value for axis, value in values.items()})
@@ -676,15 +814,41 @@ class StationWorkflowService:
         pending = self._accept(cycle, snapshot, 'foam_trigger')
         if pending is None:
             return False
-        if 'passed' not in pending:
-            if pending.get('capture_started'):
-                raise StationStepError('上次 2D 采集被中断，请确认后重试', AlarmSource.VISION)
-            pending['capture_started'] = True
+        asynchronous = isinstance(self.vision, ExistingVisionGateway) and not self.vision.simulated
+        if asynchronous and 'passed' not in pending:
+            import uuid
+            job_id = pending.get('foam_job_id')
+            if not job_id:
+                if pending.get('capture_started'):
+                    raise StationStepError('上次 2D 任务被中断，请重新触发', AlarmSource.VISION)
+                job_id = uuid.uuid4().hex
+                pending.update(foam_job_id=job_id, capture_started=True)
+                self._save_io(cycle)
+                self._foam_futures[job_id] = self.vision.submit_foam(cycle)
+            future = self._foam_futures.get(job_id)
+            if future is None:
+                raise StationStepError('后台 2D 任务已中断，请重新触发', AlarmSource.VISION)
+            if not future.done():
+                return False
+            queue = cycle.io_state.get('listener_queue', [])
+            if pending in queue and any(job.get('trigger') == 'foam_trigger'
+                                        for job in queue[:queue.index(pending)]):
+                return False
+            try:
+                pending['passed'] = future.result()
+            finally:
+                self._foam_futures.pop(job_id, None)
             self._save_io(cycle)
-            record('2d', '泡棉触发已受理，正在检查默认配方、拍照、计算并保存视觉历史')
-            passed, _ = self.vision.inspect_foam(cycle)
-            pending['passed'] = bool(passed)
-            self._save_io(cycle)
+        elif not asynchronous:
+            if 'passed' not in pending:
+                if pending.get('capture_started'):
+                    raise StationStepError('上次 2D 采集被中断，请确认后重试', AlarmSource.VISION)
+                pending['capture_started'] = True
+                self._save_io(cycle)
+                record('2d', '泡棉触发已受理，正在检查默认配方、拍照、计算并保存视觉历史')
+                passed, _ = self.vision.inspect_foam(cycle)
+                pending['passed'] = bool(passed)
+                self._save_io(cycle)
         cycle.foam_passed = pending['passed']
         cycle.save(update_fields=['foam_passed', 'updated_at'])
         self._write('foam_passed', cycle.foam_passed, 74)

@@ -16,7 +16,7 @@ _lock = threading.RLock()
 def _lock_windows(handle, timeout=15):
     """LK_LOCK retries only once a second and can starve behind the sampler."""
     import msvcrt
-    deadline = time.monotonic() + timeout
+    deadline = time.perf_counter() + timeout
     while True:
         handle.seek(0)
         try:
@@ -25,7 +25,7 @@ def _lock_windows(handle, timeout=15):
         except OSError as exc:
             if exc.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
                 raise
-            if time.monotonic() >= deadline:
+            if time.perf_counter() >= deadline:
                 raise TimeoutError('本机 PLC 通信锁等待超时；请检查是否同时运行多个程序副本或调试任务') from exc
             time.sleep(0.02)
 
@@ -70,7 +70,7 @@ def plc_read_interval(transport):
         saved = handle.read().strip()
         previous = float(saved) if saved else None
         if previous is not None:
-            elapsed = time.monotonic() - previous
+            elapsed = time.perf_counter() - previous
             if 0 <= elapsed < PLC_SCAN_INTERVAL:
                 time.sleep(PLC_SCAN_INTERVAL - elapsed)
         try:
@@ -78,6 +78,6 @@ def plc_read_interval(transport):
         finally:
             # Failed reads also consume a slot; retries cannot form a busy loop.
             handle.seek(1)
-            handle.write(str(time.monotonic()).encode('ascii'))
+            handle.write(str(time.perf_counter()).encode('ascii'))
             handle.truncate()
             handle.flush()

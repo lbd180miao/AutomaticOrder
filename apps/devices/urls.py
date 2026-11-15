@@ -1,10 +1,12 @@
 from django.urls import path
+from django.views.generic import TemplateView
 
 from . import views, mapping_views
 
 app_name = 'devices'
 
 urlpatterns = [
+    path('api/manual-debug/', views.api_manual_debug, name='api_manual_debug'),
     path('api/plc-listener-debug/', views.api_plc_listener_debug, name='api_plc_listener_debug'),
     path('api/plc-logs/', views.api_plc_logs, name='api_plc_logs'),
     path('plc-mappings/', mapping_views.plc_mapping_library, name='plc_mapping_library'),
@@ -14,6 +16,7 @@ urlpatterns = [
     path('api/plc-foam-debug/', views.api_plc_foam_debug, name='api_plc_foam_debug'),
     path('api/plc-position-debug/', views.api_plc_position_debug, name='api_plc_position_debug'),
     path('alarm-records/', views.alarm_records, name='alarm_records'),
+    path('settings/', TemplateView.as_view(template_name='devices/settings.html'), name='settings'),
     path('status/', views.status, name='status'),
     path('signals/', views.signals, name='signals'),
     path('plc-config/', views.plc_config, name='plc_config'),

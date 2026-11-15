@@ -18,6 +18,7 @@
   const state = {config: null, image: null, depthImage: null, captureTokenBefore: null, prepared: null, selected: 0, result: null, drag: null, busy: false, revision: 0,
     evaluation: null, teachToken: null, reference: null, forensicFrame: null, capturing: false, dirty: false, redraw: false};
   let saveFeedback = '';
+  let recipeReloadPending = false;
   const recipeId = () => String($('recipe-select')?.value || $('recipe-id')?.value || '');
   const pointNames = () => Number(state.config?.rack_layers || $('dp-rack-layers').value) === 2 ? ['P1'] : ['P1', 'P2'];
   const activeTargets = () => targets.slice(0, pointNames().length);
@@ -29,6 +30,7 @@
   const frameRequest = (snapshot = currentFrame()) => ({
     pointcloud_token: snapshot?.pointcloud_token,
     source: snapshot?.source,
+    package_library: snapshot?.package_library,
     raw_rgb_image_url: snapshot?.raw_rgb_image_url,
     recipe_id: snapshot?.recipe_id,
     layer_no: snapshot?.layer_no,
@@ -44,103 +46,7 @@
     const item = document.createElement(header ? 'th' : 'td'); item.textContent = text; row.appendChild(item); return item;
   }
   function renderResults() {
-    const result = state.result, reference = state.reference?.measurement;
-    const body = $('dp-point-results'); body.replaceChildren();
-    const cameraHeader = $('dp-camera-results').querySelector('thead tr');
-    cameraHeader.replaceChildren();
-    ['模板区域', '基准模板中心 XYZ', '匹配后模板中心 XYZ', '匹配后点云中心 XYZ', '匹配分数', '差值 ΔXYZ']
-      .forEach(label => cell(cameraHeader, label, true));
-    const validXYZ = values => Array.isArray(values) && values.length === 3 && values.every(Number.isFinite);
-    // Compare successful camera measurements from the template and current frame.
-    const compatible = result?.coordinateSystem === 'camera' && reference?.coordinateSystem === 'camera'
-      && result?.success === true && reference?.success === true
-      && result?.unit === 'mm' && reference?.unit === 'mm';
-    for (const name of pointNames()) {
-      const standardPoint = reference?.points?.find(point => point.name === name);
-      const currentPoint = result?.points?.find(point => point.name === name);
-      const standard = reference?.coordinateSystem === 'camera' && reference?.success && standardPoint?.success ? standardPoint.xyz : null;
-      const candidate = result?.registration && !result.success;
-      const current = result?.registration && result?.coordinateSystem === 'camera' && ((result?.success && currentPoint?.success) || candidate) ? currentPoint?.xyz : null;
-      // Display measured coordinate differences only; PLC compensation retains its backend gates.
-      const delta = compatible && validXYZ(standard) && validXYZ(current)
-        ? current.map((value, axis) => value - standard[axis]) : null;
-      const row = document.createElement('tr'); cell(row, `${`模板区域 ${pointNames().indexOf(name) + 1}`}${candidate ? '（候选）' : ''}`, true);
-      [standard, current].forEach(values => cell(row, validXYZ(values) ? xyz(values) : '—'));
-      {
-        const region = result?.registration?.regions?.find(item => item.name === name);
-        cell(row, validXYZ(region?.matched_cloud_center_xyz) ? xyz(region.matched_cloud_center_xyz) : '—');
-        cell(row, Number.isFinite(region?.fitness) ? `${fmt(region.fitness * 100, 1)}%` : '—');
-      }
-      cell(row, validXYZ(delta) ? xyz(delta) : '—');
-      body.appendChild(row);
-    }
-    const quality = state.result?.registration;
-    const position = values => Array.isArray(values) ? values.map((v, i) => `${'XYZ'[i]}=${fmt(v)}`).join('，') + ' mm' : '—';
-    $('dp-center-results').hidden = false;
-    $('dp-camera-results').hidden = false;
-    $('dp-robot-results-panel').hidden = false;
-    // Preserve the established camera table → robot table layout.
-    $('dp-robot-results-panel').after($('dp-center-results'));
-    $('dp-camera-results').before($('dp-center-guide'));
-    $('dp-center-guide').hidden = false;
-    $('dp-standard-center').textContent = position(quality?.standard_center_xyz || reference?.center_xyz);
-    $('dp-matched-center').textContent = position(quality?.matched_template_center_xyz);
-    $('dp-observed-center').textContent = position(quality?.matched_cloud_center_xyz);
-    $('dp-center-score').textContent = quality ? `${fmt(quality.fitness * 100, 1)}%` : '—';
-    $('dp-center-rmse').textContent = quality ? `${fmt(quality.rmse_mm)} mm` : '—';
-    $('dp-center-delta').textContent = position(quality?.center_delta_xyz);
-    $('dp-center-motion').textContent = quality ? `${fmt(quality.shift_mm)} mm / ${fmt(quality.rotation_deg)}°` : '—';
-    const regionPanel = $('dp-region-results'); regionPanel.replaceChildren();
-    const regionTable = document.createElement('table');
-    regionTable.setAttribute('aria-label', '各模板区域实际匹配点云中心与质量');
-    const regionHead = document.createElement('thead'), headerRow = document.createElement('tr');
-    ['模板区域', '实际匹配点云中心 XYZ（mm）', '分数 / 残差', '区域筛选'].forEach(label => cell(headerRow, label, true));
-    regionHead.appendChild(headerRow); regionTable.appendChild(regionHead);
-    const regionBody = document.createElement('tbody'); regionTable.appendChild(regionBody);
-    regionPanel.appendChild(regionTable);
-    pointNames().forEach((name, index) => {
-      const region = quality?.regions?.find(item => item.name === name);
-      const row = document.createElement('tr'); cell(row, `模板区域 ${index + 1}`, true);
-      cell(row, xyz(region?.matched_cloud_center_xyz));
-      cell(row, region ? `${fmt(region.fitness * 100, 1)}% / ${fmt(region.rmse_mm)} mm` : '—');
-      cell(row, region ? region.quality_passed ? '通过' : region.failure_reasons.join('；') : quality ? '请在基准帧重新保存模板以补齐区域统计' : '待匹配');
-      regionBody.appendChild(row);
-    });
-    $('dp-center-gate').textContent = quality
-      ? quality.quality_passed ? '通过' : `未通过（候选结果）：${(quality.failure_reasons || []).join('；')}`
-      : '待匹配';
-    $('dp-center-guide').textContent = quality
-      ? quality.quality_passed ? '匹配完成，以下为当前点云的定位结果。' : '以下为候选中心，未通过筛选，不作为有效定位结果。'
-      : reference ? '基准模板已保存。请加载或采集待测点云，再点击「开始计算」。'
-        : '尚未建立基准模板。请加载基准点云，框选交叉位置，再点击「保存当前帧为点云标准模板」。';
-    $('dp-match-details').hidden = !quality;
-    $('dp-match-quality').textContent = quality ? [
-      `匹配质量：${quality.quality_passed ? '通过（实验）' : '未通过，候选结果仅供查看'}`,
-      ...(quality.failure_reasons || []).map(reason => `未通过原因：${reason}`),
-      `模板覆盖率 ${(quality.fitness*100).toFixed(1)}% / 至少 ${(quality.limits.min_fitness*100).toFixed(0)}%；残差 ${fmt(quality.rmse_mm)}mm / 最多 ${quality.limits.max_rmse_mm}mm`,
-      `中心位移 ${fmt(quality.shift_mm)}mm；旋转 ${fmt(quality.rotation_deg)}°；匹配点 ${quality.matched_points}/${quality.source_points}`,
-      `结构约束比 ${quality.constraint_ratio.toFixed(6)} / 至少 0.0001`,
-      '标准 → 当前变换矩阵：', ...quality.transform.map(row => row.map(v => fmt(v, 6)).join('  ')),
-      ...(result.warnings || [])
-    ].join('\n') : '';
-    const robot = state.evaluation?.robot_result;
-    const robotBody = $('dp-robot-results'); robotBody.replaceChildren();
-    pointNames().forEach((name, index) => {
-      const row = document.createElement('tr'); cell(row, `模板区域 ${index + 1}`, true);
-      for (let axis=0; axis<3; axis++) cell(row, robot?.success && quality?.quality_passed ? fmt(robot.offsets[index][axis]) : '—');
-      robotBody.appendChild(row);
-    });
-    $('dp-robot-status').textContent = !quality ? '匹配通过且手眼标定、拍照姿态有效后，显示各模板区域中心在机器人基坐标系下的偏差。'
-        : !quality.quality_passed ? '当前定位未通过筛选，不输出机器人坐标系偏差。'
-          : robot?.success ? (robot.same_pose_assumed ? '基准模板未保存拍照姿态，当前按相同拍照姿态计算。' : '')
-            : robot?.errorMessage || '机器人坐标转换不可用，请检查手眼标定和拍照姿态。';
-    $('dp-result-state').textContent = state.evaluation
-      ? result?.registration ? (result.success ? '匹配通过' : '匹配未通过 · 候选结果')
-        : result?.success ? '已计算' : `${({'3d':'三维测量失败', input:'输入校验失败', configuration:'配置校验失败', calibration:'标定校验失败'})[result?.stage] || '计算失败'}：${result?.errorMessage || result?.errorCode || '未知原因'}`
-      : '待检测';
-    if (!quality && !state.evaluation?.result?.errorMessage) {
-      $('dp-result-state').textContent = reference ? '基准已就绪 · 待匹配' : '待建立基准模板';
-    }
+    window.rackResultTables.render(panel, state.evaluation, state.reference?.measurement, pointNames());
   }
   function checkFrame() {
     if (!state.prepared || state.prepared.recipe_id !== recipeId() ||
@@ -336,7 +242,13 @@
       draw(); status(error.message);
       return false;
     }
-    finally {state.busy = false; refresh(); renderResults();}
+    finally {
+      state.busy = false; refresh(); renderResults();
+      if (recipeReloadPending && !state.capturing) {
+        recipeReloadPending = false;
+        if (currentFrame()?.pointcloud_token) await action(loadFrame);
+      }
+    }
   }
   async function loadFrame() {
     saveFeedback = '';
@@ -398,7 +310,7 @@
     checkFrame(); if (revision !== state.revision) throw new Error('配置变化，请重新校验。');
     state.result = data.result; state.evaluation = data; state.teachToken = data.teach_token; state.reference = data.reference;
     draw();
-    status(data.result.registration
+    status(data.is_success === false ? [data.failure_reason, ...(data.result.registration?.failure_reasons || [])].filter(Boolean).join("；") : data.result.registration
       ? data.result.success ? '匹配通过，坐标与偏差见右侧。'
         : `匹配未通过：${(data.result.registration.failure_reasons || ['请展开匹配详情检查']).join('；')}。当前仅显示候选位置。`
       : data.result.success ? ['相机坐标已计算，右侧显示与标准模板的差值。', ...(data.result.warnings || [])].join('\n') : `${data.result.errorCode}：${data.result.errorMessage}`);
@@ -439,7 +351,17 @@
       status('料架层数已修改，请完成框选并重新保存点云标准模板。');
     } else { refresh(); renderResults(); }
   });
-  $('recipe-select')?.addEventListener('change', () => { $('dp-rack-layers').value = '3'; invalidateFrame(); });
+  $('recipe-select')?.addEventListener('change', () => {
+    $('dp-rack-layers').value = '3';
+    invalidateFrame();
+    // The source frame is independent of the recipe. Reload its canvas with
+    // the newly selected recipe's ROI/reference instead of discarding the view.
+    recipeReloadPending = !!currentFrame()?.pointcloud_token;
+    if (recipeReloadPending && !state.busy && !state.capturing) {
+      recipeReloadPending = false;
+      void action(loadFrame);
+    }
+  });
   $('btn-capture')?.addEventListener('click', () => {
     state.captureTokenBefore = currentFrame()?.pointcloud_token;
     invalidateFrame(); state.capturing = true; refresh(); $('dp-frame-status').textContent = '正在采集相机数据…';

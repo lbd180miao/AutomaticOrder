@@ -36,8 +36,9 @@ def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record
         'robot_groups': {},
         'plc_payload': {'compensation_valid': False, 'plc_publish_allowed': False},
     }
-    point = result['points'][0]['xyz']
-    payload.update({f'actual_{axis}': float(point[i]) for i, axis in enumerate('xyz')})
+    if result['points']:
+        point = result['points'][0]['xyz']
+        payload.update({f'actual_{axis}': float(point[i]) for i, axis in enumerate('xyz')})
     payload.update({f'offset_{axis}': float(offsets[0][i]) for i, axis in enumerate('xyz')})
     payload['offset_rz'] = 0.
     # Assemble calibrated robot-base reference-point differences for result output.
@@ -105,7 +106,7 @@ def save_result(recipe, payload, *, layer_no, token='', product=None, rack=None,
         return RackLocationResult.objects.create(
             vision_task=task, recipe=recipe, rack=rack, side=recipe.rack_side,
             position_no=recipe.position_no, layer_no=layer_no,
-            **{f'actual_{axis}': decimal(payload[f'actual_{axis}']) for axis in 'xyz'},
+            **{f'actual_{axis}': decimal(payload[f'actual_{axis}']) for axis in 'xyz' if f'actual_{axis}' in payload},
             **{f'offset_{axis}': decimal(payload[f'offset_{axis}']) for axis in 'xyz'},
             confidence=decimal(payload['confidence']), is_success=payload['locate_ok'],
             is_recipe_matched=payload['locate_ok'], error_code=payload.get('error_code', ''),

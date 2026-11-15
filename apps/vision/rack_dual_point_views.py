@@ -40,7 +40,7 @@ def _original_image(data):
     source = str(data.get('source') or '')
     if source.startswith(('offline_package:', 'raw_package:')):
         from .offline_data_service import OfflineDataPackageService
-        svc = OfflineDataPackageService()
+        svc = OfflineDataPackageService.for_library(data.get('package_library'))
         path = svc.get_2d_image(source.split(':', 1)[1])
         if path is None:
             raise ValueError('当前数据包缺少 2D 原图，无法显示 ROI 框选底图')
@@ -80,7 +80,7 @@ def _cloud_path(data):
     source = str(data.get('source') or '')
     if source.startswith(('offline_package:', 'raw_package:')):
         from .offline_data_service import OfflineDataPackageService
-        path = OfflineDataPackageService()._package_dir(source.split(':', 1)[1])/'pointcloud.npy'
+        path = OfflineDataPackageService.for_library(data.get('package_library'))._package_dir(source.split(':', 1)[1])/'pointcloud.npy'
         if not path.is_file():
             raise ValueError('数据包缺少对应的 pointcloud.npy')
         return path
@@ -188,7 +188,7 @@ def _frame_package(data):
     source = str(data.get('source') or '')
     if source.startswith(('offline_package:', 'raw_package:')):
         from .offline_data_service import OfflineDataPackageService
-        directory = OfflineDataPackageService()._package_dir(source.split(':', 1)[1])
+        directory = OfflineDataPackageService.for_library(data.get('package_library'))._package_dir(source.split(':', 1)[1])
         if (directory/'pointcloud.npy').is_file():
             return load_package(directory)
     path = _media_file(data['pointcloud_token'])
@@ -267,6 +267,9 @@ def recompute_robot_deviation(request):
 @require_POST
 def cloud_match(request):
     """Explicit experimental registration/template actions, isolated from edge templates."""
+    from .models import VisionTask
+    from django.utils import timezone
+    task = None
     try:
         from .rack_cloud_match import build_template, match_template, add_display_pixels
         from .rack_robot_points import evaluate_robot_points, workspace_context
@@ -274,6 +277,8 @@ def cloud_match(request):
         action = data.get('action', 'evaluate')
         if action not in ('evaluate', 'save_template'):
             raise ValueError('未知点云匹配操作')
+        if action == 'evaluate':
+            task = VisionTask.objects.create(task_type='RACK_LOCATING', status='RUNNING', started_at=timezone.now())
         image_path = _signed_image(data['image_token'])
         if image_path.resolve() != _original_image(data).resolve():
             raise ValueError('原图与点云来源不一致，请重新载入')
@@ -317,10 +322,12 @@ def cloud_match(request):
             history_token = str(cloud_path.resolve().relative_to(media_root)) if cloud_path.resolve().is_relative_to(media_root) else ''
             payload = evaluate_cloud(recipe, package['cloud'], package['metadata'],
                 layer_no=int(data.get('layer_no') or 1), token=history_token,
-                save_record=True, algorithm=algorithm, camera_image=image)
+                task=task, save_record=True, algorithm=algorithm, camera_image=image)
             return JsonResponse({'success': True, 'result': payload['result'],
                 'reference': payload['reference'], 'robot_result': payload['robot_result'],
                 'config': reference['config'], 'plc_publish_allowed': False,
+                'is_success': payload['is_success'], 'failure_reason': payload['error_message'],
+                'error_message': payload['error_message'], 'error_code': payload['error_code'],
                 'result_id': payload['result_id'], 'task_id': payload['task_id']})
         result = add_display_pixels(result, package['cloud'], package['metadata'])
         robot = evaluate_robot_points(result, reference) if result['success'] else None
@@ -328,6 +335,8 @@ def cloud_match(request):
         return JsonResponse({'success': True, 'result': result,
             'reference': {'measurement': reference['measurement']}, 'robot_result': robot,
             'config': reference['config'], 'plc_publish_allowed': False})
-    except (OSError, ValueError, KeyError, TypeError, RuntimeError, ImportError,
-            signing.BadSignature, RackLocationRecipe.DoesNotExist) as exc:
+    except Exception as exc:
+        if task:
+            message = f'点云计算失败：{str(exc) or type(exc).__name__}'
+            VisionTask.objects.filter(pk=task.pk).update(status='FAILED', error_message=message, finished_at=timezone.now())
         return error_response(exc)

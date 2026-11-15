@@ -39,7 +39,18 @@ class OfflineDataPackageService:
     )
     PACKAGE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
-    def __init__(self, base_dir: Optional[str] = None):
+    @classmethod
+    def for_library(cls, library):
+        if library == 'history':
+            return cls(settings.VISION_HISTORY_PACKAGE_DIR, history=True)
+        return cls()
+
+    def _preview_url(self, route, name):
+        url = reverse('vision:' + route, args=[name])
+        return url + '?library=history' if self.history else url
+
+    def __init__(self, base_dir: Optional[str] = None, *, history=False):
+        self.history = history
         configured = getattr(settings, "OFFLINE_DATA_PACKAGE_DIR", None)
         self.base_dir = Path(base_dir or configured or (Path(settings.BASE_DIR) / "3d_SDK" / "pic"))
         self.base_dir.mkdir(parents=True, exist_ok=True)
@@ -249,7 +260,7 @@ class OfflineDataPackageService:
             cloud, capture_metadata={'source': f'offline_package:{package_name}'},
             generate_preview=False
         )
-        preview_url = reverse('vision:offline_raw_preview', args=[package_name]) + '?image=2d'
+        preview_url = self._preview_url('offline_raw_preview', package_name) + ('&' if self.history else '?') + 'image=2d'
         payload = {
             "pointcloud_token": token,
             "preview_image_url": preview_url,
@@ -352,7 +363,7 @@ class OfflineDataPackageService:
             "source": metadata.get("source", ""),
             "point_count": metadata.get("point_count", 0),
             "has_result": bool(metadata.get("has_result")),
-            "preview_url": reverse("vision:offline_package_preview", args=[package_name]),
+            "preview_url": self._preview_url("offline_package_preview", package_name),
         }
 
     def _rebuild_index(self) -> None:
@@ -480,7 +491,7 @@ class OfflineDataPackageService:
         for preview_file in preview_files:
             if (package_dir / preview_file).is_file():
                 # 为原始数据包生成预览URL
-                preview_url = f"/vision/offline/packages/{package_name}/raw-preview/"
+                preview_url = self._preview_url("offline_raw_preview", package_name)
                 break
         
         return {
@@ -674,7 +685,7 @@ class OfflineDataPackageService:
         }
         
         # 画布显示相机2D原图，点云副本仅供定位计算使用。
-        preview_url = reverse('vision:offline_raw_preview', args=[package_name]) + '?image=2d'
+        preview_url = self._preview_url('offline_raw_preview', package_name) + ('&' if self.history else '?') + 'image=2d'
         
         payload = {
             "pointcloud_token": token,

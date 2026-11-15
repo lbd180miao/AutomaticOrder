@@ -9,8 +9,9 @@
   const state = { selectedName: null, selectedPackage: null };
   let refreshTimer, listVersion = 0, renderedList = null;
 
+  let libraryQuery = '';
   function packageUrl(name, action) {
-    return `${baseUrl}${encodeURIComponent(name)}/${action ? `${action}/` : ''}`;
+    return `${baseUrl}${encodeURIComponent(name)}/${action ? `${action}/` : ''}${libraryQuery}`;
   }
 
   function escapeHtml(value) {
@@ -63,7 +64,13 @@
     });
   }
 
-  function openModal() {
+  function openModal(history) {
+    libraryQuery = history ? '?library=history' : '';
+    byId('packages-modal-title').textContent = history ? '历史数据包（pic1）' : '离线数据包管理';
+    state.selectedName = state.selectedPackage = renderedList = null;
+    byId('offline-package-list').replaceChildren();
+    byId('offline-package-detail').textContent = '请从左侧选择一个数据包。';
+    setActions(false);
     const modal = byId('packages-modal');
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
@@ -86,7 +93,7 @@
     const list = byId('offline-package-list');
     if (!automatic) message('正在读取数据包列表…');
     try {
-      const data = await request(baseUrl, { cache: 'no-store' });
+      const data = await request(baseUrl + libraryQuery, { cache: 'no-store' });
       if (version !== listVersion) return;
       const packages = data.packages || [];
       const signature = JSON.stringify(packages);
@@ -137,11 +144,12 @@
   }
 
   async function selectPackage(name) {
+    const source = libraryQuery;
     state.selectedName = name;
     message('正在加载数据包详情…');
     try {
       const data = await request(packageUrl(name));
-      if (state.selectedName !== name) return;
+      if (source !== libraryQuery || state.selectedName !== name) return;
       state.selectedPackage = data.package;
       renderDetail(data.package);
       setActions(true);
@@ -168,6 +176,7 @@
         <div><small>创建时间</small><strong>${escapeHtml(formatTime(pkg.created_at || metadata.created_at))}</strong></div>
         <div><small>点云数量</small><strong>${escapeHtml(pkg.point_count || metadata.point_count || '未知')}</strong></div>
         <div><small>数据源</small><strong>${escapeHtml(pkg.source || metadata.source || '—')}</strong></div>
+        ${result.error_message || result.result?.errorMessage ? '<div><small>失败原因</small><strong>' + escapeHtml(result.error_message || result.result.errorMessage) + '</strong></div>' : ''}
         <div><small>定位结果</small><strong>${pkg.has_result ? `${result.locate_ok ?? result.is_success ? 'OK' : 'NG'} · ${(Number(result.confidence || 0) * 100).toFixed(1)}%` : isRaw ? '原始数据' : '尚未定位'}</strong></div>
       </div>`;
   }
@@ -231,8 +240,12 @@
           algorithm: 'cloud_center' }),
       });
       window.rackLocatorOfflineBridge?.renderResult(data.result);
-      message('重新定位完成。');
       await selectPackage(state.selectedName);
+      if (data.result.is_success === false) {
+        message('重新定位失败：' + data.result.error_message, true);
+      } else {
+        message('重新定位完成。');
+      }
     } catch (error) {
       message(error.message, true);
     }
@@ -259,7 +272,8 @@
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false });
   }
 
-  byId('btn-packages')?.addEventListener('click', openModal);
+  byId('btn-packages')?.addEventListener('click', () => openModal(false));
+  byId('btn-history-frame')?.addEventListener('click', () => openModal(true));
   byId('btn-export-package')?.addEventListener('click', exportCurrent);
   byId('btn-refresh-packages')?.addEventListener('click', () => loadList());
   byId('btn-load-package')?.addEventListener('click', loadSelected);

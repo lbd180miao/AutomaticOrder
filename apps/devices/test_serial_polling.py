@@ -31,7 +31,7 @@ class SerialPollingTests(SimpleTestCase):
         native = Mock()
         native.locking.side_effect = OSError(errno.EDEADLK, 'Resource deadlock avoided')
         with patch.dict(sys.modules, msvcrt=native), \
-             patch('apps.devices.plc_io.time.monotonic', side_effect=[0, 16]):
+             patch('apps.devices.plc_io.time.perf_counter', side_effect=[0, 16]):
             with self.assertRaisesRegex(TimeoutError, '本机 PLC 通信锁'):
                 _lock_windows(Mock())
 
@@ -41,9 +41,9 @@ class SerialPollingTests(SimpleTestCase):
             gate = threading.Barrier(2)
 
             def read(*args):
-                events.append(('start', time.monotonic()))
+                events.append(('start', time.perf_counter()))
                 time.sleep(0.02)
-                events.append(('end', time.monotonic()))
+                events.append(('end', time.perf_counter()))
                 return b'\x00'
 
             def worker():
@@ -63,11 +63,11 @@ class SerialPollingTests(SimpleTestCase):
                 self.assertFalse(thread.is_alive())
             self.assertEqual(errors, [])
             self.assertEqual([kind for kind, _ in events], ['start', 'end', 'start', 'end'])
-            self.assertGreaterEqual(events[2][1] - events[1][1], 0.5)
+            self.assertGreaterEqual(events[2][1] - events[1][1], 0.02)
 
     def test_connections_share_gap_measured_from_read_completion_even_on_error(self):
         with tempfile.TemporaryDirectory() as directory, override_settings(DATA_DIR=directory), \
-             patch('apps.devices.plc_io.time.monotonic') as clock, \
+             patch('apps.devices.plc_io.time.perf_counter') as clock, \
              patch('apps.devices.plc_io.time.sleep') as sleep:
             first, second = Snap7Transport('test'), Snap7Transport('test')
             first.client = Mock()
@@ -81,16 +81,16 @@ class SerialPollingTests(SimpleTestCase):
             first.client.db_read.side_effect = slow_read
             first.read(2, 46, 1)
             sleep.assert_not_called()
-            clock.return_value = 105.2
+            clock.return_value = 105.005
             second.client.db_read.side_effect = ConnectionError('offline')
             with self.assertRaises(ConnectionError):
                 second.read(2, 46, 1)
-            self.assertAlmostEqual(sleep.call_args.args[0], 0.3)
+            self.assertAlmostEqual(sleep.call_args.args[0], 0.015)
             sleep.reset_mock()
-            clock.return_value = 105.3
+            clock.return_value = 105.01
             with self.assertRaises(ConnectionError):
                 second.read(2, 46, 1)
-            self.assertAlmostEqual(sleep.call_args.args[0], 0.4)
+            self.assertAlmostEqual(sleep.call_args.args[0], 0.015)
 
     def test_second_mode_rejected_until_first_stopped(self):
         with tempfile.TemporaryDirectory() as directory, override_settings(DATA_DIR=directory), \

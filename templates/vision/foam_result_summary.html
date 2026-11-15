@@ -1,0 +1,95 @@
+{% if not hide_overview %}
+        <!-- 判定大横幅 -->
+        <div id="verdict-banner" class="verdict-banner idle">
+          <div class="verdict-icon" id="verdict-icon">⏳</div>
+          <div class="verdict-text">
+            <strong id="verdict-text">等待检测</strong>
+            <div class="verdict-sub" id="verdict-sub">{% if workbench %}点击「导入图片检测」开始检测{% else %}请点击左侧「拍照检测」或导入图片开始检测{% endif %}</div>
+          </div>
+        </div>
+
+        <div class="metric-cards">
+          <div id="card-present" class="metric-card idle">
+            <div class="metric-icon">●</div>
+            <div class="metric-label">泡棉存在</div>
+            <div id="value-present" class="metric-value">待检测</div>
+          </div>
+          <div id="card-aligned" class="metric-card idle">
+            <div class="metric-icon">↔</div>
+            <div class="metric-label">位置对齐</div>
+            <div id="value-aligned" class="metric-value">待检测</div>
+          </div>
+        </div>
+
+{% endif %}
+        <!-- 详细检测结果区域（方案A：左右分侧） -->
+        <div id="detailed-result" style="display:none;">
+
+{% if not hide_overview %}
+          <!-- 配方标题 -->
+          <div style="padding:12px 16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;margin-bottom:16px;">
+            <div style="font-weight:700;font-size:calc(14px + var(--ui-font-increase, 0px));color:#0369a1;">
+              <span id="result-recipe-title">【POS0 配方 - 第1层泡棉检测】</span>
+            </div>
+          </div>
+
+{% endif %}
+          <!-- 左侧泡棉结果 -->
+          <div style="margin-bottom:20px;border:2px solid #e5e7eb;border-radius:8px;padding:14px;background:#fff;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:2px dashed #d1d5db;">
+              <span style="font-weight:800;font-size:calc(15px + var(--ui-font-increase, 0px));color:#374151;">━━━ 左侧泡棉 ━━━</span>
+              <span id="left-status-badge" style="padding:4px 10px;border-radius:4px;font-size:calc(13px + var(--ui-font-increase, 0px));font-weight:700;">-</span>
+            </div>
+
+            <table style="width:100%;font-size:calc(13px + var(--ui-font-increase, 0px));line-height:2.2;">
+              <tr>
+                <td style="color:#6b7280;width:120px;"><strong>覆盖率:</strong></td>
+                <td id="left-coverage-detail" style="font-family:monospace;">-</td>
+              </tr>
+
+              <tr>
+                <td style="color:#6b7280;"><strong>位置偏移:</strong></td>
+                <td id="left-offset-detail" style="font-family:monospace;">-</td>
+              </tr>
+
+            </table>
+          </div>
+
+          <!-- 右侧泡棉结果 -->
+          <div style="margin-bottom:20px;border:2px solid #e5e7eb;border-radius:8px;padding:14px;background:#fff;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:2px dashed #d1d5db;">
+              <span style="font-weight:800;font-size:calc(15px + var(--ui-font-increase, 0px));color:#374151;">━━━ 右侧泡棉 ━━━</span>
+              <span id="right-status-badge" style="padding:4px 10px;border-radius:4px;font-size:calc(13px + var(--ui-font-increase, 0px));font-weight:700;">-</span>
+            </div>
+
+            <table style="width:100%;font-size:calc(13px + var(--ui-font-increase, 0px));line-height:2.2;">
+              <tr>
+                <td style="color:#6b7280;width:120px;"><strong>覆盖率:</strong></td>
+                <td id="right-coverage-detail" style="font-family:monospace;">-</td>
+              </tr>
+
+              <tr>
+                <td style="color:#6b7280;"><strong>位置偏移:</strong></td>
+                <td id="right-offset-detail" style="font-family:monospace;">-</td>
+              </tr>
+
+            </table>
+          </div>
+
+          <!-- 最终判定 -->
+          <div id="final-verdict" style="padding:14px 18px;border-radius:6px;margin-bottom:16px;">
+            <div style="font-weight:800;font-size:calc(15px + var(--ui-font-increase, 0px));margin-bottom:4px;">━━━ 最终判定 ━━━</div>
+            <div id="final-verdict-text" style="font-size:calc(14px + var(--ui-font-increase, 0px));font-weight:700;">-</div>
+          </div>
+
+        </div>
+
+        <!-- 详细数值 -->
+        <div class="detail-row" id="detail-row" style="display:none;">
+          <div class="detail-chip">POS <strong id="d-pos">—</strong></div>
+          <div class="detail-chip">配方 <strong id="d-recipe">默认配置</strong></div>
+          <div class="detail-chip">覆盖率 <strong id="d-cov">—</strong></div>
+          <div class="detail-chip">X偏移 <strong id="d-ox">—</strong></div>
+          <div class="detail-chip">Y偏移 <strong id="d-oy">—</strong></div>
+          <div class="detail-chip" id="d-defect-chip" style="display:none;">缺陷 <strong id="d-defect">—</strong></div>
+        </div>

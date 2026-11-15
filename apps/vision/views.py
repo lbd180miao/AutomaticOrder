@@ -155,6 +155,21 @@ def task_history(request):
                 messages.error(request, f'数据库查询错误：{str(e3)}。请检查数据库迁移状态。')
                 tasks = []
     
+    for task in tasks:
+        task.history_image_url = ''
+        foam = next(iter(task.foam_results.all()), None)
+        if foam:
+            if not foam.is_passed and not task.error_message:
+                task.error_message = foam.failure_reason
+            for kind in ('result', 'original'):
+                if foam_archive.has_image(foam.pk, kind):
+                    task.history_image_url = reverse('vision:api_foam_record_image', args=[foam.pk, kind])
+                    break
+        if not task.history_image_url:
+            image = next((image for image in task.images.all() if image.file), None)
+            if image:
+                task.history_image_url = image.file.url
+
     return render(request, 'vision/task_history.html', {
         'tasks': tasks, 'vision_type': vision_type, 'filter_error': filter_error,
         'date_from': request.GET.get('date_from', ''),
@@ -205,31 +220,6 @@ def task_detail(request, pk):
     rack_result = task.rack_results.first()
     foam_result = task.foam_results.first()
 
-    # Pre-compute dual-point XYZ delta rows for the template
-    dp_rows = []
-    if rack_result and rack_result.result_data.get('source') in ('dual_point_evaluate', 'cloud_match'):
-        result = rack_result.result_data.get('result') or {}
-        reference = (rack_result.result_data.get('reference') or {}).get('measurement') or result.get('reference') or {}
-        ref_points = {p['name']: p for p in reference.get('points') or []}
-        for pt in result.get('points') or []:
-            name = pt.get('name', '')
-            cur = pt.get('xyz')
-            ref = ref_points.get(name, {}).get('xyz')
-            fmt3 = lambda v: f'{v:.3f}' if isinstance(v, (int, float)) else '—'
-            if cur and len(cur) == 3:
-                cur_str = ' / '.join(fmt3(v) for v in cur)
-            else:
-                cur_str = '—'
-            if ref and len(ref) == 3:
-                ref_str = ' / '.join(fmt3(v) for v in ref)
-            else:
-                ref_str = '—'
-            if cur and ref and len(cur) == 3 and len(ref) == 3:
-                delta_str = ' / '.join(fmt3(cur[i] - ref[i]) for i in range(3))
-            else:
-                delta_str = '—'
-            dp_rows.append({'name': name, 'ref': ref_str, 'cur': cur_str, 'delta': delta_str})
-
     return render(request, 'vision/task_detail.html', {
         'task': task,
         'original': original,
@@ -237,11 +227,26 @@ def task_detail(request, pk):
         'depth_img': depth_img,
         'rack_result': rack_result,
         'foam_result': foam_result,
-        'dp_rows': dp_rows,
+        'foam_payload': _result_payload(foam_result) if foam_result else None,
         'foam_original_available': bool(foam_result and foam_archive.has_image(foam_result.pk, 'original')),
         'foam_result_available': bool(foam_result and foam_archive.has_image(foam_result.pk, 'result')),
     })
 
+
+
+@require_POST
+def delete_selected_tasks(request):
+    ids = request.POST.getlist('task_ids')
+    if ids and all(value.isascii() and value.isdigit() and len(value) <= 18 for value in ids):
+        _, counts = VisionTask.objects.filter(pk__in=ids).delete()
+        count = counts.get(VisionTask._meta.label, 0)
+        messages.success(request, f'已删除 {count} 条视觉记录。')
+    else:
+        messages.error(request, '请选择有效的视觉记录。')
+    response = redirect('vision:task_history')
+    if request.GET:
+        response['Location'] += '?' + request.GET.urlencode()
+    return response
 
 
 @require_POST
@@ -325,6 +330,7 @@ def _result_payload(foam_result):
         'has_lifted_edge': foam_result.has_lifted_edge,
         'score': float(foam_result.score),
         'is_passed': foam_result.is_passed,
+        'failure_reason': foam_result.failure_reason,
         'offset_x_px': float(foam_result.offset_x_px),
         'offset_y_px': float(foam_result.offset_y_px),
         'offset_x_mm': float(foam_result.offset_x_mm),
@@ -653,6 +659,8 @@ def api_foam_recipe_create(request):
         recipe.algorithm_config.pop('product_registration', None)
         recipe.roi_config.pop('productAnchorROIs', None)
         recipe.save(update_fields=['algorithm_config', 'roi_config'])
+        if source:
+            _copy_foam_template_files(recipe)
         return JsonResponse({'success': True, 'recipe': serialize_recipe(recipe)})
     except (TypeError, ValueError) as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
@@ -945,20 +953,30 @@ def api_foam_upload_inspect(request):
     """上传图片并进行泡棉检测"""
     request_started = time.perf_counter()
     timings = {}
+    task = None
+    stage = "读取上传图片"
     try:
         uploaded_file = request.FILES.get('image')
-        if not uploaded_file:
+        preview_token = request.POST.get('preview_capture_token', '')
+        if not uploaded_file and not preview_token:
             return JsonResponse({
                 'success': False,
                 'error': '未上传图片文件'
             })
         
+        task = VisionTask.objects.create(task_type="FOAM_INSPECTION", status="RUNNING", started_at=timezone.now())
         position_index = int(request.POST.get('position_index', 0))
         recipe_id = request.POST.get('recipe_id') or None
         use_recipe = _as_bool(request.POST.get('use_recipe'), True)
         
         phase_started = time.perf_counter()
-        image = _decode_uploaded_image(uploaded_file)
+        if uploaded_file:
+            image = _decode_uploaded_image(uploaded_file)
+        else:
+            try:
+                image = _camera_image_from_preview_token(preview_token)
+            except Exception as exc:
+                raise ValueError('预览原图已失效，请重新拍照取图') from exc
         timings['image_decode'] = round((time.perf_counter() - phase_started) * 1000, 1)
         
         # 使用真实图片进行检测
@@ -986,11 +1004,12 @@ def api_foam_upload_inspect(request):
         inspection_config.update(recipe_config)
         # 使用真实图像检测，simulated_pass参数不影响结果
         phase_started = time.perf_counter()
+        stage = "泡棉检测计算"
         result = inspector.inspect(
             position_index=position_index,
             inspection_config=inspection_config,
             image=image,
-            camera_image_path=f'upload:{Path(uploaded_file.name).name[:128]}',
+            camera_image_path=f'upload:{Path(uploaded_file.name).name[:128]}' if uploaded_file else 'preview:workbench',
             simulated_pass=True,  # 当image不为None时此参数被忽略
         )
         if recipe:
@@ -999,12 +1018,9 @@ def api_foam_upload_inspect(request):
         result.setdefault('result_data', {})['timings_ms'] = timings
         
         # 创建视觉任务记录
-        task = VisionTask.objects.create(
-            task_type='FOAM_INSPECTION',
-            status='SUCCESS' if result['is_passed'] else 'FAILED',
-        )
-        task.started_at = task.created_at
-        task.finished_at = task.created_at
+        stage = "保存检测结果"
+        task.status = 'SUCCESS' if result['is_passed'] else 'FAILED'
+        task.finished_at = timezone.now()
         task.save()
         
         # 保存检测结果
@@ -1027,20 +1043,18 @@ def api_foam_upload_inspect(request):
         
         timings['total'] = round((time.perf_counter() - request_started) * 1000, 1)
         foam_result.save(update_fields=['result_data'])
+        if not foam_result.is_passed:
+            task.error_message = foam_result.failure_reason
+            task.save(update_fields=['error_message'])
         foam_archive.archive(foam_result, result)
 
         return JsonResponse({'success': True, 'result': _result_payload(foam_result)})
         
-    except ValueError as e:
-        return JsonResponse({
-            'success': False,
-            'error': f'参数错误: {str(e)}'
-        }, status=400)
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': f'检测失败: {str(e)}'
-        }, status=500)
+    except Exception as exc:
+        message = f'{stage}失败：{str(exc) or type(exc).__name__}'
+        if task:
+            VisionTask.objects.filter(pk=task.pk).update(status='FAILED', error_message=message, finished_at=timezone.now())
+        return JsonResponse({'success': False, 'error': message}, status=400 if isinstance(exc, ValueError) else 500)
 
 
 def api_foam_inspection_records(request):
@@ -1067,6 +1081,7 @@ def api_foam_inspection_records(request):
                 'created_at': timezone.localtime(r.created_at).strftime('%Y-%m-%d %H:%M:%S'),
                 'position_index': r.position_index,
                 'is_passed': r.is_passed,
+                'failure_reason': r.failure_reason,
                 'is_present': r.is_present,
                 'score': float(r.score),
                 'coverage_ratio': float(r.coverage_ratio),
@@ -1777,6 +1792,23 @@ def rack_location_capture(request):
 
 
 
+def _validated_3d_limits(data):
+    from decimal import Decimal, InvalidOperation
+    limits = {}
+    for axis in ('x', 'y', 'z', 'rz'):
+        field = f'max_offset_{axis}'
+        if field not in data:
+            continue
+        try:
+            value = Decimal(str(data[field]))
+            if not value.is_finite() or value < 0 or value > Decimal('9999999.999'):
+                raise ValueError()
+        except (InvalidOperation, ValueError):
+            raise ValueError(f'{axis.upper()} 限值须为 0 至 9999999.999 的有效数值')
+        limits[field] = value
+    return limits
+
+
 @require_http_methods(['GET', 'POST', 'PATCH', 'DELETE'])
 def api_vision_3d_recipes(request):
     if request.method == 'GET':
@@ -1848,6 +1880,8 @@ def api_vision_3d_recipes(request):
             if 'enabled' in data:
                 recipe.enabled = _as_bool(data['enabled'])
             
+            for field, value in _validated_3d_limits(data).items():
+                setattr(recipe, field, value)
             recipe.save()
             return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
         except Exception as exc:  # noqa: BLE001
@@ -1919,6 +1953,7 @@ def api_vision_3d_recipes(request):
         )
         reference = None
         recipe = RackLocationRecipe.objects.create(
+            **_validated_3d_limits(data),
             recipe_name=data.get('recipe_name') or f"3D-L{data.get('layer_no', 1)}",
             rack_side=str(data.get('rack_side') or RackSide.BOTH).upper(),
             rack_type=data.get('rack_type') or '',
@@ -2153,6 +2188,9 @@ def api_vision_3d_capture(request):
         import traceback
         logger = logging.getLogger(__name__)
         logger.error(f"采集点云失败: {exc}\n{traceback.format_exc()}")
+        now = timezone.now()
+        VisionTask.objects.create(task_type='RACK_LOCATING', status='FAILED', started_at=now,
+                                  finished_at=now, error_message=f'采集点云失败：{exc}')
         return _api3d_error(exc)
 
 

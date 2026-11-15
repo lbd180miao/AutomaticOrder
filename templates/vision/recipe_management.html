@@ -644,9 +644,6 @@
 .foam-toggle { display: flex; align-items: center; gap: 7px; margin-top: 10px; }
 .foam-form-note { color: var(--text-muted); font-size: 0.875em; margin: 7px 0 0; }
 .foam-form-details summary { cursor: pointer; font-weight: 700; }
-.foam-advanced-group { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-.foam-advanced-group h4 { margin: 0 0 8px; font-size: 0.95em; }
-.foam-advanced-group > .foam-toggle { margin-top: 0; }
 #edit-standard-template-workbench { display: inline-flex; margin-top: 8px; }
 
 /* 3D配方卡片专用徽章 */
@@ -1123,6 +1120,7 @@
         </div>
       </div>
 
+      <div class="form-section"><div class="form-section-title">机器人补偿限值</div><small>A/B 组共用；补偿绝对值超过限值时禁止回写 PLC。XYZ 单位 mm。</small><div class="form-row"><div class="form-group"><label>最大 |ΔX| (mm)</label><input type="number" id="modal-3d-limit-x" min="0" max="9999999.999" step="0.001" value="10"></div><div class="form-group"><label>最大 |ΔY| (mm)</label><input type="number" id="modal-3d-limit-y" min="0" max="9999999.999" step="0.001" value="10"></div><div class="form-group"><label>最大 |ΔZ| (mm)</label><input type="number" id="modal-3d-limit-z" min="0" max="9999999.999" step="0.001" value="10"></div></div></div>
       <div class="form-section">
         <div class="form-section-title">工作台示教数据（只读同步）</div>
         <div id="modal-3d-workbench-data"></div>
@@ -1229,7 +1227,6 @@
           </div>
         </div>
         <p id="edit-decision-hint" class="foam-form-note"></p>
-        <label class="foam-toggle" id="edit-optional-integrity"><input id="edit-use-integrity" type="checkbox">追加完整性限制</label>
         <div id="edit-integrity-fields" class="foam-form-grid foam-field-block" hidden>
           <div class="form-group"><label for="edit-quality-min-area-ratio">最小面积比 (%)</label><input id="edit-quality-min-area-ratio" type="number" min="0" step="any"></div>
           <div class="form-group"><label for="edit-quality-max-area-ratio">最大面积比 (%)</label><input id="edit-quality-max-area-ratio" type="number" min="0" step="any"></div>
@@ -1241,38 +1238,7 @@
           <div class="form-group"><label for="edit-offset-x-px">X 最大偏移 (px)</label><input id="edit-offset-x-px" type="number" min="0" step="any" required></div>
           <div class="form-group"><label for="edit-offset-y-px">Y 最大偏移 (px)</label><input id="edit-offset-y-px" type="number" min="0" step="any" required></div>
         </div>
-        <div id="edit-offset-mm-fields" class="foam-form-grid foam-field-block" hidden>
-          <div class="form-group"><label for="edit-quality-max-offset-x-mm">X 最大偏移 (mm)</label><input id="edit-quality-max-offset-x-mm" type="number" min="0" step="any" required></div>
-          <div class="form-group"><label for="edit-quality-max-offset-y-mm">Y 最大偏移 (mm)</label><input id="edit-quality-max-offset-y-mm" type="number" min="0" step="any" required></div>
-        </div>
-        <p id="edit-offset-hint" class="foam-form-note" role="status"></p>
       </section>
-
-      <details class="form-section foam-form-details" id="edit-advanced-settings">
-        <summary>高级参数</summary>
-        <div class="foam-advanced-group">
-          <h4>毫米标定</h4>
-          <label class="foam-toggle"><input id="edit-use-mm" type="checkbox">完成标定后使用毫米公差</label>
-          <div class="foam-form-grid foam-field-block">
-            <div class="form-group"><label for="edit-quality-pixels-per-mm-x">X 像素/毫米</label><input id="edit-quality-pixels-per-mm-x" type="number" min="0" step="any" required></div>
-            <div class="form-group"><label for="edit-quality-pixels-per-mm-y">Y 像素/毫米</label><input id="edit-quality-pixels-per-mm-y" type="number" min="0" step="any" required></div>
-          </div>
-        </div>
-        <div id="edit-hsv-fields" class="foam-advanced-group" hidden>
-          <h4>阈值分割</h4>
-          <div class="foam-form-grid">
-            <div class="form-group"><label for="edit-quality-min-v">最低亮度 V（0–255）</label><input id="edit-quality-min-v" type="number" min="0" max="255" step="1" required></div>
-            <div class="form-group"><label for="edit-quality-max-s">最高饱和度 S（0–255）</label><input id="edit-quality-max-s" type="number" min="0" max="255" step="1" required></div>
-          </div>
-        </div>
-        <div class="foam-advanced-group">
-          <label class="foam-toggle"><input id="edit-quality-merge-enabled" type="checkbox">合并相邻泡棉碎片</label>
-          <div id="edit-merge-fields" class="foam-form-grid foam-field-block" hidden>
-            <div class="form-group"><label for="edit-quality-merge-gap">碎片最大间隙 (px)</label><input id="edit-quality-merge-gap" type="number" min="1" max="200" step="1" required></div>
-            <div class="form-group"><label for="edit-quality-merge-color">碎片颜色距离上限</label><input id="edit-quality-merge-color" type="number" min="0" max="100" step="any" required></div>
-          </div>
-        </div>
-      </details>
 
       <section class="form-section">
         <h4 class="form-section-title">标准 ROI</h4>
@@ -1546,55 +1512,30 @@ function setFoamEditFieldsVisible(id, visible) {
 function refreshFoamEditFields(recipe) {
   const material = foamEditField('material').value;
   const summary = recipe.foam_summary || {};
-  const usesThreshold = material === 'white' || (material === 'unspecified' && summary.uses_hsv_thresholds);
   const algorithmLabel = {gray: '阴影分割', white: '阈值分割'}[material] || summary.segmentation_label || '阈值分割';
   foamEditField('segmentation').textContent = '使用' + algorithmLabel;
-  setFoamEditFieldsVisible('edit-hsv-fields', usesThreshold);
-
   const separated = foamEditField('decision_mode').value === 'separated-v2';
   setFoamEditFieldsVisible('edit-coverage-fields', !separated);
-  setFoamEditFieldsVisible('edit-optional-integrity', !separated);
-  setFoamEditFieldsVisible('edit-integrity-fields', separated || document.getElementById('edit-use-integrity').checked);
+  setFoamEditFieldsVisible('edit-integrity-fields', separated);
   for (const key of foamIntegrityKeys.slice(0, 4)) foamEditField(key).required = separated;
   document.getElementById('edit-decision-hint').textContent = separated
     ? '泡棉形状对齐后检查面积、缺损和超出，位置偏移单独判定。'
     : '按泡棉在标准 ROI 内的覆盖比例和位置偏移判定。';
 
-  const mm = document.getElementById('edit-use-mm').checked
-    && foamEditField('pixels_per_mm_x').valueAsNumber > 0
-    && foamEditField('pixels_per_mm_y').valueAsNumber > 0;
-  setFoamEditFieldsVisible('edit-offset-mm-fields', mm);
-  setFoamEditFieldsVisible('edit-offset-px-fields', !mm);
-  document.getElementById('edit-offset-hint').textContent = mm
-    ? '偏移按毫米判定。标定系数见高级参数。'
-    : '偏移按像素判定。可在高级参数设置毫米标定。';
 
-  setFoamEditFieldsVisible('edit-merge-fields', foamEditField('merge_enabled').checked);
 }
 
 window.openEditModal = function(recipeId) {
   const recipe = foam2DRecipes.find(r => r.id === recipeId);
   if (!recipe) return;
 
-  const algorithm = recipe.algorithm_config || {};
   const thresholds = recipe.threshold_config || {};
   const alignment = recipe.foam_summary?.alignment || {};
-  foamEditField('merge_enabled').checked = algorithm.fragment_merge?.enabled === true;
-  foamEditField('merge_gap').value = algorithm.fragment_merge?.max_gap_px ?? 12;
-  foamEditField('merge_color').value = algorithm.fragment_merge?.max_color_distance ?? 25;
   foamEditField('material').value = recipe.foam_summary?.material_type || 'unspecified';
-  foamEditField('min_v').value = algorithm.segmentation_config?.foam_min_v ?? 140;
-  foamEditField('max_s').value = algorithm.segmentation_config?.foam_max_s ?? 80;
   foamEditField('decision_mode').value = thresholds.decision_mode || 'legacy';
-  document.getElementById('edit-use-integrity').checked = foamIntegrityKeys.some(key => thresholds[key] != null);
   for (const key of foamIntegrityKeys) {
     foamEditField(key).value = thresholds[key] == null ? '' : Number((thresholds[key] * 100).toPrecision(12));
   }
-  document.getElementById('edit-use-mm').checked = (alignment.max_offset_mm ?? 2) > 0;
-  foamEditField('pixels_per_mm_x').value = alignment.pixels_per_mm_x ?? 0;
-  foamEditField('pixels_per_mm_y').value = alignment.pixels_per_mm_y ?? 0;
-  foamEditField('max_offset_x_mm').value = alignment.max_offset_x_mm ?? 2;
-  foamEditField('max_offset_y_mm').value = alignment.max_offset_y_mm ?? 2;
   document.getElementById('edit-offset-x-px').value = alignment.max_offset_x_px ?? 30;
   document.getElementById('edit-offset-y-px').value = alignment.max_offset_y_px ?? 30;
   document.getElementById('edit-name').value = recipe.name;
@@ -1604,7 +1545,6 @@ window.openEditModal = function(recipeId) {
 
   document.getElementById('edit-modal-title').textContent = `编辑配方 · ${recipe.name}`;
   document.getElementById('edit-modal-id').value = recipe.id;
-  document.getElementById('edit-advanced-settings').open = false;
   document.getElementById('edit-standard-template-data').innerHTML = foamTemplateSummaryHtml(recipe);
   document.getElementById('edit-standard-template-workbench').href = `{% url 'vision:foam_inspector_interactive' %}?recipe_id=${recipe.id}`;
 
@@ -1650,50 +1590,11 @@ window.submitEditModal = async function() {
     threshold_config[key] = input.disabled || input.value === '' ? null : input.valueAsNumber / 100;
   }
 
-  const alignment = recipe.foam_summary?.alignment || {};
-  const useMm = document.getElementById('edit-use-mm').checked;
-  if (useMm !== ((alignment.max_offset_mm ?? 2) > 0)) {
-    // Keep per-axis millimeter limits when the legacy mode flag changes.
-    threshold_config.max_offset_mm = useMm ? 2 : 0;
-    threshold_config.max_offset_x_mm = foamEditField('max_offset_x_mm').valueAsNumber;
-    threshold_config.max_offset_y_mm = foamEditField('max_offset_y_mm').valueAsNumber;
-  }
   for (const axis of ['x', 'y']) {
-    const scale = foamEditField('pixels_per_mm_' + axis).valueAsNumber;
-    if (scale !== (alignment['pixels_per_mm_' + axis] ?? 0)) {
-      threshold_config['pixels_per_mm_' + axis] = scale;
-      if (scale === 0) threshold_config['mm_per_pixel_' + axis] = 0;
-    }
-    const mmInput = foamEditField('max_offset_' + axis + '_mm');
-    const pxInput = document.getElementById('edit-offset-' + axis + '-px');
-    const offsetInput = mmInput.disabled ? pxInput : mmInput;
-    const unit = mmInput.disabled ? 'px' : 'mm';
-    threshold_config[`max_offset_${axis}_${unit}`] = offsetInput.valueAsNumber;
-  }
-  if ('max_offset_x_px' in threshold_config) {
-    threshold_config.maxOffsetX = threshold_config.max_offset_x_px;
-    threshold_config.maxOffsetY = threshold_config.max_offset_y_px;
-    threshold_config.max_offset_px = Math.max(threshold_config.maxOffsetX, threshold_config.maxOffsetY);
-  }
-  if ('max_offset_x_mm' in threshold_config) {
-    threshold_config.maxOffsetXMm = threshold_config.max_offset_x_mm;
-    threshold_config.maxOffsetYMm = threshold_config.max_offset_y_mm;
+    threshold_config[`max_offset_${axis}_px`] = document.getElementById(`edit-offset-${axis}-px`).valueAsNumber;
   }
 
   const algorithm_config = {material_type: foamEditField('material').value};
-  if (!foamEditField('min_v').disabled) {
-    algorithm_config.segmentation_config = {
-      foam_min_v: foamEditField('min_v').valueAsNumber,
-      foam_max_s: foamEditField('max_s').valueAsNumber,
-    };
-  }
-  const merge = foamEditField('merge_enabled').checked;
-  algorithm_config.fragment_merge = {...recipe.algorithm_config?.fragment_merge, enabled: merge};
-  if (merge) {
-    algorithm_config.fragment_merge.max_gap_px = foamEditField('merge_gap').valueAsNumber;
-    algorithm_config.fragment_merge.max_color_distance = foamEditField('merge_color').valueAsNumber;
-  }
-
   try {
     const res = await fetch(API.saveRecipe, {
       method: 'POST',
@@ -2263,6 +2164,7 @@ function render3DRecipeCards() {
           <span class="status-badge ${recipe.enabled ? 'enabled' : 'disabled'}">
             ${recipe.enabled ? '✔ 已启用' : '✕ 已禁用'}
           </span>
+          <button class="recipe-rename-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); edit3DRecipe(${recipe.id})">编辑配方 / 限值</button>
           <button class="recipe-rename-button recipe-copy-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); open3DCopyModal(${recipe.id})">增加（复制）</button>
           <button class="recipe-rename-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); open3DRenameModal(${recipe.id})">修改命名</button>
           <button class="recipe-rename-button" type="button" onclick="event.preventDefault(); event.stopPropagation(); exportRecipeJson('rack3d', ${recipe.id}, this)">导出 JSON</button>
@@ -2396,6 +2298,7 @@ window.create3DRecipe = function() {
   document.getElementById('modal-3d-std-y').value = '0';
   document.getElementById('modal-3d-std-z').value = '0';
   document.getElementById('modal-3d-std-rz').value = '0';
+  for (const axis of ['x', 'y', 'z']) document.getElementById(`modal-3d-limit-${axis}`).value = 10;
   update3DModalWorkbenchData(null);
   document.getElementById('recipe-3d-modal').style.display = 'flex';
   document.getElementById('modal-3d-name').focus();
@@ -2437,6 +2340,7 @@ window.edit3DRecipe = async function(id) {
     document.getElementById('modal-3d-std-y').value = recipe.standard_y || 0;
     document.getElementById('modal-3d-std-z').value = recipe.standard_z || 0;
     document.getElementById('modal-3d-std-rz').value = recipe.standard_rz || 0;
+    for (const axis of ['x', 'y', 'z']) document.getElementById(`modal-3d-limit-${axis}`).value = recipe[`max_offset_${axis}`] ?? 10;
     update3DModalWorkbenchData(recipe);
 
     document.getElementById('recipe-3d-modal').style.display = 'flex';
@@ -2520,6 +2424,17 @@ window.submit3DModal = async function() {
     return;
   }
 
+  const limits = {};
+  for (const axis of ['x', 'y', 'z']) {
+    const input = document.getElementById(`modal-3d-limit-${axis}`);
+    const value = Number(input.value);
+    if (!input.value.trim() || !Number.isFinite(value) || value < 0 || value > 9999999.999) {
+      showToast(`${axis.toUpperCase()} 限值须为 0 至 9999999.999 的有效数值`, 'error');
+      input.focus();
+      return;
+    }
+    limits[`max_offset_${axis}`] = value;
+  }
   const numberOrNull = (elementId) => {
     const value = document.getElementById(elementId).value;
     if (value === '') return null;
@@ -2529,9 +2444,9 @@ window.submit3DModal = async function() {
   const existingRecipe = id
     ? rack3DRecipes.find(recipe => String(recipe.id) === String(id))
     : null;
-  const existingRoiConfig = existingRecipe?.roi_config || {};
 
   const payload = {
+    ...limits,
     recipe_name: name,
     layer_count: layerCount,
     rack_type: rackNo,
@@ -2541,7 +2456,6 @@ window.submit3DModal = async function() {
     standard_rz: Number(document.getElementById('modal-3d-std-rz').value) || 0,
     // 保留工作台维护的点云模板配置，仅更新 camera_roi。
     roi_config: {
-      ...existingRoiConfig,
       camera_roi: {
         x_min: numberOrNull('modal-3d-roi-x-min'),
         x_max: numberOrNull('modal-3d-roi-x-max'),
@@ -2551,7 +2465,7 @@ window.submit3DModal = async function() {
         z_max: numberOrNull('modal-3d-roi-z-max'),
       },
     },
-    enabled: true,
+    enabled: existingRecipe?.enabled ?? true,
   };
 
   if (id) {
@@ -2565,18 +2479,14 @@ window.submit3DModal = async function() {
       body: JSON.stringify(payload),
     });
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    }
+    const data = await res.json().catch(() => ({}));
 
-    const data = await res.json();
-
-    if (data.success) {
+    if (res.ok && data.success) {
       showToast(id ? '配方已更新' : '配方已创建', 'success');
       close3DModal();
       await load3DRecipes();
     } else {
-      showToast('保存失败：' + (data.error || '未知错误'), 'error');
+      showToast('保存失败：' + (data.error || `HTTP ${res.status} ${res.statusText}`), 'error');
     }
   } catch (e) {
     console.error('保存配方失败:', e);

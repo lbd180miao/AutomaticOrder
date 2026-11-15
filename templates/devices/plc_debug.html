@@ -25,7 +25,7 @@
 </section>
 <section class="panel">
 <h2>2D 相机与 PLC 联调 · 泡棉视觉检测</h2>
-<p class="hint">选择已完成左右泡棉 ROI 和标准模板示教的 2D 配方，检测使用该配方的 POS。保持本页打开；关闭页面或断网后监听会话空闲时最长 15 秒到期。2D 与 3D 不能同时启用轮询，须先停止当前工序再启动另一工序。PLC读取串行执行，每次读取结束后至少间隔 500ms 才开始下一次读取；轮询期间暂停工位 Worker 的 PLC 操作并禁止手动写入。</p>
+<p class="hint">选择已完成左右泡棉 ROI 和标准模板示教的 2D 配方，检测使用该配方的 POS。保持本页打开；关闭页面或断网后监听会话空闲时最长 15 秒到期。2D 与 3D 不能同时启用轮询，须先停止当前工序再启动另一工序。PLC读取串行执行，每次读取结束后至少间隔 20ms 才开始下一次读取；轮询期间暂停工位 Worker 的 PLC 操作并禁止手动写入。</p>
 <form onsubmit="return false" id="foam-form">
 <label for="foam-recipe">2D 泡棉检测配方</label>
 <select id="foam-recipe" required><option value="">请选择配方</option>{% for recipe in foam_recipes %}<option value="{{ recipe.pk }}">{{ recipe.name }}（POS {{ recipe.pos }}）</option>{% endfor %}</select>

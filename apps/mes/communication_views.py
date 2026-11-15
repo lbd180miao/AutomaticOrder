@@ -57,6 +57,24 @@ def status(request):
     return response
 
 
+@require_GET
+def detail(request, task_id):
+    task_id = str(task_id)
+    task, events = remote_client.task_detail(task_id)
+    warning = ''
+    try:
+        remote = gateway_call('/api/communication/tasks/' + task_id)
+        task = task or remote.get('task')
+        events.extend(remote.get('events', []))
+    except (OSError, ValueError, KeyError, requests.RequestException) as exc:
+        warning = '外部电脑日志暂时无法读取：' + str(exc)
+    response = JsonResponse({'success': True, 'task': task,
+                             'events': sorted(events, key=lambda item: item['created']),
+                             'warning': warning})
+    response['Cache-Control'] = 'no-store'
+    return response
+
+
 @require_POST
 def control(request):
     try:

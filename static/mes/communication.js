@@ -25,23 +25,60 @@
   const values=[['接口',names[task.action]||task.action],['料框码',task.payload.rack_code],['产品条码',task.payload.product_code],['料框类型',task.result?.pkg_type_code],['区位号',task.result?.bin_code],['请求编号',task.id]];
   $('comm-result-fields').replaceChildren();
   for(const [label,value] of values)if(value!==undefined&&value!==null&&value!=='') {const row=node('div');row.append(node('dt',label),node('dd',String(value)));$('comm-result-fields').append(row);}
-  $('comm-result-note').textContent=task.result?.error || (task.state==='succeeded'?'已收到外部电脑返回结果。':task.error?'通信暂时中断，等待恢复后自动接收结果。':terminal.has(task.state)?'请查看完整返回值核对结果。':'正在等待外部电脑返回结果…');
+  $('comm-result-note').textContent=task.result?.error || task.error || (task.state==='succeeded'?'已收到外部电脑返回结果。':task.error?'通信暂时中断，等待恢复后自动接收结果。':terminal.has(task.state)?'请查看完整返回值核对结果。':'正在等待外部电脑返回结果…');
   $('comm-response-raw').hidden=!terminal.has(task.state);$('comm-response-json').textContent=JSON.stringify(task.result||{},null,2);
  }
- function detail(task){
-  selected=task.id;result();
-  const panel=$('comm-record-detail');panel.replaceChildren();
-  for(const [title,value] of [['请求编号',task.id],['时间',date(task.created)],['状态',states[task.state]||task.state],['请求内容',task.payload],['返回值',task.result],['通信异常',task.error||'无']]) {
-   panel.append(node('h4',title),node('pre',typeof value==='string'?value:JSON.stringify(value,null,2)));
+ const eventNames = {
+  queued: '请求已进入发送队列',
+  gateway_response: '收到外部电脑响应',
+  transport_error: '通信异常',
+  request_received: '外部电脑收到请求',
+  mes_request: '向 MES 发送请求',
+  mes_response: '收到 MES 处理结果',
+  manual_reply: '外部电脑手动返回结果',
+  http_return: '向 AGV 返回结果'
+ };
+ function renderDetail(task, events, warning) {
+  const panel = $('comm-record-detail');
+  panel.replaceChildren();
+  if (task.state === 'failed' || task.state === 'unknown' || task.error) {
+   const reason = task.result?.error || task.result?.message || task.error || '本次返回值未提供具体原因，请查看下方返回值和日志。';
+   panel.append(node('h4', task.state === 'unknown' ? '本次结果待核对原因' : '本次失败 / 异常原因'), node('pre', typeof reason === 'string' ? reason : JSON.stringify(reason, null, 2)));
   }
-  const events=(data.events||[]).filter(e=>e.task_id===task.id);
-  if(events.length){panel.append(node('h4','通信过程'));for(const e of events)panel.append(node('p',`${date(e.created)} · ${e.direction}`),node('pre',JSON.stringify(e.data,null,2)));}
-  $('comm-record-dialog').showModal();
+  for (const [title, value] of [['请求编号', task.id], ['时间', date(task.created)], ['状态', states[task.state] || task.state], ['请求内容', task.payload], ['本次返回值', task.result || {}], ['通信异常', task.error || '无']]) {
+   panel.append(node('h4', title), node('pre', typeof value === 'string' ? value : JSON.stringify(value, null, 2)));
+  }
+  panel.append(node('h4', '本次通信日志'));
+  if (warning) panel.append(node('p', warning));
+  if (!events.length) panel.append(node('p', '本次请求暂无已保存的过程日志，可查看上方请求内容、返回值及异常原因。'));
+  for (const event of events) {
+   panel.append(node('p', date(event.created) + ' · ' + event.direction + ' · ' + (eventNames[event.kind] || event.kind)), node('pre', JSON.stringify(event.data, null, 2)));
+  }
+ }
+ async function detail(task) {
+  selected = task.id;
+  result();
+  const dialog = $('comm-record-dialog');
+  dialog.dataset.taskId = task.id;
+  renderDetail(task, (data.events || []).filter(event => event.task_id === task.id), '正在读取本次通信日志…');
+  if (!dialog.open) dialog.showModal();
+  try {
+   const url = root.dataset.detailUrl.replace('00000000-0000-0000-0000-000000000000', task.id);
+   const response = await fetch(url, {cache: 'no-store'});
+   const detail = await response.json();
+   if (!response.ok || !detail.success) throw Error(detail.error || '详情读取失败');
+   if (dialog.dataset.taskId !== task.id || !dialog.open) return;
+   renderDetail(detail.task || task, detail.events || [], detail.warning);
+  } catch (error) {
+   if (dialog.dataset.taskId === task.id && dialog.open) {
+    renderDetail(task, (data.events || []).filter(event => event.task_id === task.id), error.message);
+   }
+  }
  }
  function records(){
   const query=$('comm-filter').value.trim().toLowerCase();$('comm-records').replaceChildren();
   const rows=tasks.slice(0,100).filter(t=>JSON.stringify(t).toLowerCase().includes(query));
-  for(const t of rows){const tr=node('tr');tr.append(node('td',date(t.created)),node('td',names[t.action]||t.action),node('td',`${t.payload.rack_code||'—'}${t.payload.product_code?'\n'+t.payload.product_code:''}`));const state=node('td'),badge=node('span',states[t.state]||t.state);badge.className='comm-badge';badge.dataset.state=t.state;state.append(badge);tr.append(state);const action=node('td'),button=node('button','查看记录');button.type='button';button.className='mes-link';button.addEventListener('click',()=>detail(tasks.find(row=>row.id===t.id)||t));action.append(button);tr.append(action);$('comm-records').append(tr);}
+  for(const t of rows){const tr=node('tr');tr.append(node('td',date(t.created)),node('td',names[t.action]||t.action),node('td',`${t.payload.rack_code||'—'}${t.payload.product_code?'\n'+t.payload.product_code:''}`));const state=node('td'),badge=node('span',states[t.state]||t.state);badge.className='comm-badge';badge.dataset.state=t.state;state.append(badge);tr.append(state);const action=node('td'),button=node('button','查看详情');button.type='button';button.className='mes-link';button.addEventListener('click',()=>detail(tasks.find(row=>row.id===t.id)||t));action.append(button);tr.append(action);$('comm-records').append(tr);}
   if(!rows.length){const tr=node('tr'),td=node('td','暂无通信记录');td.colSpan=5;td.className='comm-empty';tr.append(td);$('comm-records').append(tr);}
  }
  async function refresh(){

@@ -302,6 +302,37 @@ class FoamInspectionResult(TimeStampedModel):
     result_data = models.JSONField(default=dict, blank=True)
 
 
+    @property
+    def failure_reason(self):
+        if self.is_passed:
+            return ''
+        labels = {
+            'roi_too_small': '检测区域太小', 'no_dark_support': '未找到暗色支撑区域',
+            'mask_saturated': '分割掩膜饱和', 'product_registration_failed': '产品定位失败',
+            'no_foam_detected': '未检出泡棉', 'coverage_below_threshold': '覆盖率低于阈值',
+            'area_below_minimum': '面积低于下限', 'area_above_maximum': '面积超过上限',
+            'incomplete': '形状缺损', 'excess_area': '超出标准区域',
+            'local_defect': '局部缺损', 'misaligned': '位置偏移',
+        }
+        details = []
+        snapshot = self.result_data or {}
+        for side, measurement in (snapshot.get('sides') or {}).items():
+            codes = list(measurement.get('quality_failures') or [])
+            if measurement.get('reason'):
+                codes.append(measurement['reason'])
+            if codes:
+                side_name = {'left': '左侧', 'right': '右侧'}.get(side, side)
+                details.append(side_name + '：' + '、'.join(labels.get(c, c) for c in dict.fromkeys(codes)))
+        registration = snapshot.get('product_registration') or {}
+        if registration.get('reason'):
+            details.append(str(registration['reason']))
+        if not details:
+            details.append({'MISSING': '泡棉缺失或覆盖不足', 'MISALIGNED': '泡棉位置偏移'}.get(
+                self.defect_type, f'检测判定不合格（{self.defect_type}）'))
+        details.append(f'覆盖率 {self.coverage_ratio:.1%}，X 偏移 {self.offset_x_px:+.1f} px，Y 偏移 {self.offset_y_px:+.1f} px')
+        return '；'.join(details)
+
+
 class VisionImage(TimeStampedModel):
     vision_task = models.ForeignKey(VisionTask, on_delete=models.CASCADE, related_name='images')
     image_type = models.CharField(max_length=32, choices=VisionImageType.choices)
@@ -408,6 +439,14 @@ class VisionRecipe(TimeStampedModel):
 
     def __str__(self):
         return f'{self.name}({self.recipe_type}, POS {self.pos})'
+
+
+class FactoryRecipe(TimeStampedModel):
+    name = models.CharField('工厂配方名称', max_length=128, unique=True)
+    rack_recipe = models.ForeignKey(RackLocationRecipe, verbose_name='3D 配方', on_delete=models.PROTECT)
+    foam_recipe = models.ForeignKey(VisionRecipe, verbose_name='2D 配方', on_delete=models.PROTECT,
+                                   limit_choices_to={'recipe_type': 'FOAM_2D'})
+    plc_mapping = models.ForeignKey('mes.PkgTypeMapping', verbose_name='PLC 映射', on_delete=models.PROTECT)
 
 
 class PlcVisionDefaults(TimeStampedModel):

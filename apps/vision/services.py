@@ -263,15 +263,7 @@ class VisionService:
             task.status = ResultStatus.SUCCESS if result.is_passed else ResultStatus.FAILED
             task.finished_at = timezone.now()
             if not result.is_passed:
-                # 失败消息携带量化细节，方便排查
-                defect = data['result_data'].get('defect_type', '')
-                ox = data.get('offset_x_px', 0)
-                oy = data.get('offset_y_px', 0)
-                cov = data.get('coverage_ratio', 0)
-                task.error_message = (
-                    f'泡棉检测不合格 [缺陷:{defect}] '
-                    f'偏移({ox:+.0f}px,{oy:+.0f}px) 覆盖率:{cov:.1%}'
-                )
+                task.error_message = result.failure_reason
             task.save(update_fields=['status', 'finished_at', 'error_message', 'updated_at'])
             timings_ms['persistence'] = round(
                 (time.perf_counter() - persist_started) * 1000,

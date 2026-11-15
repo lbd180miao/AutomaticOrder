@@ -25,7 +25,7 @@
         <td>{% if r.is_aligned %}<span class="badge badge-ok">OK</span>{% else %}<span class="badge badge-fail">NG</span>{% endif %}</td>
         <td>{% if r.has_lifted_edge %}<span class="badge badge-fail">NG</span>{% else %}<span class="badge">未检测</span>{% endif %}</td>
         <td>{{ r.score }}</td>
-        <td>{% if r.is_passed %}<span class="badge badge-ok">合格</span>{% else %}<span class="badge badge-fail">不合格</span>{% endif %}</td>
+        <td>{% if r.is_passed %}<span class="badge badge-ok">合格</span>{% else %}<span class="badge badge-fail">不合格</span> {{ r.failure_reason }}{% endif %}</td>
       </tr>
       {% empty %}
       <tr><td colspan="11" class="empty">暂无检测结果</td></tr>

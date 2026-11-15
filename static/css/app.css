@@ -1436,3 +1436,7 @@ input[type="text"] {
   .device-command-grid,.alarm-rule-strip,.alarm-guidance { grid-template-columns: 1fr; }.signal-clean-row { grid-template-columns: 54px 1fr; }.signal-clean-row code,.signal-clean-row .badge { grid-column: 2; }.active-alarm-actions { align-items: flex-start; flex-direction: column; }.active-alarm-actions .inline-form,.active-alarm-actions form:last-child { width: 100%; flex-direction: column; }.active-alarm-actions input { width: 100%; box-sizing: border-box; }
   .mes-binding-filter,.mes-recipe-filter { grid-template-columns: 1fr; }.mes-recipe-head { align-items: flex-start; flex-direction: column; }.recipe-state { text-align: left; }.recipe-parameter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.recipe-parameter-grid > div:nth-child(even) { border-right: 0; }.recipe-parameter-grid > div { border-bottom: 1px solid var(--border); }.mes-recipe-foot { align-items: flex-start; flex-direction: column; gap: 4px; padding-block: 12px; }.mes-recipe-foot .payload-details { margin-left: 0; }
 }
+
+/* Global settings entry in the right side of the navigation bar. */
+.topbar .settings-button { display:inline-flex; align-items:center; justify-content:center; padding:10px; flex-shrink:0; border-radius:8px; }
+.topbar .settings-button:focus-visible { outline:2px solid #93b4ff; outline-offset:3px; }

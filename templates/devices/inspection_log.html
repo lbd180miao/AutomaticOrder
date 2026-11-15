@@ -1,0 +1,6 @@
+<header><h2>日志记录</h2></header>
+<ol class="inspection-log">
+  {% for timestamp, level, source, message in entries %}
+    <li><time>{{ timestamp|date:"Y-m-d H:i:s" }}.{{ timestamp|date:"u"|slice:":3" }}</time> <b class="level-{{ level }}">{{ level }}</b> · {{ source }} · {{ message }}</li>
+  {% empty %}<li>暂无日志记录</li>{% endfor %}
+</ol>

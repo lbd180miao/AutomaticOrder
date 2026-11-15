@@ -389,7 +389,7 @@ class RackLocationService:
         return {**metadata, **identity}
 
 
-    def capture_workbench(self, recipe_id=None):
+    def acquire_workbench(self, recipe_id=None):
         recipe = RackLocationRecipe.objects.get(pk=recipe_id, enabled=True) if recipe_id else None
         probe = recipe or RackLocationRecipe(recipe_name='WORKBENCH', layer_no=1, layer_count=3)
         frame, cloud = capture_input(self.frame_provider, probe, probe.position_no, probe.layer_no)
@@ -397,6 +397,15 @@ class RackLocationService:
         if image is None:
             image = frame.get('image')
         metadata = {**(frame.get('metadata') or {}), 'source': frame['source']}
+        # Own SDK buffers before allowing the next exposure.
+        return {'cloud': np.array(cloud, copy=True),
+                'image': np.array(image, copy=True) if image is not None else None,
+                'metadata': metadata, 'frame': {'source': frame['source'],
+                                              'preview_url': frame.get('preview_url', '')}}
+
+    def persist_workbench(self, acquired):
+        cloud, image = acquired['cloud'], acquired['image']
+        metadata, frame = acquired['metadata'], acquired['frame']
         token, preview, width, height = self._persist_workbench_frame(cloud, image, capture_metadata=metadata)
         raw = frame.get('preview_url', '')
         if image is not None:
@@ -404,6 +413,9 @@ class RackLocationService:
         return {'pointcloud_token': token, 'pointcloud_preview_url': preview,
                 'preview_image_url': preview, 'raw_depth_image_url': preview, 'raw_rgb_image_url': raw,
                 'image_width': width, 'image_height': height, 'source': frame['source']}
+
+    def capture_workbench(self, recipe_id=None):
+        return self.persist_workbench(self.acquire_workbench(recipe_id))
 
     def capture_standard_image(self, recipe_id=None):
         data = self.capture_workbench(recipe_id)

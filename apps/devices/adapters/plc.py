@@ -76,7 +76,7 @@ class Snap7Transport:
         return bool(getter()) if getter else True
 
     def read(self, db_number, offset, size):
-        # Heartbeat byte reads must not inherit the input scan's 0.5s delay.
+        # Heartbeat byte reads must not inherit the input scan's rate limit.
         # The adapter still serializes this read/modify/write with all PLC I/O.
         if db_number == DB_NUMBER and offset == 70 and size == 1:
             return bytes(self.client.db_read(db_number, offset, size))
@@ -210,6 +210,31 @@ class PLCAdapter(BaseDeviceAdapter):
             for name, point in POINTS_BY_NAME.items() if point.direction == 'IN'
         }
 
+    def manual_debug(self, enabled=None):
+        from apps.devices.plc_io import plc_io
+        point = POINTS_BY_NAME['heartbeat']
+        with plc_io(self.transport) as handle:
+            if handle is None:
+                paused = getattr(self.transport, '_heartbeat_paused', False)
+            else:
+                handle.seek(1)
+                paused = handle.read() == b'paused'
+            if enabled is None:
+                return paused
+            if enabled:
+                self._check_output_overlap(point)
+                self._ensure_connected()
+                data = bytearray(self.transport.read(DB_NUMBER, point.offset, 1))
+                data[0] &= ~(1 << point.bit)
+                self.transport.write(DB_NUMBER, point.offset, data)
+            if handle is None:
+                self.transport._heartbeat_paused = enabled
+            elif paused != enabled:
+                handle.seek(1)
+                handle.write(b'paused' if enabled else b'')
+                handle.truncate()
+            return enabled
+
     def tick_heartbeat(self):
         """Toggle DB2.DBX70.0 every 0.5s, shared across local channels."""
         from apps.devices.plc_io import plc_io
@@ -221,10 +246,14 @@ class PLCAdapter(BaseDeviceAdapter):
             self._ensure_connected()
             now = time.time()
             if handle is None:
+                if getattr(self.transport, '_heartbeat_paused', False):
+                    return False
                 previous = getattr(self.transport, '_heartbeat_at', None)
             else:
                 handle.seek(1)
                 saved = handle.read().strip()
+                if saved == b'paused':
+                    return False
                 previous = float(saved) if saved else None
             data = bytearray(self.transport.read(DB_NUMBER, point.offset, 1))
             if (previous is None or now < previous

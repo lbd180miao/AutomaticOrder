@@ -26,7 +26,7 @@ def _merge_package_roi_config(saved_config, request_config):
 
 @require_http_methods(["GET", "POST"])
 def packages(request):
-    service = OfflineDataPackageService()
+    service = OfflineDataPackageService.for_library(request.GET.get("library"))
     if request.method == "GET":
         # 添加 include_raw 参数支持
         include_raw = request.GET.get('include_raw', 'true').lower() == 'true'
@@ -44,7 +44,7 @@ def packages(request):
         image_2d_path = None
         source = str(data.get('source') or '')
         if source.startswith(('offline_package:', 'raw_package:')):
-            image_2d_path = service.get_2d_image(source.split(':', 1)[1])
+            image_2d_path = OfflineDataPackageService.for_library(data.get('package_library')).get_2d_image(source.split(':', 1)[1])
         elif data.get('raw_rgb_image_url'):
             from pathlib import Path
             from urllib.parse import urlsplit, unquote
@@ -89,7 +89,7 @@ def packages(request):
 def package_detail(request, package_name):
     """获取数据包详情"""
     try:
-        service = OfflineDataPackageService()
+        service = OfflineDataPackageService.for_library(request.GET.get("library"))
         detail = service.package_detail(package_name)
         return JsonResponse({"success": True, "package": detail})
     except OfflineDataPackageError as exc:
@@ -106,7 +106,7 @@ def package_detail(request, package_name):
 def load_package(request, package_name):
     """加载数据包到工作台"""
     try:
-        service = OfflineDataPackageService()
+        service = OfflineDataPackageService.for_library(request.GET.get("library"))
         data = _request_json(request)
         recipe_id = data.get("recipe_id")
         
@@ -121,6 +121,7 @@ def load_package(request, package_name):
             # 加载标准数据包
             payload = service.create_workbench_copy(package_name, recipe_id=recipe_id)
         
+        payload["package_library"] = "history" if service.history else "default"
         return JsonResponse({"success": True, "package": payload})
     except OfflineDataPackageError as exc:
         return _error(exc, 404)
@@ -136,7 +137,7 @@ def reprocess_package(request, package_name):
     """重新处理数据包"""
     try:
         data = _request_json(request)
-        service = OfflineDataPackageService()
+        service = OfflineDataPackageService.for_library(request.GET.get("library"))
         
         # 检查是否为原始数据包
         package_dir = service.base_dir / package_name
@@ -166,7 +167,7 @@ def reprocess_package(request, package_name):
 @require_http_methods(["DELETE"])
 def delete_package(request, package_name):
     try:
-        return JsonResponse({"success": OfflineDataPackageService().delete_package(package_name)})
+        return JsonResponse({"success": OfflineDataPackageService.for_library(request.GET.get("library")).delete_package(package_name)})
     except OfflineDataPackageError as exc:
         return _error(exc, 404)
 
@@ -174,7 +175,7 @@ def delete_package(request, package_name):
 @require_http_methods(["GET"])
 def package_preview(request, package_name):
     try:
-        service = OfflineDataPackageService()
+        service = OfflineDataPackageService.for_library(request.GET.get("library"))
         
         # 尝试标准预览
         try:
@@ -190,7 +191,7 @@ def package_preview(request, package_name):
 def raw_preview(request, package_name):
     """获取原始数据包的预览图（专用端点）"""
     try:
-        service = OfflineDataPackageService()
+        service = OfflineDataPackageService.for_library(request.GET.get("library"))
         if request.GET.get('image') == '2d':
             # 优先返回相机 2D 原图；旧数据包没有 image2d.png 时降级到 preview.png
             path = service.get_2d_image(package_name) or service.get_raw_preview(package_name)

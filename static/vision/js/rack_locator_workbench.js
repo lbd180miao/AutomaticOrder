@@ -12,6 +12,56 @@
     $('btn-export-package').disabled = !frame.pointcloud_token;
     $('rl-status').textContent = '点云已载入，可以框选区域、保存模板或开始计算。';
   }
+  const captureButton = $('btn-capture');
+  const modeDialog = $('capture-mode-dialog');
+  let confirmedCapture = false;
+
+  async function updateMode(enabled) {
+    const options = enabled === undefined ? {cache: 'no-store'} : {
+      method: 'POST',
+      headers: {'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
+      body: new URLSearchParams({enabled: String(enabled)})
+    };
+    const response = await fetch(captureButton.dataset.debugUrl, options);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || '无法确认 PLC 心跳状态');
+    captureButton.style.background = data.enabled ? '#218447' : '#626971';
+    captureButton.title = data.enabled ? '手动调试，PLC 心跳已停止' : '正常心跳模式';
+  }
+
+  captureButton.disabled = true;
+  updateMode().catch(error => { $('rl-status').textContent = error.message; })
+    .finally(() => { captureButton.disabled = false; });
+
+  captureButton.addEventListener('click', event => {
+    if (confirmedCapture) return;
+    event.stopImmediatePropagation();
+    modeDialog.showModal();
+  }, true);
+
+  async function chooseMode(enabled) {
+    modeDialog.close();
+    captureButton.disabled = true;
+    try {
+      await updateMode(enabled);
+      if (enabled) {
+        confirmedCapture = true;
+        captureButton.disabled = false;
+        captureButton.click();
+      } else {
+        $('rl-status').textContent = '已退出手动调试。';
+      }
+    } catch (error) {
+      $('rl-status').textContent = error.message;
+    } finally {
+      if (!confirmedCapture) captureButton.disabled = false;
+      confirmedCapture = false;
+    }
+  }
+
+  $('capture-mode-yes').onclick = () => chooseMode(true);
+  $('capture-mode-no').onclick = () => chooseMode(false);
+
   $('btn-capture').addEventListener('click', async () => {
     const button = $('btn-capture');
     button.disabled = true;
@@ -50,7 +100,6 @@
     if (refreshing) throw new Error('配方列表正在刷新，请稍后重试');
     refreshing = true;
     const select = $('recipe-select'), previous = select.value;
-    $('btn-refresh-recipes').disabled = true;
     try {
       const response = await fetch(config.recipesUrl, {cache: 'no-store'});
       const data = await response.json();
@@ -68,7 +117,7 @@
       if (recipes.some(recipe => String(recipe.id) === desired)) select.value = desired;
       else {
         const option = document.createElement('option');
-        option.value = ''; option.textContent = recipes.length ? '请选择配方' : '暂无配方，请导入 JSON 或新建';
+        option.value = ''; option.textContent = recipes.length ? '请选择配方' : '暂无配方，请在视觉配方管理中创建或导入';
         select.prepend(option); select.value = '';
       }
       if (select.value !== previous) select.dispatchEvent(new Event('change'));
@@ -77,32 +126,9 @@
     } catch (error) {
       $('workbench-recipe-status').textContent = `刷新失败：${error.message}`;
       throw error;
-    } finally { refreshing = false; $('btn-refresh-recipes').disabled = false; }
+    } finally { refreshing = false; }
   }
-  $('btn-refresh-recipes').addEventListener('click', () => { void refreshRecipes().catch(() => {}); });
   window.addEventListener('focus', () => { void refreshRecipes(undefined, true).catch(() => {}); });
-  $('btn-import-workbench-recipe').addEventListener('click', () => $('workbench-recipe-file').click());
-  $('workbench-recipe-file').addEventListener('change', async event => {
-    const file = event.target.files[0]; event.target.value = '';
-    if (!file) return;
-    const status = $('workbench-recipe-status'), button = $('btn-import-workbench-recipe');
-    button.disabled = true;
-    let imported = null;
-    try {
-      if (file.size > 32 * 1024 * 1024) throw new Error('请选择不超过 32 MB 的配方 JSON');
-      status.textContent = '正在导入 3D 配方…';
-      const form = new FormData(); form.append('file', file);
-      const response = await fetch(config.importRecipeUrl, {method: 'POST',
-        headers: {'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value}, body: form});
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || '导入失败');
-      imported = data;
-      await refreshRecipes(data.id, true);
-      status.textContent = `文件「${file.name}」已导入，当前配方为「${data.name}」。配方名称取自 JSON 内容。${(data.warnings || []).join('；')}`;
-    } catch (error) {
-      status.textContent = imported ? `「${imported.name}」已导入，但列表刷新失败，请点击“刷新配方”，不要重复导入。${error.message}` : `导入失败：${error.message}`;
-    } finally { button.disabled = false; }
-  });
   window.rackLocatorOfflineBridge = {
     snapshot: () => ({...frame, recipe_id: recipeId(), layer_no: Number($('layer-no').value || 1),
                       roi_config: frame.roi_config || {}}),

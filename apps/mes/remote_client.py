@@ -33,6 +33,10 @@ def database():
     connection.execute('''CREATE TABLE IF NOT EXISTS tasks (
         id TEXT PRIMARY KEY, business_key TEXT UNIQUE, action TEXT, payload TEXT,
         state TEXT, result TEXT, error TEXT, created REAL, updated REAL)''')
+    connection.execute('''CREATE TABLE IF NOT EXISTS communication_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT, direction TEXT,
+        kind TEXT, data TEXT, created REAL)''')
+    connection.execute('CREATE INDEX IF NOT EXISTS communication_task_idx ON communication_events(task_id)')
     try:
         with connection:
             yield connection
@@ -43,6 +47,26 @@ def database():
 def rows():
     with database() as db:
         return [dict(row) for row in db.execute('SELECT * FROM tasks ORDER BY created DESC LIMIT 100')]
+
+
+def log_event(db, task_id, kind, data):
+    db.execute('INSERT INTO communication_events (task_id,direction,kind,data,created) VALUES (?,?,?,?,?)',
+               (task_id, 'AGV 本机', kind, json.dumps(data, ensure_ascii=False), time.time()))
+
+
+def task_detail(task_id):
+    with database() as db:
+        row = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
+        events = [dict(item) for item in db.execute(
+            'SELECT task_id,direction,kind,data,created FROM communication_events WHERE task_id=? ORDER BY id',
+            (task_id,))]
+    for item in events:
+        item['data'] = json.loads(item['data'])
+    task = dict(row) if row else None
+    if task:
+        task['payload'] = json.loads(task['payload'])
+        task['result'] = json.loads(task['result'])
+    return task, events
 
 
 def health():
@@ -72,6 +96,7 @@ def submit(action, payload, business_key=None):
         db.execute('INSERT INTO tasks VALUES (?,?,?,?,?,?,?,?,?)',
                    (task_id, business_key, action, json.dumps(payload, ensure_ascii=False),
                     'pending', '{}', '', now, now))
+        log_event(db, task_id, 'queued', {'action': action, 'payload': payload})
     _wake.set()
     return task_id
 
@@ -106,12 +131,16 @@ def deliver_once():
                     'accepted', 'waiting_manual', 'running', 'succeeded', 'failed', 'unknown'}:
                     raise ValueError('网关响应格式不正确')
                 with database() as db:
+                    if task['state'] != body['state'] or json.loads(task['result']) != body.get('result', {}) or task['error']:
+                        log_event(db, task['id'], 'gateway_response', body)
                     db.execute('UPDATE tasks SET state=?,result=?,error=?,updated=? WHERE id=?',
                         (body['state'], json.dumps(body.get('result', {}), ensure_ascii=False), '', time.time(), task['id']))
                 if body['state'] in {'succeeded', 'failed', 'unknown'}:
                     reconcile(task['id'])
             except Exception as exc:
                 with database() as db:
+                    if task['error'] != str(exc):
+                        log_event(db, task['id'], 'transport_error', {'error': str(exc)})
                     db.execute('UPDATE tasks SET error=?,updated=? WHERE id=?', (str(exc), time.time(), task['id']))
                 break
 

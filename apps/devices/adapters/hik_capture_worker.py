@@ -305,6 +305,31 @@ def _official_mvs_session(payload, max_open_retries=3, open_retry_delay=1.0):
             image.nImageBufSize = frame.stFrameInfo.nFrameLenEx or frame.stFrameInfo.nFrameLen
             image.nImageLen = image.nImageBufSize
 
+            if payload.get('raw_frame'):
+                from multiprocessing.shared_memory import SharedMemory
+                from ctypes import string_at
+                memory = SharedMemory(create=True, size=int(image.nImageLen))
+                try:
+                    memory.buf[:] = string_at(frame.pBufAddr, int(image.nImageLen))
+                    descriptor = {'shared_memory': memory.name, 'size': int(image.nImageLen),
+                                  'width': int(image.nWidth), 'height': int(image.nHeight),
+                                  'pixel_type': int(image.enPixelType)}
+                    cam.MV_CC_FreeImageBuffer(frame)
+                    frame = None
+                    ret = cam.MV_CC_StopGrabbing()
+                    if ret != 0:
+                        raise RuntimeError('MVS stop grabbing failed')
+                    grabbing = False
+                    # Keep mapping alive until parent acknowledges its independent copy.
+                    yield descriptor
+                finally:
+                    memory.close()
+                    try:
+                        memory.unlink()
+                    except FileNotFoundError:
+                        pass
+                continue
+
             save = mvs.MV_CC_SAVE_IMAGE_PARAM()
             memset(byref(save), 0, sizeof(save))
             save.enImageType = image_type
@@ -462,6 +487,8 @@ def serve(payload):
     try:
         for line in sys.stdin:
             request = json.loads(line)
+            if request.get('release_frame'):
+                continue
             result_path = Path(request['result_path'])
             try:
                 if session is None:

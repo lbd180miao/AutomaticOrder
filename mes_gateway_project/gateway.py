@@ -262,6 +262,8 @@ class Gateway(CommunicationMixin):
             self.last_agv = time.time()
             if path == '/api/health' and env['REQUEST_METHOD'] == 'GET':
                 return reply('200 OK', {'success': True, 'role': 'mes_gateway', 'version': 1})
+            if path.startswith('/api/communication/tasks/') and env['REQUEST_METHOD'] == 'GET':
+                return reply('200 OK', self.communication_detail(path.rsplit('/', 1)[-1]))
             if path == '/api/communication' and env['REQUEST_METHOD'] == 'GET':
                 return reply('200 OK', self.communication_status())
             if path in ('/api/communication/mode', '/api/communication/reply') and env['REQUEST_METHOD'] == 'POST':

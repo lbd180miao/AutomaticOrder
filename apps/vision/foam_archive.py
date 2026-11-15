@@ -71,6 +71,7 @@ def archive(result, data):
     import numpy as np
     record = model_to_dict(result)
     record['created_at'] = result.created_at
+    record['failure_reason'] = result.failure_reason
     stamp = timezone.localtime(result.created_at).strftime('%Y-%m-%d_%H-%M-%S_%f')
     destination = root() / f'{stamp}_{result.pk}'
     with tempfile.TemporaryDirectory(dir=destination.parent.parent) as staging:

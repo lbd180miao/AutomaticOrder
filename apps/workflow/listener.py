@@ -56,6 +56,7 @@ class PLCInputSampler:
         self.interval = interval
         self.stop = threading.Event()
         self.lock = threading.Lock()
+        self.changed = threading.Event()
         plc.tick_heartbeat()
         self.latest = plc.read_listener_snapshot()
         publish_inputs(self.latest)
@@ -85,6 +86,7 @@ class PLCInputSampler:
                 with self.lock:
                     if sample != self.latest:
                         self.samples.append(sample)
+                        self.changed.set()
                     self.latest = sample
             except Exception as exc:
                 publish_inputs(error=str(exc))
@@ -100,6 +102,7 @@ class PLCInputSampler:
                 raise self.error
             samples = list(self.samples) or [self.latest]
             self.samples.clear()
+            self.changed.clear()
             return samples
 
     def close(self):
@@ -159,7 +162,11 @@ def poll_loop(stop, interval, retry_interval, factory=None):
                 delay = max(PLC_SCAN_INTERVAL, retry_interval)
             finally:
                 close_old_connections()
-            stop.wait(delay)
+            sampler = getattr(service, 'input_sampler', None) if service is not None else None
+            if sampler is not None:
+                sampler.changed.wait(delay)
+            else:
+                stop.wait(delay)
     finally:
         if service is not None:
             try:
@@ -200,7 +207,7 @@ def start_listener(*, manual=False):
                                    name='plc-listener', daemon=True)
         _thread.start()
         atexit.register(stop_listener)
-        logger.info('后台 PLC 监听已启动；扫描间隔 0.5 秒，失败重连间隔 5 秒')
+        logger.info('后台 PLC 监听已启动；扫描间隔 0.02 秒（输入变化立即唤醒分派），失败重连间隔 5 秒')
 
 
 def stop_listener(*, wait=True):

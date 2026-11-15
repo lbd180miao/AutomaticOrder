@@ -1,5 +1,4 @@
 from copy import deepcopy
-import math
 from pathlib import Path
 from django.conf import settings
 
@@ -312,14 +311,6 @@ def foam_segmentation_config(recipe):
     if material not in ('unspecified', 'white', 'gray'):
         raise ValueError('material_type must be white, gray or unspecified')
     result = {'foam_min_v': 140, 'foam_max_s': 80}
-    raw = algorithm.get('segmentation_config') or {}
-    if not isinstance(raw, dict) or set(raw) - set(result):
-        raise ValueError('segmentation_config supports foam_min_v and foam_max_s')
-    for key, value in raw.items():
-        value = float(value)
-        if not math.isfinite(value) or not 0 <= value <= 255 or not value.is_integer():
-            raise ValueError(f'{key} must be an integer between 0 and 255')
-        result[key] = int(value)
     return result
 
 
@@ -412,9 +403,9 @@ def build_foam_inspection_config(recipe):
     roi_config = recipe.roi_config or {}
     thresholds = recipe.threshold_config or {}
     algorithm = recipe.algorithm_config or {}
-    quality = quality_config(thresholds)
+    quality = quality_config(thresholds if thresholds.get('decision_mode') == 'separated-v2' else {})
     segmentation = foam_segmentation_config(recipe)
-    geometry = geometry_config({**algorithm, 'product_registration': {'enabled': False}})
+    geometry = geometry_config({'product_registration': {'enabled': False}, 'fragment_merge': {'enabled': False}})
 
     left_roi_raw = roi_config.get('leftFoamROI')
     right_roi_raw = roi_config.get('rightFoamROI')

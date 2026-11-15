@@ -1,5 +1,7 @@
 {% extends "base.html" %}
+{% load static l10n %}
 {% block title %}视觉任务详情 - AutomaticBoxing{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'vision/foam_result_summary.css' %}?v=1">{% endblock %}
 {% block content %}
 <section class="page-header">
   <h1>视觉任务详情</h1>
@@ -30,7 +32,8 @@
   </div>
 </section>
 
-{% if task.error_message %}
+{% if foam_result.failure_reason %}<section class="panel"><h2>检测判定原因</h2><p>{{ foam_result.failure_reason }}</p></section>{% endif %}
+{% if task.error_message and not rack_result and task.error_message != foam_result.failure_reason %}
 <section class="panel"><h2>失败原因</h2><p style="white-space:pre-wrap;color:#b42318;">{{ task.error_message }}</p></section>
 {% endif %}
 <h2 class="section-title">相机画面</h2>
@@ -57,7 +60,25 @@
       {% endif %}
     </div>
     <div class="cam-body">
-      {% if result_img and original or result_img and foam_result %}<img src="{{ result_img.file.url }}" alt="结果图">
+      {% if original and rack_result.result_data.source == 'cloud_match' and rack_result.roi_data.imageSize and rack_result.roi_data.rois %}
+      {% with cfg=rack_result.roi_data match=rack_result.result_data.result %}
+      <svg viewBox="0 0 {{ cfg.imageSize.0 }} {{ cfg.imageSize.1 }}" width="{{ original.width }}" style="max-width:100%;height:auto;display:block" role="img" aria-label="料框定位结果：模板区域与匹配中心">
+        <image href="{{ original.file.url }}" width="100%" height="100%" preserveAspectRatio="none"/>
+        {% for roi in cfg.rois %}
+        <g transform="translate({{ roi.x|unlocalize }} {{ roi.y|unlocalize }})" color="{% if roi.target == 'P1_cross' %}#facc15{% else %}#38bdf8{% endif %}">
+          <rect width="{{ roi.width|unlocalize }}" height="{{ roi.height|unlocalize }}" fill="none" stroke="currentColor" stroke-width="4"/>
+          <text x="5" y="26" fill="currentColor" font-size="25">模板区域 {% if roi.target == 'P1_cross' %}1{% else %}2{% endif %}</text>
+        </g>
+        {% endfor %}
+        {% for pixel in match.pixels %}{% if pixel|length == 2 %}
+        <g transform="translate({{ pixel.0|unlocalize }} {{ pixel.1|unlocalize }})">
+          <path d="M -18 0 H 18 M 0 -18 V 18" stroke="#ff3030" stroke-width="4"/>
+          <text x="23" fill="#ff3030" font-size="25">区域 {{ forloop.counter }} {% if match.success %}匹配中心{% else %}候选中心{% endif %}</text>
+        </g>
+        {% endif %}{% endfor %}
+      </svg>
+      {% endwith %}
+      {% elif result_img and original or result_img and foam_result %}<img src="{{ result_img.file.url }}" alt="结果图">
       {% elif foam_result_available %}<img src="{% url 'vision:api_foam_record_image' foam_result.pk 'result' %}" alt="结果图">
       {% else %}<p class="empty" style="color:#8a97a5;">本条记录未保存对应 2D 图像</p>{% endif %}
     </div>
@@ -76,114 +97,26 @@
 </div>
 
 {% if foam_result %}
-<h2 class="section-title">泡棉检测数据</h2>
-<p class="page-hint">当前策略：在固定搜索 ROI 内对比配方标准模板，覆盖率与 X/Y 偏移均达标才判定合格。</p>
-<div class="table-wrap">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>位置</th>
-        <th>存在</th>
-        <th>对齐</th>
-        <th>起翘</th>
-        <th>分数</th>
-        <th>判定</th>
-        <th>缺陷类型</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>{{ foam_result.position_index }}</td>
-        <td>{% if foam_result.is_present %}<span class="badge badge-ok">是</span>{% else %}<span class="badge badge-fail">否</span>{% endif %}</td>
-        <td>{% if foam_result.is_aligned %}<span class="badge badge-ok">OK</span>{% else %}<span class="badge badge-fail">NG</span>{% endif %}</td>
-        <td>{% if foam_result.has_lifted_edge %}<span class="badge badge-fail">NG</span>{% else %}<span class="badge badge-ok">OK</span>{% endif %}</td>
-        <td>{{ foam_result.score }}</td>
-        <td>{% if foam_result.is_passed %}<span class="badge badge-ok">合格</span>{% else %}<span class="badge badge-fail">不合格</span>{% endif %}</td>
-        <td>
-          {% if foam_result.defect_type == 'NONE' %}无缺陷
-          {% elif foam_result.defect_type == 'MISSING' %}<span class="badge badge-fail">泡棉缺失/漏贴</span>
-          {% elif foam_result.defect_type == 'MISALIGNED' %}<span class="badge badge-muted">历史数据：位置偏移</span>
-          {% elif foam_result.defect_type == 'LIFTED_EDGE' %}<span class="badge badge-muted">历史数据：边缘起翘</span>
-          {% else %}{{ foam_result.defect_type }}{% endif %}
-        </td>
-      </tr>
-    </tbody>
-  </table>
-
-  <h3 class="section-title" style="margin-top: 20px;">详细测量数据</h3>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>X方向偏移</th>
-        <th>Y方向偏移</th>
-        <th>覆盖比例</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>{{ foam_result.offset_x_px }} px{% if foam_result.offset_x_mm %} ({{ foam_result.offset_x_mm }} mm){% endif %}</td>
-        <td>{{ foam_result.offset_y_px }} px{% if foam_result.offset_y_mm %} ({{ foam_result.offset_y_mm }} mm){% endif %}</td>
-        <td>{{ foam_result.coverage_ratio|floatformat:4 }}</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
+<h2 class="section-title">泡棉检测结果</h2>
+<section id="history-foam-summary" class="panel">
+  {% include 'vision/foam_result_summary.html' %}
+</section>
+{{ foam_payload|json_script:"history-foam-data" }}
+<script src="{% static 'vision/js/foam_result_summary.js' %}?v=1"></script>
+<script>
+window.renderFoamSummary(document.getElementById('history-foam-summary'), JSON.parse(document.getElementById('history-foam-data').textContent));
+</script>
 {% endif %}
 
 {% if rack_result %}
 {% if rack_result.result_data.source == 'dual_point_evaluate' or rack_result.result_data.source == 'cloud_match' %}
-{# ── Dual-point evaluate result: show only XYZ table + robot deviation table ── #}
 {% with dp=rack_result.result_data %}
-{% if dp.result.registration.region_warnings %}
-<section class="panel"><h3>区域匹配提示</h3>
-{% for warning in dp.result.registration.region_warnings %}
-<p style="color:#925900;white-space:pre-wrap;">{{ warning }}</p>
-{% endfor %}
-</section>
-{% endif %}
-<h2 class="section-title">交点坐标数据</h2>
-<div class="table-wrap">
-  <table class="data-table">
-    <thead>
-      <tr><th>交点</th><th>标准模板 XYZ</th><th>当前 XYZ</th><th>差值 ΔXYZ</th></tr>
-    </thead>
-    <tbody>
-      {% for row in dp_rows %}
-      <tr>
-        <td><strong>{{ row.name }}</strong></td>
-        <td>{{ row.ref }}</td>
-        <td>{{ row.cur }}</td>
-        <td>{{ row.delta }}</td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="4">无交点数据</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
 
-  <h3 class="section-title" style="margin-top:20px;">机器人坐标系偏差（mm）</h3>
-  <table class="data-table">
-    <thead>
-      <tr><th>交点</th><th>ΔX</th><th>ΔY</th><th>ΔZ</th></tr>
-    </thead>
-    <tbody>
-      {% if dp.robot_result.success %}
-        {% for offset in dp.robot_result.offsets %}
-        <tr>
-          <td><strong>P{{ forloop.counter }}</strong></td>
-          <td>{{ offset.0|floatformat:3 }}</td>
-          <td>{{ offset.1|floatformat:3 }}</td>
-          <td>{{ offset.2|floatformat:3 }}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="4">无偏差数据</td></tr>
-        {% endfor %}
-      {% else %}
-      <tr><td colspan="4" id="dp-robot-placeholder" style="color:#8a97a5;">{{ dp.robot_result.errorMessage|default:"未计算" }}</td></tr>
-      {% endif %}
-    </tbody>
-  </table>
-
+{% include 'vision/rack_history_tables.html' %}
+<script src="{% static 'vision/js/rack_result_tables.js' %}?v=4"></script>
+{{ dp|json_script:"rack-history-data" }}
+<script>window.rackResultTables.history(JSON.parse(document.getElementById('rack-history-data').textContent));</script>
+<div>
   {# ── Re-compute button (uses active hand-eye calibration on server) ── #}
   <div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
     <button type="button" id="btn-recompute-robot"
@@ -201,7 +134,7 @@
     <p id="recompute-calib-note" style="font-size:calc(12px + var(--ui-font-increase, 0px));color:#64748b;margin-bottom:8px;"></p>
     <table class="data-table">
       <thead>
-        <tr><th>交点</th><th>标准 (X / Y / Z)</th><th>当前 (X / Y / Z)</th><th>ΔX</th><th>ΔY</th><th>ΔZ</th></tr>
+        <tr><th>模板区域</th><th>标准 (X / Y / Z)</th><th>当前 (X / Y / Z)</th><th>ΔX</th><th>ΔY</th><th>ΔZ</th></tr>
       </thead>
       <tbody id="recompute-tbody"></tbody>
     </table>
@@ -237,7 +170,7 @@
       (data.rows || []).forEach(row => {
         const tr = document.createElement('tr');
         const offsets = row.offset || [null, null, null];
-        [row.name, fmtArr(row.standard), fmtArr(row.current),
+        [row.name.replace(/^P(\d+)$/, '模板区域 $1'), fmtArr(row.standard), fmtArr(row.current),
          fmt(offsets[0]), fmt(offsets[1]), fmt(offsets[2])].forEach((text, i) => {
           const td = document.createElement(i === 0 ? 'th' : 'td');
           td.textContent = text;
@@ -256,6 +189,7 @@
   });
 })();
 </script>
+
 {% endwith %}
 
 {% else %}
@@ -300,10 +234,27 @@
   {% endwith %}
   <p class="muted">原始数据：<code>{{ rack_result.raw_data_path|default:"-" }}</code></p>
   <p class="muted">结果图：<code>{{ rack_result.result_image_path|default:"-" }}</code></p>
-  {% if rack_result.error_code or rack_result.error_message %}
-    <p class="badge badge-fail">{{ rack_result.error_code }} {{ rack_result.error_message }}</p>
-  {% endif %}
 </div>
 {% endif %}
+{% endif %}
+{% if rack_result and not rack_result.is_success %}
+<section class="panel" aria-labelledby="history-ng-title" style="margin-top:20px;">
+  <h3 id="history-ng-title" style="font-size:16px;">NG 原因详情</h3>
+  <div style="font-size:14px;font-weight:400;line-height:1.7;color:#b42318;overflow-wrap:anywhere;">
+    {% with data=rack_result.result_data %}
+    <p style="font:inherit;white-space:pre-wrap;">{% firstof rack_result.error_message data.error_message data.result.errorMessage task.error_message "本次检测未通过，记录未提供具体原因，请查看设备日志。" %}</p>
+    {% if data.result.errorMessage and data.result.errorMessage != rack_result.error_message and data.result.errorMessage != data.error_message %}<p style="font:inherit;white-space:pre-wrap;">{{ data.result.errorMessage }}</p>{% endif %}
+    {% for reason in data.result.registration.failure_reasons %}<p style="font:inherit;">{{ reason }}</p>{% endfor %}
+    {% if data.robot_result.errorMessage %}<p style="font:inherit;">机器人坐标转换：{{ data.robot_result.errorMessage }}</p>{% endif %}
+    {% if data.result.registration %}
+    {% with quality=data.result.registration %}
+    <p style="font:inherit;">配准残差：{{ quality.rmse_mm|floatformat:3 }} mm（最多 {{ quality.limits.max_rmse_mm }} mm）；中心位移：{{ quality.shift_mm|floatformat:3 }} mm（最多 {{ quality.limits.max_shift_mm }} mm）；旋转角度：{{ quality.rotation_deg|floatformat:3 }}°（最多 {{ quality.limits.max_rotation_deg }}°）。</p>
+    {% for warning in quality.region_warnings %}<p style="font:inherit;">区域补充信息：{{ warning }}</p>{% endfor %}
+    {% endwith %}
+    {% endif %}
+    {% if rack_result.error_code or data.error_code or data.result.errorCode %}<p style="font:inherit;">错误代码：{% firstof rack_result.error_code data.error_code data.result.errorCode %}</p>{% endif %}
+    {% endwith %}
+  </div>
+</section>
 {% endif %}
 {% endblock %}

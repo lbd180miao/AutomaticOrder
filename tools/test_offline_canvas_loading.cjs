@@ -25,8 +25,9 @@ function setup({previewComplete = false, fail = false, decodeFail = false} = {})
   get('rl-depth-image').complete = previewComplete;
   get('rl-depth-image').naturalWidth = previewComplete ? 20 : 0;
   let frame = {}, calls = 0;
+  const requests = [];
   const bridge = {snapshot: () => frame, load: payload => { frame = payload; }};
-  const window = {rackLocatorOfflineBridge: bridge, addEventListener() {}};
+  const window = {rackLocatorOfflineBridge: bridge, rackResultTables: {render() {}}, addEventListener() {}};
   vm.runInNewContext(fs.readFileSync('static/vision/js/rack_dual_point.js', 'utf8'), {
     document: {getElementById: get, createElement: () => new Element(), querySelector: get},
     window, MutationObserver: class { observe() {} },
@@ -38,6 +39,7 @@ function setup({previewComplete = false, fail = false, decodeFail = false} = {})
       calls++;
       assert.ok(options.body.length < 10000, 'must not post saved template points or historical results');
       const body = JSON.parse(options.body);
+      requests.push(body);
       assert.ok(body.pointcloud_token);
       assert.equal(body.roi_config, undefined);
       assert.equal(body.result, undefined);
@@ -50,9 +52,33 @@ function setup({previewComplete = false, fail = false, decodeFail = false} = {})
     },
     setTimeout,
   });
-  return {bridge, get, calls: () => calls};
+  return {bridge, get, requests, calls: () => calls};
 }
+function selectRecipe(app, id) {
+  app.get('recipe-select').value = id;
+  for (const handler of app.get('recipe-select').handlers.change) handler();
+}
+const settle = () => new Promise(resolve => setImmediate(resolve));
 (async () => {
+  for (const packageFirst of [true, false]) {
+    const app = setup();
+    app.get('recipe-select').value = '';
+    if (packageFirst) await app.bridge.load({pointcloud_token: 'retained'});
+    selectRecipe(app, '12');
+    if (!packageFirst) await app.bridge.load({pointcloud_token: 'retained'});
+    await settle();
+    assert.equal(app.bridge.snapshot().pointcloud_token, 'retained');
+    assert.equal(app.get('dp-canvas').hidden, false);
+    assert.equal(app.requests.at(-1).recipe_id, '12');
+    assert.equal(app.bridge.snapshot().roi_config.cloud_center_config.rois.length, 1);
+    selectRecipe(app, '13');
+    selectRecipe(app, '14');
+    await settle();
+    assert.equal(app.requests.at(-1).recipe_id, '14');
+    assert.equal(app.requests.at(-1).pointcloud_token, 'retained');
+    assert.equal(app.get('dp-canvas').hidden, false);
+    assert.equal(app.bridge.snapshot().roi_config.cloud_center_config.rois.length, 1);
+  }
   for (const previewComplete of [false, true]) {
     const app = setup({previewComplete});
     await app.bridge.load({pointcloud_token: 'frame1',
@@ -77,5 +103,5 @@ function setup({previewComplete = false, fail = false, decodeFail = false} = {})
   await assert.rejects(app.bridge.load({pointcloud_token: 'second'}), /当前操作尚未完成/);
   await first;
   assert.equal(app.bridge.snapshot().pointcloud_token, 'first');
-  console.log('PASS: missing/cached previews, ROI restoration, repeated loads, errors and concurrent load guard');
+  console.log('PASS: both recipe/package orders, rapid recipe changes, missing/cached previews, ROI restoration, repeated loads, errors and concurrent load guard');
 })().catch(error => { console.error(error); process.exitCode = 1; });

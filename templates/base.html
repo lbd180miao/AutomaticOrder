@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}AutomaticBoxing{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20261113-clock-only">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20261115-settings">
   {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -13,13 +13,20 @@
     <div class="brand">AutomaticBoxing</div>
     <nav class="main-nav" aria-label="主导航">
       {% with path=request.path %}
-      <a href="{% url 'devices:status' %}" class="{% if '/devices/' in path or '/workflow/' in path or path == '/' %}active{% endif %}">设备</a>
-      <a href="{% url 'vision:task_list' %}" class="{% if '/vision/' in path %}active{% endif %}">视觉</a>
+      <a href="{% url 'devices:status' %}" class="{% if '/devices/' in path or '/workflow/' in path or path == '/' %}active{% endif %}">检测</a>
+      <a href="{% url 'vision:task_list' %}" class="{% if '/vision/' in path and request.resolver_match.view_name != 'vision:task_history' %}active{% endif %}">视觉</a>
       <a href="{% url 'mes:record_list' %}" class="{% if '/mes/' in path %}active{% endif %}">MES</a>
+      <a href="{% url 'vision:task_history' %}" class="{% if request.resolver_match.view_name == 'vision:task_history' %}active{% endif %}">视觉历史记录</a>
       {% endwith %}
     </nav>
     <div class="topbar-status" aria-label="系统状态">
       <time class="topbar-clock" id="system-clock" aria-label="系统时间"></time>
+      <a href="{% url 'devices:settings' %}" class="settings-button{% if request.resolver_match.url_name == 'settings' and request.resolver_match.app_name == 'devices' %} active{% endif %}" aria-label="设备设置" title="设备设置">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9.5 3h5l.6 2.5 2 1.2 2.5-.7 2.5 4.3-1.9 1.7v2l1.9 1.7-2.5 4.3-2.5-.7-2 1.2-.6 2.5h-5l-.6-2.5-2-1.2-2.5.7L1.9 15.7 3.8 14v-2l-1.9-1.7L4.4 6l2.5.7 2-1.2L9.5 3Z" transform="translate(0 -1) scale(1 .96)"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      </a>
     </div>
   </header>
   <main class="page {% block page_class %}{% endblock %}">

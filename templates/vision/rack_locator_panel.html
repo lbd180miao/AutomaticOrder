@@ -321,19 +321,14 @@
 <div class="rl-workbench" id="rack-workbench" data-mode="dual">
   <div class="rl-title-bar">
     <h1>3D 料架定位工作台</h1>
-    <a href="{% url 'vision:rack_location_history' %}" class="btn btn-secondary">历史记录</a>
   </div>
   <div class="rl-recipe-bar">
     <label for="recipe-select">当前配方：</label>
     <select id="recipe-select">
       {% for recipe in recipes %}
       <option value="{{ recipe.id }}" data-layer="{{ recipe.layer_no }}" data-name="{{ recipe.recipe_name }}" data-rack-no="{{ recipe.rack_type }}">{{ recipe.recipe_name }}{% if not recipe.enabled %}（已停用）{% endif %}</option>
-      {% empty %}<option value="">暂无配方，请导入 JSON 或新建</option>{% endfor %}
+      {% empty %}<option value="">暂无配方，请在视觉配方管理中创建或导入</option>{% endfor %}
     </select>
-    <a href="{% url 'vision:rack_location_recipes' %}" class="btn btn-secondary">配方管理</a>
-    <button type="button" id="btn-refresh-recipes" class="btn btn-secondary">刷新配方</button>
-    <button type="button" id="btn-import-workbench-recipe" class="btn btn-secondary">导入配方 JSON</button>
-    <input id="workbench-recipe-file" type="file" accept=".json,application/json" hidden>
   </div>
   <p id="workbench-recipe-status" role="status" aria-live="polite"></p>
   <div class="rl-recipe-info">
@@ -342,7 +337,14 @@
   </div>
   <input type="hidden" id="recipe-id"><input type="hidden" id="layer-no" value="1">
   <div class="rl-action-bar">
-    <button id="btn-capture" class="btn">采集点云</button>
+    <button type="button" id="btn-history-frame" class="btn" title="管理 pic1 历史数据包">导入历史记录</button>
+        <button id="btn-capture" class="btn" style="background:#626971;color:white" data-debug-url="{% url 'devices:api_manual_debug' %}">采集点云</button>
+    <dialog id="capture-mode-dialog" aria-labelledby="capture-mode-question">
+      <p id="capture-mode-question">是否进入手动调试，停止 PLC 心跳并采集点云？</p>
+      <p>选择“否”将退出手动调试，恢复正常心跳。</p>
+      <button type="button" id="capture-mode-yes" class="btn">是</button>
+      <button type="button" id="capture-mode-no" class="btn" autofocus>否</button>
+    </dialog>
     <span>定位算法：点云匹配</span>
     <button id="dp-evaluate" class="btn btn-success">开始计算</button>
     <button id="btn-export-package" class="btn" disabled>保存数据包</button>
@@ -388,12 +390,12 @@
 <script>
 window.rackLocatorConfig = {
   recipesUrl: '{% url "vision:api_vision_3d_recipes" %}?summary=1',
-  importRecipeUrl: '{% url "vision:recipe_import" "rack3d" %}',
   captureUrl: '{% url "vision:api_vision_3d_capture" %}',
   offlinePackagesUrl: '{% url "vision:offline_packages" %}'
 };
 </script>
-<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=61"></script>
-<script src="{% static 'vision/js/offline_package_manager.js' %}?v=25"></script>
-<script src="{% static 'vision/js/rack_dual_point.js' %}?v=39"></script>
+<script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=65"></script>
+<script src="{% static 'vision/js/offline_package_manager.js' %}?v=27"></script>
+<script src="{% static 'vision/js/rack_result_tables.js' %}?v=5"></script>
+<script src="{% static 'vision/js/rack_dual_point.js' %}?v=5"></script>
 {% endblock %}

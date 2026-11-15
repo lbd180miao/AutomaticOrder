@@ -33,6 +33,17 @@ class CommunicationMixin:
         return {'success': True, 'modes': {a:modes.get(a, 'auto') for a in BUSINESS_ACTIONS},
                 'tasks': tasks, 'waiting': waiting, 'events': events}
 
+    def communication_detail(self, task_id):
+        task_id = str(uuid.UUID(task_id))
+        with self.db() as db:
+            row = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
+            events = [dict(item) for item in db.execute(
+                'SELECT task_id,direction,kind,data,created FROM communication_events WHERE task_id=? ORDER BY id',
+                (task_id,))]
+        for item in events:
+            item['data'] = json.loads(item['data'])
+        return {'success': True, 'task': self.serialize(row) if row else None, 'events': events}
+
     def set_communication_mode(self, action, mode):
         if action not in BUSINESS_ACTIONS or mode not in ('auto', 'manual'):
             raise ValueError('请选择有效接口及自动/手动模式')

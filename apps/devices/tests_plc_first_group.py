@@ -47,6 +47,14 @@ class FirstGroupTests(SimpleTestCase):
             self.result['robot_groups']['A']['translation_mm']['x'] = value
             self.assertFalse(first_group_position(self.result,self.recipe)['is_success'])
 
+    def test_rz_has_no_magnitude_limit_but_must_be_finite(self):
+        for name in ('A', 'B'):
+            self.result['robot_groups'][name]['rotation_deg']['rz'] = 180
+        self.assertTrue(first_group_position(self.result, self.recipe)['is_success'])
+        for value in (float('nan'), float('inf')):
+            self.result['robot_groups']['A']['rotation_deg']['rz'] = value
+            self.assertFalse(first_group_position(self.result, self.recipe)['is_success'])
+
     def test_camera_coordinates_fail(self):
         self.result['robot_groups']['A']['coordinate_system']='camera'
         self.assertFalse(first_group_position(self.result,self.recipe)['is_success'])
