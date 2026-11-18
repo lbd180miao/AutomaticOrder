@@ -56,7 +56,7 @@ class ExistingVisionGateway:
         except ValueError as exc:
             raise StationStepError(str(exc), AlarmSource.RECIPE) from exc
         target_layer_no = recipe.layer_no
-        result = capture_position(recipe.id, target_layer_no, on_captured=on_captured)
+        result = capture_position(recipe.id, target_layer_no, on_captured=on_captured, is_production=True)
         if not result.get('is_success'):
             raise StationStepError(
                 result.get('error_message') or '3D 定位失败', AlarmSource.VISION,
@@ -98,19 +98,27 @@ class ExistingVisionGateway:
         from apps.vision.plc_defaults import get_default_recipe
         from apps.vision.rack_location import Rack3DLocator
         from apps.devices.plc_position_debug import capture_position
+        from time import perf_counter
+        capture_started = perf_counter()
         recipe = get_default_recipe('rack')
         recipe_id, layer_no = recipe.pk, recipe.layer_no
         locator = Rack3DLocator()
+        record('3d', f'因 PLC 3D 定位触发，开始 3D 相机拍照，配方 #{recipe_id}')
         acquired = locator.acquire_workbench(recipe_id=recipe_id)
-        record('3d', '3D 采集完成，后台计算中，允许下一次触发采集')
+        queued_at = perf_counter()
+        record('3d', f'3D 采集完成，耗时 {queued_at - capture_started:.3f} 秒，进入计算队列')
         if not hasattr(self, '_position_executor'):
             self._position_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='3d-calculate')
 
         def calculate():
             close_old_connections()
             try:
+                saving_started = perf_counter()
+                record('3d', f'开始处理 3D 点云，计算排队 {saving_started - queued_at:.3f} 秒')
                 payload = locator.persist_workbench(acquired)
-                result = capture_position(recipe_id, layer_no, captured_payload=payload)
+                record('3d', f'3D 点云及预览保存耗时 {perf_counter() - saving_started:.3f} 秒，开始定位')
+                result = capture_position(recipe_id, layer_no, captured_payload=payload, is_production=True)
+                record('3d', '料框定位计算完成：' + ('OK' if result.get('is_success') else 'NG') + '；' + str(result.get('error_message') or '准备回写 PLC 补偿'))
                 if not result.get('is_success'):
                     raise StationStepError(result.get('error_message') or '3D 定位失败', AlarmSource.VISION)
                 return {axis: float(result[f'compensation_{axis}'])
@@ -135,6 +143,7 @@ class ExistingVisionGateway:
             recipe_id = get_default_recipe('foam').pk
             adapter = self.service.camera_adapter or get_device_adapter(device_type=DeviceType.INSPECT_CAMERA)
             from apps.devices.adapters.camera import CameraAdapter
+            record('2d', f'因 PLC 泡棉检测触发，开始 2D 相机拍照，配方 #{recipe_id}')
             raw_frame = None
             if isinstance(adapter, CameraAdapter):
                 raw_frame = adapter.acquire_frame('CAM-INSPECT-FOAM-01', VisionTaskType.FOAM_INSPECTION)
@@ -147,16 +156,20 @@ class ExistingVisionGateway:
                 source = Path(source)
                 target = source.with_name(source.stem + '_' + uuid.uuid4().hex + source.suffix)
                 shutil.copy2(source, target)
+            record('2d', '2D 相机采集完成，图像进入后台泡棉计算队列')
             if not hasattr(self, '_foam_executor'):
                 self._foam_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='2d-calculate')
 
             def calculate():
                 close_old_connections()
                 try:
+                    record('2d', '因 2D 图像采集完成，开始泡棉检测计算')
                     image_path = adapter.persist_frame(raw_frame) if raw_frame is not None else str(target)
                     result = self.service.inspect_foam(
                         product, rack, position_index=position, use_camera=True, use_recipe=True,
-                        recipe_id=recipe_id, captured_image_path=image_path, require_ready_recipe=True)
+                        recipe_id=recipe_id, captured_image_path=image_path, require_ready_recipe=True,
+                        is_production=not self.simulated)
+                    record('2d', '泡棉检测计算完成：' + ('OK' if result.is_passed else 'NG') + '，准备处理 PLC 检测结果')
                     return bool(result.is_passed)
                 finally:
                     close_old_connections()
@@ -212,6 +225,7 @@ class ExistingVisionGateway:
                 use_recipe=not self.simulated,
                 recipe_id=recipe_id,
                 require_ready_recipe=not self.simulated,
+                is_production=not self.simulated,
             )
         except FoamRecipeConfigurationError as exc:
             raise StationStepError(str(exc), AlarmSource.RECIPE) from exc

@@ -1,5 +1,6 @@
 """Shared point-cloud registration for workbench, offline and production entry points."""
 from decimal import Decimal
+from time import perf_counter
 
 from django.db import transaction
 from django.utils import timezone
@@ -20,7 +21,9 @@ def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record
         raise ValueError('料架层数与标准模板不同，请重新保存点云标准模板')
     if reference and config != reference['config']:
         raise ValueError('ROI 已变化，请重新保存当前算法的点云标准模板')
+    started = perf_counter()
     result = match_template(cloud, metadata, reference)
+    matched = perf_counter()
     result = add_display_pixels(result, cloud, metadata)
     robot = evaluate_robot_points(result, reference) if result['success'] else None
     offsets = robot['offsets'] if robot and robot.get('success') else [[0, 0, 0], [0, 0, 0]]
@@ -64,13 +67,24 @@ def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record
     payload['plc_payload'].update(plc_publish_allowed=allowed, compensation_valid=allowed)
     for group in payload['robot_groups'].values():
         group['plc_publish_allowed'] = allowed
+    timings = {'registration_ms': round((matched - started) * 1000, 1),
+               'projection_validation_ms': round((perf_counter() - matched) * 1000, 1)}
+    payload['timings_ms'] = timings
     if save_record:
+        saving = perf_counter()
         record = save_result(recipe, payload, layer_no=layer_no, token=token, product=product, rack=rack, task=task)
         save_history_images(record, cloud, token, camera_image=camera_image)
         payload['result_id'], payload['task_id'] = record.pk, record.vision_task_id
+        timings['result_images_ms'] = round((perf_counter() - saving) * 1000, 1)
+        archiving = perf_counter()
         original = record.vision_task.images.filter(image_type='ORIGINAL').last()
         archive_history(record.vision_task, recipe, layer_no, cloud, metadata, payload,
                         original.file.path if original else None)
+        timings['archive_ms'] = round((perf_counter() - archiving) * 1000, 1)
+        timings['total_ms'] = round((perf_counter() - started) * 1000, 1)
+        RackLocationResult.objects.filter(pk=record.pk).update(result_data=payload)
+        from apps.devices.listener_logs import record as log_event
+        log_event('3d', f'任务 #{record.vision_task_id} 耗时：配准 {timings["registration_ms"]} ms，投影及校验 {timings["projection_validation_ms"]} ms，结果及图像保存 {timings["result_images_ms"]} ms，点云归档 {timings["archive_ms"]} ms')
     return payload
 
 
@@ -126,8 +140,13 @@ def save_history_images(record, cloud, token, camera_image=None):
     from .algorithms.image_io import pointcloud_to_preview
     from .models import VisionImage
 
-    depth = np.asarray(pointcloud_to_preview(cloud), dtype=np.uint8)
-    images = [('DEPTH', depth)]
+    # Capture already persisted these immutable images. Reuse them instead of
+    # regenerating the depth preview and re-encoding the original PNG.
+    existing = {item.image_type: item for item in record.vision_task.images.all()
+                if item.file and item.file.storage.exists(item.file.name)}
+    images = []
+    if 'DEPTH' not in existing:
+        images.append(('DEPTH', np.asarray(pointcloud_to_preview(cloud), dtype=np.uint8)))
     media = Path(settings.MEDIA_ROOT).resolve()
     raw = (media / token).resolve() if token else None
     camera = camera_image
@@ -135,7 +154,7 @@ def save_history_images(record, cloud, token, camera_image=None):
         sibling = raw.with_name(raw.stem + '_image2d.png')
         if sibling.is_file():
             camera = cv2.imdecode(np.fromfile(sibling, np.uint8), cv2.IMREAD_COLOR)
-    if camera is not None:
+    if camera is not None and 'ORIGINAL' not in existing:
         images.append(('ORIGINAL', camera))
     if camera is not None:
         annotated = annotate_camera_rois(camera, record.roi_data or {})

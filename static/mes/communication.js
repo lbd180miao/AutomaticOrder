@@ -29,30 +29,30 @@
   $('comm-response-raw').hidden=!terminal.has(task.state);$('comm-response-json').textContent=JSON.stringify(task.result||{},null,2);
  }
  const eventNames = {
-  queued: '请求已进入发送队列',
-  gateway_response: '收到外部电脑响应',
+  queued: 'AGV 已记录请求',
+  gateway_response: 'AGV 收到返回结果',
   transport_error: '通信异常',
   request_received: '外部电脑收到请求',
-  mes_request: '向 MES 发送请求',
-  mes_response: '收到 MES 处理结果',
+  mes_request: '开始查询 MES',
+  mes_response: '收到 MES 返回信息',
   manual_reply: '外部电脑手动返回结果',
   http_return: '向 AGV 返回结果'
  };
  function renderDetail(task, events, warning) {
   const panel = $('comm-record-detail');
   panel.replaceChildren();
-  if (task.state === 'failed' || task.state === 'unknown' || task.error) {
-   const reason = task.result?.error || task.result?.message || task.error || '本次返回值未提供具体原因，请查看下方返回值和日志。';
-   panel.append(node('h4', task.state === 'unknown' ? '本次结果待核对原因' : '本次失败 / 异常原因'), node('pre', typeof reason === 'string' ? reason : JSON.stringify(reason, null, 2)));
-  }
-  for (const [title, value] of [['请求编号', task.id], ['时间', date(task.created)], ['状态', states[task.state] || task.state], ['请求内容', task.payload], ['本次返回值', task.result || {}], ['通信异常', task.error || '无']]) {
-   panel.append(node('h4', title), node('pre', typeof value === 'string' ? value : JSON.stringify(value, null, 2)));
-  }
-  panel.append(node('h4', '本次通信日志'));
-  if (warning) panel.append(node('p', warning));
-  if (!events.length) panel.append(node('p', '本次请求暂无已保存的过程日志，可查看上方请求内容、返回值及异常原因。'));
-  for (const event of events) {
-   panel.append(node('p', date(event.created) + ' · ' + event.direction + ' · ' + (eventNames[event.kind] || event.kind)), node('pre', JSON.stringify(event.data, null, 2)));
+  const response = task.result || {};
+  panel.append(node('h4', '本次返回值'), node('pre', JSON.stringify(response, null, 2)));
+  if (task.error) panel.append(node('p', '通信异常：' + task.error));
+  panel.append(node('h4', '关键时间日志'));
+  if (warning) panel.append(node('p', warning.startsWith('正在') ? warning : '部分日志暂时无法读取，请稍后重新打开详情。'));
+  const keyEvents = events.filter(event => eventNames[event.kind] && event.kind !== 'http_return' &&
+   (event.kind !== 'gateway_response' || terminal.has(event.data?.state)))
+   .sort((a, b) => a.created - b.created);
+  if (!keyEvents.length) panel.append(node('p', '暂无已保存的关键时间日志。'));
+  for (const event of keyEvents) {
+   const error = event.kind === 'transport_error' ? '：' + (event.data?.error || '连接失败') : '';
+   panel.append(node('p', date(event.created) + ' · ' + eventNames[event.kind] + error));
   }
  }
  async function detail(task) {
@@ -61,7 +61,11 @@
   const dialog = $('comm-record-dialog');
   dialog.dataset.taskId = task.id;
   renderDetail(task, (data.events || []).filter(event => event.task_id === task.id), '正在读取本次通信日志…');
-  if (!dialog.open) dialog.showModal();
+  if (!dialog.open) {
+   dialog.showModal();
+   document.documentElement.classList.add('comm-detail-open');
+  }
+  $('comm-record-detail').scrollTop = 0;
   try {
    const url = root.dataset.detailUrl.replace('00000000-0000-0000-0000-000000000000', task.id);
    const response = await fetch(url, {cache: 'no-store'});
@@ -98,6 +102,7 @@
   finally{sending=false;form.querySelector('button').disabled=false;}
  });
  $('comm-filter').addEventListener('input',records);$('comm-refresh').addEventListener('click',refresh);$('comm-close-record').addEventListener('click',()=>$('comm-record-dialog').close());
+ $('comm-record-dialog').addEventListener('close',()=>document.documentElement.classList.remove('comm-detail-open'));
  const configForm=$('comm-config-form');
  $('comm-config-open').addEventListener('click',async()=>{
   $('comm-config-dialog').showModal();$('comm-config-feedback').textContent='正在读取配置…';

@@ -2,6 +2,6 @@
 {% load static %}
 {% block title %}AGV 通信调试 - AutomaticBoxing{% endblock %}
 {% block page_class %}mes-simple{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'mes/records.css' %}?v=20261115-comm-layout">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'mes/records.css' %}?v=20261116-compact-detail">{% endblock %}
 {% block content %}<a href="{% url 'mes:record_list' %}">返回 MES 接口页面</a>{% include 'mes/communication.html' %}{% endblock %}
-{% block extra_js %}<script src="{% static 'mes/communication.js' %}?v=20261115-record-detail" defer></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'mes/communication.js' %}?v=20261116-compact-detail" defer></script>{% endblock %}

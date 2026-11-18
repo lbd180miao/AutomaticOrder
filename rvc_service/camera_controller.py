@@ -376,11 +376,16 @@ class RvcCameraController:
     ) -> Dict[str, Any]:
         self.system_init()
         with self._lock:
-            # 已连接同一台则幂等返回
-            if self._dev and self._dev.opened:
-                if (not sn or self._dev.info.sn == sn) and (
-                    not ip or self._dev.ip == ip
-                ):
+            # opened records a previous Open(), not current network connectivity.
+            # After a NIC reset an old handle must be destroyed before enumeration.
+            if self._dev:
+                same_device = (not sn or self._dev.info.sn == sn) and (
+                    not ip or self._dev.ip == ip)
+                try:
+                    live = self._dev.opened and self._dev.camera.IsOpen()
+                except Exception:
+                    live = False
+                if same_device and live:
                     return self.status()
                 self._close_locked()
 

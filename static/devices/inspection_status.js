@@ -6,7 +6,7 @@
     panel.querySelectorAll('[data-device]').forEach(row => {
       const device = (data.devices || []).find(item => item.kind === row.dataset.device);
       const badge = row.querySelector('.connection-state');
-      const state = device?.state || 'unknown';
+      const state = ['checking', 'unknown'].includes(device?.state) ? 'offline' : (device?.state || 'offline');
       badge.dataset.state = state;
       badge.textContent = labels[state] || labels.unknown;
       row.title = device?.detail || '';
@@ -23,15 +23,15 @@
   }
   async function poll() {
     try {
-      if (!document.hidden) {
-        const response = await fetch(panel.dataset.url, {cache: 'no-store', signal: AbortSignal.timeout(8000)});
+      {
+        const response = await fetch(panel.dataset.url, {cache: 'no-store', signal: AbortSignal.timeout(3000)});
         if (!response.ok) throw new Error('HTTP ' + response.status);
         render(await response.json());
       }
     } catch (error) {
       render({});
     } finally {
-      window.setTimeout(poll, 2000);
+      window.setTimeout(poll, 1000);
     }
   }
   poll();

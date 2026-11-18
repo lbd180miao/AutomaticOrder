@@ -173,10 +173,11 @@ def step(state, plc, capture, save=lambda: None):
     save()
 
 
-def capture_position(recipe_id, layer_no, *, on_captured=None, captured_payload=None):
+def capture_position(recipe_id, layer_no, *, on_captured=None, captured_payload=None, is_production=False):
     from apps.vision.models import VisionTask
     from django.utils import timezone
-    task = VisionTask.objects.create(task_type='RACK_LOCATING', status='RUNNING', started_at=timezone.now())
+    task = VisionTask.objects.create(task_type='RACK_LOCATING', status='RUNNING',
+                                     started_at=timezone.now(), is_production=is_production)
     try:
         result = _capture_position(recipe_id, layer_no, on_captured=on_captured, task=task, captured_payload=captured_payload)
         if not result.get('is_success'):
@@ -225,7 +226,7 @@ def _capture_position(recipe_id, layer_no, *, on_captured=None, task=None, captu
 
     try:
         if task is not None:
-            _attach_capture_images(task, captured, recipe=recipe)
+            _attach_capture_images(task, captured, recipe=None if (recipe.roi_config or {}).get('cloud_center_reference') else recipe)
         if on_captured is not None:
             on_captured()
         if (recipe.roi_config or {}).get('cloud_center_reference'):

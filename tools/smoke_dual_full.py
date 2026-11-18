@@ -101,7 +101,7 @@ agv_port, external_port, gateway_port = free_ports(3)
 agv_url = f'http://127.0.0.1:{agv_port}'
 gateway_url = f'http://127.0.0.1:{gateway_port}'
 env = {**os.environ, 'USE_SIMULATED_DEVICES': 'true', 'RVC_CAMERA_AUTO_START': 'false',
-       'DM_CAMERA_AUTO_CONNECT': 'false', 'PYTHONPATH': '', 'NO_PROXY': '127.0.0.1,localhost'}
+       'DM_CAMERA_AUTO_CONNECT': 'false', 'AUTOMATIC_ORDER_REGISTER_STARTUP': 'false', 'PYTHONPATH': '', 'NO_PROXY': '127.0.0.1,localhost'}
 for key in ('PLC_LISTENER_AUTO_START', 'MES_GATEWAY_ENABLED', 'DJANGO_DATABASE_PATH', 'DJANGO_MEDIA_ROOT'):
     env.pop(key, None)
 sessions = []
@@ -112,6 +112,8 @@ for name in ('AGVControl', 'ExternalControl'):
     data.mkdir()
     for filename in ('db.sqlite3', 'deployment.json', 'agv_gateway.json'):
         shutil.copy2(RELEASE / name / filename, data / filename)
+    with sqlite3.connect(data / 'db.sqlite3') as db:
+        db.execute("UPDATE devices_device SET address='127.0.0.1', configuration=? WHERE device_type='PLC'", (json.dumps({'tcp_port': free_ports(1)[0]}),))
     cfg = json.loads((data / 'agv_gateway.json').read_text())
     cfg['gateway_url'] = gateway_url
     (data / 'agv_gateway.json').write_text(json.dumps(cfg))
@@ -195,10 +197,10 @@ def check_role(name, port, listener_on):
     if listener_on:
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
-            if log.is_file() and 'memory:102' in log.read_text(encoding='utf-8'):
+            if log.is_file() and '127.0.0.1' in log.read_text(encoding='utf-8'):
                 return expected
             time.sleep(.2)
-        raise AssertionError(f'No simulated PLC scan in {log}')
+        raise AssertionError(f'No isolated PLC connection attempt in {log}')
     assert not log.exists(), f'Unexpected external PLC listener log: {log}'
     return expected
 
@@ -216,7 +218,7 @@ try:
     result = completed(submit('rack_query')['id'])
     assert result['pkg_type_code'] == '3LayerRack' and result['hu_max_qty'] == 15, result
     assert len(calls) == 1 and calls[0]['RackCode'] == 'SMOKE-RACK-001', calls
-    external.terminate()
+    subprocess.run(['taskkill', '/PID', str(external.pid), '/T', '/F'], check=True, capture_output=True)
     external.wait(timeout=15)
     task_id = submit('rack_query', 'SMOKE-RACK-002')['id']
     time.sleep(3)
@@ -224,13 +226,13 @@ try:
     launch('ExternalControl', external_port)
     assert completed(task_id)['rack_code'] == 'SMOKE-RACK-002'
     assert len(calls) == 2
-    print('PASS: both full EXEs, AGV simulated PLC scan, external PLC off, saved 2D/3D defaults, HTTP/SOAP and offline recovery.')
+    print('PASS: both full EXEs, AGV listener startup with isolated loopback PLC target, external PLC off, saved 2D/3D defaults, HTTP/SOAP and offline recovery.')
     print('PLC default recipe IDs:', agv_defaults)
     print('Evidence:', RUN)
 finally:
     for process in processes:
         if process.poll() is None:
-            process.terminate()
+            subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'], capture_output=True)
             process.wait(timeout=15)
     for log in logs:
         log.close()

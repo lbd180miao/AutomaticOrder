@@ -1,3 +1,4 @@
+{% if section != 'foam' %}
 <article class="inspection-card" data-inspection="rack">
   <header><h2>3D 料架定位</h2>{% if rack %}<strong class="inspection-verdict {% if rack.is_success %}pass{% else %}fail{% endif %}">{% if rack.is_success %}OK{% else %}NG{% endif %}</strong>{% endif %}</header>
   <div class="inspection-picture rack-picture">{% if rack_image %}<img src="{{ rack_image.file.url }}" alt="{% if rack_image.image_type == 'DEPTH' %}料架深度图{% else %}料架定位结果图{% endif %}">{% if rack_overlay %}
@@ -17,6 +18,8 @@
     {% else %}<div>补偿 X {{ rack.offset_x }} mm　Y {{ rack.offset_y }} mm　Z {{ rack.offset_z }} mm　RZ {{ rack.offset_rz }}°</div>{% endif %}{% if not rack.is_success and rack.error_message %}<div>{{ rack.error_message }}</div>{% endif %}<small>{{ rack.created_at|date:"Y-m-d H:i:s" }} · 任务 #{{ rack.vision_task_id }}</small></details>{% else %}暂无检测结果{% endif %}
   </footer>
 </article>
+{% endif %}
+{% if section != 'rack' %}
 <article class="inspection-card" data-inspection="foam">
   <header><h2>2D 泡棉检测</h2>{% if foam %}<strong class="inspection-verdict {% if foam.is_passed %}pass{% else %}fail{% endif %}">{% if foam.is_passed %}OK{% else %}NG{% endif %}</strong>{% endif %}</header>
   <div class="inspection-picture">{% if foam %}<img src="{% url 'vision:api_foam_record_image' foam.pk 'result' %}" alt="泡棉检测结果图">{% else %}<span>等待首次检测</span>{% endif %}</div>
@@ -26,7 +29,11 @@
     <small>{{ foam.created_at|date:"Y-m-d H:i:s" }} · 任务 #{{ foam.vision_task_id }}</small></details>{% else %}暂无检测结果{% endif %}
   </footer>
 </article>
+{% endif %}
+{% if not section or section == "inspections" %}
 {% include "devices/inspection_status.html" %}
 <section class="inspection-card inspection-combined-log" data-inspection="log">
   {% include "devices/inspection_log.html" %}
 </section>
+
+{% endif %}

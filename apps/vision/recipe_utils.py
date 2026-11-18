@@ -1,3 +1,4 @@
+import math
 from copy import deepcopy
 from pathlib import Path
 from django.conf import settings
@@ -384,6 +385,16 @@ def foam_offset_config(thresholds):
         mm_per_pixel_y = round(1.0 / px_per_mm_y, 6)
     else:
         mm_per_pixel_y = float(_threshold_value(thresholds, ('mm_per_pixel_y', 'mmPerPixelY'), 0))
+
+    values = (max_offset_mm, max_offset_x_mm, max_offset_y_mm,
+              max_offset_x_px, max_offset_y_px, px_per_mm_x, px_per_mm_y,
+              mm_per_pixel_x, mm_per_pixel_y)
+    if any(not math.isfinite(value) or value < 0 for value in values):
+        raise ValueError('标定比例和偏移上限必须为有限的非负数')
+    if (mm_per_pixel_x > 0) != (mm_per_pixel_y > 0):
+        raise ValueError('X、Y 标定比例必须同时大于 0，或同时为 0')
+    if mm_per_pixel_x > 0 and max_offset_mm <= 0:
+        raise ValueError('毫米判定的基础偏移上限必须大于 0')
 
     return {
         'max_offset_mm': max_offset_mm,

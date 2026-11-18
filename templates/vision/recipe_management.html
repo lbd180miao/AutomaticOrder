@@ -1234,6 +1234,15 @@
           <div class="form-group"><label for="edit-quality-max-excess-ratio">最大超出比例 (%)</label><input id="edit-quality-max-excess-ratio" type="number" min="0" step="any"></div>
           <div class="form-group"><label for="edit-quality-max-local-missing-ratio">单分区最大缺损 (%) · 可选</label><input id="edit-quality-max-local-missing-ratio" type="number" min="0" max="100" step="any"></div>
         </div>
+        <div class="foam-form-grid foam-field-block">
+          <div class="form-group"><label for="edit-pixels-per-mm-x">X 标定比例 (px/mm)</label><input id="edit-pixels-per-mm-x" type="number" min="0" step="any" required></div>
+          <div class="form-group"><label for="edit-pixels-per-mm-y">Y 标定比例 (px/mm)</label><input id="edit-pixels-per-mm-y" type="number" min="0" step="any" required></div>
+        </div>
+        <p id="edit-offset-unit-hint" class="foam-form-note"></p>
+        <div id="edit-offset-mm-fields" class="foam-form-grid foam-field-block">
+          <div class="form-group"><label for="edit-offset-x-mm">X 最大偏移 (mm)</label><input id="edit-offset-x-mm" type="number" min="0" step="any" required></div>
+          <div class="form-group"><label for="edit-offset-y-mm">Y 最大偏移 (mm)</label><input id="edit-offset-y-mm" type="number" min="0" step="any" required></div>
+        </div>
         <div id="edit-offset-px-fields" class="foam-form-grid foam-field-block">
           <div class="form-group"><label for="edit-offset-x-px">X 最大偏移 (px)</label><input id="edit-offset-x-px" type="number" min="0" step="any" required></div>
           <div class="form-group"><label for="edit-offset-y-px">Y 最大偏移 (px)</label><input id="edit-offset-y-px" type="number" min="0" step="any" required></div>
@@ -1525,6 +1534,18 @@ function refreshFoamEditFields(recipe) {
 
 }
 
+function refreshFoamOffsetFields() {
+  const calibrated = ['x', 'y'].every(axis => document.getElementById(`edit-pixels-per-mm-${axis}`).valueAsNumber > 0);
+  document.getElementById('edit-offset-unit-hint').textContent = calibrated
+    ? '当前按毫米判定：偏移像素 ÷ 标定比例 = mm；分别检查 X、Y 上限。'
+    : '请填写 X、Y 标定比例以使用毫米判定；仅当两项均为 0 时使用像素判定。';
+  for (const unit of ['mm', 'px']) {
+    const enabled = (unit === 'mm') === calibrated;
+    document.getElementById(`edit-offset-${unit}-fields`).hidden = !enabled;
+    for (const axis of ['x', 'y']) document.getElementById(`edit-offset-${axis}-${unit}`).disabled = !enabled;
+  }
+}
+
 window.openEditModal = function(recipeId) {
   const recipe = foam2DRecipes.find(r => r.id === recipeId);
   if (!recipe) return;
@@ -1536,6 +1557,11 @@ window.openEditModal = function(recipeId) {
   for (const key of foamIntegrityKeys) {
     foamEditField(key).value = thresholds[key] == null ? '' : Number((thresholds[key] * 100).toPrecision(12));
   }
+  for (const axis of ['x', 'y']) {
+    document.getElementById(`edit-pixels-per-mm-${axis}`).value = alignment[`pixels_per_mm_${axis}`] ?? 0;
+    document.getElementById(`edit-offset-${axis}-mm`).value = alignment[`max_offset_${axis}_mm`] ?? 2;
+  }
+  refreshFoamOffsetFields();
   document.getElementById('edit-offset-x-px').value = alignment.max_offset_x_px ?? 30;
   document.getElementById('edit-offset-y-px').value = alignment.max_offset_y_px ?? 30;
   document.getElementById('edit-name').value = recipe.name;
@@ -1550,7 +1576,7 @@ window.openEditModal = function(recipeId) {
 
   refreshFoamEditFields(recipe);
   const modal = document.getElementById('recipe-edit-modal');
-  modal.oninput = () => refreshFoamEditFields(recipe);
+  modal.oninput = () => {refreshFoamEditFields(recipe); refreshFoamOffsetFields();};
   modal.style.display = 'flex';
 };
 
@@ -1591,9 +1617,16 @@ window.submitEditModal = async function() {
   }
 
   for (const axis of ['x', 'y']) {
+    const scale = document.getElementById(`edit-pixels-per-mm-${axis}`).valueAsNumber;
+    threshold_config[`pixels_per_mm_${axis}`] = scale;
+    threshold_config[`mm_per_pixel_${axis}`] = scale > 0 ? 1 / scale : 0;
+    threshold_config[`max_offset_${axis}_mm`] = document.getElementById(`edit-offset-${axis}-mm`).valueAsNumber;
     threshold_config[`max_offset_${axis}_px`] = document.getElementById(`edit-offset-${axis}-px`).valueAsNumber;
   }
 
+  if ((threshold_config.pixels_per_mm_x > 0) !== (threshold_config.pixels_per_mm_y > 0)) {
+    showToast('X、Y 标定比例必须同时大于 0，或同时为 0', 'error'); return;
+  }
   const algorithm_config = {material_type: foamEditField('material').value};
   try {
     const res = await fetch(API.saveRecipe, {

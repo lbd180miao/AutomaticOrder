@@ -14,7 +14,7 @@ const kindOf = selector => selector.match(/data-inspection="(\w+)"/)[1];
 const grid = {querySelector: s => s.startsWith('#') ? null : cards[kindOf(s)],
  querySelectorAll: s => s === '[data-inspection]' ? Object.values(cards) : [], addEventListener() {}};
 const pending = [], timers = [];
-const context = {console, URL, URLSearchParams, HTMLImageElement: class {},
+const context = {console, URL, URLSearchParams, AbortSignal, HTMLImageElement: class {},
  document: {hidden: false, getElementById: id => id === 'latest-inspections' ? grid : null,
  createElement: () => ({set innerHTML(text) {const data = JSON.parse(text); this.content = {querySelector: s => card(kindOf(s), data[kindOf(s)])};}})},
  window: {setTimeout: fn => timers.push(fn)}, fetch: (url) => new Promise(resolve => pending.push({url, resolve}))};
@@ -25,17 +25,20 @@ async function finish(index, rack, foam) {
 }
 (async () => {
  cards.rack.querySelector('.inspection-details').open = true;
- const first = timers.shift()();
- assert.equal(pending[0].url, '?section=inspections');
- await finish(0, 'rack-new', 'foam-new');
- await first;
+ assert.deepEqual(pending.map(p => p.url), ['?section=rack', '?section=foam', '?section=log']);
+ // Keep 3D pending: neither foam nor logs may wait for its response.
+ await finish(2, 'rack-ignored', 'foam-ignored');
+ assert.deepEqual(replaced, ['log']);
+ await finish(1, 'rack-ignored', 'foam-new');
+ assert.deepEqual(replaced, ['log', 'foam']);
+ assert.equal(cards.rack.outerHTML, 'rack-initial');
+ await finish(0, 'rack-new', 'foam-ignored');
  assert.equal(cards.rack.querySelector('.inspection-details').open, true);
- assert.equal(cards.foam.querySelector('.inspection-details').open, false);
- assert.deepEqual(replaced, ['rack', 'foam', 'log']);
- const second = timers.shift()();
- await finish(1, 'rack-new', 'foam-newer');
- await second;
- assert.deepEqual(replaced, ['rack', 'foam', 'log', 'foam']);
- assert.equal(cards.foam.outerHTML, 'foam-newer');
- console.log('PASS: polling updates the latest inspections');
+ assert.equal(cards.foam.outerHTML, 'foam-new');
+ const again = timers.shift()();
+ assert.equal(pending[3].url, '?section=log');
+ await finish(3, 'rack-ignored', 'foam-ignored');
+ await again;
+ assert.deepEqual(replaced, ['log', 'foam', 'rack']);
+ console.log('PASS: log and foam refresh while 3D is pending; unchanged logs and details are preserved');
 })().catch(error => {console.error(error); process.exitCode = 1;});

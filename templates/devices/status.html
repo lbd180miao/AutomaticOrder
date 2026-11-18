@@ -2,7 +2,7 @@
 {% load static %}
 {% block title %}设备状态 - AutomaticBoxing{% endblock %}
 {% block page_class %}device-overview inspection-page{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'devices/status.css' %}?v=inspection-overview-8">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'devices/status.css' %}?v=inspection-overview-9">{% endblock %}
 {% block content %}
 {% csrf_token %}
 <section aria-label="检测结果">
@@ -10,7 +10,7 @@
 </section>
 <script src="{% static 'vision/js/foam_result_summary.js' %}?v=2"></script>
 <script src="{% static 'vision/js/rack_result_tables.js' %}?v=4"></script>
-<script src="{% static 'devices/inspection_status.js' %}?v=2" defer></script>
+<script src="{% static 'devices/inspection_status.js' %}?v=3" defer></script>
 <script>
 (() => {
   const grid = document.getElementById('latest-inspections');
@@ -43,21 +43,26 @@
   grid.querySelectorAll('[data-inspection]').forEach(card => {
     previous[card.dataset.inspection] = card.outerHTML;
   });
-  async function refresh() {
+  async function refresh(kind) {
     try {
-      const response = await fetch('?section=inspections', {cache: 'no-store'});
+      const response = await fetch('?section=' + kind, {cache: 'no-store', signal: AbortSignal.timeout(8000)});
       if (!response.ok) throw new Error('HTTP ' + response.status);
       const fragment = document.createElement('template');
       fragment.innerHTML = await response.text();
-      for (const kind of ['rack', 'foam', 'log']) {
+      {
         const selector = '[data-inspection="' + kind + '"]';
         const card = fragment.content.querySelector(selector);
-        if (!card || card.outerHTML === previous[kind]) continue;
+        if (!card || card.outerHTML === previous[kind]) return;
         const html = card.outerHTML;
         const current = grid.querySelector(selector);
         const details = card.querySelector('.inspection-details');
         if (details) details.open = Boolean(current.querySelector('.inspection-details')?.open);
+        const logScroll = current.querySelector('.inspection-log');
+        const scrollTop = logScroll?.scrollTop || 0;
+        const scrollHeight = logScroll?.scrollHeight || 0;
         current.replaceWith(card);
+        const nextLog = card.querySelector('.inspection-log');
+        if (nextLog && scrollTop > 0) nextLog.scrollTop = scrollTop + nextLog.scrollHeight - scrollHeight;
         renderResults(card);
         card.querySelectorAll('img').forEach(img => {
           if (img.complete && !img.naturalWidth) imageUnavailable(img);
@@ -68,16 +73,16 @@
       console.warn("检测记录刷新失败", error);
     }
   }
-  async function poll() {
+  async function poll(kind) {
     try {
       if (!document.hidden) {
-        await refresh();
+        await refresh(kind);
       }
     } finally {
-      window.setTimeout(poll, 5000);
+      window.setTimeout(() => poll(kind), 1000);
     }
   }
-  window.setTimeout(poll, 5000);
+  ['rack', 'foam', 'log'].forEach(kind => poll(kind));
 })();
 </script>
 {% endblock %}

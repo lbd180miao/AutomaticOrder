@@ -2,7 +2,7 @@
 {% load static %}
 {% block title %}MES - AutomaticBoxing{% endblock %}
 {% block page_class %}mes-simple{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'mes/records.css' %}?v=20261115-comm-layout">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'mes/records.css' %}?v=20261116-compact-detail">{% endblock %}
 {% block content %}
 <section class="mes-local" aria-labelledby="bindings-title">
   <div class="mes-section-heading"><h2 id="bindings-title">本地绑定数据</h2><p>本地维护，不自动提交 MES。</p></div>
@@ -40,5 +40,5 @@
 </dialog>
 <dialog id="binding-delete-dialog" aria-labelledby="binding-delete-title"><form id="binding-delete-form" method="post" action="{% url 'mes:local_binding_save' %}">{% csrf_token %}<input type="hidden" name="id"><input type="hidden" name="operation" value="delete"><h2 id="binding-delete-title">删除本地绑定</h2><p>确定删除料框 <strong id="binding-delete-rack"></strong> 的本地绑定？</p><p class="mes-description">删除后无法恢复，不会删除 MES 数据或生产任务。</p><p class="mes-form-error" role="alert"></p><div class="mes-dialog-actions"><button type="button" class="btn btn-secondary" data-close>取消</button><button type="submit" class="btn mes-delete-button">确认删除</button></div></form></dialog>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'mes/communication.js' %}?v=20261115-record-detail" defer></script><script src="{% static 'mes/records.js' %}?v=20261111-inline"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'mes/communication.js' %}?v=20261116-compact-detail" defer></script><script src="{% static 'mes/records.js' %}?v=20261111-inline"></script>{% endblock %}
 

@@ -6,9 +6,11 @@ import sys
 # Numerical libraries otherwise create a pool per CPU for every web/camera
 # process. Apply before any NumPy/SciPy/SDK import, including worker dispatch.
 # Preserve an explicit site tuning value.
-for _thread_setting in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS',
+for _thread_setting in ('OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS',
                         'NUMEXPR_NUM_THREADS', 'BLIS_NUM_THREADS'):
     os.environ.setdefault(_thread_setting, '1')
+# One ordered 3D job uses bounded OpenMP parallelism; BLAS stays single-threaded.
+os.environ.setdefault('OMP_NUM_THREADS', str(min(4, max(1, (os.cpu_count() or 2) // 2))))
 
 
 def positive_threads(value):
@@ -76,6 +78,8 @@ def main(argv=None):
             from apps.mes.remote_client import start_worker
             start_worker()
         start_listener()
+        from apps.devices.health import start_monitor
+        start_monitor()
         if not args.no_browser:
             import threading
             import webbrowser
@@ -83,6 +87,8 @@ def main(argv=None):
         print(f'Serving on http://{server.effective_host}:{server.effective_port}', flush=True)
         server.run()
     finally:
+        from apps.devices.health import stop_monitor
+        stop_monitor()
         stop_listener()
         if gateway_server is not None:
             gateway_server.close()

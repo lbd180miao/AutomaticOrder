@@ -25,7 +25,7 @@ def collect_events(observed, samples, *, initialize=False):
                                    'accepted_at': observed[field + '_round'].rsplit(':', 1)[0],
                                    'data': {'rack_barcode': code, 'rack_slot': slot,
                                             'rack_round': observed[field + '_round']}})
-                messages.append(('rack', f'料框{slot}码：{code or "空"}'))
+                messages.append(('rack', f'AGV 从 PLC 读到料框{slot}码：{code or "空"}；有效新码进入 MES 查询队列'))
         product = str(sample.get('product_barcode') or '').strip()
         if valid_barcode(product) and product != observed.get('product_barcode'):
             observed['product_barcode'] = product

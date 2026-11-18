@@ -20,6 +20,7 @@ from .models_3d_roi import (
 
 
 class VisionTask(TimeStampedModel):
+    is_production = models.BooleanField(default=False)
     task_type = models.CharField(max_length=64, choices=VisionTaskType.choices)
     product = models.ForeignKey('production.Product', null=True, blank=True, on_delete=models.SET_NULL)
     rack = models.ForeignKey('production.Rack', null=True, blank=True, on_delete=models.SET_NULL)

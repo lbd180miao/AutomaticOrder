@@ -1,0 +1,212 @@
+<!doctype html><meta charset=utf-8><title>MES 通信页面验证</title><style>
+.binding-rack,.binding-products,.binding-bin{cursor:text}.binding-rack:hover,.binding-products:hover,.binding-bin:hover{background:#f5f8ff}.mes-inline-input{width:100%;display:block;resize:vertical}.mes-inline-input+small{display:block;color:#69758a;font-size:calc(12px + var(--ui-font-increase, 0px));line-height:1.6;margin-top:6px}
+.mes-simple{max-width:1480px;padding:30px 32px 48px;color:#172238}
+.mes-simple h1,.mes-simple h2{font-size:calc(28px + var(--ui-font-increase, 0px));font-weight:750;line-height:1.4;margin:0 0 12px;border-left:5px solid #2563eb;padding-left:14px}
+.mes-description{color:#647087;line-height:1.7;margin:0 0 20px;font-size:calc(14px + var(--ui-font-increase, 0px))}.mes-mode{margin-left:14px;font-size:calc(13px + var(--ui-font-increase, 0px))}
+.mes-api-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:#fff;border:1px solid #e3e8f1;border-radius:10px;padding:20px 0;margin-top:24px}
+.mes-api-card{padding:0 24px;min-width:0}.mes-api-card+.mes-api-card{border-left:1px solid #dce2ee}
+.mes-api-card h2{font-size:calc(23px + var(--ui-font-increase, 0px));border-left-color:#ee9819;padding-left:12px}.mes-api-card:nth-child(2) h2{border-left-color:#2563eb}.mes-api-card:nth-child(3) h2{border-left-color:#169b62}
+.mes-api-card>p{font-size:calc(14px + var(--ui-font-increase, 0px));color:#647087;line-height:1.7;margin:0 0 20px}
+.mes-api-fields{min-height:104px;display:flex;flex-direction:column;gap:12px}.mes-api-form label{display:grid;grid-template-columns:70px minmax(0,1fr);align-items:center;gap:8px;font-weight:600;font-size:calc(14px + var(--ui-font-increase, 0px))}
+.mes-simple input,.mes-simple textarea{box-sizing:border-box;background:#fff;color:#172238;border:1px solid #cbd4e3;border-radius:6px;min-height:42px;padding:10px 12px;font:inherit;font-size:calc(14px + var(--ui-font-increase, 0px));min-width:0}.mes-api-form input{width:100%}
+.mes-simple .btn{min-height:42px;padding:10px 20px;white-space:nowrap;font-size:calc(14px + var(--ui-font-increase, 0px))}.mes-api-form>.btn{margin:18px 0 22px}
+.mes-response-label{font-size:calc(14px + var(--ui-font-increase, 0px))}.mes-result-summary{background:#f0f3f9;border-radius:6px;padding:12px 14px;min-height:44px;line-height:1.6;font-size:calc(14px + var(--ui-font-increase, 0px));margin:10px 0 0;overflow-wrap:anywhere}
+.mes-result-summary[data-state=success]{background:#e7f6ec;color:#166534}.mes-result-summary[data-state=error],.mes-form-error{color:#b42318}.mes-result-summary[data-state=error]{background:#fff0ed}
+.mes-raw-response{margin-top:12px;font-size:calc(13px + var(--ui-font-increase, 0px))}.mes-raw-response summary{cursor:pointer;color:#245cd4}.mes-card-result{background:#f0f3f9;padding:12px;border-radius:6px;max-height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:calc(12px + var(--ui-font-increase, 0px))}
+.mes-local{margin-top:30px;padding-top:26px;border-top:1px solid #d5deec}.mes-section-heading{display:flex;align-items:center;gap:20px}.mes-section-heading p{font-size:calc(14px + var(--ui-font-increase, 0px));color:#647087;margin:0 0 12px}
+.mes-toolbar{display:flex;align-items:center;gap:18px;justify-content:space-between;margin:22px 0}.mes-search{display:flex;gap:12px;align-items:center;flex:1}.mes-search input{width:440px;max-width:100%}.mes-search a{white-space:nowrap;color:#52647f;font-size:calc(14px + var(--ui-font-increase, 0px))}
+.mes-table-scroll{overflow-x:auto;border:1px solid #dce2ee;border-radius:8px;background:white}.mes-binding-table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:calc(14px + var(--ui-font-increase, 0px));min-width:650px}.mes-binding-table th{background:#e9edf5;text-align:left;padding:16px 22px;font-weight:650}.mes-binding-table th:nth-child(1){width:27%}.mes-binding-table th:nth-child(2){width:35%}.mes-binding-table th:nth-child(3){width:18%}.mes-binding-table th:nth-child(4){width:20%}.mes-binding-table td{padding:20px 22px;vertical-align:top;border-top:1px solid #dce2ee;overflow-wrap:anywhere;line-height:1.8}.mes-binding-table th+th,.mes-binding-table td+td{border-left:1px solid #e6ebf2}
+.mes-row-actions{display:flex;gap:16px;align-items:center}.mes-link{font:inherit;font-size:calc(14px + var(--ui-font-increase, 0px));color:#2563eb;padding:0;border:0;background:none;cursor:pointer;white-space:nowrap}.mes-danger{color:#c32929}.mes-link:hover{text-decoration:underline}.mes-muted,.mes-empty{color:#69758a}.mes-empty{text-align:center}
+.mes-table-footer{display:flex;justify-content:space-between;gap:16px;margin-top:18px;color:#69758a;font-size:calc(13px + var(--ui-font-increase, 0px))}.mes-table-footer nav{display:flex;gap:16px}.mes-table-footer a{color:#245cd4}
+.mes-simple dialog{color:#172238;background:white;border:1px solid #e1e6ef;border-radius:12px;width:460px;max-width:calc(100vw - 32px);padding:26px;box-shadow:0 16px 60px #17223833;max-height:90vh;overflow:auto}.mes-simple dialog::backdrop{background:#17223840}.mes-simple dialog h2{border:0;padding:0;font-size:calc(22px + var(--ui-font-increase, 0px))}.mes-simple dialog label{display:block;font-size:calc(14px + var(--ui-font-increase, 0px));font-weight:600;margin-top:18px}.mes-simple dialog input:not([type=hidden]),.mes-simple dialog textarea{display:block;width:100%;margin-top:8px}.mes-simple dialog textarea{resize:vertical}.mes-simple dialog small{color:#69758a;font-size:calc(12px + var(--ui-font-increase, 0px))}.mes-dialog-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:24px}.mes-delete-button{background:#c32929;color:white}.mes-form-error:empty{display:none}.mes-form-error{font-size:calc(14px + var(--ui-font-increase, 0px))}.mes-simple [hidden]{display:none!important}.mes-simple :focus-visible{outline:3px solid #93b4ff;outline-offset:3px}.mes-simple button:disabled{opacity:.6;cursor:wait}.sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+@media(max-width:1000px){.mes-simple{padding:24px 16px}.mes-api-grid{grid-template-columns:1fr;padding:0 20px}.mes-api-card{padding:22px 0}.mes-api-card+.mes-api-card{border-left:0;border-top:1px solid #dce2ee}.mes-api-fields{min-height:0}.mes-mode{display:block;margin:6px 0 0}.mes-toolbar{align-items:stretch;flex-wrap:wrap}.mes-search input{width:100%}.mes-section-heading{display:block}.mes-simple h1,.mes-simple h2{font-size:calc(24px + var(--ui-font-increase, 0px))}}
+@media(max-width:540px){.mes-search{flex-wrap:wrap}.mes-search input{flex-basis:100%}.mes-table-footer{flex-direction:column}.mes-toolbar>#binding-add{align-self:flex-end}.mes-simple dialog{padding:20px}.mes-binding-table th,.mes-binding-table td{padding:14px}}
+#mes-communication .mes-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+#communication-title { margin: 0; }
+.comm-connection-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+html.comm-detail-open,html.comm-detail-open body{overflow:hidden!important;overscroll-behavior:none}
+#mes-communication #comm-record-dialog{box-sizing:border-box;max-width:calc(100vw - 32px);max-height:85vh;overflow:hidden;padding:24px}
+#mes-communication #comm-record-dialog[open]{display:flex;flex-direction:column}
+#comm-record-dialog>.comm-record-heading{flex-shrink:0;margin:0 0 16px}
+#comm-record-detail{min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
+#mes-communication #comm-record-detail pre{max-height:none;overflow:visible;margin:8px 0 20px}
+#comm-record-detail h4{margin:12px 0 8px}
+#comm-record-detail p{margin:8px 0;line-height:1.6;overflow-wrap:anywhere}
+#mes-communication h3{font-size:22px;margin:0 0 18px;color:#172238}.comm-connection{font-size:14px;color:#8a5260;background:#fff0ed;padding:6px 12px;border-radius:20px}.comm-connection[data-online=true]{color:#18754b;background:#e9f6ef}.comm-workspace{display:grid;grid-template-columns:1fr 1fr;background:white;border:1px solid #e0e6ef;border-radius:10px;margin:20px 0 30px;overflow:hidden}.comm-panel{padding:28px 32px;min-width:0}.comm-panel+.comm-panel{border-left:1px solid #dce2ee}.comm-caption{font-size:14px;line-height:1.7;color:#697b94;margin:0 0 24px}#mes-communication label{display:block;font-size:15px;margin:0 0 20px}#mes-communication label input,#mes-communication label select{display:block;width:100%;margin-top:8px;min-height:48px;box-sizing:border-box;font:inherit;color:#172238;border:1px solid #ccd7e8;border-radius:6px;padding:10px 12px;background:white}#comm-feedback{font-size:14px;color:#56708e;line-height:1.6}.comm-result-status{padding:22px;background:#f3f6fa;border-radius:8px;color:#697b94}.comm-result-status[data-state=succeeded]{background:#e9f6ef;color:#18754b}.comm-result-status[data-state=failed],.comm-result-status[data-state=unknown]{background:#fff0ed;color:#b42318}.comm-result-fields{margin:20px 0}.comm-result-fields>div{display:grid;grid-template-columns:90px minmax(0,1fr);gap:12px;padding:10px 0;border-bottom:1px solid #edf0f5}.comm-result-fields dt{color:#697b94;font-size:14px}.comm-result-fields dd{margin:0;overflow-wrap:anywhere}.comm-record-heading,.comm-record-tools{display:flex;align-items:center;justify-content:space-between;gap:14px}.comm-record-heading{margin:20px 0 16px}.comm-record-heading h3{margin:0!important}.comm-record-tools input{width:300px;max-width:100%}#mes-communication .table-wrap{overflow:auto;border:1px solid #e0e6ef;border-radius:8px}#mes-communication table{width:100%;border-collapse:collapse;background:white}#mes-communication th,#mes-communication td{padding:16px 20px;text-align:left;border-bottom:1px solid #e6ebf2;white-space:pre-line;font-size:14px}#mes-communication th{background:#f0f3f8;color:#52647f;font-weight:600}#mes-communication .comm-empty{text-align:center;padding:48px;color:#8a96a7}.comm-badge{color:#697b94}.comm-badge[data-state=succeeded]{color:#18754b}.comm-badge[data-state=failed],.comm-badge[data-state=unknown]{color:#b42318}#mes-communication pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f6fa;padding:14px;border-radius:6px;max-height:280px;overflow:auto}#comm-record-dialog{width:760px}#mes-communication summary{cursor:pointer;color:#2563eb;font-size:14px}@media(max-width:900px){.comm-workspace{grid-template-columns:1fr}.comm-panel+.comm-panel{border-left:0;border-top:1px solid #dce2ee}.comm-panel{padding:22px}.comm-record-heading,.comm-record-tools{flex-wrap:wrap}.comm-record-tools input{width:100%}}
+
+.mes-simple > .mes-local:first-child{margin-top:0;padding-top:0;border-top:0}
+
+#mes-communication > .comm-record-heading .comm-record-tools {
+  display: flex;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+#comm-filter { width: min(300px, 100%); min-width: 0; }
+#comm-refresh { flex: none; }
+@media (max-width: 640px) {
+  #mes-communication > .mes-section-heading,
+  #mes-communication > .comm-record-heading { flex-direction: column; align-items: stretch; }
+  #comm-filter { flex: 1; }
+}
+</style><main class="mes-simple"><section id="mes-communication" class="mes-local" aria-labelledby="communication-title"
+ data-detail-url="detail/00000000-0000-0000-0000-000000000000" data-config-url="status" data-status-url="status" data-control-url="status">
+ <div class="mes-section-heading"><h2 id="communication-title">AGV电脑与外部电脑通信</h2><div class="comm-connection-tools"><span id="comm-connection" class="comm-connection" role="status">检测中</span><button type="button" class="btn btn-secondary" id="comm-config-open">通信配置</button></div></div>
+ <div class="comm-record-heading"><h3>通信记录</h3><div class="comm-record-tools"><input id="comm-filter" type="search" aria-label="筛选通信记录" placeholder="搜索条码、区位号或请求编号"><button type="button" class="btn btn-secondary" id="comm-refresh">刷新</button></div></div>
+ <div class="table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>接口</th><th>料框 / 产品条码</th><th>状态</th><th>操作</th></tr></thead><tbody id="comm-records"></tbody></table></div>
+ <p class="comm-caption">显示最近 100 条通信记录</p>
+ <div class="comm-workspace">
+  <form id="comm-send" class="comm-panel">
+   <h3>发送请求</h3><p class="comm-caption">选择接口并填写条码，外部电脑查询后自动返回结果。</p>
+   <label>接口<select name="action"><option value="GET_RACK_RECIPE">① 查询料框类型</option><option value="UPLOAD_PRODUCT_BARCODE">② 产品绑定</option><option value="UPLOAD_BOXING_RESULT">③ 装箱完成 / 获取区位号</option></select></label>
+   <label>料框码<input name="rack_code" required maxlength="32" autocomplete="off" placeholder="请输入料框码"></label>
+   <label id="comm-product-label" hidden>产品条码<input name="product_code" maxlength="64" autocomplete="off" placeholder="请输入产品条码"></label>
+   <button type="submit" class="btn btn-primary">发送请求</button>
+   <p id="comm-feedback" role="status"></p>
+  </form>
+  <section class="comm-panel comm-response" aria-labelledby="comm-response-title">
+   <h3 id="comm-response-title">返回结果</h3><p class="comm-caption">自动接收外部电脑返回的数据。</p>
+   <div id="comm-result-status" class="comm-result-status" role="status">等待发送请求</div>
+   <dl id="comm-result-fields" class="comm-result-fields"></dl>
+   <p id="comm-result-note" class="comm-caption">发送后将在这里显示本次结果，也可以选择上方记录查看。</p>
+   <details id="comm-response-raw" hidden><summary>查看完整返回值</summary><pre id="comm-response-json"></pre></details>
+  </section>
+ </div>
+ <dialog id="comm-record-dialog"><div class="comm-record-heading"><h3>通信记录详情</h3><button type="button" class="btn btn-secondary" id="comm-close-record">关闭</button></div><div id="comm-record-detail"></div></dialog>
+ <dialog id="comm-config-dialog"><form id="comm-config-form">
+ <h3>外部电脑通信配置</h3>
+ <label>外部电脑地址<input name="gateway_url" type="url" required placeholder="http://192.168.3.10:8001"></label>
+ <label>配对认证<input name="token" type="password" autocomplete="new-password" placeholder="留空保留当前认证"></label>
+ <p class="comm-caption">认证须与外部电脑一致。AGV WLAN：192.168.3.6；外部电脑 WLAN：192.168.3.10。</p>
+ <p id="comm-config-feedback" role="status"></p>
+ <div class="mes-dialog-actions"><button type="button" class="btn btn-secondary" id="comm-config-close">取消</button><button type="submit" class="btn btn-primary">保存配置</button></div>
+ </form></dialog>
+</section>
+</main><script>const tasks=Array.from({length:25},(_,i)=>({id:String(i+1),action:'GET_RACK_RECIPE',state:'succeeded',created:1794708000-i,payload:{rack_code:'TEST-'+i},result:{mes_data:{PkgTypeCode:'2LayerRack',Items:Array.from({length:45},(_,j)=>'ITEM-'+j)}}}));window.fetch=async url=>({ok:true,json:async()=>({connected:true,tasks,success:true,task:tasks.find(t=>'detail/'+t.id===url),events:['queued','request_received','mes_request','mes_response','gateway_response'].map((kind,i)=>({kind,created:1794708000+i,data:{state:'succeeded'}}))})});</script><script>(() => {
+ 'use strict';
+ const root=document.getElementById('mes-communication'); if(!root)return;
+ const $=id=>document.getElementById(id), form=$('comm-send'), field=name=>form.elements.namedItem(name);
+ const names={GET_RACK_RECIPE:'查询料框类型',UPLOAD_PRODUCT_BARCODE:'产品绑定',UPLOAD_BOXING_RESULT:'装箱完成 / 获取区位号'};
+ const states={pending:'等待发送',accepted:'等待外部电脑查询',running:'外部电脑查询中',waiting_manual:'等待外部电脑处理',succeeded:'成功',failed:'失败',unknown:'结果待核对'};
+ const terminal=new Set(['succeeded','failed','unknown']);
+ let data={tasks:[],outbox:[],events:[]}, tasks=[], selected='', loading=false, sending=false, requestId=null, lastBody='';
+ const node=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
+ const uuid=()=> '10000000-1000-4000-8000-100000000000'.replace(/[018]/g,c=>(Number(c)^crypto.getRandomValues(new Uint8Array(1))[0]&15>>Number(c)/4).toString(16));
+ const date=value=>value?new Date(value*1000).toLocaleString('zh-CN'):'—';
+ function merge(){
+  const map=new Map((data.tasks||[]).map(t=>[t.id,{...t}]));
+  for(const local of data.outbox||[]) {
+   const remote=map.get(local.id);
+   // Local production results are authoritative once persisted by this computer.
+   map.set(local.id,{...remote,...local,remote_state:remote?.state});
+  }
+  tasks=[...map.values()].sort((a,b)=>b.created-a.created);
+ }
+ function result(){
+  const task=tasks.find(t=>t.id===selected); if(!task)return;
+  $('comm-result-status').textContent=states[task.state]||task.state;
+  $('comm-result-status').dataset.state=task.state;
+  const values=[['接口',names[task.action]||task.action],['料框码',task.payload.rack_code],['产品条码',task.payload.product_code],['料框类型',task.result?.pkg_type_code],['区位号',task.result?.bin_code],['请求编号',task.id]];
+  $('comm-result-fields').replaceChildren();
+  for(const [label,value] of values)if(value!==undefined&&value!==null&&value!=='') {const row=node('div');row.append(node('dt',label),node('dd',String(value)));$('comm-result-fields').append(row);}
+  $('comm-result-note').textContent=task.result?.error || task.error || (task.state==='succeeded'?'已收到外部电脑返回结果。':task.error?'通信暂时中断，等待恢复后自动接收结果。':terminal.has(task.state)?'请查看完整返回值核对结果。':'正在等待外部电脑返回结果…');
+  $('comm-response-raw').hidden=!terminal.has(task.state);$('comm-response-json').textContent=JSON.stringify(task.result||{},null,2);
+ }
+ const eventNames = {
+  queued: 'AGV 已记录请求',
+  gateway_response: 'AGV 收到返回结果',
+  transport_error: '通信异常',
+  request_received: '外部电脑收到请求',
+  mes_request: '开始查询 MES',
+  mes_response: '收到 MES 返回信息',
+  manual_reply: '外部电脑手动返回结果',
+  http_return: '向 AGV 返回结果'
+ };
+ function renderDetail(task, events, warning) {
+  const panel = $('comm-record-detail');
+  panel.replaceChildren();
+  const response = task.result || {};
+  panel.append(node('h4', '本次返回值'), node('pre', JSON.stringify(response, null, 2)));
+  if (task.error) panel.append(node('p', '通信异常：' + task.error));
+  panel.append(node('h4', '关键时间日志'));
+  if (warning) panel.append(node('p', warning.startsWith('正在') ? warning : '部分日志暂时无法读取，请稍后重新打开详情。'));
+  const keyEvents = events.filter(event => eventNames[event.kind] && event.kind !== 'http_return' &&
+   (event.kind !== 'gateway_response' || terminal.has(event.data?.state)))
+   .sort((a, b) => a.created - b.created);
+  if (!keyEvents.length) panel.append(node('p', '暂无已保存的关键时间日志。'));
+  for (const event of keyEvents) {
+   const error = event.kind === 'transport_error' ? '：' + (event.data?.error || '连接失败') : '';
+   panel.append(node('p', date(event.created) + ' · ' + eventNames[event.kind] + error));
+  }
+ }
+ async function detail(task) {
+  selected = task.id;
+  result();
+  const dialog = $('comm-record-dialog');
+  dialog.dataset.taskId = task.id;
+  renderDetail(task, (data.events || []).filter(event => event.task_id === task.id), '正在读取本次通信日志…');
+  if (!dialog.open) {
+   dialog.showModal();
+   document.documentElement.classList.add('comm-detail-open');
+  }
+  $('comm-record-detail').scrollTop = 0;
+  try {
+   const url = root.dataset.detailUrl.replace('00000000-0000-0000-0000-000000000000', task.id);
+   const response = await fetch(url, {cache: 'no-store'});
+   const detail = await response.json();
+   if (!response.ok || !detail.success) throw Error(detail.error || '详情读取失败');
+   if (dialog.dataset.taskId !== task.id || !dialog.open) return;
+   renderDetail(detail.task || task, detail.events || [], detail.warning);
+  } catch (error) {
+   if (dialog.dataset.taskId === task.id && dialog.open) {
+    renderDetail(task, (data.events || []).filter(event => event.task_id === task.id), error.message);
+   }
+  }
+ }
+ function records(){
+  const query=$('comm-filter').value.trim().toLowerCase();$('comm-records').replaceChildren();
+  const rows=tasks.slice(0,100).filter(t=>JSON.stringify(t).toLowerCase().includes(query));
+  for(const t of rows){const tr=node('tr');tr.append(node('td',date(t.created)),node('td',names[t.action]||t.action),node('td',`${t.payload.rack_code||'—'}${t.payload.product_code?'\n'+t.payload.product_code:''}`));const state=node('td'),badge=node('span',states[t.state]||t.state);badge.className='comm-badge';badge.dataset.state=t.state;state.append(badge);tr.append(state);const action=node('td'),button=node('button','查看详情');button.type='button';button.className='mes-link';button.addEventListener('click',()=>detail(tasks.find(row=>row.id===t.id)||t));action.append(button);tr.append(action);$('comm-records').append(tr);}
+  if(!rows.length){const tr=node('tr'),td=node('td','暂无通信记录');td.colSpan=5;td.className='comm-empty';tr.append(td);$('comm-records').append(tr);}
+ }
+ async function refresh(){
+  if(loading)return;loading=true;
+  try{const response=await fetch(root.dataset.statusUrl,{cache:'no-store'});if(!response.ok)throw Error();data=await response.json();merge();records();result();}
+  catch{data.connected=false;}
+  finally{loading=false;$('comm-connection').textContent=data.connected?'外部电脑在线':'外部电脑离线';$('comm-connection').dataset.online=String(!!data.connected);form.querySelector('button').disabled=sending;}
+ }
+ form.addEventListener('change',()=>{const product=field('action').value==='UPLOAD_PRODUCT_BARCODE';$('comm-product-label').hidden=!product;field('product_code').required=product;});
+ form.addEventListener('submit',async event=>{
+  event.preventDefault();if(sending)return;sending=true;form.querySelector('button').disabled=true;
+  const values={action:field('action').value,rack_code:field('rack_code').value,product_code:field('product_code').value};
+  const encoded=JSON.stringify(values);if(encoded!==lastBody||!requestId){requestId=uuid();lastBody=encoded;}
+  $('comm-feedback').textContent='正在发送请求…';
+  try{const response=await fetch(root.dataset.controlUrl,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':root.querySelector('[name=csrfmiddlewaretoken]').value},body:JSON.stringify({...values,operation:'send',request_id:requestId})});const answer=await response.json();if(!response.ok||!answer.success)throw Error(answer.error||'请求发送失败');selected=answer.id;requestId=null;$('comm-feedback').textContent='请求已发送，正在等待返回。';await refresh();}
+  catch{$('comm-feedback').textContent='暂时无法发送，请检查外部电脑连接后重试。';}
+  finally{sending=false;form.querySelector('button').disabled=false;}
+ });
+ $('comm-filter').addEventListener('input',records);$('comm-refresh').addEventListener('click',refresh);$('comm-close-record').addEventListener('click',()=>$('comm-record-dialog').close());
+ $('comm-record-dialog').addEventListener('close',()=>document.documentElement.classList.remove('comm-detail-open'));
+ const configForm=$('comm-config-form');
+ $('comm-config-open').addEventListener('click',async()=>{
+  $('comm-config-dialog').showModal();$('comm-config-feedback').textContent='正在读取配置…';
+  configForm.querySelector('[type=submit]').disabled=true;
+  try{const response=await fetch(root.dataset.configUrl,{cache:'no-store'});const answer=await response.json();if(!response.ok||!answer.success)throw Error(answer.error||'读取失败');configForm.elements.namedItem('gateway_url').value=answer.gateway_url;configForm.elements.namedItem('token').value='';configForm.elements.namedItem('token').required=!answer.token_configured;$('comm-config-feedback').textContent=answer.token_configured?'已配置认证，留空即可保留。':'请填写配对认证。';configForm.querySelector('[type=submit]').disabled=false;}
+  catch(e){$('comm-config-feedback').textContent=e.message;}
+ });
+ $('comm-config-close').addEventListener('click',()=>$('comm-config-dialog').close());
+ configForm.addEventListener('submit',async event=>{
+  event.preventDefault();const button=configForm.querySelector('[type=submit]');if(button.disabled)return;button.disabled=true;
+  try{const response=await fetch(root.dataset.configUrl,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':root.querySelector('[name=csrfmiddlewaretoken]').value},body:JSON.stringify({gateway_url:configForm.elements.namedItem('gateway_url').value,token:configForm.elements.namedItem('token').value})});const answer=await response.json();if(!response.ok||!answer.success)throw Error(answer.error||'保存失败');configForm.elements.namedItem('token').value='';configForm.elements.namedItem('token').required=false;$('comm-config-feedback').textContent=answer.message;await refresh();}
+  catch(e){$('comm-config-feedback').textContent=e.message;}
+  finally{button.disabled=false;}
+ });
+ if(new URLSearchParams(window.location.search).get('configure')==='1')$('comm-config-open').click();
+ refresh();setInterval(()=>{if(!document.hidden)refresh();},3000);
+})();
+</script>

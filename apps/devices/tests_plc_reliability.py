@@ -223,8 +223,22 @@ class CompensationWriterTests(SimpleTestCase):
                     self.assertFalse(transport.is_connected())
                 self.assertEqual([plc.read_point(f'layer_delta_{a}') for a in ('x','y','z','x2','y2','z2')],
                                  [1, 2, 3, 4, 5, 6])
-                self.assertFalse(plc.read_point('position_done'))
-                self.assertTrue(plc.read_point('position_success'))
+                self.assertFalse(plc.read_point('position_trigger'))
+
+    def test_readback_mismatch_is_failure_and_preserves_inputs(self):
+        plc = PLCAdapter(MemoryPLCTransport())
+        plc.write_point('position_trigger', True)
+        original_read = plc.read_point
+        def wrong_read(name):
+            return 999 if name == 'layer_delta_z2' else original_read(name)
+        with patch('apps.vision.plc_writer_service.get_plc_adapter', return_value=plc), \
+             patch('apps.vision.plc_writer_service.ownership', return_value=nullcontext(({}, Mock()))), \
+             patch.object(plc, 'read_point', side_effect=wrong_read), \
+             patch.object(self.writer.logger, 'exception'):
+            result = self.writer.write_compensation_to_plc(self.compensation, 1)
+        self.assertFalse(result['success'])
+        self.assertIn('回读不一致', result['error'])
+        self.assertTrue(plc.read_point('position_trigger'))
 
     def test_writer_cannot_interfere_with_debug_session(self):
         with patch('apps.vision.plc_writer_service.get_plc_adapter') as factory, \
@@ -238,7 +252,7 @@ class CompensationWriterTests(SimpleTestCase):
 
     def test_partial_write_never_reports_completion(self):
         plc = PLCAdapter(MemoryPLCTransport())
-        plc.write_point('position_done', True)
+        plc.write_point('position_trigger', True)
         with patch('apps.vision.plc_writer_service.get_plc_adapter', return_value=plc), \
              patch('apps.vision.plc_writer_service.ownership', return_value=nullcontext(({}, Mock()))), \
              patch.object(plc, 'send_rack_offsets', side_effect=ConnectionError('write failed')), \
@@ -246,8 +260,7 @@ class CompensationWriterTests(SimpleTestCase):
             result = self.writer.write_compensation_to_plc(
                 self.compensation, 1, second_group={'x': 4, 'y': 5, 'z': 6})
         self.assertFalse(result['success'])
-        self.assertTrue(plc.read_point('position_done'))
-        self.assertFalse(plc.read_point('position_success'))
+        self.assertTrue(plc.read_point('position_trigger'))
 
     def test_write_status_uses_existing_json_field(self):
         from apps.vision.models import RackLocationResult

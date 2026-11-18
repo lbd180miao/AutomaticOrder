@@ -1,0 +1,20 @@
+const {chromium}=require('D:/Scripts/FrciblyK12/.venv/Lib/site-packages/playwright/driver/package');
+const assert=require('node:assert/strict');
+(async()=>{const browser=await chromium.launch({headless:true});try {
+const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.goto('http://127.0.0.1:8082/vision/recipes/?edit=12');
+await page.locator('#recipe-edit-modal').waitFor({state:'visible'});
+assert.equal(await page.locator('#edit-pixels-per-mm-x').inputValue(),'12');
+assert.equal(await page.locator('#edit-offset-x-mm').inputValue(),'10');
+assert(await page.locator('#edit-offset-x-mm').isVisible());
+assert(!(await page.locator('#edit-offset-x-px').isEnabled()));
+let payload;
+await page.route('**/*',route=>{if(route.request().method()==='POST'){payload=route.request().postDataJSON();return route.fulfill({json:{success:false,error:'验证请求已拦截'}});}return route.continue();});
+await page.locator('#edit-offset-x-mm').fill('3.5');
+await page.locator('#recipe-edit-modal').getByRole('button',{name:'💾 保存配方'}).click();
+assert.equal(payload.threshold_config.max_offset_x_mm,3.5);
+assert.equal(payload.threshold_config.pixels_per_mm_x,12);
+await page.locator('#edit-pixels-per-mm-x').fill('0');await page.locator('#edit-pixels-per-mm-y').fill('0');
+assert(await page.locator('#edit-offset-x-px').isVisible());assert(!(await page.locator('#edit-offset-x-mm').isEnabled()));
+assert.deepEqual(errors,[]);console.log('PASS mm editor display, save payload, pixel fallback; no live writes');
+}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1});

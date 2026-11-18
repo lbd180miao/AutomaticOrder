@@ -1,4 +1,5 @@
-<header><h2>日志记录</h2></header>
+<header><h2>实时日志 · 今日最近 300 条</h2></header>
+{% if log_warning %}<p role="status">{{ log_warning }}</p>{% endif %}
 <ol class="inspection-log">
   {% for timestamp, level, source, message in entries %}
     <li><time>{{ timestamp|date:"Y-m-d H:i:s" }}.{{ timestamp|date:"u"|slice:":3" }}</time> <b class="level-{{ level }}">{{ level }}</b> · {{ source }} · {{ message }}</li>

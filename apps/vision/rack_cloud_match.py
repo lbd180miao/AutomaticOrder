@@ -17,7 +17,7 @@ def pointmap(cloud, metadata):
     data = np.asarray(cloud, dtype=float)
     if data.ndim != 3 or data.shape[2] != 3:
         raise ValueError('区域选择需要 H×W×3 组织化点云')
-    return data * (1000 if unit == 'm' else 1)
+    return data * 1000 if unit == 'm' else data
 
 
 def valid(points):

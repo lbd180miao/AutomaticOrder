@@ -315,13 +315,25 @@ def _rack_overlay(record, image):
 
 
 def status(request):
+    from datetime import datetime, time, timedelta
+
     from apps.vision.views import _result_payload
-    from apps.vision.models import FoamInspectionResult, RackLocationResult
+    from apps.vision.models import VisionTask
 
-    from apps.mes.inspection_log import latest_communication_log
+    section = request.GET.get('section')
+    if section == 'log':
+        from .inspection_events import log_response
+        return log_response(request)
 
-    rack = RackLocationResult.objects.order_by('-created_at', '-pk').first()
-    foam = FoamInspectionResult.objects.order_by('-created_at', '-pk').first()
+    today = timezone.localdate()
+    start = timezone.make_aware(datetime.combine(today, time.min))
+    end = timezone.make_aware(datetime.combine(today + timedelta(days=1), time.min))
+    day_filter = {'created_at__gte': start, 'created_at__lt': end}
+    tasks = VisionTask.objects.filter(is_production=True, **day_filter).order_by('-created_at', '-pk')
+    rack_task = tasks.filter(task_type='RACK_LOCATING', rack_results__isnull=False).first() if section != 'foam' else None
+    foam_task = tasks.filter(task_type='FOAM_INSPECTION', foam_results__isnull=False).first() if section != 'rack' else None
+    rack = rack_task.rack_results.order_by('-created_at', '-pk').first() if rack_task else None
+    foam = foam_task.foam_results.order_by('-created_at', '-pk').first() if foam_task else None
     rack_overlay = None
     rack_image = None
     if rack:
@@ -332,21 +344,15 @@ def status(request):
             rack_overlay = _rack_overlay(rack, original)
             if rack_overlay:
                 rack_image = original
-    entries = latest_communication_log()
-    for source, result, passed, verdict in (
-        ('3D 料架定位', rack, rack and rack.is_success, '定位'),
-        ('2D 泡棉检测', foam, foam and foam.is_passed, '检测'),
-    ):
-        if result:
-            for moment, level, message in _inspection_log(result, passed, verdict + ('通过' if passed else '未通过')):
-                entries.append((moment, level, source, message))
+    entries = []
     template = 'devices/status.html'
-    if request.GET.get('section') == 'inspections':
+    if section in ('inspections', 'rack', 'foam'):
         template = 'devices/latest_inspections.html'
     return render(request, template, {
-        'rack': rack, 'foam': foam, 'rack_image': rack_image, 'rack_overlay': rack_overlay,
+        'section': section, 'rack': rack, 'foam': foam, 'rack_image': rack_image, 'rack_overlay': rack_overlay,
         'foam_payload': _result_payload(foam) if foam else None,
-        'entries': sorted(entries, key=lambda entry: entry[0], reverse=True),
+        'entries': sorted((entry for entry in entries if start <= entry[0] < end),
+                          key=lambda entry: entry[0], reverse=True),
         'foam_coverage': foam.coverage_ratio * 100 if foam else None,
     })
 

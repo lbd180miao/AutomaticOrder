@@ -1,0 +1,241 @@
+{
+  "algorithm": "cloud_center",
+  "algorithm_version": "cloud_match_v1",
+  "source": "cloud_match",
+  "result": {
+    "success": true,
+    "coordinateSystem": "camera",
+    "unit": "mm",
+    "algorithm_version": "cloud_match_v1",
+    "measurement_only": true,
+    "plc_publish_allowed": false,
+    "registration": {
+      "fitness": 1.0,
+      "rmse_mm": 1.1792139976732662e-13,
+      "shift_mm": 2.0097183471152322e-14,
+      "rotation_deg": 0.0,
+      "constraint_ratio": 0.21667270936562255,
+      "matched_points": 2551,
+      "source_points": 2551,
+      "target_points": 6400,
+      "quality_passed": true,
+      "failure_reasons": [],
+      "quality_warnings": [],
+      "rmse_warning_only": true,
+      "region_warnings": [],
+      "quality_policy": "global_with_region_warnings",
+      "limits": {
+        "voxel_mm": 2.0,
+        "correspondence_mm": 5.0,
+        "min_fitness": 0.2,
+        "region_min_fitness": 0.65,
+        "max_rmse_mm": 2.0,
+        "max_shift_mm": 80.0,
+        "max_rotation_deg": 15.0
+      },
+      "transform": [
+        [
+          1.000000000000002,
+          9.21078319950149e-16,
+          7.69526044448743e-16,
+          -7.077255448351141e-13
+        ],
+        [
+          9.926600010557655e-16,
+          1.0000000000000018,
+          1.0186011647865536e-15,
+          -9.50727344073421e-13
+        ],
+        [
+          -2.1338454007230014e-17,
+          5.905683114846441e-17,
+          1.0000000000000013,
+          -1.3566754599077244e-12
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "regions": [
+        {
+          "name": "P1",
+          "standard_center_xyz": [
+            -17.550751959662744,
+            -16.986644615037147,
+            984.2592416780096
+          ],
+          "matched_template_center_xyz": [
+            -17.550751959662744,
+            -16.986644615037143,
+            984.2592416780096
+          ],
+          "matched_cloud_center_xyz": [
+            -17.550751959662744,
+            -16.986644615037147,
+            984.2592416780096
+          ],
+          "center_delta_xyz": [
+            0.0,
+            3.552713678800501e-15,
+            0.0
+          ],
+          "fitness": 1.0,
+          "rmse_mm": 1.1674911875437999e-13,
+          "source_points": 1421,
+          "matched_points": 1421,
+          "quality_passed": true,
+          "failure_reasons": []
+        },
+        {
+          "name": "P2",
+          "standard_center_xyz": [
+            -16.540252261113633,
+            -16.86348877286569,
+            983.0065691272424
+          ],
+          "matched_template_center_xyz": [
+            -16.54025226111363,
+            -16.863488772865686,
+            983.0065691272424
+          ],
+          "matched_cloud_center_xyz": [
+            -16.540252261113633,
+            -16.86348877286569,
+            983.0065691272424
+          ],
+          "center_delta_xyz": [
+            3.552713678800501e-15,
+            3.552713678800501e-15,
+            0.0
+          ],
+          "fitness": 1.0,
+          "rmse_mm": 1.1891826028547957e-13,
+          "source_points": 1415,
+          "matched_points": 1415,
+          "quality_passed": true,
+          "failure_reasons": []
+        }
+      ],
+      "score_percent": 100.0,
+      "standard_center_xyz": [
+        -17.00396902396594,
+        -17.062174411107776,
+        983.67028647998
+      ],
+      "matched_template_center_xyz": [
+        -17.003969023965926,
+        -17.062174411107762,
+        983.67028647998
+      ],
+      "matched_cloud_center_xyz": [
+        -17.00396902396594,
+        -17.062174411107776,
+        983.67028647998
+      ],
+      "center_delta_xyz": [
+        1.4210854715202004e-14,
+        1.4210854715202004e-14,
+        0.0
+      ]
+    },
+    "points": [
+      {
+        "name": "P1",
+        "success": true,
+        "xyz": [
+          -17.550751959662744,
+          -16.986644615037143,
+          984.2592416780096
+        ]
+      },
+      {
+        "name": "P2",
+        "success": true,
+        "xyz": [
+          -16.54025226111363,
+          -16.863488772865686,
+          983.0065691272424
+        ]
+      }
+    ],
+    "warnings": [
+      "模板覆盖率 100.0%；残差 0.000mm；中心位移 0.000mm；旋转 0.000°；约束比 0.216673",
+      "实验模式：参考点为模板区域参考点的刚体变换推算；重复结构仍需人工核对。",
+      "部分参考点无法可靠投影到图像或位于画面外，请查看 XYZ 坐标。"
+    ],
+    "errorCode": "",
+    "stage": "3d",
+    "errorMessage": "",
+    "pixels": [
+      null,
+      null
+    ]
+  },
+  "reference": {
+    "measurement": {
+      "success": true,
+      "coordinateSystem": "camera",
+      "unit": "mm",
+      "points": [
+        {
+          "name": "P1",
+          "success": true,
+          "xyz": [
+            -17.550751959662744,
+            -16.986644615037147,
+            984.2592416780096
+          ]
+        },
+        {
+          "name": "P2",
+          "success": true,
+          "xyz": [
+            -16.540252261113633,
+            -16.86348877286569,
+            983.0065691272424
+          ]
+        }
+      ],
+      "center_xyz": [
+        -17.00396902396594,
+        -17.062174411107776,
+        983.67028647998
+      ],
+      "algorithm_version": "cloud_match_v1",
+      "measurement_only": true,
+      "plc_publish_allowed": false
+    }
+  },
+  "robot_result": {
+    "success": false,
+    "errorMessage": "请在手眼标定页面激活标定配置",
+    "plc_publish_allowed": false
+  },
+  "locate_ok": false,
+  "is_success": false,
+  "error_code": "ROBOT_CALIBRATION",
+  "error_message": "请在手眼标定页面激活标定配置",
+  "confidence": 1.0,
+  "layer_no": 1,
+  "pointcloud_token": "frame.npy",
+  "raw_data_path": "frame.npy",
+  "plc_publish_allowed": false,
+  "compensation_valid": false,
+  "robot_groups": {},
+  "plc_payload": {
+    "compensation_valid": false,
+    "plc_publish_allowed": false
+  },
+  "actual_x": -17.550751959662744,
+  "actual_y": -16.986644615037143,
+  "actual_z": 984.2592416780096,
+  "offset_x": 0.0,
+  "offset_y": 0.0,
+  "offset_z": 0.0,
+  "offset_rz": 0.0,
+  "result_id": 1,
+  "task_id": 2
+}

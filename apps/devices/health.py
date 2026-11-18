@@ -9,8 +9,8 @@ from datetime import datetime, timezone
 from django.conf import settings
 from .models import Device
 
-INTERVAL = 5
-STALE_AFTER = 15
+INTERVAL = 1
+STALE_AFTER = 5
 _lock = threading.Lock()
 _entries = {}
 
@@ -49,7 +49,16 @@ def _probe(spec):
         from apps.rvc_camera.client import RvcCameraClient
         client = RvcCameraClient(base_url=spec['service_url'], timeout=3)
         try:
-            data = client._get('/status', timeout=3)
+            data = client._get('/status', timeout=2)
+            discovered = client._get('/find_devices', timeout=2).get('devices', [])
+            target = data.get('device') or {}
+            ip = spec.get('camera_ip') or target.get('ip')
+            sn = spec.get('serial') or target.get('sn')
+            if not (ip or sn) or not any(
+                (not ip or item.get('ip') == ip) and (not sn or item.get('sn') == sn)
+                for item in discovered
+            ):
+                raise RuntimeError('实时设备发现未找到目标 3D 相机，已判定离线')
         finally:
             client._session.close()
         if not data.get('connected'):
@@ -72,11 +81,13 @@ def _run(key, spec):
         if result['state'] == 'online':
             entry['last_online'] = stamp
 
-    if spec['kind'] == 'plc' and result != previous_result:
+    if result['state'] != (previous_result or {}).get('state'):
         from django.db import close_old_connections
         from .listener_logs import record
         try:
-            record('connection', f"PLC {spec['address']}：{result['state']}，{result.get('detail', '')}")
+            label = {'online': '连接成功', 'offline': '检测到断线', 'simulated': '模拟模式',
+                     'disabled': '已禁用', 'unconfigured': '未配置'}.get(result['state'], result['state'])
+            record('connection', f"{spec['name']} {spec['address']}：{label}；{result.get('detail', '')}")
         finally:
             close_old_connections()
 
@@ -90,6 +101,7 @@ def snapshot():
     specs = [dict(kind='plc', name='PLC', address=plc.address if plc else '',
                   connection={k: cfg.get(k, v) for k, v in [('rack', 0), ('slot', 1), ('tcp_port', 102)]}),
              dict(kind='rvc', name='RVC 3D 相机', address=rvc.get('CAMERA_IP') or rvc.get('CAMERA_SN') or '',
+                  camera_ip=rvc.get('CAMERA_IP') or '', serial=rvc.get('CAMERA_SN') or '',
                   service_url=rvc.get('SERVICE_URL') or 'http://127.0.0.1:8001'),
              dict(kind='hik', name='海康 2D 相机', address=hik.get('CAMERA_IP') or '',
                   serial=hik.get('SERIAL_NUMBER') or '', sdk_lib_dir=str(hik.get('SDK_LIB_DIR') or ''))]
@@ -118,7 +130,7 @@ def snapshot():
                     if sample.get('error'):
                         state, detail = 'offline', '后台 PLC 读取失败，正在重连：' + sample['error']
                     elif age > STALE_AFTER or not sample.get('values'):
-                        state, detail = 'unknown', '后台监听正在连接或等待新采样；当前读取状态未确认'
+                        state, detail = 'offline', '未收到有效 PLC 采样或采样已超时，已判定离线'
                     else:
                         state, detail = 'online', '后台 PLC 九项读取正常（复用监听采样，不另建 S7 连接）'
                     rows.append(dict(name=spec['name'], kind='plc', address=spec['address'],
@@ -131,9 +143,42 @@ def snapshot():
             if not entry['running'] and age >= INTERVAL:
                 entry['running'] = True
                 threading.Thread(target=_run, args=(key, spec), daemon=True).start()
-            result = dict(entry.get('result') or {'state': 'checking', 'detail': '正在进行首次心跳检测…'})
+            result = dict(entry.get('result') or {'state': 'offline', 'detail': '尚未检测到设备，后台持续检测中'})
             if entry['completed'] and age > STALE_AFTER:
-                result.update(state='unknown', detail='心跳结果已过期，当前状态未知，正在重新检测')
+                result.update(state='offline', detail='设备心跳已超时，已判定离线，后台持续检测中')
             rows.append(dict(dict(name=spec['name'], kind=spec['kind'], address=spec['address'] or spec.get('serial') or '未配置',
                                   checked_at=entry['checked_at'], last_online=entry['last_online']), **result))
     return {'devices': rows, 'interval': INTERVAL}
+
+
+_monitor_lock = threading.Lock()
+_monitor_thread = None
+_monitor_stop = threading.Event()
+
+
+def _monitor_loop():
+    from django.db import close_old_connections
+    import logging
+    while not _monitor_stop.is_set():
+        try:
+            close_old_connections()
+            snapshot()
+        except Exception:
+            logging.getLogger(__name__).exception('持续设备检测失败，下一轮自动重试')
+        finally:
+            close_old_connections()
+        _monitor_stop.wait(INTERVAL)
+
+
+def start_monitor():
+    global _monitor_thread
+    with _monitor_lock:
+        if _monitor_thread is not None and _monitor_thread.is_alive():
+            return
+        _monitor_stop.clear()
+        _monitor_thread = threading.Thread(target=_monitor_loop, daemon=True, name='device-health')
+        _monitor_thread.start()
+
+
+def stop_monitor():
+    _monitor_stop.set()

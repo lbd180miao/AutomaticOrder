@@ -51,9 +51,10 @@ class VisionService:
     # 内部辅助
     # ------------------------------------------------------------------
 
-    def _new_task(self, task_type, product=None, rack=None):
+    def _new_task(self, task_type, product=None, rack=None, *, is_production=False):
         return VisionTask.objects.create(
             task_type=task_type,
+            is_production=is_production,
             product=product,
             rack=rack,
             status=ResultStatus.RUNNING,
@@ -154,7 +155,7 @@ class VisionService:
                      inspection_config=None, use_camera=False,
                      camera_code='CAM-INSPECT-FOAM-01',
                      recipe_id=None, use_recipe=True, captured_image_path=None, *,
-                     require_ready_recipe=False):
+                     require_ready_recipe=False, is_production=False):
         """泡棉贴附检测，保存 FoamInspectionResult。
 
         参数：
@@ -162,7 +163,8 @@ class VisionService:
                 支持 score_threshold / coverage_threshold / max_offset_px。
         """
         pipeline_started = time.perf_counter()
-        task = self._new_task(VisionTaskType.FOAM_INSPECTION, product=product, rack=rack)
+        task = self._new_task(VisionTaskType.FOAM_INSPECTION, product=product, rack=rack,
+                              is_production=is_production)
         timings_ms = {
             'task_create': round((time.perf_counter() - pipeline_started) * 1000, 1),
         }

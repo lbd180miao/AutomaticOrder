@@ -112,14 +112,9 @@ class PLCCompensationWriter:
                     raise ValueError('自动联调运行中，请先停止监听再写入补偿')
                 adapter = get_plc_adapter()
 
-                def verified(name, value):
-                    adapter.write_point(name, value)
-                    if adapter.read_point(name) != value:
-                        raise ValueError(f'{name} 写后回读不一致')
-
-                verified('position_success', False)
+                # Current DB2 exposes six REAL compensation values, no completion bits.
+                # The adapter validates all values before writing and verifies all six.
                 adapter.send_rack_offsets({f'offset_{axis}': value for axis, value in values.items()})
-                verified('position_success', True)
             simulated = isinstance(adapter.transport, MemoryPLCTransport)
             message = '补偿已写入模拟PLC并回读验证' if simulated else '双组补偿已写入PLC并回读验证'
             if result_id:

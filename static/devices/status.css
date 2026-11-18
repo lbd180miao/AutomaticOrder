@@ -68,7 +68,7 @@
 .inspection-card{background:white;border:1px solid #d5dfe5;border-top:4px solid #386892;border-radius:10px;overflow:hidden}
 .inspection-card header,.inspection-card footer{padding:14px 18px}
 .inspection-card h2{font-size:calc(20px + var(--ui-font-increase,0px))}
-.inspection-verdict{border-radius:5px;padding:5px 10px}
+.inspection-verdict{border-radius:5px;padding:5px 10px;font-size:calc(48px + var(--ui-font-increase,0px));line-height:1.15}
 .inspection-verdict.pass{color:#08634a;background:#dcf4e7}
 .inspection-verdict.fail{color:#9c1d23;background:#ffe7e7}
 .inspection-picture{height:clamp(200px,40vh,450px);background:#19212b;color:#dbe5ed;display:grid;place-items:center}
