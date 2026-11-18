@@ -109,3 +109,6 @@ htmlcov/
 /agv_gateway.json
 
 !apps/workflow/tests_dual_rack.py
+!apps/vision/tests_rack_rivet.py
+# This vendor file is the production detector, despite its upstream name.
+!apps/vision/algorithms/rivet_vendor/rivet_test.py

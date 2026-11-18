@@ -188,6 +188,10 @@ class PlcVisionResultWriter:
         recipe = result.recipe
         if recipe is None:
             return ''  # 无配方时跳过二次校验
+        if (result.result_data or {}).get('algorithm') == 'rivet':
+            # Rivet scores are not probabilities; use the detector/depth validity.
+            measured = result.result_data.get('result') or {}
+            return '' if measured.get('success') and len(measured.get('points', [])) == 3 else '三个铆钉测量未通过'
         # 只保留置信度检查
         if float(result.confidence) < float(recipe.confidence_threshold):
             return f'置信度不足: {float(result.confidence):.2%} < {float(recipe.confidence_threshold):.2%}'
@@ -598,6 +602,13 @@ def result_payload(result: RackLocationResult) -> dict:
                 robot_delta[axis] = numeric if np.isfinite(numeric) else None
             except (TypeError, ValueError):
                 robot_delta[axis] = None
+    if data.get('algorithm') == 'rivet':
+        # No global rack transform exists for independent crossbar compensation.
+        rack_compensation = {'matrix': None, 'pose6d': None}
+        plc_payload = dict(data.get('plc_payload') or {})
+        from apps.devices.plc_position_debug import dual_group_position
+        converted = dual_group_position(data, recipe)
+        plc_payload.update({key: value for key, value in converted.items() if key.startswith('compensation_')})
     return {
         'id': result.id,
         'task_id': result.vision_task_id,

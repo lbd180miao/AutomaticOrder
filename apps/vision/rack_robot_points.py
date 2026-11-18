@@ -35,7 +35,7 @@ def robot_point_difference(current, reference, context):
         return matrices[0] @ matrices[1]
 
     names = tuple(p['name'] for p in ((reference or {}).get('measurement') or {}).get('points', []))
-    if names not in (('P1',), ('P1', 'P2')):
+    if names not in (('P1',), ('P1', 'P3'), ('P1', 'P2'), ('P1', 'P2', 'P3')):
         raise ValueError('标准模板参考点必须为 P1 或 P1、P2')
 
     def points(measurement):
@@ -54,6 +54,17 @@ def robot_point_difference(current, reference, context):
     if previous and not np.allclose(previous['T_flange_camera'], context['T_flange_camera'], atol=1e-8):
         raise ValueError('手眼矩阵与模板保存时不同，请重新示教标准模板')
     tc, ts = transform(context), transform(reference_context)
+    if names[-1] == 'P3':
+        if not np.allclose(tc[:3, :3], ts[:3, :3], atol=1e-8):
+            raise ValueError('拍照姿态旋转与铆钉模板不同，请恢复参考姿态或重新建立模板')
+        cur_points, std_points = points(current), points(standard)
+        cur = (cur_points[:-1] - cur_points[-1]) @ tc[:3, :3].T
+        std = (std_points[:-1] - std_points[-1]) @ tc[:3, :3].T
+        return {'success': True, 'coordinateSystem': 'robot_base', 'unit': 'mm',
+                'standard': std.tolist(), 'current': cur.tolist(), 'offsets': (cur-std).tolist(),
+                'meaning': 'crossbar_relative_to_fixed_rivet_3',
+                'context': context, 'reference_context': reference_context,
+                'same_pose_assumed': previous is None, 'plc_publish_allowed': False}
     cur = points(current) @ tc[:3, :3].T + tc[:3, 3]
     std = points(standard) @ ts[:3, :3].T + ts[:3, 3]
     return {'success': True, 'coordinateSystem': 'robot_base', 'unit': 'mm',

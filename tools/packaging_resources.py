@@ -21,8 +21,11 @@ UI_ASSET_PATHS = frozenset(f'{base}/devices/icons/{name}'
                            for base in ('static', 'staticfiles') for name in UI_ICON_NAMES)
 
 
+RIVET_ASSET = 'apps/vision/algorithms/rivet_vendor/assets/head_patterns.npz'
+
+
 def is_ui_asset(path):
-    return str(path).replace('\\', '/') in UI_ASSET_PATHS
+    return str(path).replace('\\', '/') in (UI_ASSET_PATHS | {RIVET_ASSET})
 
 
 def is_visual_data(path):
@@ -67,7 +70,10 @@ def copy_resources(destination):
     # Do not silently leave captures from a previous release in the output.
     if media.exists() and any(p.is_file() for p in media.rglob('*')):
         raise ValueError('Output media must be empty. Build into a new deployment directory.')
-    manifest = []
+    target = destination / RIVET_ASSET
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / RIVET_ASSET, target)
+    manifest = [{'path': RIVET_ASSET, 'bytes': target.stat().st_size, 'kind': 'rivet_standard_template'}]
     for relative in sorted(UI_ASSET_PATHS):
         target = destination / relative
         source = ROOT / 'static' / 'devices/icons' / target.name

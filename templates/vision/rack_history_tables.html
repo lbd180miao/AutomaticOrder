@@ -1,12 +1,14 @@
 <h3>机器人基坐标系偏差（mm）</h3>
 <p>正值表示沿机器人基坐标系对应轴正方向偏移。</p>
 <div class="table-wrap"><table class="data-table">
-  <thead><tr><th>模板区域</th><th>ΔX</th><th>ΔY</th><th>ΔZ</th></tr></thead>
+  <thead><tr><th>补偿位置</th><th>ΔX</th><th>ΔY</th><th>ΔZ</th></tr></thead>
   <tbody id="dpRobotBody"></tbody>
 </table></div>
 <h3>原始相机坐标系（mm）</h3>
-<p>按相机原始 X / Y / Z 顺序显示。偏差 ΔXYZ = 当前 − 标准模板。</p>
+<p id="dpHistoryMeaning"></p>
 <div class="table-wrap"><table class="data-table">
   <thead><tr><th>模板区域</th><th>基准模板中心 XYZ</th><th>匹配后模板中心 XYZ</th><th>匹配后点云中心 XYZ</th><th>匹配分数</th><th>差值 ΔXYZ</th></tr></thead>
   <tbody id="dpXyzBody"></tbody>
 </table></div>
+
+{% include "vision/rack_relative_vectors.html" with relative_body_id="dpRelativeBody" %}

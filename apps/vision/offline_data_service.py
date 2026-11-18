@@ -316,7 +316,10 @@ class OfflineDataPackageService:
         from .rack_cloud_service import evaluate_cloud
         recipe = RackLocationRecipe.objects.get(pk=recipe_id, enabled=True)
         metadata = {**package['metadata'], 'camera': {**package['metadata'].get('camera', {}), 'pointcloud_unit': 'mm'}}
-        result = evaluate_cloud(recipe, package['pointcloud'], metadata, layer_no=int(layer_no), algorithm=algorithm)
+        from .rack_dual_point_views import _read_image
+        image_path = self.get_2d_image(package_name)
+        image = _read_image(image_path) if image_path else None
+        result = evaluate_cloud(recipe, package['pointcloud'], metadata, layer_no=int(layer_no), algorithm=algorithm, camera_image=image)
         package_dir = self._package_dir(package_name)
         self._write_json(package_dir / "result.json", result)
         metadata = package["metadata"]

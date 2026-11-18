@@ -6,10 +6,12 @@
   <p id="dp-mode-help" style="white-space:pre-wrap;"></p>
   <!-- ROI 目标标签 -->
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
-    <label for="dp-rack-layers">料架层数：</label>
-    <select id="dp-rack-layers" aria-label="料架层数">
-      <option value="3">三层料架 · 两个模板区域</option>
-      <option value="2">两层料架 · 一个模板区域</option>
+    <label for="dp-rack-layers">识别模式：</label>
+    <select id="dp-rack-layers" aria-label="识别模式">
+      <option value="3">三层料架 · 三个铆钉</option>
+      <option value="unloading">两层下料框 · 横杆和参考点两个铆钉</option>
+      <option value="single">单铆钉中心取点 · 直接画 ROI</option>
+      <option hidden value="2">历史配置 · 两层料架 · 三个铆钉</option>
     </select>
     <div id="dp-targets" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
     <button type="button" id="dp-save-recipe" class="btn btn-success" disabled>保存配方</button>
@@ -22,6 +24,17 @@
     选择配方并采集点云后，点击「开始计算」。
   </div>
 
+      <section id="dp-single-results" class="dp-results dp-single-summary" hidden>
+        <h3>铆钉检测结果 · 相机坐标</h3>
+        <div class="dp-single-table-scroll" role="region" aria-label="铆钉坐标表，可横向滚动" tabindex="0">
+          <table class="dp-single-table" aria-label="铆钉中心坐标">
+            <thead><tr><th scope="col">编号</th><th scope="col">二维外观分/100</th><th scope="col">半径 (px)</th><th scope="col">有效点/采样点</th><th scope="col">u (px)</th><th scope="col">v (px)</th><th scope="col">X (mm)</th><th scope="col">Y (mm)</th><th scope="col">Z (mm)</th><th scope="col">三维坐标状态</th></tr></thead>
+            <tbody id="dp-single-rows" aria-live="polite"></tbody>
+          </table>
+        </div>
+        <p id="dp-single-coordinate" aria-live="polite"></p>
+      </section>
+
   <!-- 主体：图像 + 结果 -->
   <div class="dp-layout">
 
@@ -33,18 +46,19 @@
       <div class="dp-image-scroll">
         <div id="dp-empty">
           先采集点云，再点击「开始计算」
-          <small>框选稳定结构区域，保存标准点云后进行匹配</small>
+          <small>分别框选三个铆钉，保存参考状态模板</small>
         </div>
         <canvas id="dp-canvas" hidden style="display:none;width:100%;max-width:none;touch-action:none;cursor:crosshair;"></canvas>
       </div>
     </div>
 
     <!-- 结果列 -->
-    <aside class="dp-results" aria-label="模板区域中心结果">
-      {% include "vision/rack_result_summary.html" with show_save_standard=True %}
+    <aside class="dp-results" aria-label="铆钉中心结果">
+      <div id="dp-template-results">{% include "vision/rack_result_summary.html" with show_save_standard=True %}</div>
+
       <div class="dp-depth-result">
         <p id="dp-depth-source">采集或导入后显示对应点云</p>
-        <canvas id="dp-depth-canvas" hidden aria-label="对应点云伪彩图，叠加 ROI 和模板区域中心"></canvas>
+        <canvas id="dp-depth-canvas" hidden aria-label="对应点云伪彩图，叠加 ROI 和铆钉中心"></canvas>
       </div>
     </aside>
   </div><!-- /.dp-layout -->
@@ -53,7 +67,7 @@
 
 <style>
   #dp-targets button[hidden] { display: none; }
-  /* 模板区域中心面板布局 */
+  /* 铆钉中心面板布局 */
   .dp-layout {
     display: grid;
     grid-template-columns: minmax(0, 1.12fr) minmax(590px, 1fr);
@@ -111,6 +125,19 @@
     vertical-align: top;
   }
   .dp-results th { color: #475569; background: #f1f5f9; }
+  .dp-single-summary { margin-bottom: 16px; }
+  .dp-single-summary[hidden] { display: none; }
+  .dp-single-summary h3 { margin-bottom: 12px; }
+  .dp-single-table tbody tr:not(.dp-estimated-row) { background: #eff6ff; }
+  .dp-single-table tbody td { padding-top: 14px; padding-bottom: 14px; }
+  .dp-single-table-scroll { max-width: 100%; overflow-x: auto; }
+  .dp-results .dp-single-table { font-size: 14px; font-variant-numeric: tabular-nums; }
+  .dp-single-table th, .dp-single-table td { text-align: center; white-space: nowrap; border-right: 1px solid #e2e8f0; }
+  .dp-results .dp-single-table th { background: #fff; }
+  .dp-single-table th:last-child, .dp-single-table td:last-child { border-right: 0; }
+  .dp-single-table .dp-coordinate-status { min-width: 170px; white-space: normal; }
+  .dp-coordinate-status small { display: block; margin-top: 4px; color: #64748b; }
+  .dp-estimated-row { background: #fffbeb; }
   .dp-camera-table-scroll { overflow-x: auto; }
   .dp-camera-table-scroll table { min-width: 520px; }
   #dp-point-results td { font-variant-numeric: tabular-nums; white-space: pre-line; }

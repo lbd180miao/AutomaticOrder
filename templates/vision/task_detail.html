@@ -113,7 +113,7 @@ window.renderFoamSummary(document.getElementById('history-foam-summary'), JSON.p
 {% with dp=rack_result.result_data %}
 
 {% include 'vision/rack_history_tables.html' %}
-<script src="{% static 'vision/js/rack_result_tables.js' %}?v=4"></script>
+<script src="{% static 'vision/js/rack_result_tables.js' %}?v=rivet-display-1"></script>
 {{ dp|json_script:"rack-history-data" }}
 <script>window.rackResultTables.history(JSON.parse(document.getElementById('rack-history-data').textContent));</script>
 <div>
@@ -134,7 +134,7 @@ window.renderFoamSummary(document.getElementById('history-foam-summary'), JSON.p
     <p id="recompute-calib-note" style="font-size:calc(12px + var(--ui-font-increase, 0px));color:#64748b;margin-bottom:8px;"></p>
     <table class="data-table">
       <thead>
-        <tr><th>模板区域</th><th>标准 (X / Y / Z)</th><th>当前 (X / Y / Z)</th><th>ΔX</th><th>ΔY</th><th>ΔZ</th></tr>
+        <tr><th>补偿位置</th><th>{% if rack_result.result_data.algorithm == 'rivet' %}标准相对向量{% else %}标准{% endif %} (X / Y / Z)</th><th>{% if rack_result.result_data.algorithm == 'rivet' %}当前相对向量{% else %}当前{% endif %} (X / Y / Z)</th><th>ΔX</th><th>ΔY</th><th>ΔZ</th></tr>
       </thead>
       <tbody id="recompute-tbody"></tbody>
     </table>
@@ -170,7 +170,7 @@ window.renderFoamSummary(document.getElementById('history-foam-summary'), JSON.p
       (data.rows || []).forEach(row => {
         const tr = document.createElement('tr');
         const offsets = row.offset || [null, null, null];
-        [row.name.replace(/^P(\d+)$/, '模板区域 $1'), fmtArr(row.standard), fmtArr(row.current),
+        [data.robot_result?.meaning === 'crossbar_relative_to_fixed_rivet_3' ? ({P1:'上横杆 A', P2:'下横杆 B'}[row.name] || row.name) : row.name.replace(/^P(\d+)$/, '模板区域 $1'), fmtArr(row.standard), fmtArr(row.current),
          fmt(offsets[0]), fmt(offsets[1]), fmt(offsets[2])].forEach((text, i) => {
           const td = document.createElement(i === 0 ? 'th' : 'td');
           td.textContent = text;

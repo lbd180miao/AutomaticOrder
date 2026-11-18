@@ -6,22 +6,25 @@
   if (!panel) return;
   const canvas = $('dp-canvas'), ctx = canvas.getContext('2d');
   const depthCanvas = $('dp-depth-canvas'), depthCtx = depthCanvas.getContext('2d');
-  const targets = ['P1_cross', 'P2_cross'];
-  const labels = ['模板区域 1 · 交叉位置', '模板区域 2 · 交叉位置'];
-  const algorithm = () => 'cloud_center';
-  const regionLabel = index => `模板区域 ${index + 1}`;
+  const targets = ['P1_rivet', 'P2_rivet', 'P3_rivet'];
+  const labels = ['1 号 · 上横杆铆钉', '2 号 · 下横杆铆钉', '3 号 · 固定参照铆钉'];
+  const algorithm = () => 'rivet';
+  const regionLabel = index => `铆钉 ${index + 1}`;
   const centerLabel = index => {
-    const stage = state.result?.registration ? (state.result.success ? '匹配中心' : '候选中心') : '基准中心';
-    return `区域 ${index + 1} ${stage}`;
+    if (state.result?.rivets) return `${state.result.rivets[index]?.name || (index + 1) + ' 号'}铆钉中心`;
+    const stage = state.result?.registration ? (state.result.success ? '铆钉中心' : '候选中心') : '基准中心';
+    return `${state.result?.points?.[index]?.name || pointNames()[index]} ${stage}`;
   };
   const colors = ['#facc15', '#38bdf8', '#4ade80', '#e879f9'];
   const state = {config: null, image: null, depthImage: null, captureTokenBefore: null, prepared: null, selected: 0, result: null, drag: null, busy: false, revision: 0,
-    evaluation: null, teachToken: null, reference: null, forensicFrame: null, capturing: false, dirty: false, redraw: false};
+    centerPreview: null, evaluation: null, teachToken: null, reference: null, forensicFrame: null, capturing: false, dirty: false, redraw: false};
   let saveFeedback = '';
   let recipeReloadPending = false;
   const recipeId = () => String($('recipe-select')?.value || $('recipe-id')?.value || '');
-  const pointNames = () => Number(state.config?.rack_layers || $('dp-rack-layers').value) === 2 ? ['P1'] : ['P1', 'P2'];
-  const activeTargets = () => targets.slice(0, pointNames().length);
+  const single = () => $('dp-rack-layers').value === 'single';
+  const unloading = () => $('dp-rack-layers').value === 'unloading';
+  const pointNames = () => single() ? ['P1'] : unloading() ? ['P1', 'P3'] : ['P1', 'P2', 'P3'];
+  const activeTargets = () => pointNames().map(name => name + "_rivet");
   const roi = () => state.config?.rois.find(r => r.target === targets[state.selected]);
   const status = text => { $('dp-status').textContent = text; };
   const currentFrame = () => window.rackLocatorOfflineBridge?.snapshot();
@@ -46,6 +49,39 @@
     const item = document.createElement(header ? 'th' : 'td'); item.textContent = text; row.appendChild(item); return item;
   }
   function renderResults() {
+    $('dp-template-results').hidden = single();
+    $('dp-single-results').hidden = false;
+    {
+      const rows = state.centerPreview?.rivets || state.result?.rivets || (state.result?.detections || []).filter(d => d.measurement && d.candidates?.length).map(d => ({
+        name: d.name, pixel: [d.candidates[0].u, d.candidates[0].v], score: d.candidates[0].score,
+        radius_px: d.candidates[0].radius_px, measurement: d.measurement
+      }));
+      const body = $('dp-single-rows');
+      body.replaceChildren();
+      $('dp-single-coordinate').textContent = rows.length ? '' : state.centerPreview?.errorMessage || state.result?.errorMessage || '请在当前图像上框选一个铆钉。';
+      $('dp-single-coordinate').hidden = !!rows.length;
+      rows.forEach(({name, pixel, score, radius_px, measurement: m}, index) => {
+        const reason = m.quality_reasons?.join('，') || m.status;
+        const coords = m.xyz_mm || m.candidate_xyz_mm;
+        const estimated = !m.xyz_mm && !!coords;
+        const row = document.createElement('tr');
+        [single() ? index + 1 : name, fmt(score, 1), fmt(radius_px, 1), m.valid_count + '/' + m.sample_count,
+          fmt(pixel[0], 2), fmt(pixel[1], 2), ...[0, 1, 2].map(i => fmt(coords?.[i]))]
+          .forEach(value => cell(row, value));
+        const statusCell = cell(row, m.xyz_mm
+          ? (m.status === 'SPARSE_ESTIMATE' ? '扩大范围估算' : '坐标可用')
+          : estimated ? '估算值 · 仅供参考' : '无法估算');
+        statusCell.className = 'dp-coordinate-status';
+        if (!coords || (!estimated && m.quality_reasons?.length)) {
+          const detail = document.createElement('small');
+          detail.textContent = reason;
+          statusCell.appendChild(detail);
+        }
+        if (estimated) row.className = 'dp-estimated-row';
+        body.appendChild(row);
+      });
+      if (single()) return;
+    }
     window.rackResultTables.render(panel, state.evaluation, state.reference?.measurement, pointNames());
   }
   function checkFrame() {
@@ -70,15 +106,16 @@
     return data;
   }
   function refresh() {
-    $('dp-save-standard').disabled = state.busy || state.capturing || (!state.prepared || !recipeId() || activeTargets().some(target => !state.config?.rois.some(r => r.target === target)) || state.redraw || !!state.drag);
-    $('dp-save-standard').textContent = '保存当前帧为点云标准模板';
-    panel.querySelectorAll('#dp-camera-results thead tr th:first-child, #dp-robot-results-panel thead tr th:first-child').forEach(th => {th.textContent = '模板区域';});
-    $('dp-empty').querySelector('small').textContent = '框选稳定结构区域，保存标准点云后进行匹配';
+    for (const id of ['dp-save-standard', 'dp-save-recipe', 'dp-draft-status']) $(id).hidden = single();
+    $('dp-save-standard').disabled = single() || state.busy || state.capturing || (!state.prepared || !recipeId() || activeTargets().some(target => !state.config?.rois.some(r => r.target === target)) || state.redraw || !!state.drag);
+    $('dp-save-standard').textContent = '保存当前帧为铆钉标准模板';
+    panel.querySelectorAll('#dp-camera-results thead tr th:first-child').forEach(th => {th.textContent = '铆钉';});
+    $('dp-empty').querySelector('small').textContent = '分别框选所选铆钉，保存参考状态模板';
     $('dp-rack-layers').disabled = state.busy || state.capturing || !!state.drag;
-    $('dp-mode-help').textContent = `模板中心匹配：每个交叉位置画一个框，同时包含横杆、立柱和连接处。各区域共同组成一个模板。需画 ${activeTargets().length} 个框；修改层数或框选后需重新保存点云模板。`;
+    $('dp-mode-help').textContent = single() ? '在原图画一个 ROI，松开后显示铆钉中心的像素坐标和相机 XYZ。' : unloading() ? "分别框选横杆铆钉和固定参考点铆钉。松开后显示识别中心坐标。" : `分别框选 1 号上横杆、2 号下横杆、3 号固定铆钉。保存相对 3 号的标准向量，运行时输出两根横杆的相对偏差，不做整架平移补偿。修改 ROI 后需重新保存模板。`;
     $('dp-targets').querySelectorAll('button').forEach((button, index) => {
-      button.hidden = index >= activeTargets().length;
-      button.textContent = labels[index] + (state.config?.rois.some(r => r.target === targets[index]) ? ' ✓' : '');
+      button.hidden = !activeTargets().includes(targets[index]);
+      button.textContent = (single() ? "框选铆钉" : labels[index]) + (state.config?.rois.some(r => r.target === targets[index]) ? ' ✓' : '');
       button.style.outline = index === state.selected ? `2px solid ${colors[index]}` : '';
       button.disabled = state.busy || state.capturing;
     });
@@ -94,6 +131,7 @@
   function edited() {
     saveFeedback = '';
     state.dirty = true;
+    state.centerPreview = null;
     state.revision++;
     state.result = null;
     state.evaluation = null; state.teachToken = null; state.reference = null;
@@ -193,7 +231,7 @@
     button.addEventListener('click', () => action(async () => {
       if (!state.prepared || state.prepared.recipe_id !== recipeId() || state.prepared.frame !== currentFrame()?.pointcloud_token) await loadFrame();
       checkFrame(); state.selected = index; state.redraw = true;
-      status(`请拖动重画 ${labels[index]}，画完暂存为草稿，再点击「保存配方」。`);
+      status(single() ? "拖动框选待识别的铆钉。" : `请拖动重画 ${labels[index]}，画完暂存为草稿，再点击「保存配方」。`);
       refresh(); draw();
     }));
     $('dp-targets').appendChild(button);
@@ -229,6 +267,28 @@
     state.drag = null; state.redraw = false;
     state.config.rois = state.config.rois.filter(r => r.width >= 3 && r.height >= 3);
     edited();
+    if (roi()) void action(calculateRivet);
+  }
+  async function calculateRivet() {
+    checkFrame();
+    const revision = state.revision;
+    const selected = activeTargets().filter(target => state.config.rois.some(r => r.target === target));
+    if (!selected.length) throw new Error('请先在原图框选铆钉。');
+    status('正在识别框内铆钉中心…');
+    const rivets = [], errors = [];
+    for (const target of selected) {
+      const {result} = await request(panel.dataset.cloudMatchUrl, {...frameRequest(), ...state.prepared,
+        config: state.config, action: 'preview_rivet', single_roi: true, target});
+      checkFrame();
+      if (revision !== state.revision) return;
+      const name = target.replace('_rivet', '');
+      (result.rivets || []).forEach(row => rivets.push({...row, name}));
+      if (!result.success) errors.push(name + '：' + result.errorMessage);
+    }
+    state.result = {success: !!rivets.length, rivets, pixels: rivets.map(row => row.pixel), errorMessage: errors.join('；')};
+    state.centerPreview = state.result;
+    draw(); renderResults();
+    status([`识别到 ${rivets.length} 个铆钉中心，详情见上方表格。`, ...errors].join(' '));
   }
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
@@ -260,8 +320,14 @@
     if (selectedRecipe !== recipeId() || snapshot.pointcloud_token !== currentFrame()?.pointcloud_token) throw new Error('加载期间配方或采集帧变化，请重新载入。');
     state.dirty = false; state.redraw = false;
     state.image = img; state.config = data.config;
-    state.config.rack_layers = data.config.rack_layers || (data.config.rois.length ? 3 : Number($('dp-rack-layers').value));
-    $('dp-rack-layers').value = String(state.config.rack_layers);
+    if (single()) {
+      state.config = {...data.config, rois: []};
+    } else {
+    state.config.rack_layers = data.config.rack_layers || (data.config.rois.length ? 3 : (unloading() ? 2 : Number($('dp-rack-layers').value)));
+    if (!data.config.rois.length && unloading()) state.config.rack_layout = 'unloading';
+    $('dp-rack-layers').value = state.config.rack_layout === 'unloading' ? 'unloading' : String(state.config.rack_layers);
+    }
+    state.centerPreview = null;
     state.selected = 0; state.result = null; state.evaluation = null; state.teachToken = null; state.reference = data.reference;
     state.prepared = {image_token: data.image_token, cloud_token: data.cloud_token, recipe_id: selectedRecipe, frame: snapshot.pointcloud_token};
     canvas.width = data.width; canvas.height = data.height; canvas.hidden = false; canvas.style.display = 'block';
@@ -290,7 +356,7 @@
       state.dirty = false; state.redraw = false;
       const name = $('recipe-select')?.selectedOptions?.[0]?.textContent.trim() || selectedRecipe;
       saveFeedback = '已保存到配方';
-      status(`ROI 已保存到配方「${name}」。框选配置已保存；点云标准模板需另点「保存当前帧为点云标准模板」。`);
+      status(`ROI 已保存到配方「${name}」。框选配置已保存；铆钉标准模板需另点「保存当前帧为铆钉标准模板」。`);
     } catch (error) {
       saveFeedback = `保存失败：${error.message}`;
       status(saveFeedback);
@@ -299,20 +365,26 @@
   $('dp-evaluate').addEventListener('click', () => action(async () => {
     if (!state.prepared || state.prepared.recipe_id !== recipeId() || state.prepared.frame !== currentFrame()?.pointcloud_token) await loadFrame();
     checkFrame(); state.result = null; state.evaluation = null; state.teachToken = null;
+    if (single()) {
+      if (roi()) await calculateRivet();
+      else status('请直接在原图框选一个铆钉。');
+      return;
+    }
+    await calculateRivet();
     if (!state.reference) {
-      status('请先加载基准点云，每个交叉位置画一个 ROI，点击「保存当前帧为点云标准模板」。保存配方仅保存框选配置，不会建立点云模板。');
-      draw(); renderResults(); return;
+      status((state.result.rivets.length ? '铆钉中心识别完成，详情见上方表格。' : '未识别到铆钉中心。') + (state.result.errorMessage || '') + '需要计算相对偏差时，请先保存铆钉标准模板。');
+      return;
     }
     draw(); renderResults();
-    status('正在进行点云多尺度 ICP 匹配…');
+    status('正在识别所选铆钉并计算相对偏差…');
     const revision = state.revision;
     const data = await request(panel.dataset.cloudMatchUrl, {...frameRequest(), ...state.prepared, config: state.config, coordinate_system: 'camera'});
     checkFrame(); if (revision !== state.revision) throw new Error('配置变化，请重新校验。');
     state.result = data.result; state.evaluation = data; state.teachToken = data.teach_token; state.reference = data.reference;
     draw();
     status(data.is_success === false ? [data.failure_reason, ...(data.result.registration?.failure_reasons || [])].filter(Boolean).join("；") : data.result.registration
-      ? data.result.success ? '匹配通过，坐标与偏差见右侧。'
-        : `匹配未通过：${(data.result.registration.failure_reasons || ['请展开匹配详情检查']).join('；')}。当前仅显示候选位置。`
+      ? data.result.success ? '所选铆钉检测通过，相对偏差与 A/B 补偿见右侧。'
+        : `检测未通过：${(data.result.registration.failure_reasons || ['请查看铆钉检测详情']).join('；')}。当前仅显示候选位置。`
       : data.result.success ? ['相机坐标已计算，右侧显示与标准模板的差值。', ...(data.result.warnings || [])].join('\n') : `${data.result.errorCode}：${data.result.errorMessage}`);
 
   }));
@@ -330,9 +402,10 @@
     state.teachToken = null;
     draw();
     const name = $('recipe-select')?.selectedOptions?.[0]?.textContent.trim() || selectedRecipe;
-    status(`点云标准模板已保存到配方「${name}」。请加载待测帧后开始计算。`);
+    status(`铆钉标准模板已保存到配方「${name}」。请加载待测帧后开始计算。`);
   }));
   function invalidateFrame() {
+    state.centerPreview = null;
     saveFeedback = '';
     state.dirty = false; state.redraw = false;
     state.revision++; state.result = null; state.evaluation = null; state.teachToken = null; state.reference = null; state.drag = null;
@@ -344,11 +417,19 @@
   }
   $('dp-rack-layers').addEventListener('change', () => {
     state.selected = 0; state.redraw = false;
+    if (state.config && single()) {
+      state.config = {...state.config, rois: []};
+      edited();
+      status('请直接在原图框选一个铆钉。');
+      return;
+    }
     if (state.config) {
-      state.config.rack_layers = Number($('dp-rack-layers').value);
+      state.config.rack_layers = (unloading() ? 2 : Number($('dp-rack-layers').value));
+      if (unloading()) state.config.rack_layout = "unloading";
+      else delete state.config.rack_layout;
       state.config.rois = state.config.rois.filter(r => activeTargets().includes(r.target));
       edited();
-      status('料架层数已修改，请完成框选并重新保存点云标准模板。');
+      status('料架层数已修改，请完成框选并重新保存铆钉标准模板。');
     } else { refresh(); renderResults(); }
   });
   $('recipe-select')?.addEventListener('change', () => {

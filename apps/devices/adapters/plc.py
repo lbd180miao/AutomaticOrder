@@ -48,9 +48,13 @@ class Snap7Transport:
                 self.disconnect()
             except Exception:
                 pass
+            hint = ''
+            if 'Connection closed by peer' in str(exc):
+                hint = ('；对端在 S7 握手时关闭连接，请核对目标是否为 PLC、'
+                        'Rack/Slot 及 PLC 可用连接数')
             raise ConnectionError(
                 f'PLC {self.address}:{self.tcp_port} S7连接失败 '
-                f'(Rack {self.rack}/Slot {self.slot})：{exc}'
+                f'(Rack {self.rack}/Slot {self.slot})：{exc}{hint}'
             ) from exc
         self.connected = True
         if not self.is_connected():

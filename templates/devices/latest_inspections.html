@@ -2,10 +2,10 @@
 <article class="inspection-card" data-inspection="rack">
   <header><h2>3D 料架定位</h2>{% if rack %}<strong class="inspection-verdict {% if rack.is_success %}pass{% else %}fail{% endif %}">{% if rack.is_success %}OK{% else %}NG{% endif %}</strong>{% endif %}</header>
   <div class="inspection-picture rack-picture">{% if rack_image %}<img src="{{ rack_image.file.url }}" alt="{% if rack_image.image_type == 'DEPTH' %}料架深度图{% else %}料架定位结果图{% endif %}">{% if rack_overlay %}
-    <svg class="rack-overlay" viewBox="0 0 {{ rack_overlay.width }} {{ rack_overlay.height }}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="模板区域和定位中心">
+    <svg class="rack-overlay" viewBox="0 0 {{ rack_overlay.width }} {{ rack_overlay.height }}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="定位区域和检测中心">
       {% for roi in rack_overlay.regions %}<g transform="translate({{ roi.x }} {{ roi.y }})" color="{% if roi.number == 1 %}#ffcf00{% else %}#29b6f6{% endif %}">
         <rect width="{{ roi.w }}" height="{{ roi.h }}" fill="none" stroke="currentColor" vector-effect="non-scaling-stroke" stroke-width="2"/>
-        <text x="5" y="0" dy="1.05em" fill="currentColor">模板区域 {{ roi.number }}</text>
+        <text x="5" y="0" dy="1.05em" fill="currentColor">{% if rack.result_data.algorithm == 'rivet' %}铆钉{% else %}模板区域{% endif %} {{ roi.number }}</text>
       </g>{% endfor %}
       {% for center in rack_overlay.centers %}<g transform="translate({{ center.x }} {{ center.y }})" fill="#ff3030">
         <path d="M-18 0h36 M0 -18v36" stroke="#ff3030" stroke-width="2" vector-effect="non-scaling-stroke"/>

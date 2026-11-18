@@ -7,13 +7,12 @@ from django.utils import timezone
 
 from apps.core.constants import ResultStatus, VisionTaskType
 from .models import RackLocationResult, VisionTask
-from .rack_cloud_match import VERSION, match_template, add_display_pixels
 from .rack_cloud_roi import required_targets, algorithm_keys
 from .rack_robot_points import evaluate_robot_points
 
 
 def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record=False,
-                   product=None, rack=None, algorithm='cloud_center', camera_image=None, task=None):
+                   product=None, rack=None, algorithm='rivet', camera_image=None, task=None):
     config_key, reference_key = algorithm_keys(algorithm)
     reference = (recipe.roi_config or {}).get(reference_key)
     config = (recipe.roi_config or {}).get(config_key) or {}
@@ -21,15 +20,26 @@ def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record
         raise ValueError('料架层数与标准模板不同，请重新保存点云标准模板')
     if reference and config != reference['config']:
         raise ValueError('ROI 已变化，请重新保存当前算法的点云标准模板')
+    if config.get('algorithm') != 'rivet':
+        raise ValueError('料架定位已改为三铆钉算法，请重新框选并保存铆钉标准模板')
+    from .rack_rivet import match_template as match_rivets, VERSION as rivet_version
+    if camera_image is None and token:
+        from pathlib import Path
+        from django.conf import settings
+        from .rack_dual_point_views import _read_image
+        root = Path(settings.MEDIA_ROOT).resolve()
+        raw = (root / token).resolve()
+        if not raw.is_relative_to(root):
+            raise ValueError('采集路径不在数据目录内')
+        camera_image = _read_image(raw.with_name(raw.stem + '_image2d.png'))
     started = perf_counter()
-    result = match_template(cloud, metadata, reference)
+    result = match_rivets(cloud, metadata, reference, camera_image)
     matched = perf_counter()
-    result = add_display_pixels(result, cloud, metadata)
     robot = evaluate_robot_points(result, reference) if result['success'] else None
     offsets = robot['offsets'] if robot and robot.get('success') else [[0, 0, 0], [0, 0, 0]]
     quality = result.get('registration') or {}
     payload = {
-        'algorithm': 'cloud_center', 'algorithm_version': VERSION, 'source': 'cloud_match', 'result': result,
+        'algorithm': 'rivet', 'algorithm_version': rivet_version, 'source': 'cloud_match', 'result': result,
         'reference': {'measurement': reference['measurement']}, 'robot_result': robot,
         'locate_ok': result['success'], 'is_success': result['success'],
         'error_code': result.get('errorCode', ''), 'error_message': result.get('errorMessage', ''),
@@ -39,7 +49,7 @@ def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record
         'robot_groups': {},
         'plc_payload': {'compensation_valid': False, 'plc_publish_allowed': False},
     }
-    if result['points']:
+    if result['points'] and result['points'][0].get('xyz') is not None:
         point = result['points'][0]['xyz']
         payload.update({f'actual_{axis}': float(point[i]) for i, axis in enumerate('xyz')})
     payload.update({f'offset_{axis}': float(offsets[0][i]) for i, axis in enumerate('xyz')})

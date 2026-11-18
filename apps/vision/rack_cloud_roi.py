@@ -5,13 +5,17 @@ import numpy as np
 
 
 def algorithm_keys(algorithm='cloud_center'):
-    if algorithm != 'cloud_center':
+    if algorithm not in ('cloud_center', 'rivet'):
         raise ValueError('旧定位算法已移除，请使用单框点云模板中心匹配')
     return 'cloud_center_config', 'cloud_center_reference'
 
 
 def required_targets(config):
     algorithm_keys(config.get('algorithm', 'cloud_center'))
+    if config.get('algorithm') == 'rivet':
+        if config.get('rack_layers') == 2 and config.get('rack_layout') == 'unloading':
+            return ('P1_rivet', 'P3_rivet')
+        return ('P1_rivet', 'P2_rivet', 'P3_rivet')
     layers = config.get('rack_layers', 3)
     if layers not in (2, 3):
         raise ValueError('料架层数必须为 2 或 3')

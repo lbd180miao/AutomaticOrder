@@ -156,6 +156,7 @@
   </div>
   {% endwith %}
 
+  <p>A 为上横杆、B 为下横杆，单位 mm；NG 行数值仅供诊断。点击时间查看三个铆钉坐标及相对向量。</p>
   <!-- 结果表 -->
   <div class="history-table-wrap">
     <div style="overflow-x:auto;">
@@ -166,14 +167,14 @@
             <th>POS</th>
             <th>层号</th>
             <th>结果</th>
-            <th>实际 X</th>
-            <th>实际 Y</th>
-            <th>实际 Z</th>
-            <th>补偿 X</th>
-            <th>补偿 Y</th>
-            <th>补偿 Z</th>
-            <th>Rz</th>
-            <th>置信度</th>
+            <th>A · ΔX</th>
+            <th>A · ΔY</th>
+            <th>A · ΔZ</th>
+            <th>B · ΔX</th>
+            <th>B · ΔY</th>
+            <th>B · ΔZ</th>
+            <th>算法</th>
+            <th>测量状态</th>
             <th>PLC 状态</th>
             <th>配方</th>
             <th>错误</th>
@@ -182,7 +183,7 @@
         <tbody>
         {% for r in results %}
           <tr>
-            <td>{{ r.created_at|date:"m-d H:i:s" }}</td>
+            <td><a href="{% url 'vision:task_detail' r.vision_task_id %}">{{ r.created_at|date:"m-d H:i:s" }}</a></td>
             <td>{{ r.position_no }}</td>
             <td>{{ r.layer_no }}</td>
             <td>
@@ -192,20 +193,21 @@
                 <span class="badge badge-fail">NG</span>
               {% endif %}
             </td>
-            <td>{{ r.actual_x|floatformat:2 }}</td>
-            <td>{{ r.actual_y|floatformat:2 }}</td>
-            <td>{{ r.actual_z|floatformat:2 }}</td>
-            <td class="{% if r.offset_x > 0 %}offset-positive{% elif r.offset_x < 0 %}offset-negative{% else %}offset-zero{% endif %}">
-              {% if r.offset_x > 0 %}+{% endif %}{{ r.offset_x|floatformat:3 }} mm
-            </td>
-            <td class="{% if r.offset_y > 0 %}offset-positive{% elif r.offset_y < 0 %}offset-negative{% else %}offset-zero{% endif %}">
-              {% if r.offset_y > 0 %}+{% endif %}{{ r.offset_y|floatformat:3 }} mm
-            </td>
-            <td class="{% if r.offset_z > 0 %}offset-positive{% elif r.offset_z < 0 %}offset-negative{% else %}offset-zero{% endif %}">
-              {% if r.offset_z > 0 %}+{% endif %}{{ r.offset_z|floatformat:3 }} mm
-            </td>
-            <td>{{ r.offset_rz|floatformat:3 }}°</td>
-            <td>{{ r.confidence|floatformat:1 }}%</td>
+            {% if r.result_data.algorithm == 'rivet' %}
+              {% if r.result_data.robot_result.success %}
+                <td>{{ r.result_data.robot_groups.A.translation_mm.x|floatformat:3 }}</td>
+                <td>{{ r.result_data.robot_groups.A.translation_mm.y|floatformat:3 }}</td>
+                <td>{{ r.result_data.robot_groups.A.translation_mm.z|floatformat:3 }}</td>
+                <td>{{ r.result_data.robot_groups.B.translation_mm.x|floatformat:3 }}</td>
+                <td>{{ r.result_data.robot_groups.B.translation_mm.y|floatformat:3 }}</td>
+                <td>{{ r.result_data.robot_groups.B.translation_mm.z|floatformat:3 }}</td>
+              {% else %}<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>{% endif %}
+              <td>三铆钉相对定位</td>
+              <td>{% if r.is_success %}补偿有效{% else %}无有效补偿{% endif %}</td>
+            {% else %}
+              <td>{{ r.offset_x|floatformat:3 }}</td><td>{{ r.offset_y|floatformat:3 }}</td><td>{{ r.offset_z|floatformat:3 }}</td>
+              <td>—</td><td>—</td><td>—</td><td>历史算法</td><td>查看详情</td>
+            {% endif %}
             <td>
               {% if r.plc_write_status == 'SUCCESS' %}
                 <span class="plc-badge success">已写入</span>

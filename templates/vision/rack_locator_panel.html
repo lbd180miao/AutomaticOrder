@@ -345,7 +345,7 @@
       <button type="button" id="capture-mode-yes" class="btn">是</button>
       <button type="button" id="capture-mode-no" class="btn" autofocus>否</button>
     </dialog>
-    <span>定位算法：点云匹配</span>
+    <span>定位算法：三铆钉相对定位</span>
     <button id="dp-evaluate" class="btn btn-success">开始计算</button>
     <button id="btn-export-package" class="btn" disabled>保存数据包</button>
     <button id="btn-packages" class="btn btn-secondary">数据包管理</button>
@@ -378,7 +378,7 @@
         <span id="offline-package-message">—</span>
         <div class="rl-actions">
           <button type="button" class="btn" id="btn-load-package" disabled>加载到画布</button>
-          <button type="button" class="btn btn-success" id="btn-reprocess-package" disabled>点云模板重算</button>
+          <button type="button" class="btn btn-success" id="btn-reprocess-package" disabled>铆钉模板重算</button>
           <button type="button" class="btn" id="btn-delete-package" style="background:var(--danger);" disabled>删除</button>
         </div>
       </footer>
@@ -395,7 +395,7 @@ window.rackLocatorConfig = {
 };
 </script>
 <script src="{% static 'vision/js/rack_locator_workbench.js' %}?v=65"></script>
-<script src="{% static 'vision/js/offline_package_manager.js' %}?v=27"></script>
-<script src="{% static 'vision/js/rack_result_tables.js' %}?v=5"></script>
-<script src="{% static 'vision/js/rack_dual_point.js' %}?v=5"></script>
+<script src="{% static 'vision/js/offline_package_manager.js' %}?v=28"></script>
+<script src="{% static 'vision/js/rack_result_tables.js' %}?v=rivet-display-2"></script>
+<script src="{% static 'vision/js/rack_dual_point.js' %}?v=rivet-display-7"></script>
 {% endblock %}

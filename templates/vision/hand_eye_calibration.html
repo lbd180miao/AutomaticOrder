@@ -202,7 +202,7 @@
 {% if active_calibration %}{{ active_calibration.T_flange_camera|json_script:"activeCalibrationMatrix" }}{% endif %}
 {% if active_capture_pose_matrix %}{{ active_capture_pose_matrix|json_script:"activeCapturePoseMatrix" }}{% endif %}
 
-<script src="{% static 'vision/js/rack_result_tables.js' %}"></script>
+<script src="{% static 'vision/js/rack_result_tables.js' %}?v=rivet-display-1"></script>
 <script>
 (() => {
   'use strict';

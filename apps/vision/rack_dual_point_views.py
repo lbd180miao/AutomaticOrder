@@ -20,7 +20,7 @@ SALT = 'rack-dual-point-image-v1'
 
 def draft_config(width, height):
     """Only pixel regions are needed to build a point-cloud template."""
-    return {'algorithm': 'cloud_center', 'rois': [], 'imageSize': [width, height]}
+    return {'algorithm': 'rivet', 'rois': [], 'imageSize': [width, height]}
 
 
 def error_response(exc):
@@ -101,15 +101,16 @@ def prepare(request):
         cloud_token = signing.dumps({'path': str(cloud_path), 'mtime': cloud_stat.st_mtime_ns,
                                     'size': cloud_stat.st_size}, salt=SALT+'-depth')
         recipe = RackLocationRecipe.objects.get(pk=data['recipe_id']) if data.get('recipe_id') else None
-        algorithm = data.get('algorithm', 'cloud_center')
+        algorithm = data.get('algorithm', 'rivet')
         config_key, reference_key = algorithm_keys(algorithm)
         config = (recipe.roi_config or {}).get(config_key) if recipe else None
         reference = (recipe.roi_config or {}).get(reference_key) if recipe else None
-        if not config:
+        if not config or config.get('algorithm') != 'rivet':
+            reference = None
             config = {**draft_config(w, h), 'algorithm': algorithm}
         if reference:
             reference = {'measurement': {**reference['measurement'],
-                         'center_xyz': reference.get('center_xyz') or np.asarray(reference['points']).mean(axis=0).tolist()}}
+                         'center_xyz': reference.get('center_xyz') or np.asarray([p['xyz'] for p in reference['measurement']['points']]).mean(axis=0).tolist()}}
         return JsonResponse({'success': True, 'image_token': token, 'width': w, 'height': h,
                              'image_url': reverse('vision:rack_dual_point_image')+'?token='+token,
                              'depth_preview_url': reverse('vision:rack_dual_point_depth')+'?token='+cloud_token,
@@ -224,7 +225,7 @@ def recompute_robot_deviation(request):
         if not stored_result.get('success'):
             raise ValueError('原始计算未成功，没有有效的相机坐标可以转换')
 
-        reference_key = ('cloud_center_reference' if record.result_data.get('algorithm') == 'cloud_center'
+        reference_key = ('cloud_center_reference' if record.result_data.get('algorithm') in ('cloud_center', 'rivet')
                          else 'cloud_match_reference' if record.result_data.get('source') == 'cloud_match'
                          else 'dual_point_camera_reference')
         recipe = record.recipe
@@ -271,11 +272,11 @@ def cloud_match(request):
     from django.utils import timezone
     task = None
     try:
-        from .rack_cloud_match import build_template, match_template, add_display_pixels
+        from .rack_rivet import build_template
         from .rack_robot_points import evaluate_robot_points, workspace_context
         data = json.loads(request.body or '{}')
         action = data.get('action', 'evaluate')
-        if action not in ('evaluate', 'save_template'):
+        if action not in ('evaluate', 'save_template', 'preview_rivet'):
             raise ValueError('未知点云匹配操作')
         if action == 'evaluate':
             task = VisionTask.objects.create(task_type='RACK_LOCATING', status='RUNNING', started_at=timezone.now())
@@ -295,10 +296,22 @@ def cloud_match(request):
         recipe = RackLocationRecipe.objects.get(pk=data['recipe_id'])
         algorithm = (data.get('config') or {}).get('algorithm', 'cloud_center')
         config_key, reference_key = algorithm_keys(algorithm)
+        if action == 'preview_rivet':
+            from .rack_rivet import measure
+            config = data['config']
+            target = data['target']
+            if target not in required_targets(config):
+                raise ValueError('无效铆钉编号')
+            if data.get('single_roi') is True:
+                from .rack_rivet import inspect_roi
+                result = inspect_roi(package['cloud'], image, config, package['metadata'], target)
+                return JsonResponse({'success': True, 'result': result})
+            result = measure(package['cloud'], image, config, package['metadata'], preview_target=target)
+            return JsonResponse({'success': True, 'result': result})
         if action == 'save_template':
             config = data['config']
             validate_config(config, image.shape)
-            reference = build_template(package['cloud'], config, package['metadata'])
+            reference = build_template(package['cloud'], config, package['metadata'], image)
             try:
                 reference['measurement']['robot_transform_context'] = workspace_context()
             except ValueError:
@@ -329,7 +342,6 @@ def cloud_match(request):
                 'is_success': payload['is_success'], 'failure_reason': payload['error_message'],
                 'error_message': payload['error_message'], 'error_code': payload['error_code'],
                 'result_id': payload['result_id'], 'task_id': payload['task_id']})
-        result = add_display_pixels(result, package['cloud'], package['metadata'])
         robot = evaluate_robot_points(result, reference) if result['success'] else None
         # Experimental results stay separate from legacy edge-result history.
         return JsonResponse({'success': True, 'result': result,

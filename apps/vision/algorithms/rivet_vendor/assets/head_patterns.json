@@ -1,0 +1,57 @@
+{
+  "description": "Appearance examples; training coordinates used only to build patches, never at detection time.",
+  "training": [
+    {
+      "frame": "2026-11-16_POS1_L1_021226",
+      "center": [
+        405,
+        422
+      ]
+    },
+    {
+      "frame": "2026-11-16_POS1_L1_021502",
+      "center": [
+        372,
+        434
+      ]
+    },
+    {
+      "frame": "2026-11-16_POS1_L1_023934",
+      "center": [
+        298,
+        422
+      ]
+    },
+    {
+      "frame": "2026-11-16_POS1_L1_024706",
+      "center": [
+        307,
+        416
+      ]
+    },
+    {
+      "frame": "2026-11-16_POS1_L1_024756",
+      "center": [
+        140,
+        321
+      ]
+    },
+    {
+      "frame": "2026-11-16_POS1_L1_024847",
+      "center": [
+        836,
+        301
+      ]
+    },
+    {
+      "frame": "2026-11-16_POS1_L1_025217",
+      "center": [
+        181,
+        456
+      ]
+    }
+  ],
+  "negative_sources": "Non-target proposals from the seven training frames, plus the five older development frames (1,2,3,4-20,5).",
+  "validation_note": "The other 14 pic frames were not used as templates, but the entire 21-frame set was inspected during development; it is not an independent test set.",
+  "center_note": "Pixel anchors are manually observed head centers, not metrology ground truth."
+}

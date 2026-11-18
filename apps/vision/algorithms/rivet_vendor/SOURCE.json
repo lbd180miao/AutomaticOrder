@@ -1,0 +1,12 @@
+{
+  "source": "C:\\Users\\11410\\Desktop\\maoding\\铆钉算法",
+  "changes": "Only package-relative imports; detection and measurement unchanged.",
+  "sha256": {
+    "rivet_test.py": "9f8c28a3914149d8caa3ffa24fc6c64ec6d48dfe7995cd1986614af755933e36",
+    "localize_rivets.py": "d3e8f9c211d6af1f7664e7a4e0c025aebdf6406a197fbadef3e6c42b44b234cf",
+    "center_surface.py": "e16de76cc4f910cbdfb20c08812e29bb3261bfc0979452f985f598c94aca245c",
+    "head_patterns.py": "8f3d1ae88216b0026ce99a7f525bd18038214b150af5b4531c8da1af56dda962",
+    "assets/head_patterns.npz": "f1f40b49eeced85413d68ff31c6b685c2649066e1d7fa1ab7cbc715270d6d980",
+    "assets/head_patterns.json": "a92b7164cec716d14518a629cb2a7b1918b14ecfc103609a6f845162d379f3c5"
+  }
+}

@@ -300,6 +300,8 @@ def dual_group_position(result, recipe):
         groups = result.get('robot_groups') or {}
         config = (getattr(recipe, 'roi_config', {}) or {}).get('cloud_center_config') or {}
         layers = config.get('rack_layers', getattr(recipe, 'layer_count', 3 if 'B' in groups else 2))
+        if config.get('algorithm') == 'rivet' and config.get('rack_layout') != 'unloading':
+            layers = 3  # Legacy templates measure both crossbars.
         if layers not in (2, 3):
             layers = 3 if 'B' in groups else 2
         values = {}

@@ -119,6 +119,9 @@ def poll_loop(stop, interval, retry_interval, factory=None):
     service = None
     previous_phase = None
     connection_reported = False
+    last_error = None
+    last_error_at = 0.0
+    failure_count = 0
     try:
         while not stop.is_set():
             delay = max(PLC_SCAN_INTERVAL, interval)
@@ -127,15 +130,18 @@ def poll_loop(stop, interval, retry_interval, factory=None):
                 cleanup()
                 if service is None:
                     service = factory()
-                    service.input_sampler = PLCInputSampler(service.plc)
                     transport = service.plc.transport
-                    logger.info('PLC 监听目标 %s:%s Rack=%s Slot=%s DB=2',
+                    logger.debug('PLC 监听目标 %s:%s Rack=%s Slot=%s DB=2',
                                 getattr(transport, 'address', 'memory'),
                                 getattr(transport, 'tcp_port', 102),
                                 getattr(transport, 'rack', 0), getattr(transport, 'slot', 1))
+                    service.input_sampler = PLCInputSampler(service.plc)
                 cycle, changed = service.poll_once()
                 if not connection_reported and getattr(service, 'last_scan_succeeded', False):
                     record('connection', 'PLC 扫描成功，监听运行中')
+                    logger.info('PLC 扫描成功，监听运行中（此前连续失败 %s 次）', failure_count)
+                    last_error = None
+                    failure_count = 0
                     connection_reported = True
                 phase = (cycle.pk, cycle.phase) if cycle else None
                 if changed or phase != previous_phase:
@@ -143,8 +149,15 @@ def poll_loop(stop, interval, retry_interval, factory=None):
                     previous_phase = phase
             except Exception as exc:
                 publish_inputs(error=str(exc))
-                record('connection', f'[报警] PLC 监听失败，{retry_interval} 秒后重连：{exc}')
-                logger.exception('PLC 监听失败，%s 秒后重新连接', retry_interval)
+                failure_count += 1
+                error_key = (type(exc), str(exc))
+                now = time.monotonic()
+                if error_key != last_error or now - last_error_at >= 60:
+                    message = (f'PLC 监听失败，{retry_interval} 秒后重连'
+                               f'（连续失败 {failure_count} 次，同类告警每 60 秒汇总）：{exc}')
+                    record('connection', f'[报警] {message}')
+                    logger.error(message, exc_info=not isinstance(exc, (ConnectionError, TimeoutError)))
+                    last_error, last_error_at = error_key, now
                 if service is not None:
                     try:
                         service.devices.mark_offline(service.plc_device_code)

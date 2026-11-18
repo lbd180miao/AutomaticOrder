@@ -123,7 +123,10 @@
   function renderList(packages) {
     const list = byId('offline-package-list');
     if (!packages.length) {
-      list.innerHTML = '<p class="rl-package-empty">暂无数据包，可先保存当前点云。</p>';
+      list.innerHTML = libraryQuery
+        ? '<p class="rl-package-empty">暂无历史采集记录。手动保存的数据在「数据包管理」中。</p><button type="button" class="btn btn-secondary" id="offline-open-saved">查看已保存的数据包</button>'
+        : '<p class="rl-package-empty">暂无已保存的数据包，可先采集点云并保存。</p>';
+      byId('offline-open-saved')?.addEventListener('click', () => openModal(false));
       setActions(false);
       return;
     }
@@ -146,6 +149,8 @@
   async function selectPackage(name) {
     const source = libraryQuery;
     state.selectedName = name;
+    state.selectedPackage = null;
+    setActions(false);
     message('正在加载数据包详情…');
     try {
       const data = await request(packageUrl(name));
@@ -219,6 +224,7 @@
       });
       await window.rackLocatorOfflineBridge.load(data.package);
       closeModal();
+      toast('数据包已载入画布，可框选 ROI 或点击「开始计算」。');
     } catch (error) {
       message(error.message, true);
     } finally {
