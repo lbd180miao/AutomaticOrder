@@ -35,7 +35,7 @@
   function camera(body, result, reference, names) {
     body.replaceChildren();
     const rivet = isRivet(result, reference) || names.includes('P3');
-    headers(body, rivet ? ['铆钉', '标准 XYZ（mm）', '当前 XYZ（mm）', '三维取点状态', '检测分（非概率）', '相对 3 号偏差 ΔXYZ（mm）'] : ['模板区域', '标准 XYZ', '当前 XYZ', '匹配后点云中心 XYZ', '匹配分数', '差值 ΔXYZ']);
+    headers(body, rivet ? ['铆钉', '标准 XYZ（mm）', '当前 XYZ（mm）', '三维取点状态', '检测分（非概率）', '有效点 / 采样点', '相对 3 号偏差 ΔXYZ（mm）'] : ['模板区域', '标准 XYZ', '当前 XYZ', '匹配后点云中心 XYZ', '匹配分数', '差值 ΔXYZ']);
     // Compare successful camera measurements from the template and current frame.
     const compatible = result?.coordinateSystem === 'camera' && reference?.coordinateSystem === 'camera'
       && result?.success === true && reference?.success === true
@@ -58,6 +58,7 @@
         cell(row, detection ? (detection.error || statuses[detection.measurement?.status] || detection.measurement?.status || '未检测') : validXYZ(region?.matched_cloud_center_xyz) ? xyz(region.matched_cloud_center_xyz) : '—');
         cell(row, detection?.candidates?.length ? fmt(detection.candidates[0].score, 1) : Number.isFinite(region?.fitness) ? `${fmt(region.fitness * 100, 1)}%` : '—');
       }
+      if (rivet) {const m = result?.detections?.find(d => d.name === name)?.measurement; cell(row, m ? `${m.valid_count ?? '—'} / ${m.sample_count ?? '—'}` : '—');}
       cell(row, name === 'P3' && rivet ? '固定参照' : validXYZ(delta) ? xyz(delta) : '—');
       body.appendChild(row);
     }
@@ -93,10 +94,10 @@
     const quality = result?.registration;
     const robot = evaluation?.robot_result;
     window.rackResultTables.robotOffsets($('dp-robot-results'), result, robot, names);
-    $('dp-robot-status').textContent = !quality ? '三铆钉检测通过且标定有效后，显示上下横杆相对 3 号的偏差；仅旋转到机器人坐标系。'
+    $('dp-robot-status').textContent = !quality ? '铆钉检测通过且标定有效后，显示横杆相对 3 号的偏差；仅旋转到机器人坐标系。'
         : !quality.quality_passed ? '当前定位未通过筛选，不输出机器人坐标系偏差。'
           : evaluation?.is_success === false || evaluation?.locate_ok === false ? '偏差仅供诊断，本次补偿校验未通过，禁止作为有效补偿发送。'
-          : robot?.success ? ((rivet ? 'A 对应上横杆，B 对应下横杆；正值沿机器人基坐标轴正方向。' : '') + (robot.same_pose_assumed ? '基准模板未保存拍照姿态，当前按相同拍照姿态计算。' : ''))
+          : robot?.success ? ((rivet ? (names.includes('P2') ? 'A 对应上横杆，B 对应下横杆；' : 'A 对应横杆，B 组清零；') + '正值沿机器人基坐标轴正方向。' : '') + (robot.same_pose_assumed ? '基准模板未保存拍照姿态，当前按相同拍照姿态计算。' : ''))
             : robot?.errorMessage || '机器人坐标转换不可用，请检查手眼标定和拍照姿态。';
     const failed = !!evaluation && (result?.success === false || quality?.quality_passed === false
       || evaluation.is_success === false || evaluation.locate_ok === false || robot?.success === false);

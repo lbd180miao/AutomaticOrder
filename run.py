@@ -78,6 +78,8 @@ def main(argv=None):
             from apps.mes.remote_client import start_worker
             start_worker()
         start_listener()
+        from apps.vision.foam_live import start_automatic
+        start_automatic()
         from apps.devices.health import start_monitor
         start_monitor()
         if not args.no_browser:
@@ -90,6 +92,8 @@ def main(argv=None):
         from apps.devices.health import stop_monitor
         stop_monitor()
         stop_listener()
+        from apps.vision.foam_live import runtime as foam_runtime
+        foam_runtime.stop()
         if gateway_server is not None:
             gateway_server.close()
         server.close()

@@ -107,7 +107,8 @@ def prepare(request):
         reference = (recipe.roi_config or {}).get(reference_key) if recipe else None
         if not config or config.get('algorithm') != 'rivet':
             reference = None
-            config = {**draft_config(w, h), 'algorithm': algorithm}
+            config = {**draft_config(w, h), 'algorithm': algorithm,
+                      'rack_layers': recipe.layer_count if recipe else 3}
         if reference:
             reference = {'measurement': {**reference['measurement'],
                          'center_xyz': reference.get('center_xyz') or np.asarray([p['xyz'] for p in reference['measurement']['points']]).mean(axis=0).tolist()}}
@@ -176,7 +177,10 @@ def save_config(request):
         with transaction.atomic():
             recipe = RackLocationRecipe.objects.select_for_update().get(pk=data['recipe_id'])
             recipe.roi_config = {**(recipe.roi_config or {}), config_key: config}
-            recipe.save(update_fields=['roi_config'])
+            recipe.layer_count = config.get('rack_layers', recipe.layer_count)
+            from .rack_rivet import sync_recipe_layers
+            sync_recipe_layers(recipe)
+            recipe.save(update_fields=['roi_config', 'layer_count', 'updated_at'])
         return JsonResponse({'success': True, 'recipe_id': recipe.pk, 'config': config,
                              'message': 'ROI 配置已保存；若修改了区域或层数，请重新保存点云标准模板'})
     except (OSError, ValueError, KeyError, TypeError, signing.BadSignature, RackLocationRecipe.DoesNotExist) as exc:
@@ -320,7 +324,10 @@ def cloud_match(request):
                 recipe = RackLocationRecipe.objects.select_for_update().get(pk=recipe.pk)
                 recipe.roi_config = {**(recipe.roi_config or {}), reference_key: reference,
                                      config_key: config}
-                recipe.save(update_fields=['roi_config'])
+                recipe.layer_count = config.get('rack_layers', recipe.layer_count)
+                from .rack_rivet import sync_recipe_layers
+                sync_recipe_layers(recipe)
+                recipe.save(update_fields=['roi_config', 'layer_count', 'updated_at'])
             result = reference['measurement']
         else:
             reference = (recipe.roi_config or {}).get(reference_key)
@@ -338,7 +345,8 @@ def cloud_match(request):
                 task=task, save_record=True, algorithm=algorithm, camera_image=image)
             return JsonResponse({'success': True, 'result': payload['result'],
                 'reference': payload['reference'], 'robot_result': payload['robot_result'],
-                'config': reference['config'], 'plc_publish_allowed': False,
+                'config': reference['config'], 'plc_publish_allowed': payload['plc_publish_allowed'],
+                'plc_payload': payload['plc_payload'],
                 'is_success': payload['is_success'], 'failure_reason': payload['error_message'],
                 'error_message': payload['error_message'], 'error_code': payload['error_code'],
                 'result_id': payload['result_id'], 'task_id': payload['task_id']})

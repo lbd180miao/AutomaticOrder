@@ -13,7 +13,13 @@ def algorithm_keys(algorithm='cloud_center'):
 def required_targets(config):
     algorithm_keys(config.get('algorithm', 'cloud_center'))
     if config.get('algorithm') == 'rivet':
-        if config.get('rack_layers') == 2 and config.get('rack_layout') == 'unloading':
+        if config.get('rack_layers', 3) not in (2, 3):
+            raise ValueError('料架层数必须为 2 或 3')
+        if config.get('rack_layout') not in (None, '', 'unloading'):
+            raise ValueError('未知料架布局')
+        if config.get('rack_layout') == 'unloading' and config.get('rack_layers') != 2:
+            raise ValueError('下料框必须为两层料架')
+        if config.get('rack_layers') == 2:
             return ('P1_rivet', 'P3_rivet')
         return ('P1_rivet', 'P2_rivet', 'P3_rivet')
     layers = config.get('rack_layers', 3)

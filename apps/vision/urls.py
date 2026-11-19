@@ -6,11 +6,18 @@ from .plc_defaults import api_plc_defaults
 from .recipe_transfer import export_recipe, import_recipe
 from . import rack_dual_point_views
 from . import offline_data_views
-from . import views_foam_profile
+from .retired_foam_recipes import retired_recipe
+from . import views_foam_stream
 
 app_name = 'vision'
 
 urlpatterns = [
+    path('api/foam/stream/config/', views_foam_stream.configuration, name='foam_stream_config'),
+    path('api/foam/stream/video/', views_foam_stream.open_video, name='foam_stream_video'),
+    path('api/foam/stream/video/<str:token>/frame/', views_foam_stream.video_frame, name='foam_stream_frame'),
+    path('api/foam/stream/video/<str:token>/close/', views_foam_stream.close_video, name='foam_stream_close'),
+    path('api/foam/stream/live/', views_foam_stream.live_status, name='foam_stream_live'),
+    path('api/foam/stream/live/control/', views_foam_stream.live_control, name='foam_stream_control'),
     path('api/recipes/transfer/<str:kind>/<int:recipe_id>/export/', export_recipe, name='recipe_export'),
     path('api/recipes/transfer/<str:kind>/import/', import_recipe, name='recipe_import'),
     path('api/recipes/plc-defaults/', api_plc_defaults, name='api_plc_defaults'),
@@ -81,25 +88,25 @@ urlpatterns = [
     path('rack-location/results/', views.rack_location_history, name='rack_location_history'),
     path('rack-location/trigger/', views.api_rack_location_trigger, name='rack_location_trigger'),
 
-    path('api/recipes/foam-2d/<int:recipe_id>/standard-roi/', views.api_foam_standard_roi_status, name='api_foam_standard_roi_status'),
+    path('api/recipes/foam-2d/<int:recipe_id>/standard-roi/', retired_recipe, name='api_foam_standard_roi_status'),
 
     # API — 泡棉检测
     path('api/camera/preview/', views.api_camera_preview, name='api_camera_preview'),
     path('api/foam/calibration/', views.api_foam_calibration, name='api_foam_calibration'),
     path('api/foam/calibration/save/', views.api_foam_calibration_save, name='api_foam_calibration_save'),
-    path('api/recipes/', views.api_vision_recipes, name='api_vision_recipes'),
-    path('api/recipes/foam-2d/by-pos/', views.api_foam_recipe_by_pos, name='api_foam_recipe_by_pos'),
-    path('api/recipes/foam-2d/defaults/', views.api_foam_recipe_defaults, name='api_foam_recipe_defaults'),
-    path('api/recipes/foam-2d/save/', views.api_foam_recipe_save, name='api_foam_recipe_save'),
-    path('api/recipes/foam-2d/create/', views.api_foam_recipe_create, name='api_foam_recipe_create'),
-    path('api/recipes/foam-2d/<int:recipe_id>/delete/', views.api_foam_recipe_delete, name='api_foam_recipe_delete'),
-    path('api/foam/rack-specs/', views_foam_profile.api_foam_rack_specs, name='api_foam_rack_specs'),
-    path('api/foam/rack-specs/<int:spec_id>/', views_foam_profile.api_foam_rack_spec_detail, name='api_foam_rack_spec_detail'),
-    path('api/foam/rack-specs/<int:spec_id>/products/', views_foam_profile.api_foam_product_layouts, name='api_foam_product_layouts'),
-    path('api/foam/product-layouts/<int:layout_id>/', views_foam_profile.api_foam_product_layout_detail, name='api_foam_product_layout_detail'),
-    path('api/foam/product-layouts/<int:layout_id>/recipes/', views_foam_profile.api_foam_layout_recipes, name='api_foam_layout_recipes'),
-    path('api/foam/capture-inspect/', views.api_foam_capture_inspect, name='api_foam_capture_inspect'),
-    path('api/foam/upload-inspect/', views.api_foam_upload_inspect, name='api_foam_upload_inspect'),
+    path('api/recipes/', retired_recipe, name='api_vision_recipes'),
+    path('api/recipes/foam-2d/by-pos/', retired_recipe, name='api_foam_recipe_by_pos'),
+    path('api/recipes/foam-2d/defaults/', retired_recipe, name='api_foam_recipe_defaults'),
+    path('api/recipes/foam-2d/save/', retired_recipe, name='api_foam_recipe_save'),
+    path('api/recipes/foam-2d/create/', retired_recipe, name='api_foam_recipe_create'),
+    path('api/recipes/foam-2d/<int:recipe_id>/delete/', retired_recipe, name='api_foam_recipe_delete'),
+    path('api/foam/rack-specs/', retired_recipe, name='api_foam_rack_specs'),
+    path('api/foam/rack-specs/<int:spec_id>/', retired_recipe, name='api_foam_rack_spec_detail'),
+    path('api/foam/rack-specs/<int:spec_id>/products/', retired_recipe, name='api_foam_product_layouts'),
+    path('api/foam/product-layouts/<int:layout_id>/', retired_recipe, name='api_foam_product_layout_detail'),
+    path('api/foam/product-layouts/<int:layout_id>/recipes/', retired_recipe, name='api_foam_layout_recipes'),
+    path('api/foam/capture-inspect/', retired_recipe, name='api_foam_capture_inspect'),
+    path('api/foam/upload-inspect/', retired_recipe, name='api_foam_upload_inspect'),
     path('api/foam/inspection-records/', views.api_foam_inspection_records, name='api_foam_inspection_records'),
 
     # API — 料架定位（新增）

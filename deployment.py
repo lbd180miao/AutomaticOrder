@@ -50,7 +50,8 @@ def configure(directory, *, executable=None):
     if role == 'external':
         # This machine still supports manual hardware operations. Inherited
         # settings must not make it compete with the AGV at startup.
-        for key in ('PLC_LISTENER_AUTO_START', 'RVC_CAMERA_AUTO_START', 'DM_CAMERA_AUTO_CONNECT'):
+        for key in ('PLC_LISTENER_AUTO_START', 'RVC_CAMERA_AUTO_START', 'DM_CAMERA_AUTO_CONNECT',
+                    'FOAM_STREAM_AUTO_START'):
             os.environ[key] = 'false'
         _configure_external_camera(directory)
         return config

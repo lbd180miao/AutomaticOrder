@@ -119,6 +119,30 @@ def _capture_with_official_mvs(payload, max_open_retries=3, open_retry_delay=1.0
         session.close()
 
 
+def _configure_free_running_camera(cam, *, gige):
+    """Initialize cameras without a recipe file, including retained trigger state."""
+    if gige:
+        # Conservative Ethernet payload works without jumbo frames on the NIC
+        # or intermediate switches. Do not change tuned recipe parameters.
+        ret = cam.MV_CC_SetIntValue('GevSCPSPacketSize', 1500)
+        if ret != 0:
+            raise RuntimeError(f'MVS set packet size failed: 0x{ret & 0xffffffff:08x}')
+    ret = cam.MV_CC_SetEnumValueByString('AcquisitionMode', 'Continuous')
+    if ret != 0:
+        raise RuntimeError(f'MVS set acquisition mode failed: 0x{ret & 0xffffffff:08x}')
+    # TriggerMode is scoped to TriggerSelector. Disabling only the current
+    # selector can leave acquisition/burst triggering enabled on another model.
+    for selector in ('AcquisitionStart', 'FrameBurstStart', 'FrameStart'):
+        if cam.MV_CC_SetEnumValueByString('TriggerSelector', selector) != 0:
+            continue  # Optional selectors are not implemented by every model.
+        ret = cam.MV_CC_SetEnumValueByString('TriggerMode', 'Off')
+        if ret != 0:
+            raise RuntimeError(f'MVS disable {selector} trigger failed: 0x{ret & 0xffffffff:08x}')
+    ret = cam.MV_CC_SetEnumValueByString('TriggerMode', 'Off')
+    if ret != 0:
+        raise RuntimeError(f'MVS disable trigger failed: 0x{ret & 0xffffffff:08x}')
+
+
 def _official_mvs_session(payload, max_open_retries=3, open_retry_delay=1.0):
     """Capture one frame with Hikrobot's official Python wrapper.
 
@@ -270,21 +294,21 @@ def _official_mvs_session(payload, max_open_retries=3, open_retry_delay=1.0):
         else:
             # Only apply defaults when no tuned feature file was supplied.
             # An .mfs file owns these values and must not be overwritten.
-            if selected.nTLayerType in (mvs.MV_GIGE_DEVICE, mvs.MV_GENTL_GIGE_DEVICE):
-                packet_size = cam.MV_CC_GetOptimalPacketSize()
-                if int(packet_size) > 0:
-                    cam.MV_CC_SetIntValue('GevSCPSPacketSize', packet_size)
-
-            ret = cam.MV_CC_SetEnumValue('TriggerMode', mvs.MV_TRIGGER_MODE_OFF)
-            if ret != 0:
-                raise RuntimeError(f'MVS set continuous trigger mode failed: 0x{ret & 0xffffffff:08x}')
+            _configure_free_running_camera(
+                cam, gige=selected.nTLayerType in (mvs.MV_GIGE_DEVICE, mvs.MV_GENTL_GIGE_DEVICE),
+            )
+        if payload.get('continuous'):
+            # Keep exposure/network tuning, but override all trigger selectors
+            # and single-frame acquisition retained in a feature file.
+            _configure_free_running_camera(cam, gige=False)
         while True:
-            # Idle means connected, but NOT streaming. Start only on request.
+            # Continuous clients keep acquisition running between requests.
             image_path = output_dir / f'preview_{uuid.uuid4().hex}.{extension}'
-            ret = cam.MV_CC_StartGrabbing()
-            if ret != 0:
-                raise RuntimeError(f'MVS start grabbing failed: 0x{ret & 0xffffffff:08x}')
-            grabbing = True
+            if not grabbing:
+                ret = cam.MV_CC_StartGrabbing()
+                if ret != 0:
+                    raise RuntimeError(f'MVS start grabbing failed: 0x{ret & 0xffffffff:08x}')
+                grabbing = True
             # MVS permits clearing buffers only after StartGrabbing.
             ret = cam.MV_CC_ClearImageBuffer()
             if ret != 0:
@@ -294,6 +318,12 @@ def _official_mvs_session(payload, max_open_retries=3, open_retry_delay=1.0):
             memset(byref(frame), 0, sizeof(frame))
             ret = cam.MV_CC_GetImageBuffer(frame, 10000)
             if ret != 0 or not frame.pBufAddr:
+                if ret & 0xffffffff == 0x80000007:
+                    raise RuntimeError(
+                        '海康2D相机已打开并启动采集，但10秒内未收到图像（0x80000007）。'
+                        '请确认MVS能持续取图而非仅打开设备；检查相机曝光/触发设置、'
+                        '网卡数据包及当前采集程序的防火墙放行规则。'
+                    )
                 raise RuntimeError(f'MVS get image buffer failed: 0x{ret & 0xffffffff:08x}')
 
             image = mvs.MV_CC_IMAGE()
@@ -316,10 +346,11 @@ def _official_mvs_session(payload, max_open_retries=3, open_retry_delay=1.0):
                                   'pixel_type': int(image.enPixelType)}
                     cam.MV_CC_FreeImageBuffer(frame)
                     frame = None
-                    ret = cam.MV_CC_StopGrabbing()
-                    if ret != 0:
-                        raise RuntimeError('MVS stop grabbing failed')
-                    grabbing = False
+                    if not payload.get('continuous'):
+                        ret = cam.MV_CC_StopGrabbing()
+                        if ret != 0:
+                            raise RuntimeError('MVS stop grabbing failed')
+                        grabbing = False
                     # Keep mapping alive until parent acknowledges its independent copy.
                     yield descriptor
                 finally:

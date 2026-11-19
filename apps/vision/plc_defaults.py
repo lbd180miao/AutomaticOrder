@@ -8,6 +8,8 @@ from .models import PlcVisionDefaults, VisionRecipe, RackLocationRecipe
 
 
 def get_default_recipe(kind):
+    if kind != 'rack':
+        raise ValueError('2D 配方已移除，连续检测不使用 PLC 配方')
     defaults = PlcVisionDefaults.objects.select_related('foam_recipe', 'rack_recipe').filter(pk=1).first()
     recipe = getattr(defaults, f'{kind}_recipe', None)
     valid = (recipe and recipe.is_active and recipe.recipe_type == 'FOAM_2D') if kind == 'foam' else (recipe and recipe.enabled)
@@ -23,7 +25,7 @@ def api_plc_defaults(request):
         try:
             data = json.loads(request.body or '{}')
             kind = data.get('kind')
-            if kind not in ('foam', 'rack'):
+            if kind != 'rack':
                 raise ValueError('未知配方类型')
             recipe_id = int(data.get('recipe_id'))
             if kind == 'foam':
@@ -35,5 +37,4 @@ def api_plc_defaults(request):
             return JsonResponse({'success': False, 'error': str(exc)}, status=400)
     defaults = PlcVisionDefaults.objects.filter(pk=1).first()
     return JsonResponse({'success': True,
-                         'foam_recipe_id': defaults.foam_recipe_id if defaults else None,
                          'rack_recipe_id': defaults.rack_recipe_id if defaults else None})

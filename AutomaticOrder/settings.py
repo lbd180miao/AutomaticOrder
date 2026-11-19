@@ -191,6 +191,10 @@ VISION_HISTORY_PACKAGE_DIR = DATA_DIR / '3d_SDK' / 'pic1'
 RACK_3D_POSITIONING_MODE = os.environ.get('RACK_3D_POSITIONING_MODE', 'MOCK').upper()
 # Only the serving entry points consult this setting; other commands never poll.
 PLC_LISTENER_AUTO_START = env_bool('PLC_LISTENER_AUTO_START', True)
+# Continuous foam inference only; foam results never write PLC DB bits.
+FOAM_STREAM_PROFILE = Path(os.environ.get('FOAM_STREAM_PROFILE',
+    str(MEDIA_ROOT / 'vision/foam_stream_templates/pic2/profile.json')))
+FOAM_STREAM_AUTO_START = env_bool('FOAM_STREAM_AUTO_START', PLC_LISTENER_AUTO_START)
 MES_GATEWAY_ENABLED = env_bool('MES_GATEWAY_ENABLED', (DATA_DIR / 'agv_gateway.json').exists())
 RVC_CAMERA_SERVICE_PORT = int(os.environ.get('RVC_CAMERA_SERVICE_PORT', '8001'))
 
@@ -233,10 +237,14 @@ AUTOMATIC_ORDER = {
         'PC_IP': None,       # 设置为 None 启用自动检测
         'FORMAT': 'BMP',  # 使用 BMP 格式避免编码问题
         'SERIAL_NUMBER': os.environ.get('HIK_CAMERA_SERIAL_NUMBER', 'DA1512004'),
+       #'SERIAL_NUMBER': 'DA0325408',
         'FEATURE_FILE': Path(os.environ.get(
             'HIK_CAMERA_FEATURE_FILE',
             BASE_DIR / '2d_SDK' / 'MV-CS200-10GM_DA1512004.mfs',
         )),
+        #'FEATURE_FILE': None,
+
+
         'QUALITY': 5,
         'RUN_IN_SUBPROCESS': True,
         'PERSISTENT_WORKER': True,  # Hold connection; acquire only on request.

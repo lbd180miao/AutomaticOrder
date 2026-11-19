@@ -54,6 +54,7 @@ class CameraAdapter(BaseDeviceAdapter):
     _capture_lock = threading.Lock()
     _worker = None
     _worker_key = None
+    _stream_active = False
 
     @classmethod
     def close_worker(cls):
@@ -338,7 +339,7 @@ class CameraAdapter(BaseDeviceAdapter):
                     import sys
                     sys.stderr.write(f'Warning: Failed to close camera: {close_exc}\n')
 
-    def acquire_frame(self, camera_code, task_type):
+    def acquire_frame(self, camera_code, task_type, *, continuous=False):
         config = getattr(settings, 'AUTOMATIC_ORDER', {}).get('HIK_CAMERA', {})
         output = Path(settings.MEDIA_ROOT) / 'hik_captures'
         output.mkdir(parents=True, exist_ok=True)
@@ -347,19 +348,23 @@ class CameraAdapter(BaseDeviceAdapter):
             feature = str(Path(settings.BASE_DIR) / feature)
         payload = dict(base_dir=str(settings.BASE_DIR), output_dir=str(output),
                        camera_ip=config.get('CAMERA_IP'), pc_ip=config.get('PC_IP'),
-                       camera_serial=config.get('SERIAL_NUMBER'), feature_file=feature,
+                       camera_serial=config.get('SERIAL_NUMBER'), feature_file=str(feature),
                        format=config.get('FORMAT', 'PNG'), quality=config.get('QUALITY', 5),
-                       sdk_lib_dir=config.get('SDK_LIB_DIR') or '', raw_frame=True)
+                       sdk_lib_dir=str(config.get('SDK_LIB_DIR') or ''), raw_frame=True,
+                       continuous=continuous)
         result_path = output / ('.raw_' + uuid.uuid4().hex + '.json')
         command = ([sys.executable, '--hik-capture'] if getattr(sys, 'frozen', False)
                    else [sys.executable, '-m', 'apps.devices.adapters.hik_capture_worker'])
         with type(self)._capture_lock:
             try:
+                if type(self)._stream_active and not continuous:
+                    raise RuntimeError('2D 相机连续检测运行中，请在视频工作台查看画面或先停止连续检测')
                 return self._persistent_capture(command, payload, result_path)
             finally:
                 result_path.unlink(missing_ok=True)
 
-    def persist_frame(self, frame):
+    @staticmethod
+    def decode_frame(frame):
         import cv2
         import numpy as np
         width, height = frame['width'], frame['height']
@@ -377,6 +382,11 @@ class CameraAdapter(BaseDeviceAdapter):
                 image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         else:
             raise RuntimeError(f'异步采集暂不支持像素格式 {pixel:#x}，请配置 Mono8/Bayer8/RGB8/BGR8')
+        return image
+
+    def persist_frame(self, frame):
+        import cv2
+        image = self.decode_frame(frame)
         target = Path(settings.MEDIA_ROOT) / 'hik_captures' / (uuid.uuid4().hex + '.png')
         if not cv2.imwrite(str(target), image):
             raise RuntimeError('2D 图像保存失败')
@@ -386,6 +396,8 @@ class CameraAdapter(BaseDeviceAdapter):
         """串行执行相机采集，并记录排队与实际采集耗时。"""
         queued_at = time.perf_counter()
         with type(self)._capture_lock:
+            if type(self)._stream_active:
+                raise RuntimeError('2D 相机连续检测运行中，请先停止连续检测再进行单图拍照')
             lock_acquired_at = time.perf_counter()
             result = self._capture_locked(camera_code, task_type)
         finished_at = time.perf_counter()

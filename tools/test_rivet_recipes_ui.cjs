@@ -1,0 +1,33 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
+process.chdir(path.resolve(__dirname,'..'));
+const html=execFileSync('.venv/Scripts/python.exe',['-c',"import os;os.environ.setdefault('DJANGO_SETTINGS_MODULE','AutomaticOrder.settings');import django;django.setup();from django.template.loader import render_to_string;import sys;sys.stdout.buffer.write(render_to_string('vision/recipe_management.html',{'csrf_token':'test'}).encode())"]);
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'D:/Scripts/FrciblyK12/.venv/Lib/site-packages/playwright/driver/package');
+(async()=>{const browser=await chromium.launch({headless:true});try{
+ const page=await browser.newPage({viewport:{width:1600,height:1100}});const errors=[],requests=[];page.on('pageerror',e=>errors.push(e.message));
+ const recipe={id:1,recipe_name:'三层铆钉标准',rack_type:'RACK-1',layer_count:3,layer_no:1,position_no:1,enabled:true,max_offset_x:10,max_offset_y:10,max_offset_z:10,
+  roi_config:{cloud_center_config:{rack_layers:3}},rivet_template:{ready:true,version:'rivet_relative_v1',image_size:[1920,1200],rois:[1,2,3].map(i=>({target:`P${i}_rivet`,x:100*i,y:30,width:40,height:50})),points:[1,2,3].map(i=>({name:`P${i}`,xyz:[i,2,1000],score:90,valid_count:24,sample_count:30,status:'OK_ESTIMATE'})),relative_vectors:[[1,2,3],[4,5,6]]}};
+ await page.route('**/*',route=>{const u=new URL(route.request().url());requests.push(u.pathname);
+ if(u.pathname==='/vision/recipes/')return route.fulfill({contentType:'text/html',body:html});
+ if(u.pathname==='/vision/api/vision/3d/recipes/')return route.fulfill({json:{success:true,recipes:[recipe]}});
+ if(u.pathname.endsWith('/plc-defaults/'))return route.fulfill({json:{success:true,rack_recipe_id:1}});
+ if(u.pathname.startsWith('/static/')&&fs.existsSync(u.pathname.slice(1)))return route.fulfill({path:u.pathname.slice(1)});
+ return route.fulfill({body:''});});
+ await page.goto('http://rivet.test/vision/recipes/');await page.locator('.rp-card summary').click();
+ assert.match(await page.locator('.rp-body').innerText(),/24 \/ 30/);assert.match(await page.locator('.rp-body').innerText(),/P1 − P3/);assert.match(await page.locator('.rp-body').innerText(),/100 \/ 30 \/ 40 \/ 50/);
+ await page.locator('[data-action="edit"]').click();assert.equal(await page.locator('[name="recipe_name"]').inputValue(),recipe.recipe_name);await page.locator('#rp-cancel').click();
+ await page.locator('#rp-create').click();assert.equal(await page.locator('[name="recipe_name"]').inputValue(),'');await page.locator('#rp-cancel').click();
+ recipe.layer_count=2;
+ await page.reload();await page.locator('.rp-card summary').click();
+ assert.equal(await page.locator('.rp-table').first().locator('tbody tr').count(),2);
+ assert.equal(await page.locator('.rp-table').nth(1).locator('tbody tr').count(),1);
+ assert.doesNotMatch(await page.locator('.rp-body').innerText(),/铆钉 2|P2 − P3/);
+ assert(!requests.some(u=>u.includes('foam-2d')));assert.deepEqual(errors,[]);
+ await page.screenshot({path:'tmp/rivet-recipes-review.png',fullPage:true});
+ await page.addScriptTag({path:'static/vision/js/rack_result_tables.js'});
+ await page.evaluate(()=>{const host=document.createElement('div');host.innerHTML='<table><thead><tr></tr></thead><tbody id="test-camera"></tbody></table><table><thead><tr></tr></thead><tbody id="test-robot"></tbody></table>';document.body.append(host);
+ const result={algorithm_version:'rivet_relative_v1',success:true,coordinateSystem:'camera',unit:'mm',registration:{quality_passed:true},points:[{name:'P1',xyz:[1,2,3],success:true},{name:'P3',xyz:[0,0,0],success:true}],detections:[{name:'P1',measurement:{valid_count:24,sample_count:30,status:'OK_ESTIMATE'},candidates:[{score:90}]}],relative_delta_camera_mm:[[1,2,3]]};
+ window.rackResultTables.camera(document.getElementById('test-camera'),result,result,['P1','P3']);window.rackResultTables.robotOffsets(document.getElementById('test-robot'),result,{success:true,offsets:[[-2,1,3]]},['P1','P3']);});
+ assert.match(await page.locator('#test-camera').innerText(),/24 \/ 30/);assert.match(await page.locator('#test-robot').innerText(),/-2.000/);assert.deepEqual(errors,[]);
+ console.log('PASS: recipe ROI/XYZ/relative vectors/score/count/status, edit/create, camera/robot results; no retired 2D requests or JS errors');
+}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

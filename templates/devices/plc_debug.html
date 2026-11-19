@@ -24,18 +24,9 @@
 <div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>ΔX（mm）</th><th>ΔY（mm）</th><th>ΔZ1（mm）</th><th>ΔX2（mm）</th><th>ΔY2（mm）</th><th>ΔZ2（mm）</th><th>结果 / 错误</th></tr></thead><tbody id="position-history"><tr><td colspan="9">暂无定位结果</td></tr></tbody></table></div>
 </section>
 <section class="panel">
-<h2>2D 相机与 PLC 联调 · 泡棉视觉检测</h2>
-<p class="hint">选择已完成左右泡棉 ROI 和标准模板示教的 2D 配方，检测使用该配方的 POS。保持本页打开；关闭页面或断网后监听会话空闲时最长 15 秒到期。2D 与 3D 不能同时启用轮询，须先停止当前工序再启动另一工序。PLC读取串行执行，每次读取结束后至少间隔 20ms 才开始下一次读取；轮询期间暂停工位 Worker 的 PLC 操作并禁止手动写入。</p>
-<form onsubmit="return false" id="foam-form">
-<label for="foam-recipe">2D 泡棉检测配方</label>
-<select id="foam-recipe" required><option value="">请选择配方</option>{% for recipe in foam_recipes %}<option value="{{ recipe.pk }}">{{ recipe.name }}（POS {{ recipe.pos }}）</option>{% endfor %}</select>
-<button id="foam-start" type="submit" disabled>开始监听 PLC 2D 触发</button>
-<button id="foam-stop" type="button" disabled>停止监听</button>
-</form>
-<p class="hint">DB{{ db_number }}.DBX68.4 仅上升沿触发泡棉检测，PLC 约5秒后自行复位。检测结果仅保存在上位机，不回写 PLC 结果位；保持高电平不会重复执行。启动或重连先建立基线，需观察到实际低→高再触发。</p>
-<output id="foam-status" aria-live="polite">调试脚本加载中；若此提示持续存在，请检查静态文件部署并强制刷新。</output>
-<p id="foam-progress" class="hint" role="status">开始监听前检查配方与PLC通信；通信失败不会启动拍照。</p>
-<div class="history"><table><thead><tr><th>完成时间</th><th>次数</th><th>记录 ID</th><th>评分</th><th>缺陷</th><th>结果 / 错误</th></tr></thead><tbody id="foam-history"><tr><td colspan="6">暂无泡棉检测结果</td></tr></tbody></table></div>
+<h2>2D 泡棉连续检测</h2>
+<p class="hint">海康相机随服务持续采集、实时判断倒伏。DB2.DBX68.4 已停用，不监听其触发；泡棉结果不回写 PLC，3D 补偿流程不变。</p>
+<a class="btn btn-primary" href="{% url 'vision:foam_inspector_interactive' %}">打开连续检测工作台</a>
 </section>
 <div class="panels">
 <section class="panel"><h2>读取点位</h2><form id="read-form">{% csrf_token %}
@@ -70,5 +61,4 @@ document.getElementById('read-form').addEventListener('submit',event=>execute(ev
 })();
 </script>
 <script id="plc-position-script" src="{% static 'devices/js/plc_position_debug.js' %}?v=20261111-serial-poll" data-api-url="{% url 'devices:api_plc_position_debug' %}"></script>
-<script id="plc-foam-script" src="{% static 'devices/js/plc_foam_debug.js' %}?v=20261111-serial-poll" data-api-url="{% url 'devices:api_plc_foam_debug' %}"></script>
 {% endblock %}

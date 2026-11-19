@@ -69,6 +69,9 @@ desktop.ini
 *.[sS][vV][gG]
 *.avif
 /2d_SDK/pic/
+/2d_SDK/pic2/
+/tmp/foam_video/
+/tmp/foam_stream_results/
 /rvc_service/pic/
 .camera_cache/
 
@@ -112,3 +115,11 @@ htmlcov/
 !apps/vision/tests_rack_rivet.py
 # This vendor file is the production detector, despite its upstream name.
 !apps/vision/algorithms/rivet_vendor/rivet_test.py
+!apps/vision/tests_foam_stream.py
+!apps/vision/tests_audit_regressions.py
+/foam_ng.sqlite3*
+!build-distributed.ps1
+!MyApp.spec
+!AGVControl.spec
+!tools/prepare_distributed.py
+!tools/finalize_distributed.py

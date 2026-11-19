@@ -124,11 +124,9 @@ PLC_SCENES = (
     },
     {
         'key': 'product', 'number': 4, 'name': '泡棉视觉检测',
-        'subtitle': 'DB2.DBX68.4：仅 0→1 触发',
+        'subtitle': '2D 相机连续检测；DB2.DBX68.4 已停用，不回写 PLC',
         'phases': ('WAIT_PRODUCT', 'WAIT_MARK_RESET', 'WAIT_FOAM', 'WAIT_FOAM_RESET'),
-        'points': (
-            ('泡棉视觉检测触发', 'foam_trigger', 'DBX68.4', 'IN', 'trigger'),
-        ),
+        'points': (),
     },
     {
         'key': 'upload', 'number': 5, 'name': '装箱完成与 MES 上传',
@@ -317,7 +315,6 @@ def _rack_overlay(record, image):
 def status(request):
     from datetime import datetime, time, timedelta
 
-    from apps.vision.views import _result_payload
     from apps.vision.models import VisionTask
 
     section = request.GET.get('section')
@@ -330,10 +327,8 @@ def status(request):
     end = timezone.make_aware(datetime.combine(today + timedelta(days=1), time.min))
     day_filter = {'created_at__gte': start, 'created_at__lt': end}
     tasks = VisionTask.objects.filter(is_production=True, **day_filter).order_by('-created_at', '-pk')
-    rack_task = tasks.filter(task_type='RACK_LOCATING', rack_results__isnull=False).first() if section != 'foam' else None
-    foam_task = tasks.filter(task_type='FOAM_INSPECTION', foam_results__isnull=False).first() if section != 'rack' else None
+    rack_task = tasks.filter(task_type='RACK_LOCATING').first() if section != 'foam' else None
     rack = rack_task.rack_results.order_by('-created_at', '-pk').first() if rack_task else None
-    foam = foam_task.foam_results.order_by('-created_at', '-pk').first() if foam_task else None
     rack_overlay = None
     rack_image = None
     if rack:
@@ -349,11 +344,9 @@ def status(request):
     if section in ('inspections', 'rack', 'foam'):
         template = 'devices/latest_inspections.html'
     return render(request, template, {
-        'section': section, 'rack': rack, 'foam': foam, 'rack_image': rack_image, 'rack_overlay': rack_overlay,
-        'foam_payload': _result_payload(foam) if foam else None,
+        'section': section, 'rack': rack, 'rack_task': rack_task, 'rack_image': rack_image, 'rack_overlay': rack_overlay,
         'entries': sorted((entry for entry in entries if start <= entry[0] < end),
                           key=lambda entry: entry[0], reverse=True),
-        'foam_coverage': foam.coverage_ratio * 100 if foam else None,
     })
 
 
@@ -732,7 +725,7 @@ def api_plc_position_debug(request, mode="position"):
 
 @require_POST
 def api_plc_foam_debug(request):
-    return api_plc_position_debug(request, mode="foam")
+    return JsonResponse({'success': False, 'error': '68.4 泡棉触发已停用，请使用 2D 连续检测工作台'}, status=410)
 
 
 def api_plc_logs(request):

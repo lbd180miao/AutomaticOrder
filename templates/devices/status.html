@@ -2,21 +2,19 @@
 {% load static %}
 {% block title %}设备状态 - AutomaticBoxing{% endblock %}
 {% block page_class %}device-overview inspection-page{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'devices/status.css' %}?v=inspection-overview-9">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'devices/status.css' %}?v=inspection-overview-11">{% endblock %}
 {% block content %}
 {% csrf_token %}
 <section aria-label="检测结果">
   <div class="inspection-grid" id="latest-inspections">{% include 'devices/latest_inspections.html' %}</div>
 </section>
-<script src="{% static 'vision/js/foam_result_summary.js' %}?v=2"></script>
-<script src="{% static 'vision/js/rack_result_tables.js' %}?v=rivet-display-1"></script>
+<script src="{% static 'devices/foam_live_status.js' %}?v=5" defer></script>
+<script src="{% static 'vision/js/rack_result_tables.js' %}?v=rivet-display-8"></script>
 <script src="{% static 'devices/inspection_status.js' %}?v=3" defer></script>
 <script>
 (() => {
   const grid = document.getElementById('latest-inspections');
   function renderResults(root = grid) {
-    const foamData = root.querySelector('#device-foam-result');
-    if (foamData) window.renderFoamSummary(root.querySelector('#device-foam-summary'), JSON.parse(foamData.textContent));
     const rackData = root.querySelector('#device-rack-result');
     if (rackData) {
       const data = JSON.parse(rackData.textContent);
@@ -34,9 +32,9 @@
     img.replaceWith(label);
   }
   grid.addEventListener('error', event => {
-    if (event.target instanceof HTMLImageElement) imageUnavailable(event.target);
+    if (event.target instanceof HTMLImageElement && !event.target.closest('[data-inspection=foam]')) imageUnavailable(event.target);
   }, true);
-  grid.querySelectorAll('img').forEach(img => {
+  grid.querySelectorAll('[data-inspection=rack] img').forEach(img => {
     if (img.complete && !img.naturalWidth) imageUnavailable(img);
   });
   const previous = {};
@@ -79,10 +77,10 @@
         await refresh(kind);
       }
     } finally {
-      window.setTimeout(() => poll(kind), 1000);
+      window.setTimeout(() => poll(kind), kind === 'rack' ? 250 : 1000);
     }
   }
-  ['rack', 'foam', 'log'].forEach(kind => poll(kind));
+  ['rack', 'log'].forEach(kind => poll(kind));
 })();
 </script>
 {% endblock %}

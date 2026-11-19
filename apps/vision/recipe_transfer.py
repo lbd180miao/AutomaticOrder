@@ -13,7 +13,7 @@ from .models import (VisionRecipe, RackLocationRecipe, RackLocationROI3D,
 
 FORMAT = 'automatic-order-vision-recipe'
 MAX_BYTES = 32 * 1024 * 1024
-KINDS = {'foam2d': VisionRecipe, 'rack3d': RackLocationRecipe}
+KINDS = {'rack3d': RackLocationRecipe}
 
 
 def fields(model):

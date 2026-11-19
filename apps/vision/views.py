@@ -289,16 +289,9 @@ def foam_results(request):
 
 
 def foam_inspector_interactive(request):
-    """One workbench for foam ROI teaching and inspection."""
-    if request.GET.get('new') == '1':
-        return redirect('/vision/recipes/?tab=foam2d')
-    return render(request, 'vision/foam_inspector_interactive.html', {
-        'foam_layout_id': request.GET.get('layout_id', ''),
-        'workbench_title': '2D 泡棉工作台',
-        'max_upload_bytes': settings.VISION_MAX_UPLOAD_BYTES,
-        'max_image_pixels': settings.VISION_MAX_IMAGE_PIXELS,
-        'max_upload_mb': settings.VISION_MAX_UPLOAD_BYTES // (1024 * 1024),
-    })
+    """Continuous monitoring replaces the retired recipe workbench."""
+    return render(request, 'vision/foam_stream_workbench.html')
+
 
 
 def recipe_management(request):
@@ -1519,6 +1512,8 @@ def _serialize_rack_location_recipe(recipe):
 
 def _serialize_3d_recipe(recipe):
     payload = _serialize_rack_location_recipe(recipe)
+    from .rack_rivet import recipe_summary
+    payload['rivet_template'] = recipe_summary(recipe)
     layer_index = int(recipe.layer_no or 0)
     locate_type = 'GLOBAL' if layer_index == 0 else 'LAYER'
     try:
@@ -1726,29 +1721,16 @@ def _save_rack_location_recipe_from_request(request, recipe=None):
 @require_http_methods(['GET', 'POST'])
 def rack_location_recipe_create(request):
     if request.method == 'POST':
-        try:
-            recipe = _save_rack_location_recipe_from_request(request)
-            messages.success(request, f'3D料架定位配方已保存：{recipe.recipe_name}')
-            return redirect('vision:rack_location_recipe_edit', recipe_id=recipe.id)
-        except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            messages.error(request, f'保存失败：{exc}')
-    # 支持 GET 参数预填（从配方管理页 Modal 跳转而来）
-    prefill = {k: v for k, v in request.GET.items() if v not in (None, '')}
-    return render(request, 'vision/rack_location_recipe_form.html',
-                  _rack_location_recipe_form_context(prefill=prefill or None))
+        return JsonResponse({'success': False, 'error': '旧点云配方表单已移除，请使用铆钉配方管理'}, status=410)
+    return redirect('vision:recipe_management')
 
 
 @require_http_methods(['GET', 'POST'])
 def rack_location_recipe_edit(request, recipe_id):
-    recipe = get_object_or_404(RackLocationRecipe, pk=recipe_id)
+    get_object_or_404(RackLocationRecipe, pk=recipe_id)
     if request.method == 'POST':
-        try:
-            recipe = _save_rack_location_recipe_from_request(request, recipe)
-            messages.success(request, f'3D料架定位配方已更新：{recipe.recipe_name}')
-            return redirect('vision:rack_location_recipe_edit', recipe_id=recipe.id)
-        except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            messages.error(request, f'保存失败：{exc}')
-    return render(request, 'vision/rack_location_recipe_form.html', _rack_location_recipe_form_context(recipe))
+        return JsonResponse({'success': False, 'error': '请在铆钉工作台保存 ROI 和模板'}, status=410)
+    return redirect(f'{reverse("vision:rack_locator_panel")}?recipe_id={recipe_id}')
 
 
 def rack_location_history(request):
@@ -1882,6 +1864,8 @@ def api_vision_3d_recipes(request):
             
             for field, value in _validated_3d_limits(data).items():
                 setattr(recipe, field, value)
+            from .rack_rivet import sync_recipe_layers
+            sync_recipe_layers(recipe)
             recipe.save()
             return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
         except Exception as exc:  # noqa: BLE001
@@ -1926,7 +1910,15 @@ def api_vision_3d_recipes(request):
                 recipe.layer_count = layer_count
                 # 新增副本会立即进入工作台编辑，因此即使源配方已禁用，
                 # 副本也必须出现在工作台的“已启用配方”下拉框中。
-                recipe.enabled = True
+                recipe.enabled = _as_bool(data.get('enabled'), True)
+                for field, value in _validated_3d_limits(data).items():
+                    if field in data:
+                        setattr(recipe, field, value)
+                for field in ('layer_no', 'position_no'):
+                    if field in data:
+                        setattr(recipe, field, _as_int(data[field], getattr(recipe, field)))
+                from .rack_rivet import sync_recipe_layers
+                sync_recipe_layers(recipe)
                 recipe.save(force_insert=True)
 
                 for related_name in ('rois_3d', 'enhanced_rois_3d'):
@@ -1951,6 +1943,9 @@ def api_vision_3d_recipes(request):
         reference_feature_config = dict(
             data.get('reference_feature_config') or {},
         )
+        layer_count = _as_int(data.get('layer_count'), 3)
+        if layer_count not in (2, 3) or not 1 <= layer_no <= layer_count:
+            return _api3d_error('料架层数必须为 2 或 3，检测层号不能超过层数')
         reference = None
         recipe = RackLocationRecipe.objects.create(
             **_validated_3d_limits(data),
@@ -2132,6 +2127,8 @@ def api_vision_3d_recipe_detail(request, recipe_id):
                         layer_index=value,
                     )
                 setattr(recipe, field, value)
+        from .rack_rivet import sync_recipe_layers
+        sync_recipe_layers(recipe)
         recipe.save()
         return _api3d_success({'recipe': _serialize_3d_recipe(recipe)})
     except Exception as exc:  # noqa: BLE001
@@ -2295,7 +2292,11 @@ def api_vision_3d_write_plc(request):
     try:
         data = _request_data(request)
         result = get_object_or_404(RackLocationResult, pk=data.get('result_id'))
-        response = Rack3DLocator().write_result_to_plc(result)
+        from apps.devices.plc_position_debug import ownership, active
+        with ownership() as (state, save):
+            if active(state):
+                raise ValueError('当前存在手动调试任务，请退出调试后发送差值')
+            response = Rack3DLocator().write_result_to_plc(result)
         result.refresh_from_db()
         return _api3d_success({
             'plc_response': response,

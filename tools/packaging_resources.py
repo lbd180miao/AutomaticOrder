@@ -2,10 +2,12 @@
 import json
 import shutil
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 VISUAL_DATA_SUFFIXES = frozenset({
+    '.avi', '.mp4', '.mov', '.mkv', '.wmv', '.webm', '.mpeg', '.mpg', '.m4v',
     '.avif', '.bmp', '.dib', '.exr', '.gif', '.heic', '.heif', '.ico', '.jfif',
     '.jpeg', '.jpg', '.pbm', '.pgm', '.png', '.ppm', '.svg', '.svgz', '.tga',
     '.tif', '.tiff', '.webp',
@@ -49,8 +51,12 @@ def strings(value):
 def copy_resources(destination):
     destination = Path(destination)
     source_root = (ROOT / 'media').resolve()
-    required = set()
-    with sqlite3.connect(destination / 'db.sqlite3') as db:
+    required = {Path('vision/foam_stream_templates/pic2') / name
+                for name in ('profile.json', 'far.png', 'near.png')}
+    for relative in required:
+        if not (source_root / relative).is_file():
+            raise FileNotFoundError(f'Required continuous foam template missing: {relative}')
+    with closing(sqlite3.connect(destination / 'db.sqlite3')) as db:
         for row in db.execute('SELECT standard_template_config, threshold_config FROM vision_visionrecipe'):
             for field in row:
                 for value in strings(json.loads(field or '{}')):

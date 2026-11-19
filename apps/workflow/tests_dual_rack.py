@@ -63,8 +63,13 @@ class RoutingTests(SimpleTestCase):
             self.assertEqual(jobs, [])
 
     def test_buffered_pulses_are_not_lost(self):
-        jobs, _ = collect_events(self.observed, [sample(foam_trigger=True), sample(), sample(foam_trigger=True)])
-        self.assertEqual([job['trigger'] for job in jobs], ['foam_trigger', 'foam_trigger'])
+        jobs, _ = collect_events(self.observed, [sample(position_trigger=True), sample(), sample(position_trigger=True)])
+        self.assertEqual([job['trigger'] for job in jobs], ['position_trigger', 'position_trigger'])
+
+    def test_retired_foam_edges_never_enqueue(self):
+        jobs, messages = collect_events(self.observed, [sample(foam_trigger=True), sample(), sample(foam_trigger=True)])
+        self.assertEqual(jobs, [])
+        self.assertEqual(messages, [])
 
     def test_invalid_current_rack_does_not_use_cached_rack(self):
         self.assertEqual(self.events(rack_barcode_2='NoRead', rack_working_2=True), [])
@@ -267,7 +272,7 @@ class WorkflowTests(TestCase):
         self.assertEqual(set(writes), {'layer_delta_' + axis for axis in axes})
         for axis, value in zip(axes, (1, 2, 3, 4, 5, 6)):
             self.assertEqual(self.plc.read_point('layer_delta_' + axis), value)
-        self.assertEqual(self.plc.read_listener_snapshot(), sample(position_trigger=True, foam_trigger=True,
+        self.assertEqual(self.plc.read_listener_snapshot(), sample(position_trigger=True,
                                                                 rack_working=True, boxing_trigger=True))
 
     def test_invalid_rack_read_then_original_does_not_repeat_mes_query(self):

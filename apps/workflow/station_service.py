@@ -100,11 +100,20 @@ class ExistingVisionGateway:
         from apps.devices.plc_position_debug import capture_position
         from time import perf_counter
         capture_started = perf_counter()
-        recipe = get_default_recipe('rack')
-        recipe_id, layer_no = recipe.pk, recipe.layer_no
-        locator = Rack3DLocator()
-        record('3d', f'因 PLC 3D 定位触发，开始 3D 相机拍照，配方 #{recipe_id}')
-        acquired = locator.acquire_workbench(recipe_id=recipe_id)
+        from apps.vision.models import VisionTask
+        task = VisionTask.objects.create(task_type='RACK_LOCATING', status='RUNNING',
+                                         started_at=timezone.now(), is_production=True)
+        def failed(exc):
+            VisionTask.objects.filter(pk=task.pk).update(status='FAILED', error_message=str(exc), finished_at=timezone.now())
+        try:
+            recipe = get_default_recipe('rack')
+            recipe_id, layer_no = recipe.pk, recipe.layer_no
+            locator = Rack3DLocator()
+            record('3d', f'因 PLC 3D 定位触发，开始 3D 相机拍照，配方 #{recipe_id}')
+            acquired = locator.acquire_workbench(recipe_id=recipe_id)
+        except Exception as exc:
+            failed(exc)
+            raise
         queued_at = perf_counter()
         record('3d', f'3D 采集完成，耗时 {queued_at - capture_started:.3f} 秒，进入计算队列')
         if not hasattr(self, '_position_executor'):
@@ -117,12 +126,15 @@ class ExistingVisionGateway:
                 record('3d', f'开始处理 3D 点云，计算排队 {saving_started - queued_at:.3f} 秒')
                 payload = locator.persist_workbench(acquired)
                 record('3d', f'3D 点云及预览保存耗时 {perf_counter() - saving_started:.3f} 秒，开始定位')
-                result = capture_position(recipe_id, layer_no, captured_payload=payload, is_production=True)
+                result = capture_position(recipe_id, layer_no, captured_payload=payload, is_production=True, task=task)
                 record('3d', '料框定位计算完成：' + ('OK' if result.get('is_success') else 'NG') + '；' + str(result.get('error_message') or '准备回写 PLC 补偿'))
                 if not result.get('is_success'):
                     raise StationStepError(result.get('error_message') or '3D 定位失败', AlarmSource.VISION)
                 return {axis: float(result[f'compensation_{axis}'])
                         for axis in ('x', 'y', 'z', 'x2', 'y2', 'z2')}
+            except Exception as exc:
+                failed(exc)
+                raise
             finally:
                 close_old_connections()
         return self._position_executor.submit(calculate)
@@ -385,7 +397,6 @@ class StationWorkflowService:
         trigger = pending.get('trigger')
         handlers = [('position_trigger', self._position_trigger),
                     ('mark_trigger', self._product_trigger),
-                    ('foam_trigger', self._foam_trigger),
                     ('boxing_trigger', self._mes_box_trigger)]
         for name, handler in handlers:
             if trigger == name or (not trigger and snapshot.get(name)):
@@ -401,11 +412,16 @@ class StationWorkflowService:
         state = cycle.io_state
         observed = state.setdefault('listener_inputs', {})
         queue = state.setdefault('listener_queue', [])
+        # Retire queued jobs from older versions without camera or PLC I/O.
+        queue[:] = [job for job in queue if job.get('trigger') != 'foam_trigger']
+        if (state.get('pending') or {}).get('trigger') == 'foam_trigger':
+            state.pop('pending', None)
+        observed.pop('foam_trigger', None)
         samples = getattr(self, '_input_samples', [snapshot])
         logged = dict(observed)
         for sample in samples:
             for name, value in sample.items():
-                if name in POINTS_BY_NAME and logged.get(name) != value:
+                if name != 'foam_trigger' and name in POINTS_BY_NAME and logged.get(name) != value:
                     self._record_input(name, value, POINTS_BY_NAME[name].offset)
                     logged[name] = value
         events, messages = collect_events(
@@ -423,7 +439,6 @@ class StationWorkflowService:
             'rack_trigger': (StationPhase.WAIT_RACK, self._rack_trigger, ('rack_done',)),
             'position_trigger': (StationPhase.WAIT_POSITION, self._position_trigger,
                                  ()),
-            'foam_trigger': (StationPhase.WAIT_FOAM, self._foam_trigger, ()),
             'boxing_trigger': (StationPhase.WAIT_BOXING, self._mes_box_trigger, ('mes_upload_done',)),
         }
         changed = False
@@ -432,7 +447,7 @@ class StationWorkflowService:
         # Dispatch fresh captures before old result writes or MES work.
         # Stable sorting preserves capture order within each camera.
         dispatch = sorted(queue, key=lambda job: not (
-            job['trigger'] in ('position_trigger', 'foam_trigger')
+            job['trigger'] == 'position_trigger'
             and not job.get('capture_started')))
         for pending in dispatch:
             trigger = pending['trigger']
@@ -825,59 +840,11 @@ class StationWorkflowService:
         return True
 
     def _foam_trigger(self, cycle, snapshot):
-        pending = self._accept(cycle, snapshot, 'foam_trigger')
-        if pending is None:
-            return False
-        asynchronous = isinstance(self.vision, ExistingVisionGateway) and not self.vision.simulated
-        if asynchronous and 'passed' not in pending:
-            import uuid
-            job_id = pending.get('foam_job_id')
-            if not job_id:
-                if pending.get('capture_started'):
-                    raise StationStepError('上次 2D 任务被中断，请重新触发', AlarmSource.VISION)
-                job_id = uuid.uuid4().hex
-                pending.update(foam_job_id=job_id, capture_started=True)
-                self._save_io(cycle)
-                self._foam_futures[job_id] = self.vision.submit_foam(cycle)
-            future = self._foam_futures.get(job_id)
-            if future is None:
-                raise StationStepError('后台 2D 任务已中断，请重新触发', AlarmSource.VISION)
-            if not future.done():
-                return False
-            queue = cycle.io_state.get('listener_queue', [])
-            if pending in queue and any(job.get('trigger') == 'foam_trigger'
-                                        for job in queue[:queue.index(pending)]):
-                return False
-            try:
-                pending['passed'] = future.result()
-            finally:
-                self._foam_futures.pop(job_id, None)
-            self._save_io(cycle)
-        elif not asynchronous:
-            if 'passed' not in pending:
-                if pending.get('capture_started'):
-                    raise StationStepError('上次 2D 采集被中断，请确认后重试', AlarmSource.VISION)
-                pending['capture_started'] = True
-                self._save_io(cycle)
-                record('2d', '泡棉触发已受理，正在检查默认配方、拍照、计算并保存视觉历史')
-                passed, _ = self.vision.inspect_foam(cycle)
-                pending['passed'] = bool(passed)
-                self._save_io(cycle)
-        cycle.foam_passed = pending['passed']
-        cycle.save(update_fields=['foam_passed', 'updated_at'])
-        self._write('foam_passed', cycle.foam_passed, 74)
-        self._set_phase(cycle, StationPhase.WAIT_FOAM_RESET)
-        if not cycle.foam_passed:
-            self._channel_failure(cycle, 'foam_trigger', '泡棉检测不合格', AlarmSource.VISION)
-        return True
+        """Retired DB2.DBX68.4 handler; old callers cannot start a capture."""
+        return False
 
     def _foam_reset(self, cycle, snapshot):
-        if not self._acknowledged(cycle, 'foam_done'):
-            return False
-        cycle.foam_passed = None
-        cycle.save(update_fields=['foam_passed', 'updated_at'])
-        self._set_phase(cycle, StationPhase.WAIT_PRODUCT)
-        return True
+        return False
 
     def _mes_box_trigger(self, cycle, snapshot):
         from apps.core.constants import MesAction

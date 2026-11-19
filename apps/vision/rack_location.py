@@ -191,7 +191,10 @@ class PlcVisionResultWriter:
         if (result.result_data or {}).get('algorithm') == 'rivet':
             # Rivet scores are not probabilities; use the detector/depth validity.
             measured = result.result_data.get('result') or {}
-            return '' if measured.get('success') and len(measured.get('points', [])) == 3 else '三个铆钉测量未通过'
+            from .rack_cloud_roi import required_targets
+            config = (recipe.roi_config or {}).get('cloud_center_config') or {}
+            names = [target.split('_')[0] for target in required_targets(config)]
+            return '' if measured.get('success') and [p.get('name') for p in measured.get('points', [])] == names else '铆钉测量与料架配置不一致'
         # 只保留置信度检查
         if float(result.confidence) < float(recipe.confidence_threshold):
             return f'置信度不足: {float(result.confidence):.2%} < {float(recipe.confidence_threshold):.2%}'

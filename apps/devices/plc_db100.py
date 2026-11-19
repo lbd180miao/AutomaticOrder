@@ -37,7 +37,7 @@ DB100_POINTS = (
     _point('rack_barcode', 24, 'STRING[20]', 'IN', '料框码 1', 22),
     _point('rack_barcode_2', 46, 'STRING[20]', 'IN', '料框码 2', 22),
     _point('position_trigger', 68, 'BOOL', 'IN', '3D 定位触发', 1, 3),
-    _point('foam_trigger', 68, 'BOOL', 'IN', '泡棉视觉检测触发', 1, 4),
+    _point('foam_trigger', 68, 'BOOL', 'RESERVED', '已停用：泡棉使用连续检测', 1, 4),
     _point('boxing_trigger', 68, 'BOOL', 'IN', 'MES 封箱上传触发 1', 1, 5),
     _point('boxing_trigger_2', 68, 'BOOL', 'IN', 'MES 封箱上传触发 2', 1, 6),
     _point('rack_working', 68, 'BOOL', 'IN', '料箱 1 工作中', 1, 7),

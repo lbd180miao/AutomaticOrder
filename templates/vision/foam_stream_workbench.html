@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}2D 泡棉倒伏检测 - AutomaticBoxing{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'vision/foam_stream.css' %}?v=2">{% endblock %}
+{% block content %}
+<section id="foam-stream" class="fs-workbench" data-api="/vision/api/foam/stream/">
+  {% csrf_token %}
+  <header class="fs-heading">
+    <div><div class="fs-eyebrow">2D VISION · CONTINUOUS INSPECTION</div><h1>泡棉倒伏检测</h1><p>连续观察泡棉形态，多帧确认倒伏。机器人运动时持续检测。</p></div>
+  </header>
+  <div class="fs-tabs" role="tablist" aria-label="检测来源">
+    <button id="fs-video-tab" role="tab" aria-selected="true" class="active">导入视频调试</button>
+    <button id="fs-live-tab" role="tab" aria-selected="false">海康相机连续检测</button>
+    <span id="fs-mode-label">调试模式 · 不回写 PLC</span>
+  </div>
+  <div class="fs-grid">
+    <section class="fs-panel fs-viewer">
+      <div class="fs-panel-head"><strong id="fs-source">等待导入视频</strong><span id="fs-connection">未连接</span></div>
+      <div class="fs-screen">
+        <img id="fs-image" hidden alt="泡棉连续检测画面，包含检测区域与状态标注">
+        <div id="fs-empty"><span class="fs-play-icon">▷</span><h2 id="fs-empty-title">导入视频，边播放边检测</h2><p id="fs-empty-help">支持 AVI、MP4、MOV、MKV · 最大 256 MB</p><p>左右泡棉独立判断，倒伏事件在本次检测中保留。</p></div>
+        <span id="fs-overlay" class="fs-overlay" hidden>暂停</span>
+      </div>
+      <div id="fs-video-controls" class="fs-controls">
+        <div class="fs-timeline"><span id="fs-time">00:00 / 00:00</span><input id="fs-seek" type="range" min="0" max="1" value="0" step="1" aria-label="视频进度" disabled><span id="fs-frame">第 0 帧</span></div>
+        <div class="fs-actions">
+          <button id="fs-import" class="btn btn-primary">＋ 导入视频</button><input id="fs-file" type="file" accept=".avi,.mp4,.mov,.mkv" hidden>
+          <button id="fs-play" class="btn btn-secondary" disabled>播放并检测</button>
+          <button id="fs-step" class="btn btn-secondary" disabled>下一帧</button>
+          <button id="fs-restart" class="btn btn-secondary" disabled>从头检测</button>
+          <label>速度 <select id="fs-speed" aria-label="播放速度"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>
+        </div>
+        <div class="fs-samples"><span>现场测试素材</span><div id="fs-samples"></div></div>
+      </div>
+      <div id="fs-live-controls" class="fs-controls" hidden>
+        <div class="fs-actions"><button id="fs-start-live" class="btn btn-primary">进入手动连续调试</button><button id="fs-stop-live" class="btn btn-secondary">退出调试并恢复自动</button><button id="fs-reset-live" class="btn btn-secondary">开始新一轮检测</button></div>
+        <label><input id="fs-annotated" type="checkbox"> 查看算法标注帧（默认实时相机画面）</label><p>相机持续采集，算法持续检测。进入手动调试会暂停软件自动工序分派，PLC 心跳保持；关闭网页仍保持调试，需点击“退出调试并恢复自动”。泡棉结果不回写 PLC。</p>
+      </div>
+      <div id="fs-error" class="fs-error" role="alert" hidden></div>
+    </section>
+    <aside class="fs-sidebar">
+      <section class="fs-panel">
+        <div class="fs-panel-head"><strong>本次检测结果</strong><span>多帧确认</span></div>
+        <div id="fs-verdict" class="fs-verdict unknown"><strong id="fs-verdict-text">待检测</strong><p id="fs-verdict-reason">导入视频或连接相机后开始检测</p></div>
+        <div class="fs-side-grid"><div><span>左侧泡棉</span><strong id="fs-left">未确认</strong><small id="fs-left-detail">等待有效画面</small></div><div><span>右侧泡棉</span><strong id="fs-right">未确认</strong><small id="fs-right-detail">等待有效画面</small></div></div>
+        <dl class="fs-metrics"><div><dt>当前观察位置</dt><dd id="fs-view">—</dd></div><div><dt>单帧算法耗时</dt><dd id="fs-latency">—</dd></div><div><dt>当前处理帧率</dt><dd id="fs-fps">—</dd></div><div><dt>PLC 回写</dt><dd id="fs-plc">调试关闭</dd></div></dl>
+      </section>
+      <section class="fs-panel"><div class="fs-panel-head"><strong>倒伏事件</strong><span id="fs-event-count">0 次</span></div><div id="fs-events" class="fs-events"><p>本次尚未确认倒伏。</p></div></section>
+      <section class="fs-panel fs-profile"><strong>当前标准模板</strong><p id="fs-profile-name">正在加载…</p><small id="fs-profile-scope"></small></section>
+    </aside>
+  </div>
+  <footer class="fs-legend"><span><i class="normal"></i>正常展开</span><span><i class="fallen"></i>确认倒伏 NG</span><span><i class="unknown"></i>未确认 / 定位不足</span><p>没有看清泡棉时不判 OK；显示最新检测结果，相机连续检测的每次 NG 均保存日志，后续 OK 不删除 NG 记录。</p></footer>
+</section>
+<script src="{% static 'vision/js/foam_stream.js' %}?v=3" defer></script>
+{% endblock %}

@@ -71,6 +71,15 @@
 .inspection-verdict{border-radius:5px;padding:5px 10px;font-size:calc(48px + var(--ui-font-increase,0px));line-height:1.15}
 .inspection-verdict.pass{color:#08634a;background:#dcf4e7}
 .inspection-verdict.fail{color:#9c1d23;background:#ffe7e7}
+.foam-live-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.foam-live-picture img[hidden],.foam-live-picture span[hidden]{display:none}
+.foam-live-state{color:#386892;font-weight:600}
+.foam-live-sides{display:flex;gap:24px;flex-wrap:wrap}
+.foam-live-sides[hidden]{display:none}
+.inspection-details>summary{cursor:pointer;font-weight:600;padding:4px 0;list-style:disclosure-closed}
+.inspection-details[open]>summary{list-style:disclosure-open;margin-bottom:12px}
+.foam-live-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.foam-live-error{color:#a22020;overflow-wrap:anywhere}
 .inspection-picture{height:clamp(200px,40vh,450px);background:#19212b;color:#dbe5ed;display:grid;place-items:center}
 .inspection-picture img{width:100%;height:100%;min-width:0;min-height:0;object-fit:cover}
 .inspection-card small{display:block;margin-top:6px;color:#526476}

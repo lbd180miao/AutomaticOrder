@@ -1,0 +1,55 @@
+#rivet-recipes { color: var(--text); }
+.rp-head, .rp-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rp-head { justify-content: space-between; margin-bottom: 18px; gap: 12px; }
+.rp-head h1 { margin: 0; font-size: calc(22px + var(--ui-font-increase, 0px)); font-weight: 700; }
+.rp-head h1::before { content: ''; display: inline-block; width: 4px; height: 20px; background: var(--primary); border-radius: 3px; margin-right: 10px; vertical-align: -3px; }
+.rp-note { color: var(--text-muted); font-size: calc(13px + var(--ui-font-increase, 0px)); line-height: 1.6; }
+.rp-head p { margin: 7px 0 0; }
+#rivet-recipes .btn { font-size: calc(13px + var(--ui-font-increase, 0px)); padding: 8px 14px; }
+.rp-library { background: var(--surface); border: 1px solid #dbe4f0; border-radius: 12px; }
+.rp-library-title { padding: 15px 17px; color: #334155; font-weight: 800; }
+.rp-library-body { padding: 0 16px 16px; }
+.rp-library-note { margin: 0 0 14px; }
+.rp-toolbar { margin-bottom: 16px; gap: 12px; font-size: calc(13px + var(--ui-font-increase, 0px)); }
+#rivet-recipes input, #rivet-recipes select { border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); padding: 8px 12px; font: inherit; box-sizing: border-box; }
+#rp-search { width: min(100%, 340px); min-width: 0; }
+#rp-default { max-width: 100%; }
+#rp-list { display: grid; gap: 10px; }
+.rp-card { border: 1px solid var(--border); border-radius: var(--radius-sm, 8px); padding: 14px 16px; background: var(--surface-2); min-width: 0; }
+.rp-card:hover { box-shadow: var(--shadow-sm); }
+.rp-card summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; cursor: pointer; list-style: none; font-size: calc(15px + var(--ui-font-increase, 0px)); }
+.rp-card summary::-webkit-details-marker { display: none; }
+.rp-card summary::before { content: '▸'; color: #64748b; transition: transform .2s; }
+.rp-card[open] > summary::before { transform: rotate(90deg); }
+.rp-name { overflow-wrap: anywhere; min-width: 0; }
+.rp-layer, .rp-badge, .rp-status { padding: 4px 10px; border-radius: 999px; font-size: calc(12px + var(--ui-font-increase, 0px)); font-weight: 700; }
+.rp-layer { background: var(--primary); color: #fff; }
+.rp-badge { background: #e2e8f0; color: #475569; }
+.rp-status { margin-left: auto; background: #f1f5f9; color: #64748b; }
+.rp-status.enabled { background: #d1fae5; color: #065f46; }
+.rp-template { font-size: calc(12px + var(--ui-font-increase, 0px)); }
+.rp-ready { color: #15803d; }
+.rp-missing { color: #b45309; }
+.rp-row-actions button { padding: 5px 10px; border: 1px solid #93c5fd; border-radius: 7px; background: #fff; color: #1d4ed8; cursor: pointer; font-size: calc(11px + var(--ui-font-increase, 0px)); font-weight: 700; }
+.rp-row-actions button:hover { background: #eff6ff; }
+.rp-row-actions [data-action=copy] { border-color: #86efac; color: #15803d; }
+.rp-row-actions [data-action=delete] { border-color: #fecaca; color: #dc2626; }
+.rp-body { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.rp-body h3 { font-size: calc(14px + var(--ui-font-increase, 0px)); margin: 18px 0 8px; }
+.rp-table { overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.rp-table table { border-collapse: collapse; width: 100%; font-size: calc(12px + var(--ui-font-increase, 0px)); }
+.rp-table th, .rp-table td { padding: 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.rp-table th { background: #eef2f7; color: #475569; }
+.rp-table tr:last-child td { border-bottom: 0; }
+.rp-dialog { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: min(600px, 85vw); max-height: 85vh; overflow: auto; padding: 24px; }
+.rp-dialog::backdrop { background: #0008; }
+.rp-dialog h2 { margin-top: 0; font-size: calc(20px + var(--ui-font-increase, 0px)); }
+.rp-field { display: grid; gap: 6px; font-size: calc(13px + var(--ui-font-increase, 0px)); }
+.rp-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.rp-fields input, .rp-fields select { width: 100%; }
+#rp-message { white-space: pre-wrap; font-size: calc(13px + var(--ui-font-increase, 0px)); }
+#rp-message:empty { display: none; }
+.rp-footnote { margin: 14px 0; }
+.rp-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); }
+#rivet-recipes :focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+@media (max-width: 760px) { .rp-fields { grid-template-columns: 1fr; } .rp-row-actions { width: 100%; } .rp-status { margin-left: 0; } .rp-library-body { padding: 0 10px 10px; } .rp-card { padding: 12px; } }

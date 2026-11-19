@@ -113,7 +113,7 @@ window.renderFoamSummary(document.getElementById('history-foam-summary'), JSON.p
 {% with dp=rack_result.result_data %}
 
 {% include 'vision/rack_history_tables.html' %}
-<script src="{% static 'vision/js/rack_result_tables.js' %}?v=rivet-display-1"></script>
+<script src="{% static 'vision/js/rack_result_tables.js' %}?v=rivet-display-10"></script>
 {{ dp|json_script:"rack-history-data" }}
 <script>window.rackResultTables.history(JSON.parse(document.getElementById('rack-history-data').textContent));</script>
 <div>

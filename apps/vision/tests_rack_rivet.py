@@ -14,7 +14,7 @@ class RivetTests(SimpleTestCase):
     def setUp(self):
         self.cloud = np.zeros((60, 60, 3))
         self.image = np.zeros((60, 60), np.uint8)
-        self.config = {'algorithm': 'rivet', 'rack_layers': 2, 'imageSize': [60, 60],
+        self.config = {'algorithm': 'rivet', 'rack_layers': 3, 'imageSize': [60, 60],
                        'rois': [dict(target=name, x=i*20, y=0, width=20, height=20)
                                 for i, name in enumerate(rack_rivet.TARGETS)]}
         self.metadata = {'source': 'rvc_camera', 'camera': {'pointcloud_unit': 'mm', 'sn': 'test'}}
@@ -30,6 +30,7 @@ class RivetTests(SimpleTestCase):
         return [dict(u=roi[0]+10., v=10., ranking_score=90., score=90.)], {}
 
     def test_unloading_preview_and_reference(self):
+        self.config['rack_layers'] = 2
         self.config['rack_layout'] = 'unloading'
         self.config['rois'].pop(1)
         with patch.object(rack_rivet, 'detect_image', side_effect=self.detector), patch.object(
@@ -58,7 +59,7 @@ class RivetTests(SimpleTestCase):
             reference = rack_rivet.build_template(self.cloud, self.config, self.metadata, self.image)
         np.testing.assert_allclose(reference['relative_vectors'], self.xyz[:2]-self.xyz[2])
         recipe = SimpleNamespace(roi_config={'cloud_center_config': self.config,
-            'cloud_center_reference': reference}, max_offset_x=10, max_offset_y=10, max_offset_z=10, layer_count=2)
+            'cloud_center_reference': reference}, max_offset_x=10, max_offset_y=10, max_offset_z=10, layer_count=3)
         moved = self.xyz.copy(); moved[0] += [1,2,3]; moved[1] += [-4,5,-6]
         with patch.object(rack_rivet, 'detect_image', side_effect=self.detector), patch.object(
                 rack_rivet, 'measure_with_fallback', side_effect=[{'xyz_mm': p.tolist(), 'status': 'OK_ESTIMATE'} for p in moved]), patch(
@@ -83,6 +84,12 @@ class RivetTests(SimpleTestCase):
                     rack_rivet, 'measure_with_fallback', return_value=measurement):
                 with self.assertRaises(ValueError):
                     rack_rivet.build_template(self.cloud, self.config, self.metadata, self.image)
+
+    def test_duplicate_measurement_point_is_rejected(self):
+        current = self.measurement(self.xyz)
+        current['points'].append(copy.deepcopy(current['points'][0]))
+        with self.assertRaisesRegex(ValueError, '参考点坐标无效'):
+            robot_point_difference(current, {'measurement': self.measurement(self.xyz)}, self.context)
 
     def test_old_template_missing_image_and_changed_pose_rejected(self):
         with self.assertRaises(ValueError):
@@ -137,3 +144,86 @@ class RivetEndpointTests(TestCase):
             history = result_payload(record)
             self.assertIsNone(history['compensation_matrix'])
             self.assertEqual(history['plc_payload']['compensation_z2'], 0)
+            # A layer-three recipe cannot silently become a two-layer recipe
+            # while retaining detection layer three, via either save entry point.
+            recipe.layer_no = 3
+            recipe.save(update_fields=['layer_no'])
+            two = copy.deepcopy(fixture.config)
+            two['rack_layers'] = 2
+            two['rois'].pop(1)
+            for endpoint, extra in [('save', {}), ('cloud_match', {'action': 'save_template'})]:
+                with patch.object(rack_rivet, 'build_template', return_value={'measurement': {}}):
+                    rejected = post(endpoint, {**body, 'config': two, **extra})
+                self.assertEqual(rejected.status_code, 400, rejected.content)
+                recipe.refresh_from_db()
+                self.assertEqual(recipe.layer_count, 3)
+                self.assertEqual(recipe.layer_no, 3)
+                self.assertEqual(recipe.roi_config['cloud_center_config'], fixture.config)
+
+
+class RivetRecipeContractTests(TestCase):
+    def test_layouts_save_summary_and_write_robot_differences(self):
+        from unittest.mock import Mock
+        from .models import RackLocationRecipe, RackLocationResult
+        from .rack_cloud_service import save_result
+        from .rack_location import PlcVisionResultWriter
+        from apps.devices.adapters.plc import PLCAdapter, MemoryPLCTransport
+        from apps.devices.plc_position_debug import dual_group_position
+        fixture=RivetTests(); fixture.setUp()
+        for layers,unloading in [(3,False),(2,False),(2,True)]:
+            with self.subTest(layers=layers,unloading=unloading):
+                config=copy.deepcopy(fixture.config); config['rack_layers']=layers
+                indexes=[0,2] if layers == 2 else [0,1,2]
+                if unloading:
+                    config['rack_layout']='unloading'
+                if layers == 2:
+                    config['rois'].pop(1)
+                def measures(points):
+                    return [dict(xyz_mm=p.tolist(),status='OK_ESTIMATE',valid_count=24,sample_count=30) for p in points]
+                with patch.object(rack_rivet,'detect_image',side_effect=fixture.detector), patch.object(rack_rivet,'measure_with_fallback',side_effect=measures(fixture.xyz[indexes])):
+                    reference=rack_rivet.build_template(fixture.cloud,config,fixture.metadata,fixture.image)
+                recipe=RackLocationRecipe.objects.create(recipe_name=f'{layers}-{unloading}',layer_count=layers,
+                    roi_config={'cloud_center_config':config,'cloud_center_reference':reference},max_offset_x=10,max_offset_y=10,max_offset_z=10)
+                summary=rack_rivet.recipe_summary(recipe)
+                self.assertTrue(summary['ready'],summary)
+                self.assertEqual(summary['points'][0]['valid_count'],24)
+                moved=fixture.xyz.copy();moved[0]+=[1,2,3];moved[1]+=[-4,5,-6]
+                with patch.object(rack_rivet,'detect_image',side_effect=fixture.detector), patch.object(rack_rivet,'measure_with_fallback',side_effect=measures(moved[indexes])), patch('apps.vision.rack_robot_points.workspace_context',return_value=fixture.context):
+                    payload=evaluate_cloud(recipe,fixture.cloud,fixture.metadata,camera_image=fixture.image)
+                self.assertTrue(payload['is_success'],payload['error_message'])
+                record=save_result(recipe,payload,layer_no=1)
+                adapter=PLCAdapter(MemoryPLCTransport())
+                device=Mock(adapter=adapter)
+                response=PlcVisionResultWriter(device_service=device).write(record)
+                self.assertTrue(response['success'])
+                expected=[-2,1,3,0,0,0] if layers == 2 else [-2,1,3,-5,-4,-6]
+                self.assertEqual([adapter.read_point('layer_delta_'+axis) for axis in ('x','y','z','x2','y2','z2')],expected)
+                recipe.roi_config=copy.deepcopy(recipe.roi_config)
+                recipe.roi_config['cloud_center_config']['rois'][0]['x']+=1
+                self.assertFalse(dual_group_position(payload,recipe)['is_success'])
+
+    def test_2d_endpoints_retired_and_data_preserved(self):
+        from .models import VisionRecipe
+        original=VisionRecipe.objects.create(name='historical',recipe_type='FOAM_2D')
+        for url in ['/vision/api/recipes/','/vision/api/recipes/foam-2d/create/','/vision/api/foam/rack-specs/']:
+            self.assertEqual(self.client.post(url).status_code,410)
+        self.assertTrue(VisionRecipe.objects.filter(pk=original.pk).exists())
+        page=self.client.get('/vision/recipes/')
+        self.assertContains(page,'3D 铆钉配方管理')
+        self.assertNotContains(page,'泡棉检测配方')
+        self.assertNotContains(self.client.get('/vision/foam-inspector/?legacy=1'),'单图 / 原配方示教')
+
+    def test_layer_changes_invalidate_template_without_erasing_coordinates(self):
+        import json
+        from .models import RackLocationRecipe
+        fixture=RivetTests();fixture.setUp()
+        with patch.object(rack_rivet,'detect_image',side_effect=fixture.detector),patch.object(rack_rivet,'measure_with_fallback',side_effect=[dict(xyz_mm=p.tolist(),status='OK_ESTIMATE') for p in fixture.xyz]):
+            ref=rack_rivet.build_template(fixture.cloud,fixture.config,fixture.metadata,fixture.image)
+        recipe=RackLocationRecipe.objects.create(recipe_name='layers',layer_count=3,roi_config={'cloud_center_config':fixture.config,'cloud_center_reference':ref})
+        response=self.client.patch('/vision/api/vision/3d/recipes/',json.dumps({'id':recipe.pk,'layer_count':2}),content_type='application/json')
+        self.assertEqual(response.status_code,200,response.content)
+        recipe.refresh_from_db()
+        self.assertFalse(rack_rivet.recipe_summary(recipe)['template_ready'])
+        self.assertEqual(recipe.roi_config['cloud_center_reference'],ref)
+        detail=self.client.get(f'/vision/api/vision/3d/recipes/?id={recipe.pk}').json()['recipes'][0]
+        self.assertEqual(len(detail['rivet_template']['points']),3)

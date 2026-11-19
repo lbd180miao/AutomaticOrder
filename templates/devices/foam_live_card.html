@@ -1,0 +1,23 @@
+<article class="inspection-card" data-inspection="foam" id="device-foam-live" data-url="{% url 'vision:foam_stream_live' %}" data-control="{% url 'vision:foam_stream_control' %}">
+  <header class="foam-live-heading"><h2>2D 泡棉连续检测</h2><strong class="inspection-verdict" data-foam="verdict" hidden></strong></header>
+  <div class="inspection-picture foam-live-picture">
+    <img data-foam="image" hidden alt="2D 相机实时泡棉检测画面">
+    <span data-foam="empty">暂无相机画面</span>
+  </div>
+  <footer>
+    <details class="inspection-details" data-foam="details">
+    <summary>查看详情</summary>
+    <p data-foam="no-data">暂无检测数据</p>
+    <p class="foam-live-state" data-foam="connection" role="status"></p>
+    <div class="foam-live-sides" data-foam="sides" hidden><span>左侧 <strong data-foam="left">未确认</strong></span><span>右侧 <strong data-foam="right">未确认</strong></span></div>
+    <p data-foam="detail">连续采集、实时检测，不等待 PLC 触发。</p>
+    <small data-foam="metrics">暂无有效帧</small>
+    <small>DB2.DBX68.4 已停用 · 泡棉结果不回写 PLC</small>
+    <div class="foam-live-actions">
+      <a href="{% url 'vision:foam_inspector_interactive' %}" class="btn btn-secondary">连续检测工作台</a>
+      <button type="button" class="btn btn-secondary" data-foam="reset">开始新一轮检测</button>
+    </div>
+    <p data-foam="error" class="foam-live-error" role="alert" hidden></p>
+    </details>
+  </footer>
+</article>

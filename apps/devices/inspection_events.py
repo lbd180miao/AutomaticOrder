@@ -77,6 +77,15 @@ def communication_entries(events):
 
 def log_response(request):
     entries = []
+    from apps.vision.foam_ng_log import recent
+    try:
+        for created, raw in recent():
+            result = json.loads(raw)
+            sides = ', '.join(name for name, value in result.get('sides', {}).items() if value.get('state') == 'FALLEN')
+            entries.append((datetime.fromisoformat(created), 'ERROR', '2D 泡棉检测',
+                            f'NG 倒伏 · 帧 {result.get("frame_id")} · {sides}'))
+    except (sqlite3.Error, ValueError):
+        logging.getLogger(__name__).exception('读取泡棉 NG 日志失败')
     names = {'2d': '2D 泡棉检测', '3d': '3D 料框定位', 'rack': 'AGV 料框码',
              'mes': 'MES 通信', 'connection': '设备连接'}
     for row in PLCListenerLog.objects.order_by('-created_at', '-pk')[:300]:

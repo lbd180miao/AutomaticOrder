@@ -22,23 +22,16 @@ def _vision_readiness(recipe):
             'hand_eye_ready': False,
         }
     roi_config = recipe.roi_config or {}
-    from apps.vision.rack_cloud_roi import config_status
-    from apps.vision.rack_rivet import VERSION
-    roi_complete = ((roi_config.get('cloud_center_config') or {}).get('algorithm') == 'rivet'
-                    and config_status(roi_config.get('cloud_center_config'))['is_complete'])
-    reference = roi_config.get('cloud_center_reference') or {}
-    template_ready = (reference.get('version') == VERSION and reference.get('algorithm') == 'rivet'
-                      and bool(reference.get('relative_vectors')) and reference.get('config') == roi_config.get('cloud_center_config'))
+    from apps.vision.rack_rivet import recipe_summary
+    summary = recipe_summary(recipe)
+    roi_complete = summary['roi_complete']
+    template_ready = summary['template_ready']
     hand_eye_ready = bool(recipe.hand_eye_calibration_id or recipe.hand_eye_config)
-    issues = []
+    issues = list(summary['issues'])
     if not recipe.enabled:
         issues.append('3D定位配方已禁用')
     if recipe.layer_no not in (1, 2, 3):
         issues.append('当前3D定位算法仅支持第1～3层')
-    if not roi_complete:
-        issues.append('三个铆钉 ROI 未完成')
-    if not template_ready:
-        issues.append('铆钉标准模板未保存')
     if not hand_eye_ready:
         issues.append('未关联手眼标定')
     return {

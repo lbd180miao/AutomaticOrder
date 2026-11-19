@@ -43,7 +43,7 @@ def robot_point_difference(current, reference, context):
             raise ValueError('需要有效的相机坐标模板和当前测量结果')
         by_name = {p['name']: p for p in measurement['points']}
         result = np.asarray([by_name[name]['xyz'] for name in names], float)
-        if set(by_name) != set(names) or result.shape != (len(names), 3) or not np.isfinite(result).all() or not all(by_name[n].get('success') for n in names):
+        if len(measurement['points']) != len(names) or set(by_name) != set(names) or result.shape != (len(names), 3) or not np.isfinite(result).all() or not all(by_name[n].get('success') for n in names):
             raise ValueError('参考点坐标无效或与模板不一致')
         return result
 

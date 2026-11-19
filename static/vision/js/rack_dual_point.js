@@ -22,8 +22,8 @@
   let recipeReloadPending = false;
   const recipeId = () => String($('recipe-select')?.value || $('recipe-id')?.value || '');
   const single = () => $('dp-rack-layers').value === 'single';
-  const unloading = () => $('dp-rack-layers').value === 'unloading';
-  const pointNames = () => single() ? ['P1'] : unloading() ? ['P1', 'P3'] : ['P1', 'P2', 'P3'];
+  const twoLayer = () => $('dp-rack-layers').value === '2';
+  const pointNames = () => single() ? ['P1'] : twoLayer() ? ['P1', 'P3'] : ['P1', 'P2', 'P3'];
   const activeTargets = () => pointNames().map(name => name + "_rivet");
   const roi = () => state.config?.rois.find(r => r.target === targets[state.selected]);
   const status = text => { $('dp-status').textContent = text; };
@@ -49,6 +49,7 @@
     const item = document.createElement(header ? 'th' : 'td'); item.textContent = text; row.appendChild(item); return item;
   }
   function renderResults() {
+    $('dp-write-plc').disabled = single() || state.busy || state.capturing || state.dirty || state.redraw || !state.evaluation?.result_id || state.evaluation?.plc_publish_allowed !== true;
     $('dp-template-results').hidden = single();
     $('dp-single-results').hidden = false;
     {
@@ -65,7 +66,7 @@
         const coords = m.xyz_mm || m.candidate_xyz_mm;
         const estimated = !m.xyz_mm && !!coords;
         const row = document.createElement('tr');
-        [single() ? index + 1 : name, fmt(score, 1), fmt(radius_px, 1), m.valid_count + '/' + m.sample_count,
+        [single() ? index + 1 : name, fmt(score, 1), fmt(radius_px, 1), (m.valid_count ?? '—') + '/' + (m.sample_count ?? '—'),
           fmt(pixel[0], 2), fmt(pixel[1], 2), ...[0, 1, 2].map(i => fmt(coords?.[i]))]
           .forEach(value => cell(row, value));
         const statusCell = cell(row, m.xyz_mm
@@ -112,7 +113,7 @@
     panel.querySelectorAll('#dp-camera-results thead tr th:first-child').forEach(th => {th.textContent = '铆钉';});
     $('dp-empty').querySelector('small').textContent = '分别框选所选铆钉，保存参考状态模板';
     $('dp-rack-layers').disabled = state.busy || state.capturing || !!state.drag;
-    $('dp-mode-help').textContent = single() ? '在原图画一个 ROI，松开后显示铆钉中心的像素坐标和相机 XYZ。' : unloading() ? "分别框选横杆铆钉和固定参考点铆钉。松开后显示识别中心坐标。" : `分别框选 1 号上横杆、2 号下横杆、3 号固定铆钉。保存相对 3 号的标准向量，运行时输出两根横杆的相对偏差，不做整架平移补偿。修改 ROI 后需重新保存模板。`;
+    $('dp-mode-help').textContent = single() ? '在原图画一个 ROI，松开后显示铆钉中心的像素坐标和相机 XYZ。' : twoLayer() ? "分别框选横杆铆钉和固定参考点铆钉。松开后显示识别中心坐标。" : `分别框选 1 号上横杆、2 号下横杆、3 号固定铆钉。保存相对 3 号的标准向量，运行时输出两根横杆的相对偏差，不做整架平移补偿。修改 ROI 后需重新保存模板。`;
     $('dp-targets').querySelectorAll('button').forEach((button, index) => {
       button.hidden = !activeTargets().includes(targets[index]);
       button.textContent = (single() ? "框选铆钉" : labels[index]) + (state.config?.rois.some(r => r.target === targets[index]) ? ' ✓' : '');
@@ -323,9 +324,8 @@
     if (single()) {
       state.config = {...data.config, rois: []};
     } else {
-    state.config.rack_layers = data.config.rack_layers || (data.config.rois.length ? 3 : (unloading() ? 2 : Number($('dp-rack-layers').value)));
-    if (!data.config.rois.length && unloading()) state.config.rack_layout = 'unloading';
-    $('dp-rack-layers').value = state.config.rack_layout === 'unloading' ? 'unloading' : String(state.config.rack_layers);
+    state.config.rack_layers = data.config.rack_layers || (data.config.rois.length ? 3 : (twoLayer() ? 2 : Number($('dp-rack-layers').value)));
+    $('dp-rack-layers').value = state.config.rack_layout === 'unloading' ? '2' : String(state.config.rack_layers);
     }
     state.centerPreview = null;
     state.selected = 0; state.result = null; state.evaluation = null; state.teachToken = null; state.reference = data.reference;
@@ -380,6 +380,7 @@
     const revision = state.revision;
     const data = await request(panel.dataset.cloudMatchUrl, {...frameRequest(), ...state.prepared, config: state.config, coordinate_system: 'camera'});
     checkFrame(); if (revision !== state.revision) throw new Error('配置变化，请重新校验。');
+    state.centerPreview = null;
     state.result = data.result; state.evaluation = data; state.teachToken = data.teach_token; state.reference = data.reference;
     draw();
     status(data.is_success === false ? [data.failure_reason, ...(data.result.registration?.failure_reasons || [])].filter(Boolean).join("；") : data.result.registration
@@ -388,10 +389,21 @@
       : data.result.success ? ['相机坐标已计算，右侧显示与标准模板的差值。', ...(data.result.warnings || [])].join('\n') : `${data.result.errorCode}：${data.result.errorMessage}`);
 
   }));
+  $('dp-write-plc').addEventListener('click', () => action(async () => {
+    checkFrame();
+    const evaluation = state.evaluation;
+    if (state.dirty || state.redraw || !evaluation?.result_id || evaluation.plc_publish_allowed !== true) throw new Error('请先完成当前配方的有效检测。');
+    const data = await request('/vision/api/vision/3d/write-plc/', {result_id:evaluation.result_id});
+    const response = data.plc_response || data.data?.plc_response;
+    if (!response?.success) throw new Error(response?.error || 'PLC 回写未成功');
+    evaluation.plc_publish_allowed = false;
+    status('机器人坐标系差值已发送到 PLC，两组 XYZ 均已更新。');
+  }));
   $('dp-save-standard').addEventListener('click', () => action(async () => {
     checkFrame();
     const selectedRecipe = recipeId(), revision = state.revision;
     const data = await request(panel.dataset.cloudMatchUrl, {...frameRequest(), ...state.prepared, recipe_id: selectedRecipe, config: state.config, action: 'save_template'});
+    state.centerPreview = null;
     state.result = data.result; state.evaluation = data;
     checkFrame();
     if (revision !== state.revision || selectedRecipe !== recipeId()) return;
@@ -424,9 +436,9 @@
       return;
     }
     if (state.config) {
-      state.config.rack_layers = (unloading() ? 2 : Number($('dp-rack-layers').value));
-      if (unloading()) state.config.rack_layout = "unloading";
-      else delete state.config.rack_layout;
+      state.config.rack_layers = (twoLayer() ? 2 : Number($('dp-rack-layers').value));
+      // Preserve legacy two-layer layout metadata until the user changes layers.
+      if (!twoLayer()) delete state.config.rack_layout;
       state.config.rois = state.config.rois.filter(r => activeTargets().includes(r.target));
       edited();
       status('料架层数已修改，请完成框选并重新保存铆钉标准模板。');

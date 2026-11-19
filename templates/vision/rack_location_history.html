@@ -156,7 +156,7 @@
   </div>
   {% endwith %}
 
-  <p>A 为上横杆、B 为下横杆，单位 mm；NG 行数值仅供诊断。点击时间查看三个铆钉坐标及相对向量。</p>
+  <p>A 为上横杆、B 为下横杆，单位 mm；NG 行数值仅供诊断。点击时间查看铆钉坐标及相对向量。</p>
   <!-- 结果表 -->
   <div class="history-table-wrap">
     <div style="overflow-x:auto;">
@@ -202,7 +202,7 @@
                 <td>{{ r.result_data.robot_groups.B.translation_mm.y|floatformat:3 }}</td>
                 <td>{{ r.result_data.robot_groups.B.translation_mm.z|floatformat:3 }}</td>
               {% else %}<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>{% endif %}
-              <td>三铆钉相对定位</td>
+              <td>铆钉相对定位</td>
               <td>{% if r.is_success %}补偿有效{% else %}无有效补偿{% endif %}</td>
             {% else %}
               <td>{{ r.offset_x|floatformat:3 }}</td><td>{{ r.offset_y|floatformat:3 }}</td><td>{{ r.offset_z|floatformat:3 }}</td>

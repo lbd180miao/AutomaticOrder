@@ -21,7 +21,7 @@ def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record
     if reference and config != reference['config']:
         raise ValueError('ROI 已变化，请重新保存当前算法的点云标准模板')
     if config.get('algorithm') != 'rivet':
-        raise ValueError('料架定位已改为三铆钉算法，请重新框选并保存铆钉标准模板')
+        raise ValueError('料架定位已改为铆钉算法，请重新框选并保存铆钉标准模板')
     from .rack_rivet import match_template as match_rivets, VERSION as rivet_version
     if camera_image is None and token:
         from pathlib import Path
@@ -40,7 +40,8 @@ def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record
     quality = result.get('registration') or {}
     payload = {
         'algorithm': 'rivet', 'algorithm_version': rivet_version, 'source': 'cloud_match', 'result': result,
-        'reference': {'measurement': reference['measurement']}, 'robot_result': robot,
+        'reference': reference, 'robot_result': robot,
+        'recipe_config': config,
         'locate_ok': result['success'], 'is_success': result['success'],
         'error_code': result.get('errorCode', ''), 'error_message': result.get('errorMessage', ''),
         'confidence': float(quality.get('fitness', 0)), 'layer_no': int(layer_no),
@@ -75,6 +76,9 @@ def evaluate_cloud(recipe, cloud, metadata, *, layer_no=1, token='', save_record
                                      else 'COMPENSATION_INVALID')
     payload['plc_publish_allowed'] = payload['compensation_valid'] = allowed
     payload['plc_payload'].update(plc_publish_allowed=allowed, compensation_valid=allowed)
+    if allowed:
+        payload['plc_payload'].update({key: value for key, value in converted.items()
+                                       if key.startswith('compensation_')})
     for group in payload['robot_groups'].values():
         group['plc_publish_allowed'] = allowed
     timings = {'registration_ms': round((matched - started) * 1000, 1),

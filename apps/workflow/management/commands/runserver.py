@@ -7,6 +7,8 @@ class Command(StaticfilesRunserver):
         super().on_bind(server_port)
         from apps.workflow.listener import start_listener
         start_listener()
+        from apps.vision.foam_live import start_automatic
+        start_automatic()
         from apps.devices.health import start_monitor
         start_monitor()
 
@@ -18,3 +20,5 @@ class Command(StaticfilesRunserver):
             from apps.devices.health import stop_monitor
             stop_monitor()
             stop_listener()
+            from apps.vision.foam_live import runtime as foam_runtime
+            foam_runtime.stop()

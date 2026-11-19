@@ -16,7 +16,7 @@ class DebugBusy(RuntimeError):
 
 
 def active(state):
-    return (state.get('expires', 0) > time.time()
+    return (state.get('foam_manual', False) or state.get('expires', 0) > time.time()
             or any(active(session) for session in state.get('sessions', {}).values()))
 
 
@@ -65,6 +65,8 @@ def ownership(mode=None, *, scan=False, stopping=False):
                         state['_scan_finished_at'] = time.monotonic()
                         save()
             else:
+                if state.get('foam_manual') and not stopping:
+                    raise ValueError('2D 手动连续调试中，请先退出调试并恢复自动')
                 # Preserve leases created before the two-channel format was introduced.
                 if 'sessions' not in state:
                     previous = dict(state)
@@ -173,10 +175,10 @@ def step(state, plc, capture, save=lambda: None):
     save()
 
 
-def capture_position(recipe_id, layer_no, *, on_captured=None, captured_payload=None, is_production=False):
+def capture_position(recipe_id, layer_no, *, on_captured=None, captured_payload=None, is_production=False, task=None):
     from apps.vision.models import VisionTask
     from django.utils import timezone
-    task = VisionTask.objects.create(task_type='RACK_LOCATING', status='RUNNING',
+    task = task or VisionTask.objects.create(task_type='RACK_LOCATING', status='RUNNING',
                                      started_at=timezone.now(), is_production=is_production)
     try:
         result = _capture_position(recipe_id, layer_no, on_captured=on_captured, task=task, captured_payload=captured_payload)
@@ -299,8 +301,21 @@ def dual_group_position(result, recipe):
             raise ValueError('缺少机器人坐标转换结果，请检查手眼标定')
         groups = result.get('robot_groups') or {}
         config = (getattr(recipe, 'roi_config', {}) or {}).get('cloud_center_config') or {}
+        if result.get('algorithm') == 'rivet':
+            from apps.vision.rack_cloud_roi import required_targets
+            from apps.vision.rack_rivet import recipe_summary
+            summary = recipe_summary(recipe)
+            if not summary['ready']:
+                raise ValueError('；'.join(summary['issues']))
+            reference = (recipe.roi_config or {}).get('cloud_center_reference')
+            if result.get('recipe_config') != config or result.get('reference') != reference:
+                raise ValueError('配方 ROI 或铆钉模板已变化，请重新检测后发送差值')
+            measured = result.get('result') or {}
+            names = [target.split('_')[0] for target in required_targets(config)]
+            if not measured.get('success') or [p.get('name') for p in measured.get('points', [])] != names:
+                raise ValueError('铆钉测量点与所选料架不一致')
         layers = config.get('rack_layers', getattr(recipe, 'layer_count', 3 if 'B' in groups else 2))
-        if config.get('algorithm') == 'rivet' and config.get('rack_layout') != 'unloading':
+        if config.get('algorithm') == 'rivet' and config.get('rack_layers', 3) != 2:
             layers = 3  # Legacy templates measure both crossbars.
         if layers not in (2, 3):
             layers = 3 if 'B' in groups else 2

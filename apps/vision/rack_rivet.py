@@ -32,7 +32,7 @@ def measure(cloud, image, config, metadata, *, preview_target=None):
     if image is None or image.shape[:2] != data.shape[:2]:
         raise ValueError('铆钉定位需要同帧、逐像素对齐的二维原图和有序点云')
     if config.get('algorithm') != 'rivet' or config.get('imageSize') != [data.shape[1], data.shape[0]]:
-        raise ValueError('请重新框选三个铆钉并保存铆钉模板')
+        raise ValueError('请按料架层数重新框选铆钉并保存模板')
     rois = config.get('rois', [])
     targets = required_targets(config)
     if preview_target in targets:
@@ -57,7 +57,8 @@ def measure(cloud, image, config, metadata, *, preview_target=None):
             error = '存在多个相近候选，请缩小 ROI'
         else:
             measurement = measure_with_fallback(data, hits[0])
-            if measurement.get('xyz_mm') is None:
+            coords = np.asarray(measurement.get('xyz_mm'), dtype=float)
+            if coords.shape != (3,) or not np.isfinite(coords).all():
                 error = '三维取点未通过：' + measurement['status']
         pixel = [hits[0]['u'], hits[0]['v']] if hits else None
         if pixel and any(p and np.linalg.norm(np.asarray(pixel)-p) < 4 for p in pixels):
@@ -66,7 +67,11 @@ def measure(cloud, image, config, metadata, *, preview_target=None):
         if error:
             errors.append(f'{index} 号铆钉：{error}')
         points.append({'name': f'P{index}', 'success': not error,
-                       'xyz': measurement.get('xyz_mm') if measurement and not error else None})
+                       'xyz': measurement.get('xyz_mm') if measurement and not error else None,
+                       'pixel': pixel, 'score': hits[0].get('score') if hits else None,
+                       'valid_count': (measurement or {}).get('valid_count'),
+                       'sample_count': (measurement or {}).get('sample_count'),
+                       'status': error or (measurement or {}).get('status', 'NO_DETECTION')})
         detections.append({'name': f'P{index}', 'candidates': hits, 'counts': counts,
                            'measurement': measurement, 'error': error})
     result = {'success': not errors, 'coordinateSystem': 'camera', 'unit': 'mm',
@@ -81,17 +86,59 @@ def measure(cloud, image, config, metadata, *, preview_target=None):
 
 
 def build_template(cloud, config, metadata, image):
+    from django.utils import timezone
     result = measure(cloud, image, config, metadata)
     if not result['success']:
         raise ValueError(result['errorMessage'])
     return {'version': VERSION, 'algorithm': 'rivet', 'config': copy.deepcopy(config),
+            'taught_at': timezone.now().isoformat(), 'reference_point': 'P3',
+            'coordinate_system': 'camera', 'unit': 'mm',
             'shape': list(cloud.shape), 'sensor_id': sensor_id(metadata),
             'measurement': result, 'relative_vectors': result['relative_vectors']}
 
 
+def _recipe_summary(recipe):
+    """One representation for the library, readiness checks and PLC snapshots."""
+    from .rack_cloud_roi import config_status
+    saved = recipe.roi_config or {}
+    config = saved.get('cloud_center_config') or {}
+    reference = saved.get('cloud_center_reference') or {}
+    measurement = reference.get('measurement') or {}
+    issues = []
+    targets = required_targets(config) if config.get('algorithm') == 'rivet' else ()
+    roi_ready = bool(targets) and config_status(config)['is_complete']
+    if not roi_ready:
+        issues.append('请在 3D 工作台完成铆钉 ROI')
+    expected = [target.split('_')[0] for target in targets]
+    points = measurement.get('points') or []
+    vectors = np.asarray(reference.get('relative_vectors') or [], dtype=float)
+    valid_points = (measurement.get('success') is True and measurement.get('coordinateSystem') == 'camera'
+                    and measurement.get('unit') == 'mm' and [p.get('name') for p in points] == expected
+                    and all(p.get('success') and np.asarray(p.get('xyz')).shape == (3,)
+                            and np.isfinite(np.asarray(p['xyz'], float)).all() for p in points))
+    template_ready = (bool(targets) and reference.get('version') == VERSION and reference.get('algorithm') == 'rivet'
+                      and reference.get('config') == config and valid_points
+                      and vectors.shape == (len(targets)-1, 3) and np.isfinite(vectors).all())
+    if template_ready:
+        xyz = np.asarray([p['xyz'] for p in points], float)
+        template_ready = bool(np.allclose(vectors, xyz[:-1]-xyz[-1], atol=1e-6))
+    if not template_ready:
+        issues.append('铆钉模板缺失或与 ROI 不一致，请重新示教')
+    if config.get('rack_layers', getattr(recipe, 'layer_count', config.get('rack_layers', 3))) != getattr(recipe, 'layer_count', config.get('rack_layers', 3)):
+        issues.append('配方层数与铆钉模板层数不一致')
+    return {'algorithm': 'rivet', 'version': reference.get('version'), 'roi_complete': roi_ready,
+            'template_ready': bool(template_ready), 'ready': not issues, 'issues': issues,
+            'rack_layers': config.get('rack_layers', getattr(recipe, 'layer_count', config.get('rack_layers', 3))),
+            'rack_layout': config.get('rack_layout', 'standard'), 'reference_point': 'P3',
+            'image_size': config.get('imageSize'), 'rois': config.get('rois') or [],
+            'points': points, 'relative_vectors': reference.get('relative_vectors') or [],
+            'taught_at': reference.get('taught_at'), 'sensor_id': reference.get('sensor_id'),
+            'robot_transform_context': measurement.get('robot_transform_context')}
+
+
 def match_template(cloud, metadata, reference, image):
     if not reference or reference.get('version') != VERSION:
-        raise ValueError('请先保存三铆钉标准模板；旧点云模板不能用于铆钉补偿')
+        raise ValueError('请先保存铆钉标准模板；旧点云模板不能用于铆钉补偿')
     if list(cloud.shape) != reference['shape']:
         raise ValueError('当前点云尺寸与铆钉模板不一致')
     if reference.get('sensor_id') and sensor_id(metadata) != reference['sensor_id']:
@@ -101,3 +148,28 @@ def match_template(cloud, metadata, reference, image):
         result['relative_delta_camera_mm'] = (np.asarray(result['relative_vectors']) -
             np.asarray(reference['relative_vectors'])).tolist()
     return result
+
+
+def recipe_summary(recipe):
+    try:
+        return _recipe_summary(recipe)
+    except (ValueError, TypeError, KeyError, AttributeError, OverflowError):
+        return {'algorithm': 'rivet', 'roi_complete': False, 'template_ready': False,
+                'ready': False, 'issues': ['铆钉配方数据格式无效，请重新框选并保存标准模板'],
+                'points': [], 'rois': [], 'relative_vectors': []}
+
+
+def sync_recipe_layers(recipe):
+    """Changing rack metadata must not leave a template silently usable."""
+    if recipe.layer_count not in (2, 3):
+        raise ValueError('料架层数必须为 2 或 3')
+    if not 1 <= recipe.layer_no <= recipe.layer_count:
+        raise ValueError('检测层号必须在料架层数范围内')
+    saved = copy.deepcopy(recipe.roi_config or {})
+    config = saved.get('cloud_center_config') or {}
+    if config.get('algorithm') == 'rivet' and config.get('rack_layers', 3) != recipe.layer_count:
+        config['rack_layers'] = recipe.layer_count
+        if recipe.layer_count == 3:
+            config.pop('rack_layout', None)
+        saved['cloud_center_config'] = config
+        recipe.roi_config = saved

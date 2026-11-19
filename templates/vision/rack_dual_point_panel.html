@@ -9,12 +9,12 @@
     <label for="dp-rack-layers">识别模式：</label>
     <select id="dp-rack-layers" aria-label="识别模式">
       <option value="3">三层料架 · 三个铆钉</option>
-      <option value="unloading">两层下料框 · 横杆和参考点两个铆钉</option>
+      <option value="2">两层料架 · 横杆与参考点（两个铆钉）</option>
       <option value="single">单铆钉中心取点 · 直接画 ROI</option>
-      <option hidden value="2">历史配置 · 两层料架 · 三个铆钉</option>
     </select>
     <div id="dp-targets" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
     <button type="button" id="dp-save-recipe" class="btn btn-success" disabled>保存配方</button>
+    <button type="button" id="dp-write-plc" class="btn btn-secondary" disabled>发送差值到 PLC</button>
     <span id="dp-draft-status" role="status"></span>
   </div>
 
@@ -46,7 +46,7 @@
       <div class="dp-image-scroll">
         <div id="dp-empty">
           先采集点云，再点击「开始计算」
-          <small>分别框选三个铆钉，保存参考状态模板</small>
+          <small>按料架层数框选横杆及参考铆钉，保存标准模板</small>
         </div>
         <canvas id="dp-canvas" hidden style="display:none;width:100%;max-width:none;touch-action:none;cursor:crosshair;"></canvas>
       </div>

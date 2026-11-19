@@ -1,7 +1,7 @@
 """Snapshot-based routing for two alternating racks; input bits are PLC-owned."""
 from django.utils import timezone
 
-TRIGGERS = ('position_trigger', 'foam_trigger', 'boxing_trigger',
+TRIGGERS = ('position_trigger', 'boxing_trigger',
             'boxing_trigger_2', 'rack_working', 'rack_working_2')
 
 
